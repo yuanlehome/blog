@@ -8,7 +8,8 @@ import yaml from '@rollup/plugin-yaml';
 // https://astro.build/config
 export default defineConfig({
   site: 'https://yuanlehome.github.io/blog/',
-  base: '/blog',
+  base: process.env.NODE_ENV === 'production' ? '/blog' : '/',
+  trailingSlash: 'always',
   integrations: [tailwind(), sitemap()],
   vite: {
     plugins: [yaml()]
