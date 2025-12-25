@@ -35,13 +35,13 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
     </div>
     <p class="text-sm text-gray-500 mb-6">Found <span id="results-count">{posts.length}</span> posts</p>
     <ul class="space-y-8" id="post-list">
-      {posts.map((post, index) => (
+      {posts.map((post) => (
         <li
           class="border-b border-gray-200 dark:border-gray-800 pb-8 last:border-0"
           data-post
-          data-index={index}
           data-title={post.data.title.toLowerCase()}
           data-tags={post.data.tags.join(' ').toLowerCase()}
+          data-content={post.body}
         >
           <a href={`${BASE}${post.slug}/`} class="group block">
             {post.data.cover && (
@@ -75,33 +75,11 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
   <Footer />
 </Layout>
 
-<script id="post-data" type="application/json">
-  {JSON.stringify(
-    posts.map((post, index) => ({
-      index,
-      content: post.body,
-    }))
-  )}
-</script>
-
 <script>
   const searchInput = document.getElementById('post-search');
   const postItems = Array.from(document.querySelectorAll('[data-post]'));
   const counter = document.getElementById('results-count');
   const emptyState = document.getElementById('no-results');
-
-  const contentMap = (() => {
-    const dataEl = document.getElementById('post-data');
-    if (!dataEl) return {};
-
-    try {
-      const parsed = JSON.parse(dataEl.textContent || '[]');
-      return Object.fromEntries(parsed.map(({ index, content }) => [index.toString(), content]));
-    } catch (error) {
-      console.error('Failed to parse post data', error);
-      return {};
-    }
-  })();
 
   const EXCERPT_LENGTH = 160;
   const EXCERPT_PADDING = 40;
@@ -196,13 +174,12 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
     const excerptEl = item.querySelector('[data-excerpt]');
     if (!excerptEl) return;
 
-    const content = contentMap[item.dataset.index ?? ''] ?? '';
-
     if (!query.trim()) {
       excerptEl.innerHTML = '';
       return;
     }
 
+    const content = item.dataset.content ?? '';
     excerptEl.innerHTML = buildExcerpt(content, query);
   };
 
@@ -211,8 +188,7 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
     let visibleCount = 0;
 
     postItems.forEach((item) => {
-      const content = contentMap[item.dataset.index ?? ''] ?? '';
-      const text = `${item.dataset.title ?? ''} ${item.dataset.tags ?? ''} ${content}`.toLowerCase();
+      const text = `${item.dataset.title ?? ''} ${item.dataset.tags ?? ''} ${item.dataset.content ?? ''}`.toLowerCase();
       const matches = !term || text.includes(term);
       item.classList.toggle('hidden', !matches);
       if (matches) {
