@@ -1,0 +1,46 @@
+---
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
+interface Props {
+  headings: Heading[];
+}
+
+const headings = Astro.props.headings
+  .filter((heading) => heading.depth <= 3)
+  .map((heading) => ({
+    ...heading,
+    indentClass: heading.depth === 3 ? 'pl-3' : '',
+  }));
+---
+
+<aside class="hidden lg:block w-64 shrink-0">
+  <div class="sticky top-24 space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-800/40">
+    <div>
+      <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">文章目录</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400">快速跳转到你关心的章节</p>
+    </div>
+    {headings.length === 0 ? (
+      <p class="text-sm text-gray-500 dark:text-gray-400">本文暂无目录。</p>
+    ) : (
+      <nav aria-label="文章目录">
+        <ol class="space-y-2 text-sm">
+          {headings.map((heading) => (
+            <li>
+              <a
+                href={`#${heading.slug}`}
+                class={`flex items-start gap-2 text-gray-700 underline-offset-2 transition hover:text-blue-600 dark:text-gray-200 dark:hover:text-blue-400 ${heading.indentClass}`}
+              >
+                <span class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">#</span>
+                <span>{heading.text}</span>
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
+    )}
+  </div>
+</aside>
