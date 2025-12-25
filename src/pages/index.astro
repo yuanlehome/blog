@@ -12,6 +12,7 @@ const posts = (await getCollection('blog'))
       ...post,
       stats: getReadingTime(post.body)
   }));
+const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
 ---
 
 <Layout title="My Blog">
@@ -21,7 +22,7 @@ const posts = (await getCollection('blog'))
 		<ul class="space-y-8">
 			{posts.map((post) => (
 				<li class="border-b border-gray-200 dark:border-gray-800 pb-8 last:border-0">
-					<a href={`/blog/${post.slug}/`} class="group block">
+					<a href={`${BASE}${post.slug}/`} class="group block">
                         {post.data.cover && (
                             <img src={post.data.cover} alt={post.data.title} class="w-full h-48 object-cover rounded-lg mb-4" />
                         )}

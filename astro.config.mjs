@@ -7,7 +7,8 @@ import yaml from '@rollup/plugin-yaml';
 
 // https://astro.build/config
 export default defineConfig({
-  site: 'https://your-domain.com', // Replace with user's domain later
+  site: 'https://yuanlehome.github.io/blog/',
+  base: '/blog',
   integrations: [tailwind(), sitemap()],
   vite: {
     plugins: [yaml()]

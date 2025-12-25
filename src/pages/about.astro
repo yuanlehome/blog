@@ -5,6 +5,7 @@ import Footer from '../components/Footer.astro';
 import aboutData from '../data/about.yml';
 
 const { name, bio, socialLinks, whatIDo, techStack, journey } = aboutData;
+const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
 ---
 
 <Layout title={`About ${name} - My Blog`}>
@@ -14,7 +15,7 @@ const { name, bio, socialLinks, whatIDo, techStack, journey } = aboutData;
             <div class="w-48 h-48 md:w-64 md:h-64 flex-shrink-0 relative">
                 <div class="absolute inset-0 bg-blue-100 dark:bg-blue-900 rounded-full blur-2xl opacity-50 animate-pulse"></div>
                 <img 
-                    src="/placeholder-social.jpg" 
+                    src={`${BASE}placeholder-social.jpg`} 
                     alt="Profile" 
                     class="relative w-full h-full object-cover rounded-full border-4 border-white dark:border-gray-800 shadow-xl"
                 />
