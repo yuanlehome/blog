@@ -3,10 +3,15 @@ import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { getCollection } from 'astro:content';
+import { getReadingTime } from '../utils/readingTime';
 
 const posts = (await getCollection('blog'))
   .filter((post) => post.data.status === 'published')
-  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf())
+  .map(post => ({
+      ...post,
+      stats: getReadingTime(post.body)
+  }));
 ---
 
 <Layout title="My Blog">
@@ -23,15 +28,22 @@ const posts = (await getCollection('blog'))
 						<h3 class="text-xl font-semibold group-hover:text-blue-600 dark:group-hover:text-blue-400 mb-2">
 							{post.data.title}
 						</h3>
-                        <div class="text-sm text-gray-500 mb-2">
-                            {post.data.date.toLocaleDateString()}
+                        <div class="text-sm text-gray-500 mb-2 flex items-center gap-3">
+                            <span class="flex items-center gap-1">
+                                📅 {post.data.date.toLocaleDateString()}
+                            </span>
+                            <span class="flex items-center gap-1" title={`${post.stats.wordCount} words`}>
+                                ⏱️ {post.stats.text}
+                            </span>
                             {post.data.tags.length > 0 && (
-                                <span class="ml-2">
-                                    {post.data.tags.map(t => `#${t}`).join(' ')}
+                                <span class="ml-auto flex gap-2">
+                                    {post.data.tags.map(t => (
+                                        <span class="bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">#{t}</span>
+                                    ))}
                                 </span>
                             )}
                         </div>
-						<p class="text-gray-600 dark:text-gray-400">
+						<p class="text-gray-600 dark:text-gray-400 line-clamp-2">
                            {post.data.excerpt}
                         </p>
 					</a>

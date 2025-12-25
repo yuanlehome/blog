@@ -3,6 +3,7 @@ import { getCollection } from 'astro:content';
 import Layout from '../../layouts/Layout.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
+import { getReadingTime } from '../../utils/readingTime';
 
 export async function getStaticPaths() {
   const posts = await getCollection('blog');
@@ -14,6 +15,7 @@ export async function getStaticPaths() {
 
 const post = Astro.props;
 const { Content } = await post.render();
+const stats = getReadingTime(post.body);
 ---
 
 <Layout title={post.data.title} description={post.data.excerpt} image={post.data.cover}>
@@ -25,10 +27,22 @@ const { Content } = await post.render();
                     <img src={post.data.cover} alt={post.data.title} class="w-full h-64 object-cover rounded-xl mb-6" />
                 )}
                 <h1 class="text-3xl md:text-4xl font-bold mb-4">{post.data.title}</h1>
-                <div class="text-gray-500 text-sm">
-                    <time>{post.data.date.toLocaleDateString()}</time>
-                    <span class="mx-2">•</span>
-                    <span>{post.data.tags.join(', ')}</span>
+                <div class="text-gray-500 text-sm flex items-center gap-4 flex-wrap">
+                    <time class="flex items-center gap-1">
+                        <span>📅</span>
+                        {post.data.date.toLocaleDateString()}
+                    </time>
+                    <div class="flex items-center gap-1" title={`${stats.wordCount} words`}>
+                        <span>⏱️</span>
+                        {stats.text}
+                    </div>
+                    {post.data.tags.length > 0 && (
+                        <div class="flex gap-2">
+                             {post.data.tags.map(tag => (
+                                <span class="bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">#{tag}</span>
+                             ))}
+                        </div>
+                    )}
                 </div>
             </header>
             
