@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
-    "build": "astro build",
+    "build": "npm run search:index && astro build",
     "preview": "astro preview",
     "notion:sync": "tsx scripts/notion-sync.ts && tsx scripts/fix-math.ts src/content/blog/notion",
+    "search:index": "tsx scripts/build-search-index.ts",
     "format": "npx --yes prettier@3.7.4 --write \"{scripts,src}/**/*.{ts,tsx,js,jsx}\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

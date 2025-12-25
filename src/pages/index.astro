@@ -22,26 +22,21 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
   <main class="container mx-auto px-4 py-8 max-w-4xl">
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
       <h2 class="text-2xl font-bold">Recent Posts</h2>
-      <label class="relative block w-full sm:w-64">
-        <span class="sr-only">Search posts</span>
-        <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
-        <input
-          id="post-search"
-          type="search"
-          placeholder="Search posts..."
-          class="w-full rounded-lg border border-gray-200 bg-white/50 px-10 py-2 text-sm shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-gray-700 dark:bg-gray-800/70 dark:focus:border-blue-400 dark:focus:ring-blue-700"
-        />
-      </label>
+      <div class="flex gap-2 items-center">
+        <button
+          data-search-trigger
+          class="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white/70 px-3 py-2 text-sm shadow-sm transition hover:-translate-y-px hover:border-blue-400 hover:text-blue-700 hover:shadow-md dark:border-gray-700 dark:bg-gray-800/80 dark:hover:border-blue-500 dark:hover:text-blue-300"
+        >
+          🔍 Open search
+        </button>
+        <span class="hidden text-xs text-gray-500 sm:inline dark:text-gray-400">Press Ctrl/Cmd + K</span>
+      </div>
     </div>
-    <p class="text-sm text-gray-500 mb-6">Found <span id="results-count">{posts.length}</span> posts</p>
+    <p class="text-sm text-gray-500 mb-6">Published posts: {posts.length}</p>
     <ul class="space-y-8" id="post-list">
       {posts.map((post) => (
         <li
           class="border-b border-gray-200 dark:border-gray-800 pb-8 last:border-0"
-          data-post
-          data-title={post.data.title.toLowerCase()}
-          data-tags={post.data.tags.join(' ').toLowerCase()}
-          data-content={post.body}
         >
           <a href={`${BASE}${post.slug}/`} class="group block">
             {post.data.cover && (
@@ -69,34 +64,6 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
         </li>
       ))}
     </ul>
-    <p id="no-results" class="hidden text-center text-gray-500 dark:text-gray-400">No posts match your search.</p>
   </main>
   <Footer />
 </Layout>
-
-<script>
-  const searchInput = document.getElementById('post-search');
-  const postItems = Array.from(document.querySelectorAll('[data-post]'));
-  const counter = document.getElementById('results-count');
-  const emptyState = document.getElementById('no-results');
-
-  const filterPosts = (query) => {
-    const term = query.trim().toLowerCase();
-    let visibleCount = 0;
-
-    postItems.forEach((item) => {
-      const text = `${item.dataset.title ?? ''} ${item.dataset.tags ?? ''} ${item.dataset.content ?? ''}`.toLowerCase();
-      const matches = !term || text.includes(term);
-      item.classList.toggle('hidden', !matches);
-      if (matches) visibleCount += 1;
-    });
-
-    if (counter) counter.textContent = visibleCount.toString();
-    if (emptyState) emptyState.classList.toggle('hidden', visibleCount !== 0);
-  };
-
-  filterPosts(searchInput?.value || '');
-  searchInput?.addEventListener('input', (event) => {
-    filterPosts(event.target.value || '');
-  });
-</script>
