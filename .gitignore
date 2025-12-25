@@ -2,7 +2,6 @@
 dist/
 server/
 .astro/data-store.json
-public/search/
 
 # dependencies
 node_modules/

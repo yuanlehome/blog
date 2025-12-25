@@ -6,7 +6,6 @@
 - **双写作模式**：Notion 数据库与本地 Markdown 并行，满足不同习惯。
 - **自动同步**：通过脚本或 GitHub Actions 定期同步 Notion 内容并修正公式格式。
 - **数学公式**：内置 KaTeX，支持行内与块级公式。
-- **专业搜索**：构建期生成全文索引（按段落拆分、标题上下文、标签与日期字段），前端懒加载、支持 Cmd/Ctrl+K 快捷唤起与结果高亮。
 - **现代前端**：基于 Astro + Tailwind，生成快速、可扩展的静态站点。
 - **可部署性**：适配主流静态托管，提供 RSS、Sitemap 等 SEO 基础能力。
 
@@ -95,12 +94,6 @@ npx tsx scripts/fix-math.ts src/content/blog/local/my-post.md
 │   └── layouts/          # 基础页面布局
 ```
 
-## 🔎 搜索与索引
-- 构建期运行 `npm run search:index`，将每篇文章拆分为多个段落文档，docId 形如 `slug#pN`（保留标题、层级小标题、标签与日期字段）。
-- 生成的 `public/search/index.json`（索引）与 `public/search/metadata.json`（元数据）在 GitHub Pages 部署前自动生成并被懒加载，首次唤起搜索时才下载。
-- 前端支持 Cmd/Ctrl+K 快捷键打开搜索弹窗、输入实时返回结果，并对标题与段落片段进行命中高亮，同时显示所属小标题。
-- 索引大小：当前内容约 1.9 MB（index）+ 0.4 MB（metadata）；可随内容增长调整字段或压缩策略。
-
 ## 🔧 常用命令
 
 | 命令 | 说明 |
@@ -109,7 +102,6 @@ npx tsx scripts/fix-math.ts src/content/blog/local/my-post.md
 | `npm run build` | 生成生产构建 |
 | `npm run preview` | 预览生产构建 |
 | `npm run notion:sync` | 拉取 Notion 文章、下载图片并修复公式 |
-| `npm run search:index` | 构建全文搜索索引与元数据（被 `npm run build` 自动调用） |
 | `npm run format` | 使用 Prettier 格式化 `scripts/` 与 `src/` 代码 |
 
 ## 🤝 贡献指南
