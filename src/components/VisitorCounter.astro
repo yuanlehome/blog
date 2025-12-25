@@ -1,0 +1,50 @@
+---
+interface Props {
+  storageKey?: string;
+  label?: string;
+}
+
+const storageKey = Astro.props.storageKey ?? 'blog-visitor-count';
+const label = Astro.props.label ?? '访客统计：';
+---
+
+<div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300" data-visitor-container>
+  <span aria-hidden="true">👀</span>
+  <span>{label}</span>
+  <strong data-visitor-count class="tabular-nums">--</strong>
+</div>
+
+<script is:inline data-storage-key={storageKey}>
+  (() => {
+    const scriptEl = document.currentScript;
+    const storageKey = scriptEl?.dataset.storageKey ?? 'blog-visitor-count';
+    const sessionKey = `${storageKey}-session`;
+
+    const updateText = (value) => {
+      const target = document.querySelector('[data-visitor-count]');
+      if (target) {
+        target.textContent = value;
+      }
+    };
+
+    try {
+      const hasCounted = sessionStorage.getItem(sessionKey);
+      let total = Number.parseInt(localStorage.getItem(storageKey) ?? '0', 10);
+
+      if (!Number.isFinite(total)) {
+        total = 0;
+      }
+
+      if (!hasCounted) {
+        total += 1;
+        sessionStorage.setItem(sessionKey, '1');
+        localStorage.setItem(storageKey, total.toString());
+      }
+
+      updateText(total.toLocaleString());
+    } catch (error) {
+      console.error('无法读取访客计数器存储', error);
+      updateText('N/A');
+    }
+  })();
+</script>
