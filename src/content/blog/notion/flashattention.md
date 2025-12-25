@@ -97,7 +97,7 @@ $\mathrm{softmax}(S_i)_t = \frac{e^{S_{it}}}{\sum_{u} e^{S_{iu}}}$
 FlashAttention 的做法是：为每个 query 行维护两类 **可增量合并** 的稳定统计量：
 
 - $m_i$：到目前为止见过的 logits 的**运行最大值**（running max）
-- $\ell_i$：到目前为止见过的 logits 的**稳定指数和**（running exp-sum），也可以理解为 ⁡$\exp$ 空间的分母，但总是以 $(\cdot - m_i)$ 的形式存储
+- $\ell_i$：到目前为止见过的 logits 的**稳定指数和**（running exp-sum），也可以理解为 $\exp$ 空间的分母，但总是以 $(\cdot - m_i)$ 的形式存储
 
 这对应经典 log-sum-exp（LSE）稳定形式：
 

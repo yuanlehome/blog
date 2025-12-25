@@ -57,7 +57,7 @@ $$
 工程实现常写成统一模板：
 
 
-$⁡x_{\text{rot}} = x \cdot \cos + \text{rotate\_half}(x)\cdot \sin$
+$x_{\text{rot}} = x \cdot \cos + \text{rotate\_half}(x)\cdot \sin$
 
 
 关键：
@@ -102,7 +102,7 @@ $⁡x_{\text{rot}} = x \cdot \cos + \text{rotate\_half}(x)\cdot \sin$
 ## 四、最容易踩坑的点：cos/sin 怎么“铺满到 D 维”
 
 
-先算基础的 ⁡$\cos,\sin$（每对一个频率），它们天然是长度 $D/2$ 的向量：
+先算基础的 $\cos,\sin$（每对一个频率），它们天然是长度 $D/2$ 的向量：
 
 - `cos_base = [c0 c1 c2 c3]`
 - `sin_base = [s0 s1 s2 s3]`
