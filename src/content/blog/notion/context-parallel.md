@@ -51,7 +51,7 @@ CP 在工程上可以呈现为不同阶段/通信模式的实例：例如 **DCP*
 大语言模型的核心是**自注意力机制（Self-Attention）**。在 Transformer 的每一层中，输入序列的隐藏表示会通过线性变换生成查询、键、值张量（**Query**、**Key**、**Value**，简称 **Q**、**K**、**V**）。然后计算注意力分数矩阵：每个查询向量与所有键向量点积，得到对应的相关性分数。简化公式如下：
 
 
-$Score(i, j) = Qi ⋅ K_j^T,$
+$Score(i, j) = Qi ⋅ K_j^T,$
 
 
 其中 $Q_i$ 是第 $i$ 个查询向量，$K_j$ 是第 $j$ 个键向量。将分数除以 $\sqrt{d}$（$d$ 为每个头的维度）进行缩放后，对每一行应用 Softmax 得到注意力权重矩阵 **Attention Weight**。再利用权重对值向量加权求和，得到注意力输出：
@@ -537,7 +537,7 @@ $$
     [https://arxiv.org/html/2406.01566v2](https://arxiv.org/html/2406.01566v2)
 
 
- 4. Context_Parallelism_Presentation
+ 4. Context_Parallelism_Presentation
 
 
     [https://mlsys.org/media/mlsys-2025/Slides/3255.pdf](https://mlsys.org/media/mlsys-2025/Slides/3255.pdf)

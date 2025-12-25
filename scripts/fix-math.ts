@@ -44,11 +44,42 @@ function processDirectory(dirPath: string) {
 // 2. In text parts, look for `$` ... `$` pairs.
 // 3. If a pair contains `\n` OR `\begin{`, promote it to `$$`.
 
-function fixMath(text: string): string {
+function normalizeInvisibleCharacters(text: string): string {
+  const replacements: Record<string, string> = {
+    // Spaces and special widths
+    '\u00a0': ' ', // non-breaking space
+    '\u2000': ' ', // en quad
+    '\u2001': ' ', // em quad
+    '\u2002': ' ', // en space
+    '\u2003': ' ', // em space
+    '\u2004': ' ', // three-per-em space
+    '\u2005': ' ', // four-per-em space
+    '\u2006': ' ', // six-per-em space
+    '\u2007': ' ', // figure space
+    '\u2008': ' ', // punctuation space
+    '\u2009': ' ', // thin space
+    '\u200a': ' ', // hair space
+    // Invisible glyphs that should be removed entirely
+    '\u2061': '', // function application
+  };
+
+  let normalized = text;
+
+  for (const [char, replacement] of Object.entries(replacements)) {
+    if (normalized.includes(char)) {
+      normalized = normalized.split(char).join(replacement);
+    }
+  }
+
+  return normalized;
+}
+
+function fixMath(originalText: string): string {
+  const text = normalizeInvisibleCharacters(originalText);
   const tokens: { type: 'text' | 'inline' | 'block'; content: string; raw: string }[] = [];
   let buffer = '';
   let i = 0;
-  
+
   while (i < text.length) {
     const char = text[i];
     const next = text[i + 1];
