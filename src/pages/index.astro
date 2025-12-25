@@ -129,6 +129,11 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
     const excerptEl = item.querySelector('[data-excerpt]');
     if (!excerptEl) return;
 
+    if (!query.trim()) {
+      excerptEl.innerHTML = '';
+      return;
+    }
+
     const content = item.dataset.content ?? '';
     excerptEl.innerHTML = buildExcerpt(content, query);
   };
