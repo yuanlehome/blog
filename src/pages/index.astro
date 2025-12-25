@@ -1,0 +1,43 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { getCollection } from 'astro:content';
+
+const posts = (await getCollection('blog'))
+  .filter((post) => post.data.status === 'published')
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+---
+
+<Layout title="My Blog">
+	<Header />
+	<main class="container mx-auto px-4 py-8 max-w-3xl">
+        <h2 class="text-2xl font-bold mb-6">Recent Posts</h2>
+		<ul class="space-y-8">
+			{posts.map((post) => (
+				<li class="border-b border-gray-200 dark:border-gray-800 pb-8 last:border-0">
+					<a href={`/blog/${post.slug}/`} class="group block">
+                        {post.data.cover && (
+                            <img src={post.data.cover} alt={post.data.title} class="w-full h-48 object-cover rounded-lg mb-4" />
+                        )}
+						<h3 class="text-xl font-semibold group-hover:text-blue-600 dark:group-hover:text-blue-400 mb-2">
+							{post.data.title}
+						</h3>
+                        <div class="text-sm text-gray-500 mb-2">
+                            {post.data.date.toLocaleDateString()}
+                            {post.data.tags.length > 0 && (
+                                <span class="ml-2">
+                                    {post.data.tags.map(t => `#${t}`).join(' ')}
+                                </span>
+                            )}
+                        </div>
+						<p class="text-gray-600 dark:text-gray-400">
+                           {post.data.excerpt}
+                        </p>
+					</a>
+				</li>
+			))}
+		</ul>
+	</main>
+    <Footer />
+</Layout>
