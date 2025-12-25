@@ -20,7 +20,7 @@ const stats = getReadingTime(post.body);
 
 <Layout title={post.data.title} description={post.data.excerpt} image={post.data.cover}>
     <Header />
-    <main class="container mx-auto px-4 py-8 max-w-3xl">
+    <main class="container mx-auto px-4 py-8 max-w-4xl">
         <article class="prose dark:prose-invert max-w-none prose-img:rounded-xl">
             <header class="mb-8 not-prose">
                 {post.data.cover && (

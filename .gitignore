@@ -1,6 +1,7 @@
 # build output
 dist/
 server/
+.astro/data-store.json
 
 # dependencies
 node_modules/
