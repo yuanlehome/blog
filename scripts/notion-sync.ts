@@ -181,7 +181,6 @@ async function sync() {
     const date =
       props.date?.date?.start || new Date().toISOString().split("T")[0];
     const tags = props.tags?.multi_select?.map((t: any) => t.name) || [];
-    const excerpt = props.excerpt?.rich_text[0]?.plain_text || "";
 
     let cover = "";
     if (page.cover) {
@@ -204,7 +203,6 @@ async function sync() {
       date,
       tags,
       status: "published",
-      excerpt,
       cover,
       notionId: pageId,
       lastEditedTime, // Important for incremental sync

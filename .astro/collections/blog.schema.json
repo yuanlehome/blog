@@ -30,9 +30,6 @@
           },
           "default": []
         },
-        "excerpt": {
-          "type": "string"
-        },
         "cover": {
           "type": "string"
         },

@@ -4,7 +4,6 @@ slug: rope
 date: '2025-12-25'
 tags: []
 status: published
-excerpt: ''
 cover: ''
 notionId: 2d322dca-4210-8074-95ce-ec86131a7787
 lastEditedTime: '2025-12-25T16:35:00.000Z'

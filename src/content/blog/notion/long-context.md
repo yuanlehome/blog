@@ -4,7 +4,6 @@ slug: long-context
 date: '2025-12-25'
 tags: []
 status: published
-excerpt: ''
 cover: ''
 notionId: 1fa22dca-4210-8019-9f72-ec95b62c0c39
 lastEditedTime: '2025-12-25T18:48:00.000Z'

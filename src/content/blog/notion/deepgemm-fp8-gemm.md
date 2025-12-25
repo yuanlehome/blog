@@ -4,7 +4,6 @@ slug: deepgemm-fp8-gemm
 date: '2025-12-25'
 tags: []
 status: published
-excerpt: ''
 cover: ''
 notionId: 2d122dca-4210-80af-8b7b-c18d46a4f16f
 lastEditedTime: '2025-12-25T19:14:00.000Z'

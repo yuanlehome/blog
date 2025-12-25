@@ -7,7 +7,6 @@ slug: >-
 date: '2025-12-25'
 tags: []
 status: published
-excerpt: ''
 cover: ''
 notionId: 2b222dca-4210-801b-b6af-d6b37846a75e
 lastEditedTime: '2025-12-25T18:47:00.000Z'

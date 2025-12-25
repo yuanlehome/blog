@@ -4,7 +4,6 @@ slug: context-parallel
 date: '2025-12-25'
 tags: []
 status: published
-excerpt: ''
 cover: ''
 notionId: 2cd22dca-4210-81ec-89e2-f27eefb312e5
 lastEditedTime: '2025-12-25T18:13:00.000Z'

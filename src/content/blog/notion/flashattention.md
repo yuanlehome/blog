@@ -4,7 +4,6 @@ slug: flashattention
 date: '2025-12-25'
 tags: []
 status: published
-excerpt: ''
 cover: ''
 notionId: 1fb22dca-4210-80cd-a96e-e32787cfd674
 lastEditedTime: '2025-12-25T17:12:00.000Z'
