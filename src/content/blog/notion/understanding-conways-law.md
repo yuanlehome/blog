@@ -4,7 +4,6 @@ slug: understanding-conways-law
 date: '2025-12-25'
 tags: []
 status: published
-excerpt: ''
 cover: ''
 notionId: 2ab22dca-4210-80fe-9549-e360ee12db5e
 lastEditedTime: '2025-12-25T18:15:00.000Z'

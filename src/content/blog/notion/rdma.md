@@ -4,7 +4,6 @@ slug: rdma
 date: '2025-12-25'
 tags: []
 status: published
-excerpt: ''
 cover: ''
 notionId: 2d022dca-4210-8002-8300-ff0fc62fb73a
 lastEditedTime: '2025-12-25T18:13:00.000Z'

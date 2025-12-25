@@ -20,7 +20,7 @@ const { Content, headings } = await post.render();
 const stats = getReadingTime(post.body);
 ---
 
-<Layout title={post.data.title} description={post.data.excerpt} image={post.data.cover}>
+<Layout title={post.data.title} image={post.data.cover}>
   <Header />
   <main class="container mx-auto px-4 py-8 max-w-6xl">
     <div class="flex gap-8">

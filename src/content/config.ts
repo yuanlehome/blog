@@ -5,7 +5,6 @@ const blog = defineCollection({
     title: z.string(),
     date: z.coerce.date(),
     tags: z.array(z.string()).default([]),
-    excerpt: z.string().optional(),
     cover: z.string().optional(), // Path to image in public or URL
     status: z.enum(["published", "draft"]).default("published"),
     notionId: z.string().optional(),

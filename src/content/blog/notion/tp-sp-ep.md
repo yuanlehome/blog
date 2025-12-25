@@ -4,7 +4,6 @@ slug: tp-sp-ep
 date: '2025-12-25'
 tags: []
 status: published
-excerpt: ''
 cover: ''
 notionId: 2a122dca-4210-805b-ae7e-fb6b09a2e44f
 lastEditedTime: '2025-12-25T18:17:00.000Z'
