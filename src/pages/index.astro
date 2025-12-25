@@ -65,6 +65,7 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
                 </span>
               )}
             </div>
+            <p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed" data-excerpt></p>
           </a>
         </li>
       ))}
@@ -80,6 +81,58 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
   const counter = document.getElementById('results-count');
   const emptyState = document.getElementById('no-results');
 
+  const EXCERPT_LENGTH = 160;
+  const EXCERPT_PADDING = 40;
+
+  const escapeHTML = (text) =>
+    text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+  const buildExcerpt = (content, rawTerm) => {
+    const term = rawTerm?.trim();
+    const normalizedTerm = term?.toLowerCase();
+    const plainContent = (content || '').replace(/\s+/g, ' ').trim();
+
+    if (!plainContent) return '';
+
+    if (!normalizedTerm) {
+      const snippet = plainContent.slice(0, EXCERPT_LENGTH);
+      const suffix = plainContent.length > EXCERPT_LENGTH ? '…' : '';
+      return `${escapeHTML(snippet)}${suffix}`;
+    }
+
+    const lowerContent = plainContent.toLowerCase();
+    const matchIndex = lowerContent.indexOf(normalizedTerm);
+    const start = matchIndex >= 0 ? Math.max(0, matchIndex - EXCERPT_PADDING) : 0;
+    const end = Math.min(start + EXCERPT_LENGTH, plainContent.length);
+    const snippet = plainContent.slice(start, end);
+    const displayPrefix = start > 0 ? '…' : '';
+    const displaySuffix = end < plainContent.length ? '…' : '';
+
+    if (matchIndex === -1) {
+      return `${displayPrefix}${escapeHTML(snippet)}${displaySuffix}`;
+    }
+
+    const relativeIndex = matchIndex - start;
+    const before = snippet.slice(0, relativeIndex);
+    const match = snippet.slice(relativeIndex, relativeIndex + term.length);
+    const after = snippet.slice(relativeIndex + term.length);
+
+    return `${displayPrefix}${escapeHTML(before)}<mark class="bg-yellow-200 text-gray-900 rounded px-0.5">${escapeHTML(match)}</mark>${escapeHTML(after)}${displaySuffix}`;
+  };
+
+  const updateExcerpt = (item, query) => {
+    const excerptEl = item.querySelector('[data-excerpt]');
+    if (!excerptEl) return;
+
+    const content = item.dataset.content ?? '';
+    excerptEl.innerHTML = buildExcerpt(content, query);
+  };
+
   const filterPosts = (query) => {
     const term = query.trim().toLowerCase();
     let visibleCount = 0;
@@ -88,7 +141,10 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
       const text = `${item.dataset.title ?? ''} ${item.dataset.tags ?? ''} ${item.dataset.content ?? ''}`.toLowerCase();
       const matches = !term || text.includes(term);
       item.classList.toggle('hidden', !matches);
-      if (matches) visibleCount += 1;
+      if (matches) {
+        visibleCount += 1;
+        updateExcerpt(item, term);
+      }
     });
 
     if (counter) counter.textContent = visibleCount.toString();
