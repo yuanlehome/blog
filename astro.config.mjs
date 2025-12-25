@@ -4,6 +4,7 @@ import sitemap from '@astrojs/sitemap';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import yaml from '@rollup/plugin-yaml';
+import remarkPrefixImages from './src/utils/remarkPrefixImages';
 
 // https://astro.build/config
 export default defineConfig({
@@ -15,7 +16,10 @@ export default defineConfig({
     plugins: [yaml()]
   },
   markdown: {
-    remarkPlugins: [remarkMath],
+    remarkPlugins: [
+      remarkMath,
+      [remarkPrefixImages, { base: process.env.NODE_ENV === 'production' ? '/blog' : '/' }],
+    ],
     rehypePlugins: [rehypeKatex],
     shikiConfig: {
       theme: 'github-dark',
