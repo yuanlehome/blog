@@ -9,6 +9,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "notion:sync": "tsx scripts/notion-sync.ts && tsx scripts/fix-math.ts src/content/blog/notion",
+    "format": "prettier --write \"{scripts,src}/**/*.{ts,tsx,js,jsx}\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -37,6 +38,7 @@
   "devDependencies": {
     "@rollup/plugin-yaml": "^4.1.2",
     "@types/node": "^25.0.3",
+    "prettier": "^3.4.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
