@@ -106,23 +106,68 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
     }
 
     const lowerContent = plainContent.toLowerCase();
-    const matchIndex = lowerContent.indexOf(normalizedTerm);
-    const start = matchIndex >= 0 ? Math.max(0, matchIndex - EXCERPT_PADDING) : 0;
-    const end = Math.min(start + EXCERPT_LENGTH, plainContent.length);
-    const snippet = plainContent.slice(start, end);
-    const displayPrefix = start > 0 ? '…' : '';
-    const displaySuffix = end < plainContent.length ? '…' : '';
+    const matchIndexes = [];
+    let fromIndex = 0;
 
-    if (matchIndex === -1) {
-      return `${displayPrefix}${escapeHTML(snippet)}${displaySuffix}`;
+    while (fromIndex >= 0) {
+      const matchIndex = lowerContent.indexOf(normalizedTerm, fromIndex);
+      if (matchIndex === -1) break;
+      matchIndexes.push(matchIndex);
+      fromIndex = matchIndex + normalizedTerm.length;
     }
 
-    const relativeIndex = matchIndex - start;
-    const before = snippet.slice(0, relativeIndex);
-    const match = snippet.slice(relativeIndex, relativeIndex + term.length);
-    const after = snippet.slice(relativeIndex + term.length);
+    if (matchIndexes.length === 0) {
+      const snippet = plainContent.slice(0, EXCERPT_LENGTH);
+      const suffix = plainContent.length > EXCERPT_LENGTH ? '…' : '';
+      return `${escapeHTML(snippet)}${suffix}`;
+    }
 
-    return `${displayPrefix}${escapeHTML(before)}<mark class="bg-yellow-200 text-gray-900 rounded px-0.5">${escapeHTML(match)}</mark>${escapeHTML(after)}${displaySuffix}`;
+    const ranges = matchIndexes
+      .map((index) => ({
+        start: Math.max(0, index - EXCERPT_PADDING),
+        end: Math.min(index + term.length + EXCERPT_PADDING, plainContent.length),
+      }))
+      .sort((a, b) => a.start - b.start)
+      .reduce((merged, current) => {
+        const last = merged[merged.length - 1];
+        if (last && current.start <= last.end) {
+          last.end = Math.max(last.end, current.end);
+          return merged;
+        }
+        merged.push({ ...current });
+        return merged;
+      }, []);
+
+    const highlightSnippet = (snippet) => {
+      const lowerSnippet = snippet.toLowerCase();
+      let cursor = 0;
+      let highlighted = '';
+
+      while (cursor < snippet.length) {
+        const matchIndex = lowerSnippet.indexOf(normalizedTerm, cursor);
+        if (matchIndex === -1) {
+          highlighted += escapeHTML(snippet.slice(cursor));
+          break;
+        }
+
+        highlighted += escapeHTML(snippet.slice(cursor, matchIndex));
+        highlighted += `<mark class="bg-yellow-200 text-gray-900 rounded px-0.5">${escapeHTML(
+          snippet.slice(matchIndex, matchIndex + term.length)
+        )}</mark>`;
+        cursor = matchIndex + normalizedTerm.length;
+      }
+
+      return highlighted;
+    };
+
+    const snippets = ranges.map(({ start, end }) => {
+      const snippet = plainContent.slice(start, end);
+      const prefix = start > 0 ? '…' : '';
+      const suffix = end < plainContent.length ? '…' : '';
+      return `${prefix}${highlightSnippet(snippet)}${suffix}`;
+    });
+
+    return snippets.join(' ');
   };
 
   const updateExcerpt = (item, query) => {
