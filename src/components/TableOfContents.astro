@@ -1,4 +1,6 @@
 ---
+import slugify from 'slugify';
+
 interface Heading {
   depth: number;
   slug: string;
@@ -13,6 +15,7 @@ const headings = Astro.props.headings
   .filter((heading) => heading.depth <= 3)
   .map((heading) => ({
     ...heading,
+    slug: slugify(heading.text, { lower: true, strict: true }),
     indentClass: heading.depth === 3 ? 'pl-4' : '',
   }));
 
