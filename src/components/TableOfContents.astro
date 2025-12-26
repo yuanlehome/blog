@@ -19,7 +19,11 @@ const headings = Astro.props.headings
 const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) to avoid overlap
 ---
 
-<div class="w-full lg:w-72 shrink-0" style={`--toc-offset: ${headerOffset}px`} data-toc-container>
+<div
+  class="w-full lg:w-72 shrink-0 lg:sticky lg:top-[calc(var(--toc-offset)+1rem)] lg:h-[calc(100vh-var(--toc-offset)-1.5rem)] lg:max-h-[calc(100vh-var(--toc-offset)-1.5rem)] lg:self-start"
+  style={`--toc-offset: ${headerOffset}px`}
+  data-toc-container
+>
   <div class="lg:hidden mb-4 flex items-center justify-between gap-3">
     <div>
       <p class="text-sm font-semibold">文章目录</p>
@@ -38,12 +42,9 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
     )}
   </div>
 
-  <aside
-    class="hidden lg:block lg:sticky lg:top-[calc(var(--toc-offset)+0.75rem)] lg:self-start"
-    style={`--toc-offset: ${headerOffset}px`}
-  >
+  <aside class="hidden lg:block h-full">
     <div
-      class="space-y-3 overflow-hidden rounded-xl border border-gray-200 bg-gray-50/80 p-4 shadow-md backdrop-blur-sm dark:border-gray-800 dark:bg-gray-800/50 lg:max-h-[calc(100vh-var(--toc-offset)-2rem)]"
+      class="flex h-full flex-col gap-3 overflow-hidden rounded-xl border border-gray-200 bg-gray-50/80 p-4 shadow-md backdrop-blur-sm dark:border-gray-800 dark:bg-gray-800/50"
     >
       <div class="space-y-1">
         <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">文章目录</p>
@@ -52,7 +53,7 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
       {headings.length === 0 ? (
         <p class="text-sm text-gray-500 dark:text-gray-400">本文暂无目录。</p>
       ) : (
-        <nav aria-label="文章目录" class="max-h-[inherit] overflow-y-auto pr-1" data-toc-scroll>
+        <nav aria-label="文章目录" class="flex-1 min-h-0 overflow-y-auto pr-1" data-toc-scroll>
           <ol class="space-y-2 text-sm">
             {headings.map((heading) => (
               <li>
