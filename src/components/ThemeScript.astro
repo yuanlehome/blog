@@ -3,7 +3,7 @@ const themeInitializer = `(() => {
   const storageKey = 'theme';
   const className = 'dark';
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-  const validThemes = ['light', 'dark', 'system'];
+  const validThemes = ['light', 'dark'];
   let currentPreference = (() => {
     try {
       const stored = localStorage.getItem(storageKey);
@@ -11,11 +11,10 @@ const themeInitializer = `(() => {
     } catch (error) {
       console.warn('Unable to access localStorage for theme:', error);
     }
-    return 'system';
+    return mediaQuery.matches ? 'dark' : 'light';
   })();
 
-  const resolveTheme = (preference) =>
-    preference === 'system' ? (mediaQuery.matches ? 'dark' : 'light') : preference;
+  const resolveTheme = (preference) => (preference === 'dark' ? 'dark' : 'light');
 
   const applyTheme = (preference) => {
     const effectiveTheme = resolveTheme(preference);
@@ -33,19 +32,10 @@ const themeInitializer = `(() => {
     );
   };
 
-  const handleMatchChange = () => {
-    if (currentPreference !== 'system') return;
-    applyTheme('system');
-    dispatchChange('system');
-  };
-
   applyTheme(currentPreference);
-  if (currentPreference === 'system') {
-    mediaQuery.addEventListener('change', handleMatchChange);
-  }
 
   window.__setTheme = (next) => {
-    const preference = validThemes.includes(String(next)) ? String(next) : 'system';
+    const preference = validThemes.includes(String(next)) ? String(next) : resolveTheme(currentPreference);
     currentPreference = preference;
     try {
       localStorage.setItem(storageKey, preference);
@@ -54,12 +44,6 @@ const themeInitializer = `(() => {
     }
     applyTheme(preference);
     dispatchChange(preference);
-
-    if (preference === 'system') {
-      mediaQuery.addEventListener('change', handleMatchChange);
-    } else {
-      mediaQuery.removeEventListener('change', handleMatchChange);
-    }
   };
 })();`;
 ---
