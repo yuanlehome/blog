@@ -1,0 +1,144 @@
+name: PR Build and Preview
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build-and-preview:
+    runs-on: ubuntu-latest
+    env:
+      PREVIEW_PATH: previews/pr-${{ github.event.pull_request.number }}
+      PREVIEW_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/previews/pr-${{ github.event.pull_request.number }}/
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine package manager
+        id: pkg-manager
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "manager=pnpm" >> "$GITHUB_OUTPUT"
+            echo "cache-dependency-path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          else
+            echo "manager=npm" >> "$GITHUB_OUTPUT"
+            echo "cache-dependency-path=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: ${{ steps.pkg-manager.outputs.manager }}
+          cache-dependency-path: ${{ steps.pkg-manager.outputs.cache-dependency-path }}
+
+      - name: Setup pnpm
+        if: steps.pkg-manager.outputs.manager == 'pnpm'
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Install dependencies
+        run: |
+          if [ "${{ steps.pkg-manager.outputs.manager }}" = "pnpm" ]; then
+            pnpm install --frozen-lockfile
+          else
+            npm ci
+          fi
+
+      - name: Detect optional scripts
+        id: scripts
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const scripts = pkg.scripts || {};
+          const outputs = {
+            lint: Boolean(scripts.lint),
+            typecheck: Boolean(scripts.typecheck)
+          };
+          for (const [key, value] of Object.entries(outputs)) {
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${value}\n`);
+          }
+          NODE
+
+      - name: Run lint
+        if: steps.scripts.outputs.lint == 'true'
+        run: |
+          if [ "${{ steps.pkg-manager.outputs.manager }}" = "pnpm" ]; then
+            pnpm lint
+          else
+            npm run lint
+          fi
+
+      - name: Run typecheck
+        if: steps.scripts.outputs.typecheck == 'true'
+        run: |
+          if [ "${{ steps.pkg-manager.outputs.manager }}" = "pnpm" ]; then
+            pnpm typecheck
+          else
+            npm run typecheck
+          fi
+
+      - name: Build with Astro
+        run: |
+          if [ "${{ steps.pkg-manager.outputs.manager }}" = "pnpm" ]; then
+            pnpm build
+          else
+            npm run build
+          fi
+
+      - name: Verify dist output exists
+        run: |
+          if [ ! -d dist ]; then
+            echo "dist directory is missing" >&2
+            exit 1
+          fi
+          if [ "$(find dist -type f | wc -l)" -eq 0 ]; then
+            echo "dist directory is empty" >&2
+            exit 1
+          fi
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blog-dist-pr-${{ github.event.pull_request.number }}
+          path: dist
+          retention-days: 7
+
+      - name: Deploy PR preview to GitHub Pages
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./dist
+          destination_dir: ${{ env.PREVIEW_PATH }}
+          keep_files: true
+          force_orphan: false
+
+      - name: Comment with preview link
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ env.PREVIEW_URL }}
+        with:
+          script: |
+            const marker = '<!-- pr-preview -->';
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const body = `${marker}\n📦 Artifact: blog-dist-pr-${context.issue.number}\n🔗 Preview: ${process.env.PREVIEW_URL}\n🧱 Commit: \`${context.payload.pull_request.head.sha}\``;
+
+            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number, per_page: 100 });
+            const existing = comments.find(comment => comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
