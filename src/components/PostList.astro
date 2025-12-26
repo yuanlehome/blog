@@ -10,23 +10,42 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
 const { posts } = Astro.props;
 const enriched = posts.map((post) => ({ ...post, stats: getReadingTime(post.body) }));
 ---
-<ul class="space-y-8" id="post-list">
+<ul class="grid gap-6" id="post-list">
   {enriched.map((post) => (
-    <li class="border-b border-gray-200 dark:border-gray-800 pb-8 last:border-0">
-      <a href={`${BASE}${post.slug}/`} class="group block">
-        {post.data.cover && (
-          <img src={post.data.cover} alt={post.data.title} class="w-full h-48 object-cover rounded-lg mb-4" />
-        )}
-        <h3 class="text-xl font-semibold group-hover:text-blue-600 dark:group-hover:text-blue-400 mb-2">
-          {post.data.title}
-        </h3>
-        <div class="text-sm text-gray-500 mb-2 flex items-center gap-3 flex-wrap">
-          <span class="flex items-center gap-1">📅 {post.data.date.toLocaleDateString()}</span>
-          <span class="flex items-center gap-1">✍️ {post.stats.wordCount} 字</span>
-          <span class="flex items-center gap-1" title={`${post.stats.wordCount} words`}>
-            ⏱️ {post.stats.text}
-          </span>
-        </div>
+    <li class="list-none">
+      <a
+        href={`${BASE}${post.slug}/`}
+        class="group relative block overflow-hidden rounded-2xl border border-gray-200/80 bg-white/80 px-5 py-5 shadow-[0_10px_30px_rgb(15_23_42/0.04)] transition duration-200 ease-out hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_14px_36px_rgb(59_130_246/0.12)] active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 motion-reduce:transform-none motion-reduce:shadow-none dark:border-gray-800/80 dark:bg-gray-900/70 dark:shadow-[0_16px_38px_rgb(0_0_0/0.45)] dark:hover:border-blue-500/35 dark:hover:shadow-[0_18px_40px_rgb(59_130_246/0.18)] dark:focus-visible:ring-offset-gray-900"
+      >
+        <article class="flex flex-col gap-4">
+          {post.data.cover && (
+            <div class="overflow-hidden rounded-xl border border-gray-200/70 shadow-sm transition duration-200 ease-out group-hover:shadow-md group-hover:border-blue-200 dark:border-gray-800/70 dark:group-hover:border-blue-400/40">
+              <img
+                src={post.data.cover}
+                alt={post.data.title}
+                loading="lazy"
+                class="aspect-[16/9] w-full object-cover transition duration-300 ease-out motion-safe:group-hover:scale-[1.01] motion-reduce:transform-none"
+              />
+            </div>
+          )}
+
+          <div class="flex flex-col gap-2">
+            <h3 class="text-xl font-semibold leading-tight text-gray-900 transition group-hover:text-blue-600 group-focus-visible:text-blue-600 dark:text-gray-100 dark:group-hover:text-blue-300 dark:group-focus-visible:text-blue-300">
+              <span class="underline-offset-4 decoration-2 decoration-blue-200/0 transition group-hover:underline group-hover:decoration-blue-400/80 group-focus-visible:underline dark:group-hover:decoration-blue-300/60">
+                {post.data.title}
+              </span>
+            </h3>
+            <div class="text-sm text-gray-600 dark:text-gray-400">
+              <span class="flex items-center gap-1">📅 {post.data.date.toLocaleDateString()}</span>
+            </div>
+            <div class="text-sm text-gray-500 flex items-center gap-4 flex-wrap">
+              <span class="flex items-center gap-1">✍️ {post.stats.wordCount} 字</span>
+              <span class="flex items-center gap-1" title={`${post.stats.wordCount} words`}>
+                ⏱️ {post.stats.text}
+              </span>
+            </div>
+          </div>
+        </article>
       </a>
     </li>
   ))}
