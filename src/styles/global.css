@@ -186,6 +186,11 @@
   font-size: 0.95rem;
 }
 
+.prose a {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 @media (max-width: 640px) {
   .code-block__header {
     flex-direction: column;
