@@ -1,0 +1,123 @@
+name: CI (workflow_run)
+
+on:
+  workflow_run:
+    workflows:
+      - "Sync Notion Content"
+    types:
+      - completed
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+
+jobs:
+  ci-on-auto-pr:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Type check
+        run: npm run typecheck --if-present
+
+      - name: Test
+        run: npm test --if-present
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload build artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ github.event.workflow_run.head_sha }}
+          path: dist
+          retention-days: 7
+
+      - name: Record job status
+        if: always()
+        run: echo "CI_STATUS=${{ job.status }}" >> $GITHUB_ENV
+
+      - name: Comment on PR
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const marker = '<!-- ci-workflow-run -->';
+            const headSha = '${{ github.event.workflow_run.head_sha }}';
+            const shortSha = headSha.slice(0, 7);
+
+            const { data: prs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: headSha,
+              mediaType: { previews: ['groot'] },
+            });
+
+            let pr = prs.find(p => p.state === 'open' && p.head?.repo?.full_name === `${context.repo.owner}/${context.repo.repo}`);
+
+            // Fallback: match by head branch when the commit search does not find the PR yet.
+            if (!pr) {
+              const headBranch = '${{ github.event.workflow_run.head_branch }}';
+              const { data: openPrs } = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                head: `${context.repo.owner}:${headBranch}`,
+              });
+              pr = openPrs.find(p => p.head?.sha === headSha || p.head?.ref === headBranch);
+            }
+
+            if (!pr) {
+              core.warning(`No open PR found for commit ${headSha}`);
+              return;
+            }
+
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const status = process.env.CI_STATUS === 'success' ? '✅ Success' : '❌ Failed';
+            const artifactNote = process.env.CI_STATUS === 'success' ? `Artifact: dist-${headSha} (retained 7 days)` : 'Artifact unavailable due to failed run.';
+            const body = `${marker}\n${status}\nCommit: ${shortSha}\nRun: ${runUrl}\n${artifactNote}`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              per_page: 100,
+            });
+
+            const existing = comments.find(comment => comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body,
+              });
+            }
