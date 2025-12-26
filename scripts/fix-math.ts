@@ -355,7 +355,9 @@ const modulePath = fileURLToPath(import.meta.url);
 if (process.argv[1] && path.resolve(process.argv[1]) === modulePath) {
   const targetPath = process.argv[2];
   if (!targetPath) {
-    console.error("Usage: npx tsx scripts/fix-math.ts <file-or-directory-path>");
+    console.error(
+      "Usage: npx tsx scripts/fix-math.ts <file-or-directory-path>",
+    );
     process.exit(1);
   }
 
