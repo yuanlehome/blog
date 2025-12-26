@@ -1,7 +1,6 @@
 ---
 import 'katex/dist/katex.min.css';
 import CodeBlockCopy from '../components/CodeBlockCopy.astro';
-import SearchModal from '../components/SearchModal.astro';
 
 interface Props {
   title: string;
@@ -62,12 +61,20 @@ const { title, description = "A minimal Astro blog", image = `${BASE}placeholder
         position: relative;
         overflow-x: auto;
         border-radius: 0.75rem;
-        padding-top: 2.75rem;
+        padding-top: 3.25rem;
+      }
+      .code-toolbar {
+        position: absolute;
+        top: 0;
+        right: 0;
+        left: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem 0;
+        pointer-events: none;
       }
       .code-copy {
-        position: absolute;
-        top: 0.5rem;
-        right: 0.75rem;
         padding: 0.25rem 0.65rem;
         border-radius: 9999px;
         font-size: 0.75rem;
@@ -76,19 +83,19 @@ const { title, description = "A minimal Astro blog", image = `${BASE}placeholder
         color: white;
         cursor: pointer;
         transition: opacity 0.2s ease, transform 0.15s ease;
+        pointer-events: auto;
+        margin-left: auto;
       }
       .code-copy:hover {
         opacity: 0.9;
         transform: translateY(-1px);
       }
       .code-lang {
-        position: absolute;
-        top: 0.6rem;
-        left: 1rem;
         text-transform: uppercase;
         font-size: 0.7rem;
         letter-spacing: 0.08em;
         color: #cbd5e1;
+        pointer-events: none;
       }
       .heading-anchor {
         margin-left: 0.35rem;
@@ -107,7 +114,6 @@ const { title, description = "A minimal Astro blog", image = `${BASE}placeholder
     </style>
   </head>
   <body class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300 min-h-screen flex flex-col">
-    <SearchModal />
     <slot />
     <CodeBlockCopy />
   </body>

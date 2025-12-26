@@ -36,12 +36,3 @@ export function groupByYearMonth(posts: CollectionEntry<'blog'>[]) {
     .map(([key, list]) => ({ key, posts: list.sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf()) }));
 }
 
-export function collectTags(posts: CollectionEntry<'blog'>[]) {
-  const counts = new Map<string, number>();
-  posts.forEach((post) => {
-    post.data.tags.forEach((tag) => counts.set(tag, (counts.get(tag) ?? 0) + 1));
-  });
-  return Array.from(counts.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([tag, count]) => ({ tag, count }));
-}

@@ -36,9 +36,6 @@ jobs:
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
         run: npm run notion:sync
 
-      - name: Generate search index
-        run: npx tsx scripts/generate-search-index.ts
-
       - name: Build with Astro
         run: npm run build
       

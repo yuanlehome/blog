@@ -40,7 +40,16 @@ const rehypeCodeEnhance: Plugin = () => {
         children: [{ type: 'text', value: language }],
       };
 
-      node.children = [copyButton, label, ...node.children];
+      const toolbar: Element = {
+        type: 'element',
+        tagName: 'div',
+        properties: {
+          className: ['code-toolbar'],
+        },
+        children: [label, copyButton],
+      };
+
+      node.children = [toolbar, ...node.children];
     });
   };
 };

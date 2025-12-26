@@ -54,7 +54,6 @@
    ---
    title: 文章标题
    date: 2025-01-01
-   tags: [tag1, tag2]
    status: published # 或 draft
    cover: /images/your-cover.png # 可选，指向 public 下资源或远程 URL
    ---
