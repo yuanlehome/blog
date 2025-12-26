@@ -1,5 +1,5 @@
 ---
-import slugify from 'slugify';
+import { createHeadingSlugger } from "../utils/slugger";
 
 interface Heading {
   depth: number;
@@ -11,12 +11,13 @@ interface Props {
   headings: Heading[];
 }
 
+const slugger = createHeadingSlugger();
 const headings = Astro.props.headings
   .filter((heading) => heading.depth <= 3)
   .map((heading) => ({
     ...heading,
-    slug: slugify(heading.text, { lower: true, strict: true }),
-    indentClass: heading.depth === 3 ? 'pl-4' : '',
+    slug: slugger(heading.text),
+    indentClass: heading.depth === 3 ? "pl-4" : "",
   }));
 
 const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) to avoid overlap
@@ -136,6 +137,7 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
   const body = document.body;
   const headerOffsetPx =
     (tocContainer && getComputedStyle(tocContainer).getPropertyValue('--toc-offset')) || '96px';
+  const headerOffset = parseFloat(headerOffsetPx) || 0;
   const desktopQuery = window.matchMedia('(min-width: 1024px)');
 
   const setOverlayOpen = (open: boolean) => {
@@ -151,15 +153,49 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
     if (event.target === tocOverlay) setOverlayOpen(false);
   });
 
-  tocLinks.forEach((link) =>
-    link.addEventListener('click', () => {
-      setOverlayOpen(false);
-    })
-  );
-
   const headings = tocLinks
     .map((link) => document.getElementById(link.dataset.target || ''))
     .filter((el): el is HTMLElement => Boolean(el));
+
+  const applyScrollMargin = () => {
+    headings.forEach((heading) => {
+      heading.style.scrollMarginTop = `${headerOffset + 12}px`;
+    });
+  };
+
+  const encodedHash = (id: string) => `#${encodeURIComponent(id)}`;
+  const decodeHash = (hash: string) => decodeURIComponent(hash.replace(/^#/, ''));
+
+  const setActive = (id: string | null) => {
+    tocLinks.forEach((link) => {
+      const isActive = link.dataset.target === id;
+      link.dataset.active = isActive ? 'true' : 'false';
+      link.setAttribute('aria-current', isActive ? 'true' : 'false');
+    });
+  };
+
+  const scrollToHeading = (id: string, replace = false) => {
+    const target = document.getElementById(id);
+    if (!target) return;
+    const top = window.scrollY + target.getBoundingClientRect().top - headerOffset - 12;
+    if (replace) {
+      history.replaceState(null, '', encodedHash(id));
+    } else {
+      history.pushState(null, '', encodedHash(id));
+    }
+    window.scrollTo({ top, behavior: 'smooth' });
+    setActive(id);
+  };
+
+  tocLinks.forEach((link) =>
+    link.addEventListener('click', (event) => {
+      const targetId = link.dataset.target;
+      if (!targetId) return;
+      event.preventDefault();
+      setOverlayOpen(false);
+      scrollToHeading(targetId);
+    })
+  );
 
   const resetPositioning = () => {
     if (!tocContainer) return;
@@ -208,15 +244,8 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
     }
   };
 
-  const setActive = (id: string | null) => {
-    tocLinks.forEach((link) => {
-      const isActive = link.dataset.target === id;
-      link.dataset.active = isActive ? 'true' : 'false';
-      link.setAttribute('aria-current', isActive ? 'true' : 'false');
-    });
-  };
-
   if (headings.length > 0) {
+    applyScrollMargin();
     setActive(headings[0].id);
     const rootMarginTop =
       (tocContainer && getComputedStyle(tocContainer).getPropertyValue('--toc-offset')) || '96px';
@@ -231,7 +260,6 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
           return;
         }
 
-        // Fallback: find the first section below the viewport
         const above = entries
           .filter((entry) => entry.boundingClientRect.top < 0)
           .sort((a, b) => b.target.getBoundingClientRect().top - a.target.getBoundingClientRect().top);
@@ -244,6 +272,16 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
     );
 
     headings.forEach((heading) => observer.observe(heading));
+
+    const hash = decodeHash(location.hash || '');
+    if (hash) {
+      requestAnimationFrame(() => scrollToHeading(hash, true));
+    }
+
+    window.addEventListener('hashchange', () => {
+      const id = decodeHash(location.hash || '');
+      if (id) scrollToHeading(id, true);
+    });
   }
 
   resetPositioning();
@@ -256,5 +294,8 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
   });
   window.addEventListener('scroll', verifySticky, { passive: true });
   window.addEventListener('resize', handleResize);
-  window.addEventListener('load', verifySticky, { once: true });
+  window.addEventListener('load', () => {
+    verifySticky();
+    applyScrollMargin();
+  }, { once: true });
 </script>

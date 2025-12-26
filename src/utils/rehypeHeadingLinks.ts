@@ -1,15 +1,19 @@
 import type { Plugin } from "unified";
 import { visit } from "unist-util-visit";
 import type { Element } from "hast";
-import slugify from "slugify";
+import GithubSlugger from "github-slugger";
 
 const rehypeHeadingLinks: Plugin = () => {
+  const slugger = new GithubSlugger();
+
   return (tree) => {
+    slugger.reset();
+
     visit(tree, "element", (node: Element) => {
       if (!/^h[1-6]$/.test(node.tagName)) return;
       const text = extractText(node).trim();
       if (!text) return;
-      const id = slugify(text, { lower: true, strict: true });
+      const id = slugger.slug(text, false);
       node.properties = { ...(node.properties || {}), id };
 
       const anchor: Element = {

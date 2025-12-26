@@ -31,11 +31,9 @@ const commentsEnabled = post.data.comments ?? true;
   <Header />
   <main class="container mx-auto px-4 py-8 max-w-6xl">
     <div
-      class="flex flex-col gap-6 lg:grid lg:grid-cols-[18rem,minmax(0,1fr)] lg:items-start lg:gap-12"
+      class="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-12"
       data-post-layout
     >
-      <TableOfContents headings={headings} />
-
       <article class="prose dark:prose-invert max-w-none prose-img:rounded-xl min-w-0" data-article>
         <header class="mb-8 not-prose">
           {post.data.cover && (
@@ -64,6 +62,7 @@ const commentsEnabled = post.data.comments ?? true;
         <RelatedPosts posts={related} />
         {commentsEnabled && <Giscus lang="zh-CN" loading="lazy" />}
       </article>
+      <TableOfContents headings={headings} />
     </div>
   </main>
   <Footer />
