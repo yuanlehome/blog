@@ -4,17 +4,19 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { getCollection } from 'astro:content';
 import { getReadingTime } from '../utils/readingTime';
+import VisitorCounter from '../components/VisitorCounter.astro';
 
 const posts = (await getCollection('blog'))
   .filter((post) => post.data.status === 'published')
   .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf())
-  .map(post => {
-    return {
-      ...post,
-      stats: getReadingTime(post.body),
-    };
-  });
-const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
+  .map((post) => ({
+    ...post,
+    stats: getReadingTime(post.body),
+    visitorStorageKey: `post-${post.slug}-visitors`,
+  }));
+const BASE = import.meta.env.BASE_URL.endsWith('/')
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
 ---
 
 <Layout title="Yuanle Liu‘s Blog">
@@ -43,9 +45,10 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
               <span class="flex items-center gap-1" title={`${post.stats.wordCount} words`}>
                 ⏱️ {post.stats.text}
               </span>
+              <VisitorCounter storageKey={post.visitorStorageKey} increment={false} />
               {post.data.tags.length > 0 && (
                 <span class="ml-auto flex gap-2">
-                  {post.data.tags.map(t => (
+                  {post.data.tags.map((t) => (
                     <span class="bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">#{t}</span>
                   ))}
                 </span>

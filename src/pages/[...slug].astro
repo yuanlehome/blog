@@ -18,6 +18,7 @@ export async function getStaticPaths() {
 const post = Astro.props;
 const { Content, headings } = await post.render();
 const stats = getReadingTime(post.body);
+const visitorStorageKey = `post-${post.slug}-visitors`;
 ---
 
 <Layout title={post.data.title} image={post.data.cover}>
@@ -41,7 +42,7 @@ const stats = getReadingTime(post.body);
               <span>⏱️</span>
               {stats.text}
             </div>
-            <VisitorCounter />
+            <VisitorCounter storageKey={visitorStorageKey} />
             {post.data.tags.length > 0 && (
               <div class="flex gap-2">
                 {post.data.tags.map((tag) => (

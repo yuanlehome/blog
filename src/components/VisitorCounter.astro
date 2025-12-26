@@ -2,26 +2,35 @@
 interface Props {
   storageKey?: string;
   label?: string;
+  increment?: boolean;
 }
 
 const storageKey = Astro.props.storageKey ?? 'blog-visitor-count';
 const label = Astro.props.label ?? '访客统计：';
+const increment = Astro.props.increment ?? true;
 ---
 
-<div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300" data-visitor-container>
+<div
+  class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300"
+  data-visitor-container
+  data-storage-key={storageKey}
+>
   <span aria-hidden="true">👀</span>
   <span>{label}</span>
   <strong data-visitor-count class="tabular-nums">--</strong>
 </div>
 
-<script is:inline data-storage-key={storageKey}>
+<script is:inline data-storage-key={storageKey} data-increment={increment}>
   (() => {
     const scriptEl = document.currentScript;
     const storageKey = scriptEl?.dataset.storageKey ?? 'blog-visitor-count';
+    const increment = scriptEl?.dataset.increment !== 'false';
     const sessionKey = `${storageKey}-session`;
-
+    const container = scriptEl?.parentElement?.querySelector(
+      `[data-visitor-container][data-storage-key="${storageKey}"]`,
+    );
     const updateText = (value) => {
-      const target = document.querySelector('[data-visitor-count]');
+      const target = container?.querySelector('[data-visitor-count]');
       if (target) {
         target.textContent = value;
       }
@@ -35,7 +44,7 @@ const label = Astro.props.label ?? '访客统计：';
         total = 0;
       }
 
-      if (!hasCounted) {
+      if (increment && !hasCounted) {
         total += 1;
         sessionStorage.setItem(sessionKey, '1');
         localStorage.setItem(storageKey, total.toString());
