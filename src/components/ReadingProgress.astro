@@ -4,9 +4,9 @@ export interface Props {
   targetSelector?: string;
 }
 
-const { targetSelector = '[data-article]'} = Astro.props;
+const { targetSelector = '[data-article]' } = Astro.props;
 ---
-<div class="reading-progress" data-reading-progress>
+<div class="reading-progress" data-reading-progress data-target-selector={targetSelector}>
   <span class="reading-progress__bar" data-reading-progress-bar></span>
 </div>
 
@@ -49,10 +49,10 @@ const { targetSelector = '[data-article]'} = Astro.props;
 </style>
 
 <script>
-  const selector = ${JSON.stringify(targetSelector)};
   const progressRoot = document.querySelector('[data-reading-progress]');
+  const selector = progressRoot?.dataset.targetSelector || '[data-article]';
   const progressBar = progressRoot?.querySelector('[data-reading-progress-bar]');
-  const article = document.querySelector(selector);
+  const article = selector ? document.querySelector(selector) : null;
 
   if (progressRoot && progressBar && article) {
     let start = 0;
