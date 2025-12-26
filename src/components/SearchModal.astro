@@ -1,0 +1,226 @@
+---
+const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
+---
+<div class="relative">
+  <button
+    id="open-search"
+    type="button"
+    class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white/70 px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-blue-400 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-200 dark:hover:border-blue-500 dark:hover:text-blue-300 dark:focus:ring-blue-700"
+  >
+    <span class="hidden sm:inline">Search</span>
+    <span class="sm:hidden">🔍</span>
+    <span class="rounded bg-gray-100 px-1 text-xs text-gray-500 dark:bg-gray-700 dark:text-gray-300">⌘K / Ctrl+K</span>
+  </button>
+</div>
+
+<div
+  id="search-modal"
+  class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+  role="dialog"
+  aria-modal="true"
+>
+  <div class="w-full max-w-3xl rounded-2xl bg-white/90 p-4 shadow-2xl ring-1 ring-gray-200 backdrop-blur dark:bg-gray-900/90 dark:ring-gray-700">
+    <div class="flex items-center justify-between gap-4 border-b border-gray-200 pb-3 dark:border-gray-800">
+      <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <span class="text-lg">🔍</span>
+        <span>Search posts</span>
+      </div>
+      <div class="flex items-center gap-2 text-xs text-gray-400">
+        <span class="hidden sm:inline">Press</span>
+        <span class="rounded border border-gray-300 px-1 dark:border-gray-700">Esc</span>
+        <button
+          id="close-search"
+          type="button"
+          class="rounded border border-gray-200 px-2 py-1 text-gray-500 transition hover:border-gray-300 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-gray-700 dark:text-gray-300 dark:hover:border-gray-500 dark:focus:ring-blue-700"
+          aria-label="Close search"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+
+    <div class="mt-4">
+      <label class="relative block">
+        <input
+          id="search-input"
+          type="search"
+          placeholder="Type to search posts..."
+          class="w-full rounded-xl border border-gray-200 bg-white/60 px-4 py-3 text-base text-gray-800 shadow-inner transition focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-100 dark:focus:border-blue-500 dark:focus:ring-blue-700"
+        />
+        <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-gray-500">Live</span>
+      </label>
+    </div>
+
+    <div class="mt-4 max-h-[60vh] overflow-y-auto" id="search-results" aria-live="polite"></div>
+  </div>
+</div>
+
+<script type="module" is:inline>
+  import Fuse from "fuse.js";
+
+  const BASE = ${JSON.stringify(BASE)};
+  const modal = document.getElementById("search-modal");
+  const openButton = document.getElementById("open-search");
+  const closeButton = document.getElementById("close-search");
+  const input = document.getElementById("search-input");
+  const resultsEl = document.getElementById("search-results");
+
+  let fuse = null;
+  let indexItems = [];
+  let isLoading = false;
+  let indexError = "";
+
+  const debounce = (fn, wait = 180) => {
+    let timer;
+    return (...args) => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => fn(...args), wait);
+    };
+  };
+
+    const stripHTML = (text) => text.replace(/<[^>]+>/g, " ").trim();
+
+    const buildSnippet = (content, term) => {
+      if (!term) return content.slice(0, 160) + (content.length > 160 ? "…" : "");
+      const lower = content.toLowerCase();
+      const normalized = term.toLowerCase();
+    const index = lower.indexOf(normalized);
+    if (index === -1) return buildSnippet(content, "");
+
+    const start = Math.max(0, index - 60);
+    const end = Math.min(content.length, index + term.length + 120);
+    const snippet = content.slice(start, end);
+    return `${start > 0 ? "…" : ""}${snippet}${end < content.length ? "…" : ""}`;
+  };
+
+    const highlight = (text, term) => {
+      if (!term) return stripHTML(text);
+      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(`(${escaped})`, "ig");
+    return stripHTML(text).replace(regex, '<mark class="bg-yellow-200 text-gray-900 rounded px-0.5">$1</mark>');
+  };
+
+  const renderResults = (items, query) => {
+    if (!resultsEl) return;
+    if (indexError) {
+      resultsEl.innerHTML = `<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/40 dark:text-red-200">${indexError}</p>`;
+      return;
+    }
+
+    if (!items.length) {
+      resultsEl.innerHTML = `<p class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500 dark:border-gray-800 dark:bg-gray-800/60 dark:text-gray-300">${query ? "No results found" : "Start typing to search posts"}</p>`;
+      return;
+    }
+
+    const list = items
+      .map((item) => {
+        const { title, slug, excerpt, content, date, tags } = item.item ?? item;
+        const snippet = buildSnippet(excerpt || content || "", query);
+        const formattedDate = date ? new Date(date).toLocaleDateString() : "";
+        const tagChips = Array.isArray(tags)
+          ? tags
+                .map(
+                  (tag) =>
+                    `<span class="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200">#${tag}</span>`,
+                )
+              .join(" ")
+          : "";
+
+        return `<a href="${BASE}${slug}/" class="group block rounded-xl border border-gray-200 bg-white/70 px-4 py-3 transition hover:border-blue-400 hover:bg-blue-50 dark:border-gray-800 dark:bg-gray-800/60 dark:hover:border-blue-500 dark:hover:bg-gray-800">
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="text-lg font-semibold text-gray-900 transition group-hover:text-blue-600 dark:text-gray-100 dark:group-hover:text-blue-300">${highlight(title, query)}</h3>
+              <span class="text-xs text-gray-500 dark:text-gray-400">${formattedDate}</span>
+            </div>
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">${highlight(snippet, query)}</p>
+            ${tagChips ? `<div class="mt-3 flex flex-wrap gap-2">${tagChips}</div>` : ""}
+          </a>`;
+      })
+      .join("");
+
+    resultsEl.innerHTML = `<div class="space-y-3">${list}</div>`;
+  };
+
+  const loadIndex = async () => {
+    if (fuse || isLoading) return;
+    isLoading = true;
+    try {
+      const response = await fetch(`${BASE}search-index.json`, { cache: "no-store" });
+      if (!response.ok) throw new Error(`Failed to load search index (${response.status})`);
+      const payload = await response.json();
+      const items = payload.items || payload;
+      indexItems = Array.isArray(items) ? items : [];
+      fuse = new Fuse(indexItems, {
+        includeScore: true,
+        minMatchCharLength: 2,
+        threshold: 0.35,
+        keys: [
+          { name: "title", weight: 0.5 },
+          { name: "excerpt", weight: 0.25 },
+          { name: "content", weight: 0.25 },
+        ],
+      });
+      renderResults(indexItems.slice(0, 6), "");
+    } catch (error) {
+      console.error("Search index error", error);
+      const message = error && typeof error === "object" && "message" in error ? String(error.message) : "";
+      indexError = message || "Unable to load search index.";
+      renderResults([], "");
+    } finally {
+      isLoading = false;
+    }
+  };
+
+  const openModal = async () => {
+    if (!modal) return;
+    await loadIndex();
+    modal.classList.remove("hidden");
+    document.body.classList.add("overflow-hidden");
+    input?.focus();
+  };
+
+  const closeModal = () => {
+    if (!modal) return;
+    modal.classList.add("hidden");
+    document.body.classList.remove("overflow-hidden");
+    if (input) {
+      input.value = "";
+    }
+    renderResults([], "");
+  };
+
+  const performSearch = (term) => {
+    if (!fuse) return;
+    const query = term.trim();
+    if (!query) {
+      renderResults(indexItems.slice(0, 6), "");
+      return;
+    }
+    const results = fuse.search(query, { limit: 20 });
+    renderResults(results, query);
+  };
+
+  const handleShortcut = (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      openModal();
+    }
+    if (event.key === "Escape") {
+      closeModal();
+    }
+  };
+
+  openButton?.addEventListener("click", openModal);
+  closeButton?.addEventListener("click", closeModal);
+  window.addEventListener("keydown", handleShortcut);
+  input?.addEventListener("input", debounce((event) => {
+    const target = event.target;
+    performSearch(target.value);
+  }, 180));
+
+  // Preload index after idle to improve perceived speed
+  if ("requestIdleCallback" in window) {
+    (window as any).requestIdleCallback(loadIndex);
+  } else {
+    setTimeout(loadIndex, 800);
+  }
+</script>
