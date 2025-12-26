@@ -1,0 +1,66 @@
+---
+const themeInitializer = `(() => {
+  const storageKey = 'theme';
+  const className = 'dark';
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  const validThemes = ['light', 'dark', 'system'];
+  let currentPreference = (() => {
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (stored && validThemes.includes(stored)) return stored;
+    } catch (error) {
+      console.warn('Unable to access localStorage for theme:', error);
+    }
+    return 'system';
+  })();
+
+  const resolveTheme = (preference) =>
+    preference === 'system' ? (mediaQuery.matches ? 'dark' : 'light') : preference;
+
+  const applyTheme = (preference) => {
+    const effectiveTheme = resolveTheme(preference);
+    document.documentElement.classList.toggle(className, effectiveTheme === 'dark');
+    document.documentElement.dataset.theme = effectiveTheme;
+    return effectiveTheme;
+  };
+
+  const dispatchChange = (preference) => {
+    const resolved = document.documentElement.classList.contains(className) ? 'dark' : 'light';
+    window.dispatchEvent(
+      new CustomEvent('themechange', {
+        detail: { theme: preference, resolved },
+      }),
+    );
+  };
+
+  const handleMatchChange = () => {
+    if (currentPreference !== 'system') return;
+    applyTheme('system');
+    dispatchChange('system');
+  };
+
+  applyTheme(currentPreference);
+  if (currentPreference === 'system') {
+    mediaQuery.addEventListener('change', handleMatchChange);
+  }
+
+  window.__setTheme = (next) => {
+    const preference = validThemes.includes(String(next)) ? String(next) : 'system';
+    currentPreference = preference;
+    try {
+      localStorage.setItem(storageKey, preference);
+    } catch (error) {
+      console.warn('Unable to persist theme selection:', error);
+    }
+    applyTheme(preference);
+    dispatchChange(preference);
+
+    if (preference === 'system') {
+      mediaQuery.addEventListener('change', handleMatchChange);
+    } else {
+      mediaQuery.removeEventListener('change', handleMatchChange);
+    }
+  };
+})();`;
+---
+<script is:inline set:html={themeInitializer}></script>
