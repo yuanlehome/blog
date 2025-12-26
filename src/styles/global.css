@@ -11,6 +11,11 @@
   --code-scrollbar: rgb(203 213 225 / 0.75);
   --code-highlight-bg: rgb(59 130 246 / 0.12);
   --code-highlight-accent: rgb(59 130 246);
+  --header-bg: rgb(248 250 252 / 0.92);
+  --header-bg-scrolled: rgb(248 250 252 / 0.98);
+  --header-border: rgb(226 232 240 / 0.9);
+  --header-shadow: 0 8px 24px rgb(15 23 42 / 0.08);
+  --header-shadow-strong: 0 10px 30px rgb(15 23 42 / 0.12);
 }
 
 .dark {
@@ -20,6 +25,11 @@
   --code-scrollbar: rgb(71 85 105 / 0.8);
   --code-highlight-bg: rgb(59 130 246 / 0.2);
   --code-highlight-accent: rgb(96 165 250);
+  --header-bg: rgb(15 23 42 / 0.72);
+  --header-bg-scrolled: rgb(15 23 42 / 0.84);
+  --header-border: rgb(71 85 105 / 0.8);
+  --header-shadow: 0 10px 32px rgb(0 0 0 / 0.28);
+  --header-shadow-strong: 0 16px 40px rgb(0 0 0 / 0.32);
 }
 
 html,
@@ -27,6 +37,64 @@ body {
   width: 100%;
   max-width: 100%;
   overflow-x: hidden;
+}
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--header-border);
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.site-header.reduce-motion {
+  transition: none;
+}
+
+.site-header.is-scrolled {
+  background: var(--header-bg-scrolled);
+  box-shadow: var(--header-shadow);
+}
+
+.header-variant-subtle {
+  --header-bg: rgb(250 251 252);
+  --header-bg-scrolled: rgb(248 250 252);
+  --header-border: rgb(226 232 240);
+  box-shadow: none;
+}
+
+.dark .header-variant-subtle {
+  --header-bg: rgb(18 24 38);
+  --header-bg-scrolled: rgb(22 30 48);
+  --header-border: rgb(71 85 105 / 0.85);
+}
+
+.header-variant-frosted {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  background: var(--header-bg);
+}
+
+.header-variant-frosted.is-scrolled {
+  box-shadow: var(--header-shadow);
+}
+
+.header-variant-elevated {
+  background: linear-gradient(180deg, var(--header-bg) 0%, rgb(255 255 255 / 0.92) 100%);
+  box-shadow: none;
+}
+
+.dark .header-variant-elevated {
+  background: linear-gradient(180deg, var(--header-bg) 0%, rgb(15 23 42 / 0.78) 100%);
+}
+
+.header-variant-elevated.is-scrolled {
+  box-shadow: var(--header-shadow-strong);
+}
+
+.site-header :where(nav a) {
+  color: inherit;
 }
 
 :where(.prose) {

@@ -3,11 +3,18 @@ import { expect, test } from '@playwright/test';
 const ensureHashNavigation = async (page: any, tocSelector: string) => {
   const tocLink = page.locator(`${tocSelector} a`).first();
   await expect(tocLink).toBeVisible();
-  const hash = await tocLink.getAttribute('href');
+  const rawHash = await tocLink.getAttribute('href');
   await tocLink.click();
-  if (hash) {
-    await expect(page).toHaveURL(new RegExp(`${hash.replace('#', '#')}$`));
-  }
+
+  if (!rawHash) return;
+
+  const targetHash = rawHash.startsWith('#') ? rawHash : `#${rawHash}`;
+  const encodedHash = `#${encodeURIComponent(targetHash.slice(1))}`;
+  const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  await expect(page).toHaveURL(new RegExp(`${escapeRegex(encodedHash)}$`));
+  await expect.poll(async () => decodeURIComponent((await page.evaluate(() => location.hash)) || ''))
+    .toBe(targetHash);
 };
 
 test.describe('Blog smoke journey', () => {

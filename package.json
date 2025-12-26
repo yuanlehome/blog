@@ -31,6 +31,7 @@
     "astro": "^5.16.6",
     "axios": "^1.13.2",
     "dotenv": "^17.2.3",
+    "github-slugger": "^2.0.0",
     "gray-matter": "^4.0.3",
     "katex": "^0.16.27",
     "notion-to-md": "^3.1.9",
