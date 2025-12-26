@@ -22,3 +22,6 @@ pnpm-debug.log*
 
 # macOS
 .DS_Store
+
+# local-only handwritten posts (keep out of repo/production)
+src/content/blog/local/
