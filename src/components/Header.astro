@@ -1,6 +1,4 @@
 ---
-import SearchModal from './SearchModal.astro';
-
 const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
 ---
 <header class="py-6 border-b border-gray-200 dark:border-gray-800">
@@ -10,7 +8,6 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
             <a href={BASE} class="hover:underline">Home</a>
             <a href={`${BASE}about/`} class="hover:underline">About</a>
             <a href={`${BASE}rss.xml`} class="hover:underline">RSS</a>
-            <SearchModal />
             <button id="theme-toggle" class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800" aria-label="Toggle theme">
                 🌙/☀️
             </button>

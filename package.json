@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
-    "search:index": "tsx scripts/generate-search-index.ts",
-    "build": "npm run search:index && astro build",
+    "build": "astro build",
     "preview": "astro preview",
     "notion:sync": "tsx scripts/notion-sync.ts && tsx scripts/fix-math.ts src/content/blog/notion",
     "format": "npx --yes prettier@3.7.4 --write \"{scripts,src}/**/*.{ts,tsx,js,jsx}\"",
@@ -27,7 +26,6 @@
     "astro": "^5.16.6",
     "axios": "^1.13.2",
     "dotenv": "^17.2.3",
-    "fuse.js": "^7.1.0",
     "gray-matter": "^4.0.3",
     "katex": "^0.16.27",
     "notion-to-md": "^3.1.9",
