@@ -1,7 +1,7 @@
 ---
 const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
 ---
-<header class="py-6 border-b border-gray-200 dark:border-gray-800">
+<header class="site-header header-variant-frosted" data-header>
     <div class="container mx-auto px-4 flex justify-between items-center max-w-4xl">
         <a href={BASE} class="text-xl font-bold hover:text-blue-600 dark:hover:text-blue-400">Yuanle Liu‘s Blog</a>
         <nav class="flex items-center gap-3">
@@ -77,6 +77,15 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
         render(next);
     };
 
+    const header = document.querySelector<HTMLElement>("[data-header]");
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const updateHeaderState = () => {
+        if (!header) return;
+        const isScrolled = window.scrollY > 6;
+        header.classList.toggle("is-scrolled", isScrolled);
+    };
+
     document.getElementById("theme-toggle")?.addEventListener("click", handleToggleClick);
     render(getPreference());
 
@@ -86,4 +95,12 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
         const resolved: "light" | "dark" | undefined = detail?.resolved;
         render(theme, resolved);
     });
+
+    updateHeaderState();
+    const scrollHandler = () => updateHeaderState();
+    window.addEventListener("scroll", scrollHandler, { passive: true });
+
+    if (prefersReducedMotion) {
+        header?.classList.add("reduce-motion");
+    }
 </script>
