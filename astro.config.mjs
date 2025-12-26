@@ -12,10 +12,13 @@ import rehypePrettyCode from './src/utils/rehypePrettyCode';
 import rehypeHeadingLinks from './src/utils/rehypeHeadingLinks';
 import rehypeExternalLinks from './src/utils/rehypeExternalLinks';
 
+const siteBase = process.env.SITE_BASE ?? (process.env.NODE_ENV === 'production' ? '/blog' : '/');
+const siteUrl = process.env.SITE_URL ?? 'https://yuanlehome.github.io/blog/';
+
 // https://astro.build/config
 export default defineConfig({
-  site: 'https://yuanlehome.github.io/blog/',
-  base: process.env.NODE_ENV === 'production' ? '/blog' : '/',
+  site: siteUrl,
+  base: siteBase,
   trailingSlash: 'always',
   integrations: [tailwind(), sitemap()],
   vite: {
@@ -27,7 +30,7 @@ export default defineConfig({
       remarkGfm,
       remarkNotionCompat,
       remarkCodeMeta,
-      [remarkPrefixImages, { base: process.env.NODE_ENV === 'production' ? '/blog' : '/' }],
+      [remarkPrefixImages, { base: siteBase }],
     ],
     rehypePlugins: [
       rehypeKatex,
