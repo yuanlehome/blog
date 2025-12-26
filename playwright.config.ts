@@ -1,7 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const PORT = parseInt(process.env.PORT || '4173', 10);
-const baseURL = process.env.PLAYWRIGHT_TEST_BASE_URL || `http://127.0.0.1:${PORT}`;
+const basePath = process.env.SITE_BASE ?? '/blog';
+const normalizedBasePath = basePath.endsWith('/') ? basePath : `${basePath}/`;
+const baseURL =
+  process.env.PLAYWRIGHT_TEST_BASE_URL ||
+  `http://127.0.0.1:${PORT}${normalizedBasePath}`;
 
 export default defineConfig({
   testDir: './tests/e2e',

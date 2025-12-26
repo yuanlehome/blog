@@ -1,10 +1,6 @@
 import { Client } from "@notionhq/client";
 import { NotionToMarkdown } from "notion-to-md";
-import type {
-  PageObjectResponse,
-  PartialPageObjectResponse,
-  DatabaseObjectResponse,
-} from "@notionhq/client/build/src/api-endpoints";
+import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";

@@ -18,43 +18,49 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
 
 <script>
     const storageKey = "theme";
-    const order = ["light", "dark"];
+    const order: Array<"light" | "dark"> = ["light", "dark"];
 
-    const getPreference = () => {
+    const getPreference = (): "light" | "dark" => {
         try {
             const value = localStorage.getItem(storageKey);
-            if (value && order.includes(value)) return value;
+            if (value === "light" || value === "dark") return value;
         } catch (error) {
             console.warn("Unable to read theme preference:", error);
         }
         return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     };
 
-    const getResolvedTheme = () =>
+    const getResolvedTheme = (): "light" | "dark" =>
         document.documentElement.classList.contains("dark") ? "dark" : "light";
 
-    const iconFor = (preference) => (preference === "dark" ? "🌙" : "☀️");
+    const iconFor = (preference: "light" | "dark") => (preference === "dark" ? "🌙" : "☀️");
 
-    const labelFor = (preference) => (preference === "dark" ? "Dark" : "Light");
+    const labelFor = (preference: "light" | "dark") => (preference === "dark" ? "Dark" : "Light");
 
-    const render = (preference, resolvedOverride) => {
+    const render = (preference: "light" | "dark", resolvedOverride?: "light" | "dark") => {
         const button = document.getElementById("theme-toggle");
         if (!button) return;
-        const resolved = resolvedOverride ?? getResolvedTheme();
+        const resolved: "light" | "dark" = resolvedOverride ?? getResolvedTheme();
         const icon = iconFor(resolved);
         const label = labelFor(resolved);
-        button.dataset.theme = preference;
+        (button as HTMLElement).dataset.theme = preference;
         button.textContent = `${icon} ${label}`;
         button.setAttribute("aria-label", `Toggle theme (current: ${label})`);
     };
 
-    const applyPreference = (preference) => {
+    declare global {
+        interface Window {
+            __setTheme?: (preference: "light" | "dark") => void;
+        }
+    }
+
+    const applyPreference = (preference: "light" | "dark") => {
         if (typeof window.__setTheme === "function") {
-            window.__setTheme(preference);
+            window.__setTheme?.(preference);
             return;
         }
 
-        const resolved = preference === "dark" ? "dark" : "light";
+        const resolved: "light" | "dark" = preference === "dark" ? "dark" : "light";
         document.documentElement.classList.toggle("dark", resolved === "dark");
         try {
             localStorage.setItem(storageKey, preference);
@@ -74,9 +80,10 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
     document.getElementById("theme-toggle")?.addEventListener("click", handleToggleClick);
     render(getPreference());
 
-    window.addEventListener("themechange", (event) => {
-        const theme = event.detail?.theme ?? getPreference();
-        const resolved = event.detail?.resolved;
+    window.addEventListener("themechange", (event: Event) => {
+        const detail = (event as CustomEvent<{ theme?: "light" | "dark"; resolved?: "light" | "dark" }>).detail;
+        const theme: "light" | "dark" = detail?.theme ?? getPreference();
+        const resolved: "light" | "dark" | undefined = detail?.resolved;
         render(theme, resolved);
     });
 </script>

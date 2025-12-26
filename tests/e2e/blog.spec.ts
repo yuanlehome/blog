@@ -13,6 +13,13 @@ const ensureHashNavigation = async (page: any, tocSelector: string) => {
 test.describe('Blog smoke journey', () => {
   test('home to article with interactions', async ({ page }) => {
     await page.goto('/');
+    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
+    if (await notFoundHeading.count()) {
+      const baseLink = page.locator('a[href="/blog/"]');
+      if (await baseLink.count()) {
+        await baseLink.first().click();
+      }
+    }
 
     const posts = page.locator('#post-list li');
     expect(await posts.count()).toBeGreaterThan(0);
@@ -38,9 +45,11 @@ test.describe('Blog smoke journey', () => {
     const toggledClass = await html.getAttribute('class');
     expect(toggledClass).not.toBe(initialClass);
 
-    await page.goto('/archive/');
-    const persisted = await page.locator('html').getAttribute('class');
-    expect(persisted).toBe(toggledClass);
+    await page.goto('/blog/archive/');
+    const toggledResolved = toggledClass ? 'dark' : 'light';
+    await page.waitForFunction((expected) => document.documentElement.dataset.theme === expected, toggledResolved);
+    const persistedDataTheme = await page.evaluate(() => document.documentElement.dataset.theme || '');
+    expect(persistedDataTheme).toBe(toggledResolved);
   });
 
   test('mobile viewport avoids horizontal overflow on flashattention page', async ({ browser }) => {

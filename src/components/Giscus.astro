@@ -1,13 +1,10 @@
 ---
-const {
-  lang = 'zh-CN',
-  loading = 'lazy',
-} = Astro.props;
+const { lang = 'zh-CN' } = Astro.props;
 ---
 
 <section id="comments" class="mt-12">
   <div class="border-t border-gray-200 dark:border-gray-700 pt-8">
-    <script 
+    <script is:inline
       src="https://giscus.app/client.js"
       data-repo="yuanlehome/blog"
       data-repo-id="R_kgDOQu2Jjw"
@@ -19,7 +16,7 @@ const {
       data-emit-metadata="0"
       data-input-position="bottom"
       data-theme="preferred_color_scheme"
-      data-lang="zh-CN"
+      data-lang={lang}
       crossorigin="anonymous"
       async
     ></script>

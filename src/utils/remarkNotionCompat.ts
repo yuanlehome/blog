@@ -70,8 +70,8 @@ const remarkNotionCompat: Plugin<[], Root> = () => {
     visit(tree, 'blockquote', (node) => {
       const first = node.children?.[0];
       if (first && first.type === 'paragraph') {
-        const textNode = first.children?.find((c: any) => c.type === 'text');
-        if (textNode && typeof textNode.value === 'string') {
+        const textNode = first.children?.find((c): c is import('mdast').Text => c.type === 'text');
+        if (textNode) {
           textNode.value = textNode.value.replace(notionCalloutEmoji, '').trimStart();
         }
       }

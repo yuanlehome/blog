@@ -16,3 +16,7 @@ console.log('alpha');
 | Col1 | Col2 |
 | --- | --- |
 | A | B |
+
+$$
+E = mc^2
+$$

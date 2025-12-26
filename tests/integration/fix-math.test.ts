@@ -12,7 +12,7 @@ describe('fix-math script', () => {
     const fixed = fixMath(content);
 
     expect(fixed).toContain('$a + b = c$');
-    expect(fixed).toMatch(/\\n?\$\$/); // block promotion retained
+    expect(fixed).toMatch(/\n?\$\$/); // block promotion retained
   });
 
   it('can process directories recursively', () => {
