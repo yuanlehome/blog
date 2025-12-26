@@ -13,34 +13,183 @@ const headings = Astro.props.headings
   .filter((heading) => heading.depth <= 3)
   .map((heading) => ({
     ...heading,
-    indentClass: heading.depth === 3 ? 'pl-3' : '',
+    indentClass: heading.depth === 3 ? 'pl-4' : '',
   }));
+
+const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) to avoid overlap
 ---
 
-<aside class="hidden lg:block w-64 shrink-0">
-  <div class="sticky top-24 space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-800/40">
+<div class="w-full lg:w-72 shrink-0" style={`--toc-offset: ${headerOffset}px`} data-toc-container>
+  <div class="lg:hidden mb-4 flex items-center justify-between gap-3">
     <div>
-      <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">文章目录</p>
-      <p class="text-xs text-gray-500 dark:text-gray-400">快速跳转到你关心的章节</p>
+      <p class="text-sm font-semibold">文章目录</p>
+      <p class="text-xs text-gray-500">快速跳转到你关心的章节</p>
     </div>
-    {headings.length === 0 ? (
-      <p class="text-sm text-gray-500 dark:text-gray-400">本文暂无目录。</p>
-    ) : (
-      <nav aria-label="文章目录">
-        <ol class="space-y-2 text-sm">
-          {headings.map((heading) => (
-            <li>
-              <a
-                href={`#${heading.slug}`}
-                class={`flex items-start gap-2 text-gray-700 underline-offset-2 transition hover:text-blue-600 dark:text-gray-200 dark:hover:text-blue-400 ${heading.indentClass}`}
-              >
-                <span class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">#</span>
-                <span>{heading.text}</span>
-              </a>
-            </li>
-          ))}
-        </ol>
-      </nav>
+    {headings.length > 0 && (
+      <button
+        type="button"
+        class="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium shadow-sm transition hover:border-blue-200 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-blue-500/50 dark:hover:text-blue-300 dark:focus-visible:ring-offset-gray-900"
+        data-toc-open
+        aria-haspopup="dialog"
+        aria-expanded="false"
+      >
+        📑 目录
+      </button>
     )}
   </div>
-</aside>
+
+  <aside
+    class="hidden lg:block lg:sticky lg:top-[calc(var(--toc-offset)+0.75rem)] lg:self-start"
+    style={`--toc-offset: ${headerOffset}px`}
+  >
+    <div
+      class="space-y-3 overflow-hidden rounded-xl border border-gray-200 bg-gray-50/80 p-4 shadow-md backdrop-blur-sm dark:border-gray-800 dark:bg-gray-800/50 lg:max-h-[calc(100vh-var(--toc-offset)-2rem)]"
+    >
+      <div class="space-y-1">
+        <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">文章目录</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400">快速跳转到你关心的章节</p>
+      </div>
+      {headings.length === 0 ? (
+        <p class="text-sm text-gray-500 dark:text-gray-400">本文暂无目录。</p>
+      ) : (
+        <nav aria-label="文章目录" class="max-h-[inherit] overflow-y-auto pr-1" data-toc-scroll>
+          <ol class="space-y-2 text-sm">
+            {headings.map((heading) => (
+              <li>
+                <a
+                  href={`#${heading.slug}`}
+                  data-toc-link
+                  data-target={heading.slug}
+                  title={heading.text}
+                  class={`group flex items-start gap-2 truncate text-gray-700 underline-offset-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:text-gray-200 dark:focus-visible:ring-offset-gray-900 ${heading.indentClass}`}
+                >
+                  <span class="mt-0.5 text-xs text-gray-400 transition-colors group-data-[active=true]:text-blue-600 dark:text-gray-500 dark:group-data-[active=true]:text-blue-400">#</span>
+                  <span class="flex-1 truncate" data-title>{heading.text}</span>
+                </a>
+              </li>
+            ))}
+          </ol>
+        </nav>
+      )}
+    </div>
+  </aside>
+
+  <div
+    class="pointer-events-none fixed inset-0 z-40 bg-gray-900/40 opacity-0 backdrop-blur-sm transition data-[open=true]:pointer-events-auto data-[open=true]:opacity-100 lg:hidden"
+    data-toc-overlay
+    aria-hidden="true"
+  >
+    <div
+      class="absolute inset-x-4 top-[calc(var(--toc-offset)+1rem)] max-h-[70vh] overflow-hidden rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-xl ring-1 ring-black/5 transition dark:border-gray-800 dark:bg-gray-900/95 dark:ring-white/5"
+      role="dialog"
+      aria-modal="true"
+      aria-label="文章目录"
+    >
+      <div class="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <p class="text-sm font-semibold">文章目录</p>
+          <p class="text-xs text-gray-500">点击条目可跳转</p>
+        </div>
+        <button
+          type="button"
+          class="rounded-full border border-gray-200 bg-white px-3 py-1 text-sm font-medium shadow-sm transition hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-gray-800 dark:bg-gray-900 dark:hover:text-blue-300 dark:focus-visible:ring-offset-gray-900"
+          data-toc-close
+        >
+          关闭
+        </button>
+      </div>
+      {headings.length === 0 ? (
+        <p class="text-sm text-gray-500">本文暂无目录。</p>
+      ) : (
+        <nav aria-label="文章目录" class="max-h-[60vh] overflow-y-auto pr-1" data-toc-scroll>
+          <ol class="space-y-2 text-sm">
+            {headings.map((heading) => (
+              <li>
+                <a
+                  href={`#${heading.slug}`}
+                  data-toc-link
+                  data-target={heading.slug}
+                  title={heading.text}
+                  class={`group flex items-start gap-2 truncate rounded-lg px-2 py-1 text-gray-800 underline-offset-2 transition hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:text-gray-100 dark:hover:bg-blue-500/10 dark:hover:text-blue-300 dark:focus-visible:ring-offset-gray-900 ${heading.indentClass}`}
+                >
+                  <span class="mt-0.5 text-xs text-gray-400 transition-colors group-data-[active=true]:text-blue-600 dark:text-gray-500 dark:group-data-[active=true]:text-blue-300">#</span>
+                  <span class="flex-1 truncate" data-title>{heading.text}</span>
+                </a>
+              </li>
+            ))}
+          </ol>
+        </nav>
+      )}
+    </div>
+  </div>
+</div>
+
+<script>
+  const tocLinks = Array.from(document.querySelectorAll('[data-toc-link]')) as HTMLAnchorElement[];
+  const tocOverlay = document.querySelector('[data-toc-overlay]') as HTMLElement | null;
+  const tocContainer = document.querySelector('[data-toc-container]') as HTMLElement | null;
+  const openButton = document.querySelector('[data-toc-open]') as HTMLButtonElement | null;
+  const closeButton = document.querySelector('[data-toc-close]') as HTMLButtonElement | null;
+  const body = document.body;
+
+  const setOverlayOpen = (open: boolean) => {
+    if (!tocOverlay) return;
+    tocOverlay.dataset.open = String(open);
+    if (openButton) openButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+    body.classList.toggle('overflow-hidden', open);
+  };
+
+  openButton?.addEventListener('click', () => setOverlayOpen(true));
+  closeButton?.addEventListener('click', () => setOverlayOpen(false));
+  tocOverlay?.addEventListener('click', (event) => {
+    if (event.target === tocOverlay) setOverlayOpen(false);
+  });
+
+  tocLinks.forEach((link) =>
+    link.addEventListener('click', () => {
+      setOverlayOpen(false);
+    })
+  );
+
+  const headings = tocLinks
+    .map((link) => document.getElementById(link.dataset.target || ''))
+    .filter((el): el is HTMLElement => Boolean(el));
+
+  const setActive = (id: string | null) => {
+    tocLinks.forEach((link) => {
+      const isActive = link.dataset.target === id;
+      link.dataset.active = isActive ? 'true' : 'false';
+      link.setAttribute('aria-current', isActive ? 'true' : 'false');
+    });
+  };
+
+  if (headings.length > 0) {
+    setActive(headings[0].id);
+    const rootMarginTop =
+      (tocContainer && getComputedStyle(tocContainer).getPropertyValue('--toc-offset')) || '96px';
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => a.target.getBoundingClientRect().top - b.target.getBoundingClientRect().top);
+
+        if (visible[0]) {
+          setActive(visible[0].target.id);
+          return;
+        }
+
+        // Fallback: find the first section below the viewport
+        const above = entries
+          .filter((entry) => entry.boundingClientRect.top < 0)
+          .sort((a, b) => b.target.getBoundingClientRect().top - a.target.getBoundingClientRect().top);
+        if (above[0]) setActive(above[0].target.id);
+      },
+      {
+        rootMargin: `-${rootMarginTop.trim()} 0% -55% 0%`,
+        threshold: [0, 0.25, 0.5, 1],
+      }
+    );
+
+    headings.forEach((heading) => observer.observe(heading));
+  }
+</script>
