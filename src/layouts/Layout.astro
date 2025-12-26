@@ -1,6 +1,5 @@
 ---
 import 'katex/dist/katex.min.css';
-import CodeBlockCopy from '../components/CodeBlockCopy.astro';
 
 interface Props {
   title: string;
@@ -74,22 +73,6 @@ const { title, description = "A minimal Astro blog", image = `${BASE}placeholder
         padding: 0.75rem 1rem 0;
         pointer-events: none;
       }
-      .code-copy {
-        padding: 0.25rem 0.65rem;
-        border-radius: 9999px;
-        font-size: 0.75rem;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        background: rgba(0, 0, 0, 0.35);
-        color: white;
-        cursor: pointer;
-        transition: opacity 0.2s ease, transform 0.15s ease;
-        pointer-events: auto;
-        margin-left: auto;
-      }
-      .code-copy:hover {
-        opacity: 0.9;
-        transform: translateY(-1px);
-      }
       .code-lang {
         text-transform: uppercase;
         font-size: 0.7rem;
@@ -115,6 +98,5 @@ const { title, description = "A minimal Astro blog", image = `${BASE}placeholder
   </head>
   <body class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300 min-h-screen flex flex-col">
     <slot />
-    <CodeBlockCopy />
   </body>
 </html>

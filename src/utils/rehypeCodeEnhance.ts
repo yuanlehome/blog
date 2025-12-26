@@ -20,17 +20,6 @@ const rehypeCodeEnhance: Plugin = () => {
         className: ['code-block', ...(node.properties?.className as string[] | undefined || [])],
       };
 
-      const copyButton: Element = {
-        type: 'element',
-        tagName: 'button',
-        properties: {
-          className: ['code-copy'],
-          type: 'button',
-          'data-lang': language,
-        },
-        children: [{ type: 'text', value: 'Copy' }],
-      };
-
       const label: Element = {
         type: 'element',
         tagName: 'span',
@@ -46,7 +35,7 @@ const rehypeCodeEnhance: Plugin = () => {
         properties: {
           className: ['code-toolbar'],
         },
-        children: [label, copyButton],
+        children: [label],
       };
 
       node.children = [toolbar, ...node.children];
