@@ -48,7 +48,7 @@ jobs:
         if: github.event.pull_request.head.repo.full_name == github.repository
         uses: peaceiris/actions-gh-pages@v4
         with:
-          github_token: ${{ secrets.PREVIEW_TOKEN }}
+          personal_token: ${{ secrets.PREVIEW_TOKEN }}
           publish_dir: dist
           external_repository: ${{ secrets.PREVIEW_REPO }}
           publish_branch: gh-pages
