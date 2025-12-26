@@ -59,11 +59,11 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
   import Fuse from "fuse.js";
 
   const BASE = ${JSON.stringify(BASE)};
-  const modal = document.getElementById("search-modal");
-  const openButton = document.getElementById("open-search");
-  const closeButton = document.getElementById("close-search");
-  const input = document.getElementById("search-input");
-  const resultsEl = document.getElementById("search-results");
+  let modal;
+  let openButton;
+  let closeButton;
+  let input;
+  let resultsEl;
 
   let fuse = null;
   let indexItems = [];
@@ -209,18 +209,32 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
     }
   };
 
-  openButton?.addEventListener("click", openModal);
-  closeButton?.addEventListener("click", closeModal);
-  window.addEventListener("keydown", handleShortcut);
-  input?.addEventListener("input", debounce((event) => {
-    const target = event.target;
-    performSearch(target.value);
-  }, 180));
+  const initSearchModal = () => {
+    modal = document.getElementById("search-modal");
+    openButton = document.getElementById("open-search");
+    closeButton = document.getElementById("close-search");
+    input = document.getElementById("search-input");
+    resultsEl = document.getElementById("search-results");
 
-  // Preload index after idle to improve perceived speed
-  if ("requestIdleCallback" in window) {
-    (window as any).requestIdleCallback(loadIndex);
+    openButton?.addEventListener("click", openModal);
+    closeButton?.addEventListener("click", closeModal);
+    window.addEventListener("keydown", handleShortcut);
+    input?.addEventListener("input", debounce((event) => {
+      const target = event.target;
+      performSearch(target.value);
+    }, 180));
+
+    // Preload index after idle to improve perceived speed
+    if ("requestIdleCallback" in window) {
+      (window as any).requestIdleCallback(loadIndex);
+    } else {
+      setTimeout(loadIndex, 800);
+    }
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initSearchModal, { once: true });
   } else {
-    setTimeout(loadIndex, 800);
+    initSearchModal();
   }
 </script>
