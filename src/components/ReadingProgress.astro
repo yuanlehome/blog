@@ -1,0 +1,175 @@
+---
+export interface Props {
+  /** CSS selector for the article content element */
+  targetSelector?: string;
+}
+
+const { targetSelector = '[data-article]' } = Astro.props;
+---
+<div class="reading-progress" data-reading-progress data-target-selector={targetSelector}>
+  <span class="reading-progress__bar" data-reading-progress-bar></span>
+</div>
+<div class="reading-progress__controls" data-reading-progress-controls hidden>
+  <button type="button" class="reading-progress__control" data-scroll-top aria-label="返回文章顶部">
+    ⬆️ 顶部
+  </button>
+  <button type="button" class="reading-progress__control" data-scroll-bottom aria-label="跳转文章底部">
+    ⬇️ 底部
+  </button>
+</div>
+
+<style>
+  .reading-progress {
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: 3px;
+    width: 100%;
+    background: transparent;
+    z-index: 50;
+    pointer-events: none;
+  }
+
+  .reading-progress__bar {
+    display: block;
+    height: 100%;
+    width: 100%;
+    transform: scaleX(var(--progress-value, 0));
+    transform-origin: left center;
+    background: linear-gradient(90deg, var(--progress-color-start), var(--progress-color-end));
+    transition: transform 0.1s linear;
+  }
+
+  :global(:root) {
+    --progress-color-start: #2563eb;
+    --progress-color-end: #22d3ee;
+  }
+
+  :global(:root.dark) {
+    --progress-color-start: #38bdf8;
+    --progress-color-end: #a855f7;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reading-progress__bar {
+      transition: none;
+    }
+  }
+
+  .reading-progress__controls {
+    position: fixed;
+    inset: auto 1rem 1.5rem auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    z-index: 60;
+    pointer-events: none;
+  }
+
+  .reading-progress__control {
+    pointer-events: auto;
+    border: 1px solid var(--progress-control-border);
+    background: var(--progress-control-bg);
+    color: var(--progress-control-text);
+    border-radius: 9999px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  }
+
+  .reading-progress__control:hover,
+  .reading-progress__control:focus-visible {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+    outline: none;
+  }
+
+  :global(:root) {
+    --progress-control-bg: #ffffff;
+    --progress-control-border: rgba(0, 0, 0, 0.08);
+    --progress-control-text: #0f172a;
+  }
+
+  :global(:root.dark) {
+    --progress-control-bg: #0f172a;
+    --progress-control-border: rgba(255, 255, 255, 0.08);
+    --progress-control-text: #e2e8f0;
+  }
+
+  @media (max-width: 640px) {
+    .reading-progress__controls {
+      inset: auto 0.75rem 1rem auto;
+    }
+
+    .reading-progress__control {
+      padding: 0.45rem 0.65rem;
+      font-size: 0.8125rem;
+    }
+  }
+</style>
+
+<script>
+  const progressRoot = document.querySelector('[data-reading-progress]');
+  const selector = progressRoot?.dataset.targetSelector || '[data-article]';
+  const progressBar = progressRoot?.querySelector('[data-reading-progress-bar]');
+  const article = selector ? document.querySelector(selector) : null;
+  const controls = document.querySelector('[data-reading-progress-controls]');
+  const scrollTopButton = controls?.querySelector('[data-scroll-top]');
+  const scrollBottomButton = controls?.querySelector('[data-scroll-bottom]');
+
+  if (progressRoot && progressBar && article) {
+    let start = 0;
+    let contentHeight = 0;
+    let ticking = false;
+
+    const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+    const measure = () => {
+      const rect = article.getBoundingClientRect();
+      start = rect.top + window.scrollY;
+      contentHeight = article.scrollHeight;
+    };
+
+    const update = () => {
+      const available = Math.max(contentHeight - window.innerHeight, 1);
+      const progress = clamp((window.scrollY - start) / available, 0, 1);
+      progressBar.style.setProperty('--progress-value', progress.toString());
+      ticking = false;
+    };
+
+    const requestTick = () => {
+      if (!ticking) {
+        ticking = true;
+        requestAnimationFrame(update);
+      }
+    };
+
+    const handleResize = () => {
+      measure();
+      requestTick();
+    };
+
+    measure();
+    update();
+
+    window.addEventListener('scroll', requestTick, { passive: true });
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('load', handleResize, { once: true });
+
+    if (controls) {
+      controls.hidden = false;
+      const scrollToTop = () => {
+        window.scrollTo({ top: start, behavior: 'smooth' });
+      };
+
+      const scrollToBottom = () => {
+        const maxScroll = Math.max(start + contentHeight - window.innerHeight, start);
+        window.scrollTo({ top: maxScroll, behavior: 'smooth' });
+      };
+
+      scrollTopButton?.addEventListener('click', scrollToTop);
+      scrollBottomButton?.addEventListener('click', scrollToBottom);
+    }
+  }
+</script>

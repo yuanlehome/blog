@@ -8,6 +8,7 @@ import PrevNext from '../components/PrevNext.astro';
 import RelatedPosts from '../components/RelatedPosts.astro';
 import { findPrevNext, findRelated, getPublishedPosts } from '../utils/posts';
 import Giscus from '../components/Giscus.astro';
+import ReadingProgress from '../components/ReadingProgress.astro';
 
 export async function getStaticPaths() {
   const posts = await getPublishedPosts();
@@ -26,12 +27,13 @@ const commentsEnabled = post.data.comments ?? true;
 ---
 
 <Layout title={post.data.title} image={post.data.cover}>
+  <ReadingProgress />
   <Header />
   <main class="container mx-auto px-4 py-8 max-w-6xl">
     <div class="flex gap-8">
       <TableOfContents headings={headings} />
 
-      <article class="prose dark:prose-invert max-w-none prose-img:rounded-xl flex-1 min-w-0">
+      <article class="prose dark:prose-invert max-w-none prose-img:rounded-xl flex-1 min-w-0" data-article>
         <header class="mb-8 not-prose">
           {post.data.cover && (
             <img src={post.data.cover} alt={post.data.title} class="w-full h-64 object-cover rounded-xl mb-6" />
