@@ -1,10 +1,10 @@
 import type { Plugin } from 'unified';
 import { visit } from 'unist-util-visit';
-import { codeToHast, bundledLanguages, bundledThemes } from 'shiki';
+import { codeToHast, bundledLanguages } from 'shiki';
 import type { Element, Root, Text } from 'hast';
 
-const lightTheme = bundledThemes['github-light'];
-const darkTheme = bundledThemes['github-dark'];
+const lightTheme = 'github-light' as const;
+const darkTheme = 'dark-plus' as const;
 
 const aliases: Record<string, string> = {
   js: 'javascript',
@@ -114,8 +114,8 @@ const decorateLines = (pre: Element, highlights: Set<number>, showLineNumbers: b
   });
 };
 
-const rehypePrettyCode: Plugin = () => {
-  return async (tree: Root) => {
+const rehypePrettyCode: Plugin<[], Root> = () => {
+  return async (tree: Root): Promise<void> => {
     const transforms: Promise<void>[] = [];
 
     visit(tree, 'element', (node: Element, index, parent) => {

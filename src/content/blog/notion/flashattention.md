@@ -6,7 +6,7 @@ tags: []
 status: published
 cover: ''
 notionId: 1fb22dca-4210-80cd-a96e-e32787cfd674
-lastEditedTime: '2025-12-26T05:06:00.000Z'
+lastEditedTime: '2025-12-26T05:47:00.000Z'
 ---
 
 ---
@@ -172,14 +172,14 @@ $$
 
 ```python
 def online_softmax_blocked(Q_block, K, V, Bc):
-		# Q_block: [Br, d], K: [T, d], V: [T, d]
+    # Q_block: [Br, d], K: [T, d], V: [T, d]
     Br, d = Q_block.shape
     m = np.full((Br,), -np.inf, dtype=np.float32) # running max
     l = np.zeros((Br,), dtype=np.float32) # running exp-sum
     acc = np.zeros((Br, d), dtype=np.float32) # running weighted sum
 
-		for start in range(0, K.shape[0], Bc):
-		    K_blk = K[start:start+Bc] # [Bc, d]
+    for start in range(0, K.shape[0], Bc):
+        K_blk = K[start:start+Bc] # [Bc, d]
         V_blk = V[start:start+Bc] # [Bc, d]
 
         S = (Q_block @ K_blk.T) * scale # [Br, Bc]
@@ -188,12 +188,12 @@ def online_softmax_blocked(Q_block, K, V, Bc):
         m_blk = S.max(axis=1) # [Br]
         m_new = np.maximum(m, m_blk) # [Br]
 
-				# rescale old stats to the new max
+        # rescale old stats to the new max
         exp_m = np.exp(m - m_new) # [Br]
         l *= exp_m
         acc *= exp_m[:,None]
 
-				# add contribution of this block under the new max
+        # add contribution of this block under the new max
         P = np.exp(S - m_new[:,None]) # [Br, Bc]
         l += P.sum(axis=1) # [Br]
         acc += P @ V_blk # [Br, d]
