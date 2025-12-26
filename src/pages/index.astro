@@ -11,23 +11,96 @@ const currentPage = 1;
 const totalPages = Math.max(1, Math.ceil(posts.length / PAGE_SIZE));
 const pagePosts = posts.slice(0, PAGE_SIZE);
 const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+const featured = pagePosts[0];
+const secondary = pagePosts.slice(1, 3);
+const rest = pagePosts.slice(3);
 ---
 
 <Layout title="Yuanle Liu‘s Blog">
   <Header />
-  <main class="container mx-auto px-4 py-8 max-w-4xl">
-    <div class="flex flex-col gap-2 mb-6">
-      <h2 class="text-2xl font-bold">Recent Posts</h2>
-      <p class="text-sm text-gray-500">{posts.length} published posts</p>
-    </div>
-    <PostList posts={pagePosts} />
+  <main class="container-narrow py-12 space-y-16">
+    <section class="grid gap-8 lg:grid-cols-[1.3fr,1fr] items-start">
+      <div class="space-y-4">
+        <p class="text-xs uppercase tracking-[0.25em] text-gray-500 dark:text-gray-400">Research log</p>
+        <h1 class="text-3xl md:text-4xl font-semibold leading-tight tracking-tight text-gray-900 dark:text-gray-50">
+          Systems, infra, and reasoning notes from a hands-on engineer.
+        </h1>
+        <p class="text-base text-gray-600 dark:text-gray-300 max-w-2xl leading-relaxed">
+          Long-form write-ups on architecture decisions, runtime traces, failure reports, and the small interfaces that make large
+          systems predictable.
+        </p>
+        <div class="flex flex-wrap gap-3 text-sm text-gray-600 dark:text-gray-300">
+          <span class="meta-pill">Stable UI for 10k+ word essays</span>
+          <span class="meta-pill">Code and math in the same rhythm</span>
+          <span class="meta-pill">Designed for readers who build</span>
+        </div>
+      </div>
+      {featured && (
+        <a
+          href={`${BASE}${featured.slug}/`}
+          class="group relative overflow-hidden rounded-2xl border border-gray-200/80 bg-white/90 p-6 shadow-xl ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-2xl dark:border-gray-800/70 dark:bg-gray-900/80"
+        >
+          {featured.data.cover && (
+            <img
+              src={featured.data.cover}
+              alt={featured.data.title}
+              class="mb-4 h-48 w-full rounded-xl object-cover opacity-95 transition group-hover:opacity-100"
+            />
+          )}
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700 dark:text-blue-200">Featured</p>
+          <h2 class="mt-2 text-2xl font-semibold text-gray-900 transition group-hover:text-blue-700 dark:text-gray-50 dark:group-hover:text-blue-200">
+            {featured.data.title}
+          </h2>
+          <p class="mt-2 text-sm text-gray-600 dark:text-gray-300 line-clamp-3">{featured.data.description}</p>
+          <div class="mt-4 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+            <span>{featured.data.date.toLocaleDateString()}</span>
+            <span aria-hidden="true">•</span>
+            <span>{featured.body.split(/\s+/).length} words</span>
+          </div>
+        </a>
+      )}
+    </section>
+
+    <section class="space-y-6">
+      <div class="flex items-center justify-between">
+        <div class="space-y-1">
+          <p class="text-xs uppercase tracking-[0.25em] text-gray-500 dark:text-gray-400">Recent writing</p>
+          <h2 class="text-2xl font-semibold text-gray-900 dark:text-gray-50">Latest posts</h2>
+        </div>
+        <span class="text-sm text-gray-500 dark:text-gray-400">{posts.length} published posts</span>
+      </div>
+      <div class="grid gap-8 lg:grid-cols-3">
+        {secondary.map((post) => (
+          <a
+            href={`${BASE}${post.slug}/`}
+            class="group rounded-2xl border border-gray-200/70 bg-white/80 p-5 shadow-sm ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-lg dark:border-gray-800/70 dark:bg-gray-900/70"
+          >
+            <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Essay</p>
+            <h3 class="mt-2 text-lg font-semibold text-gray-900 transition group-hover:text-blue-700 dark:text-gray-100 dark:group-hover:text-blue-200">
+              {post.data.title}
+            </h3>
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-300 line-clamp-3">{post.data.description}</p>
+            <div class="mt-4 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+              <span>{post.data.date.toLocaleDateString()}</span>
+              <span aria-hidden="true">•</span>
+              <span>{post.body.split(/\s+/).length} words</span>
+            </div>
+          </a>
+        ))}
+      </div>
+      {rest.length > 0 && <PostList posts={rest} />}
+    </section>
 
     {totalPages > 1 && (
-      <div class="flex justify-between items-center mt-10 text-sm">
-        <div>Page {currentPage} / {totalPages}</div>
-        <div class="flex gap-2">
+      <div class="flex justify-end items-center text-sm text-gray-600 dark:text-gray-300">
+        <div class="flex gap-3 items-center rounded-full border border-gray-200/70 bg-white/70 px-4 py-2 dark:border-gray-800/70 dark:bg-gray-900/70">
+          <span class="text-xs text-gray-500 dark:text-gray-400">Page {currentPage} of {totalPages}</span>
           {currentPage < totalPages && (
-            <a href={`${BASE}page/${currentPage + 1}/`} class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800">Older →</a>
+            <a
+              href={`${BASE}page/${currentPage + 1}/`}
+              class="rounded-full bg-gray-900 px-3 py-1 text-xs font-semibold text-white transition hover:bg-blue-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-blue-200"
+              >Older →</a
+            >
           )}
         </div>
       </div>

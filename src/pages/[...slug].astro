@@ -24,43 +24,49 @@ const stats = getReadingTime(post.body);
 const { prev, next } = findPrevNext(all, post.slug);
 const related = findRelated(all, post);
 const commentsEnabled = post.data.comments ?? true;
+const tags = post.data.tags ?? [];
 ---
 
 <Layout title={post.data.title} image={post.data.cover}>
   <ReadingProgress />
   <Header />
-  <main class="container mx-auto px-4 py-8 max-w-6xl">
-    <div class="flex gap-8">
-      <TableOfContents headings={headings} />
-
+  <main class="container-narrow py-12">
+    <div class="grid gap-10 xl:grid-cols-[1fr,18rem]">
       <article class="prose dark:prose-invert max-w-none prose-img:rounded-xl flex-1 min-w-0" data-article>
-        <header class="mb-8 not-prose">
-          {post.data.cover && (
-            <img src={post.data.cover} alt={post.data.title} class="w-full h-64 object-cover rounded-xl mb-6" />
-          )}
-          <h1 class="text-3xl md:text-4xl font-bold mb-4">{post.data.title}</h1>
-          <div class="text-gray-500 text-sm flex items-center gap-4 flex-wrap">
-            <time class="flex items-center gap-1">
-              <span>📅</span>
-              {post.data.date.toLocaleDateString()}
-            </time>
-            <div class="flex items-center gap-1">
-              <span>✍️</span>
-              {stats.wordCount} 字
-            </div>
-            <div class="flex items-center gap-1" title={`${stats.wordCount} words`}>
-              <span>⏱️</span>
-              {stats.text}
-            </div>
+        <header class="mb-10 not-prose space-y-4">
+          <p class="text-xs uppercase tracking-[0.25em] text-gray-500 dark:text-gray-400">Long-form note</p>
+          <h1 class="text-3xl md:text-4xl font-semibold leading-tight tracking-tight text-gray-900 dark:text-gray-50">
+            {post.data.title}
+          </h1>
+          <div class="flex flex-wrap items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
+            <span class="meta-pill">📅 {post.data.date.toLocaleDateString()}</span>
+            <span class="meta-pill">⏱️ {stats.text}</span>
+            <span class="meta-pill">✍️ {stats.wordCount} 字</span>
+            {tags.length > 0 && (
+              <div class="flex flex-wrap gap-2">
+                {tags.map((tag) => (
+                  <span class="meta-pill">#{tag}</span>
+                ))}
+              </div>
+            )}
           </div>
+          {post.data.cover && (
+            <img src={post.data.cover} alt={post.data.title} class="w-full max-h-[22rem] object-cover rounded-2xl shadow-lg" />
+          )}
         </header>
 
-        <Content />
+        <div class="rounded-2xl border border-gray-200/80 bg-white/80 px-6 py-8 shadow-sm ring-1 ring-black/5 dark:border-gray-800/70 dark:bg-gray-900/70">
+          <Content />
+        </div>
 
-        <PrevNext prev={prev} next={next} />
-        <RelatedPosts posts={related} />
-        {commentsEnabled && <Giscus lang="zh-CN" loading="lazy" />}
+        <div class="mt-10 space-y-10 not-prose">
+          <PrevNext prev={prev} next={next} />
+          <RelatedPosts posts={related} />
+          {commentsEnabled && <Giscus lang="zh-CN" loading="lazy" />}
+        </div>
       </article>
+
+      <TableOfContents headings={headings} />
     </div>
   </main>
   <Footer />

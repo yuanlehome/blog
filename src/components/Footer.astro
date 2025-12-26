@@ -1,8 +1,17 @@
 ---
 const today = new Date();
 ---
-<footer class="py-8 mt-auto border-t border-gray-200 dark:border-gray-800">
-    <div class="container mx-auto px-4 text-center text-gray-500 max-w-4xl">
-        &copy; {today.getFullYear()} Yuanle Liu‘s Blog. All rights reserved.
+<footer class="py-10 mt-auto border-t border-gray-200/70 dark:border-gray-800/70 bg-white/60 dark:bg-gray-900/60 backdrop-blur">
+  <div class="container-narrow flex flex-col gap-2 text-sm text-gray-500 dark:text-gray-400">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="font-semibold text-gray-700 dark:text-gray-200">Yuanle Liu</span>
+      <span aria-hidden="true">•</span>
+      <span>Systems, infra, reasoning notes</span>
     </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <span>&copy; {today.getFullYear()}</span>
+      <span aria-hidden="true">•</span>
+      <span>Built with Astro & Tailwind</span>
+    </div>
+  </div>
 </footer>
