@@ -30,6 +30,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Sync Notion content
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+        run: npm run notion:sync
+
+      - name: Generate search index
+        run: npx tsx scripts/generate-search-index.ts
+
       - name: Build with Astro
         run: npm run build
       

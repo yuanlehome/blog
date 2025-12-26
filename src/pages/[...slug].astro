@@ -1,22 +1,27 @@
 ---
-import { getCollection } from 'astro:content';
 import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { getReadingTime } from '../utils/readingTime';
 import TableOfContents from '../components/TableOfContents.astro';
+import TagList from '../components/TagList.astro';
+import PrevNext from '../components/PrevNext.astro';
+import RelatedPosts from '../components/RelatedPosts.astro';
+import { findPrevNext, findRelated, getPublishedPosts } from '../utils/posts';
 
 export async function getStaticPaths() {
-  const posts = await getCollection('blog');
+  const posts = await getPublishedPosts();
   return posts.map((post) => ({
     params: { slug: post.slug },
-    props: post,
+    props: { post, all: posts },
   }));
 }
 
-const post = Astro.props;
+const { post, all } = Astro.props;
 const { Content, headings } = await post.render();
 const stats = getReadingTime(post.body);
+const { prev, next } = findPrevNext(all, post.slug);
+const related = findRelated(all, post);
 ---
 
 <Layout title={post.data.title} image={post.data.cover}>
@@ -44,17 +49,14 @@ const stats = getReadingTime(post.body);
               <span>⏱️</span>
               {stats.text}
             </div>
-            {post.data.tags.length > 0 && (
-              <div class="flex gap-2">
-                {post.data.tags.map((tag) => (
-                  <span class="bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">#{tag}</span>
-                ))}
-              </div>
-            )}
+            {post.data.tags.length > 0 && <TagList tags={post.data.tags} />}
           </div>
         </header>
 
         <Content />
+
+        <PrevNext prev={prev} next={next} />
+        <RelatedPosts posts={related} />
       </article>
     </div>
   </main>

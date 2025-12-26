@@ -1,0 +1,45 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import PostList from '../../components/PostList.astro';
+import { getPublishedPosts } from '../../utils/posts';
+
+export async function getStaticPaths() {
+  const PAGE_SIZE = 5;
+  const posts = await getPublishedPosts();
+  const totalPages = Math.max(1, Math.ceil(posts.length / PAGE_SIZE));
+  return Array.from({ length: totalPages }, (_, i) => {
+    const page = i + 1;
+    const slice = posts.slice(i * PAGE_SIZE, (i + 1) * PAGE_SIZE);
+    return { params: { page: String(page) }, props: { slice, page, totalPages } };
+  });
+}
+
+const { slice, page, totalPages } = Astro.props;
+const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+---
+<Layout title={`Page ${page} | Yuanle Liu‘s Blog`}>
+  <Header />
+  <main class="container mx-auto px-4 py-8 max-w-4xl">
+    <div class="flex flex-col gap-2 mb-6">
+      <h2 class="text-2xl font-bold">Posts</h2>
+      <p class="text-sm text-gray-500">Page {page} / {totalPages}</p>
+    </div>
+    <PostList posts={slice} />
+
+    <div class="flex justify-between items-center mt-10 text-sm">
+      {page > 1 ? (
+        <a href={page === 2 ? `${BASE}` : `${BASE}page/${page - 1}/`} class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800">← Newer</a>
+      ) : (
+        <span />
+      )}
+      {page < totalPages ? (
+        <a href={`${BASE}page/${page + 1}/`} class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800">Older →</a>
+      ) : (
+        <span />
+      )}
+    </div>
+  </main>
+  <Footer />
+</Layout>
