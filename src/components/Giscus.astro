@@ -49,26 +49,40 @@ const { lang = 'zh-CN' } = Astro.props;
     );
   };
 
-  const applyTheme = () => {
+  const syncTheme = () => {
     const detected = getCurrentTheme();
-    if (detected === activeTheme) return;
-    activeTheme = detected;
+    if (detected !== activeTheme) {
+      activeTheme = detected;
+    }
     postThemeMessage();
   };
 
-  const observer = new MutationObserver(applyTheme);
+  const observer = new MutationObserver(syncTheme);
   observer.observe(document.documentElement, {
     attributes: true,
     attributeFilter: ['class', 'data-theme'],
   });
 
-  const ensureFrameAndSync = () => {
-    postThemeMessage();
-    if (!document.querySelector('iframe.giscus-frame')) {
-      requestAnimationFrame(ensureFrameAndSync);
+  const waitForFrame = () => {
+    const frame = document.querySelector('iframe.giscus-frame');
+    if (!frame) {
+      requestAnimationFrame(waitForFrame);
+      return;
     }
+
+    const sendWhenReady = () => postThemeMessage();
+    if (frame instanceof HTMLIFrameElement) {
+      if (frame.complete) {
+        sendWhenReady();
+      } else {
+        frame.addEventListener('load', sendWhenReady, { once: true });
+      }
+    }
+    // Ensure we apply the current theme even if the iframe was already ready.
+    postThemeMessage();
   };
 
-  // Run once after load to sync the initial theme.
-  ensureFrameAndSync();
+  // Run once after load to sync the initial theme and keep retrying until the iframe is present.
+  waitForFrame();
+  syncTheme();
 </script>
