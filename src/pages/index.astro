@@ -4,7 +4,6 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { getCollection } from 'astro:content';
 import { getReadingTime } from '../utils/readingTime';
-import VisitorCounter from '../components/VisitorCounter.astro';
 
 const posts = (await getCollection('blog'))
   .filter((post) => post.data.status === 'published')
@@ -12,7 +11,6 @@ const posts = (await getCollection('blog'))
   .map((post) => ({
     ...post,
     stats: getReadingTime(post.body),
-    visitorStorageKey: `post-${post.slug}-visitors`,
   }));
 const BASE = import.meta.env.BASE_URL.endsWith('/')
   ? import.meta.env.BASE_URL
@@ -42,10 +40,12 @@ const BASE = import.meta.env.BASE_URL.endsWith('/')
               <span class="flex items-center gap-1">
                 📅 {post.data.date.toLocaleDateString()}
               </span>
+              <span class="flex items-center gap-1">
+                ✍️ {post.stats.wordCount} 字
+              </span>
               <span class="flex items-center gap-1" title={`${post.stats.wordCount} words`}>
                 ⏱️ {post.stats.text}
               </span>
-              <VisitorCounter storageKey={post.visitorStorageKey} increment={false} />
               {post.data.tags.length > 0 && (
                 <span class="ml-auto flex gap-2">
                   {post.data.tags.map((t) => (

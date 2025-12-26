@@ -5,7 +5,6 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { getReadingTime } from '../utils/readingTime';
 import TableOfContents from '../components/TableOfContents.astro';
-import VisitorCounter from '../components/VisitorCounter.astro';
 
 export async function getStaticPaths() {
   const posts = await getCollection('blog');
@@ -18,7 +17,6 @@ export async function getStaticPaths() {
 const post = Astro.props;
 const { Content, headings } = await post.render();
 const stats = getReadingTime(post.body);
-const visitorStorageKey = `post-${post.slug}-visitors`;
 ---
 
 <Layout title={post.data.title} image={post.data.cover}>
@@ -38,11 +36,14 @@ const visitorStorageKey = `post-${post.slug}-visitors`;
               <span>📅</span>
               {post.data.date.toLocaleDateString()}
             </time>
+            <div class="flex items-center gap-1">
+              <span>✍️</span>
+              {stats.wordCount} 字
+            </div>
             <div class="flex items-center gap-1" title={`${stats.wordCount} words`}>
               <span>⏱️</span>
               {stats.text}
             </div>
-            <VisitorCounter storageKey={visitorStorageKey} />
             {post.data.tags.length > 0 && (
               <div class="flex gap-2">
                 {post.data.tags.map((tag) => (
