@@ -6,8 +6,11 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
         <a href={BASE} class="text-xl font-bold hover:text-blue-600 dark:hover:text-blue-400">Yuanle Liu‘s Blog</a>
         <nav class="flex items-center gap-3">
             <a href={BASE} class="hover:underline">Home</a>
+            <a href={`${BASE}tags/`} class="hover:underline">Tags</a>
+            <a href={`${BASE}archive/`} class="hover:underline">Archive</a>
             <a href={`${BASE}about/`} class="hover:underline">About</a>
             <a href={`${BASE}rss.xml`} class="hover:underline">RSS</a>
+            <button data-search-open class="px-2 py-1 text-sm rounded bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700">Search ⌘K</button>
             <button id="theme-toggle" class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800" aria-label="Toggle theme">
                 🌙/☀️
             </button>

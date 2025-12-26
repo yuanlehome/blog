@@ -1,0 +1,39 @@
+---
+import { getReadingTime } from '../utils/readingTime';
+import TagList from './TagList.astro';
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  posts: CollectionEntry<'blog'>[];
+}
+
+const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
+const { posts } = Astro.props;
+const enriched = posts.map((post) => ({ ...post, stats: getReadingTime(post.body) }));
+---
+<ul class="space-y-8" id="post-list">
+  {enriched.map((post) => (
+    <li class="border-b border-gray-200 dark:border-gray-800 pb-8 last:border-0">
+      <a href={`${BASE}${post.slug}/`} class="group block">
+        {post.data.cover && (
+          <img src={post.data.cover} alt={post.data.title} class="w-full h-48 object-cover rounded-lg mb-4" />
+        )}
+        <h3 class="text-xl font-semibold group-hover:text-blue-600 dark:group-hover:text-blue-400 mb-2">
+          {post.data.title}
+        </h3>
+        <div class="text-sm text-gray-500 mb-2 flex items-center gap-3 flex-wrap">
+          <span class="flex items-center gap-1">📅 {post.data.date.toLocaleDateString()}</span>
+          <span class="flex items-center gap-1">✍️ {post.stats.wordCount} 字</span>
+          <span class="flex items-center gap-1" title={`${post.stats.wordCount} words`}>
+            ⏱️ {post.stats.text}
+          </span>
+        </div>
+      </a>
+      {post.data.tags.length > 0 && (
+        <div class="mt-2">
+          <TagList tags={post.data.tags} />
+        </div>
+      )}
+    </li>
+  ))}
+</ul>

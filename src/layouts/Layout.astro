@@ -1,52 +1,114 @@
 ---
 import 'katex/dist/katex.min.css';
+import CodeBlockCopy from '../components/CodeBlockCopy.astro';
+import SearchModal from '../components/SearchModal.astro';
 
 interface Props {
-	title: string;
-    description?: string;
-    image?: string;
+  title: string;
+  description?: string;
+  image?: string;
 }
 
 const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
+const url = new URL(Astro.url.pathname, new URL(BASE, Astro.site ?? 'http://localhost/')).toString();
 const { title, description = "A minimal Astro blog", image = `${BASE}placeholder-social.jpg` } = Astro.props;
 ---
 
 <!doctype html>
 <html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="description" content={description} />
-		<meta name="viewport" content="width=device-width" />
-		<link rel="icon" type="image/svg+xml" href={`${BASE}favicon.svg`} />
-		<meta name="generator" content={Astro.generator} />
-        <meta property="og:title" content={title} />
-        <meta property="og:description" content={description} />
-        <meta property="og:image" content={image} />
-		<title>{title}</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content={description} />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/svg+xml" href={`${BASE}favicon.svg`} />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="canonical" href={url} />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href={`${BASE}rss.xml`} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={image} />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content={url} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={image} />
+    <title>{title}</title>
         
-        <!-- Dark Mode Script -->
-        <script is:inline>
-            const theme = (() => {
-                if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
-                    return localStorage.getItem('theme');
-                }
-                if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                    return 'dark';
-                }
-                return 'light';
-            })();
-        
-            if (theme === 'dark') {
-                document.documentElement.classList.add('dark');
-            } else {
-                document.documentElement.classList.remove('dark');
-            }
-        </script>
-        
-        <!-- Math Support -->
-        <!-- CSS imported in frontmatter -->
-	</head>
-	<body class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300 min-h-screen flex flex-col">
-		<slot />
-	</body>
+    <!-- Dark Mode Script -->
+    <script is:inline>
+      const theme = (() => {
+        if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
+          return localStorage.getItem('theme');
+        }
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          return 'dark';
+        }
+        return 'light';
+      })();
+
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    </script>
+
+    <style>
+      :root {
+        scroll-behavior: smooth;
+      }
+      pre.code-block {
+        position: relative;
+        overflow-x: auto;
+        border-radius: 0.75rem;
+        padding-top: 2.75rem;
+      }
+      .code-copy {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.75rem;
+        padding: 0.25rem 0.65rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(0, 0, 0, 0.35);
+        color: white;
+        cursor: pointer;
+        transition: opacity 0.2s ease, transform 0.15s ease;
+      }
+      .code-copy:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+      }
+      .code-lang {
+        position: absolute;
+        top: 0.6rem;
+        left: 1rem;
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        color: #cbd5e1;
+      }
+      .heading-anchor {
+        margin-left: 0.35rem;
+        opacity: 0;
+        text-decoration: none;
+        transition: opacity 0.2s ease;
+      }
+      h1:hover .heading-anchor,
+      h2:hover .heading-anchor,
+      h3:hover .heading-anchor,
+      h4:hover .heading-anchor,
+      h5:hover .heading-anchor,
+      h6:hover .heading-anchor {
+        opacity: 0.65;
+      }
+    </style>
+  </head>
+  <body class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300 min-h-screen flex flex-col">
+    <SearchModal />
+    <slot />
+    <CodeBlockCopy />
+  </body>
 </html>
