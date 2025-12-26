@@ -1,0 +1,137 @@
+name: PR Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  build-and-preview:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      PREVIEW_REPO: ${{ secrets.PREVIEW_REPO }}
+      PREVIEW_BASE_URL: ${{ secrets.PREVIEW_BASE_URL }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build site
+        env:
+          SITE_BASE: /blog-preview/previews/pr-${{ github.event.number }}/
+        run: |
+          npm run build
+          test -d dist && [ "$(ls -A dist)" ]
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-${{ github.event.number }}-preview
+          path: dist
+          retention-days: 7
+
+      - name: Deploy preview to external repository
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.PREVIEW_TOKEN }}
+          publish_dir: dist
+          external_repository: ${{ secrets.PREVIEW_REPO }}
+          publish_branch: gh-pages
+          destination_dir: previews/pr-${{ github.event.number }}
+          keep_files: true
+          full_commit_message: Deploy preview for PR #${{ github.event.number }} (${GITHUB_SHA})
+
+      - name: Comment preview link
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const prNumber = context.issue.number;
+            const [owner, repo] = (process.env.PREVIEW_REPO || '').replace(/\.git$/, '').split('/');
+            const baseUrl = process.env.PREVIEW_BASE_URL || (owner && repo ? `https://${owner}.github.io/${repo}` : '');
+            const previewUrl = `${baseUrl}/previews/pr-${prNumber}/`;
+            const body = [
+              `Preview URL: ${previewUrl}`,
+              `Commit: ${context.payload.pull_request.head.sha}`,
+              `Built at: ${new Date().toISOString()}`,
+              `Artifact: pr-${prNumber}-preview`
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              ...context.repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+
+            const marker = 'Preview URL:';
+            const existing = comments.find(comment => comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                ...context.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: prNumber,
+                body,
+              });
+            }
+
+  cleanup-preview:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout preview repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.PREVIEW_REPO }}
+          ref: gh-pages
+          token: ${{ secrets.PREVIEW_TOKEN }}
+
+      - name: Remove preview directory
+        run: |
+          set -euxo pipefail
+          rm -rf previews/pr-${{ github.event.number }}
+          if git status --porcelain | grep .; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .
+            git commit -m "Remove preview for PR #${{ github.event.number }}"
+            git push origin HEAD:gh-pages
+          else
+            echo "No preview directory to remove"
+          fi
+
+      - name: Comment cleanup
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const prNumber = context.issue.number;
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: prNumber,
+              body: 'Preview directory removed from preview repository.',
+            });
