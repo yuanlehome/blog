@@ -69,13 +69,14 @@ const { title, description = "A minimal Astro blog", image = `${BASE}placeholder
         right: 0;
         left: 0;
         display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0.8rem 1rem 0.25rem;
+        align-items: flex-start;
+        padding: 0.75rem 1rem 0;
         pointer-events: none;
-        gap: 0.75rem;
       }
       .code-copy {
+        position: absolute;
+        top: 0.6rem;
+        right: 0.85rem;
         padding: 0.25rem 0.65rem;
         border-radius: 9999px;
         font-size: 0.75rem;
@@ -85,7 +86,6 @@ const { title, description = "A minimal Astro blog", image = `${BASE}placeholder
         cursor: pointer;
         transition: opacity 0.2s ease, transform 0.15s ease;
         pointer-events: auto;
-        margin-left: auto;
       }
       .code-copy:hover {
         opacity: 0.9;
