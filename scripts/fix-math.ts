@@ -1,19 +1,6 @@
 import fs from "fs";
 import path from "path";
-
-const targetPath = process.argv[2];
-
-if (!targetPath) {
-  console.error("Usage: npx tsx scripts/fix-math.ts <file-or-directory-path>");
-  process.exit(1);
-}
-
-const fullPath = path.resolve(targetPath);
-
-if (!fs.existsSync(fullPath)) {
-  console.error(`Path not found: ${fullPath}`);
-  process.exit(1);
-}
+import { fileURLToPath } from "url";
 
 function processFile(filePath: string) {
   const content = fs.readFileSync(filePath, "utf-8");
@@ -347,9 +334,35 @@ function fixMathTokens(text: string): string {
     .join("");
 }
 
-const stat = fs.statSync(fullPath);
-if (stat.isDirectory()) {
-  processDirectory(fullPath);
-} else {
-  processFile(fullPath);
+export function runFixMath(targetPath: string) {
+  const fullPath = path.resolve(targetPath);
+
+  if (!fs.existsSync(fullPath)) {
+    throw new Error(`Path not found: ${fullPath}`);
+  }
+
+  const stat = fs.statSync(fullPath);
+  if (stat.isDirectory()) {
+    processDirectory(fullPath);
+  } else {
+    processFile(fullPath);
+  }
+}
+
+export { normalizeInvisibleCharacters, splitCodeFences, fixMath };
+
+const modulePath = fileURLToPath(import.meta.url);
+if (process.argv[1] && path.resolve(process.argv[1]) === modulePath) {
+  const targetPath = process.argv[2];
+  if (!targetPath) {
+    console.error("Usage: npx tsx scripts/fix-math.ts <file-or-directory-path>");
+    process.exit(1);
+  }
+
+  try {
+    runFixMath(targetPath);
+  } catch (error) {
+    console.error((error as Error).message);
+    process.exit(1);
+  }
 }

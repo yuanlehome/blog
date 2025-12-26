@@ -110,20 +110,20 @@ const { targetSelector = '[data-article]' } = Astro.props;
 </style>
 
 <script>
-  const progressRoot = document.querySelector('[data-reading-progress]');
-  const selector = progressRoot?.dataset.targetSelector || '[data-article]';
-  const progressBar = progressRoot?.querySelector('[data-reading-progress-bar]');
-  const article = selector ? document.querySelector(selector) : null;
-  const controls = document.querySelector('[data-reading-progress-controls]');
-  const scrollTopButton = controls?.querySelector('[data-scroll-top]');
-  const scrollBottomButton = controls?.querySelector('[data-scroll-bottom]');
+  const progressRoot = document.querySelector('[data-reading-progress]') as HTMLElement | null;
+  const selector = progressRoot?.dataset?.targetSelector || '[data-article]';
+  const progressBar = progressRoot?.querySelector('[data-reading-progress-bar]') as HTMLElement | null;
+  const article = selector ? (document.querySelector(selector) as HTMLElement | null) : null;
+  const controls = document.querySelector('[data-reading-progress-controls]') as HTMLElement | null;
+  const scrollTopButton = controls?.querySelector('[data-scroll-top]') as HTMLButtonElement | null;
+  const scrollBottomButton = controls?.querySelector('[data-scroll-bottom]') as HTMLButtonElement | null;
 
   if (progressRoot && progressBar && article) {
-    let start = 0;
-    let contentHeight = 0;
-    let ticking = false;
+    let start: number = 0;
+    let contentHeight: number = 0;
+    let ticking: boolean = false;
 
-    const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+    const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), max);
 
     const measure = () => {
       const rect = article.getBoundingClientRect();
@@ -133,8 +133,8 @@ const { targetSelector = '[data-article]' } = Astro.props;
 
     const update = () => {
       const available = Math.max(contentHeight - window.innerHeight, 1);
-      const progress = clamp((window.scrollY - start) / available, 0, 1);
-      progressBar.style.setProperty('--progress-value', progress.toString());
+      const progress: number = clamp((window.scrollY - start) / available, 0, 1);
+      progressBar!.style.setProperty('--progress-value', progress.toString());
       ticking = false;
     };
 
