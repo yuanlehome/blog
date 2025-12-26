@@ -22,11 +22,7 @@ const headings = Astro.props.headings
 const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) to avoid overlap
 ---
 
-<div
-  class="w-full lg:w-72 shrink-0 lg:sticky lg:top-[calc(var(--toc-offset)+1rem)] lg:h-[calc(100vh-var(--toc-offset)-1.5rem)] lg:max-h-[calc(100vh-var(--toc-offset)-1.5rem)] lg:self-start"
-  style={`--toc-offset: ${headerOffset}px`}
-  data-toc-container
->
+<div class="w-full lg:w-full" data-toc-shell>
   <div class="lg:hidden mb-4 flex items-center justify-between gap-3">
     <div>
       <p class="text-sm font-semibold">文章目录</p>
@@ -47,7 +43,9 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
 
   <aside class="hidden lg:block h-full">
     <div
-      class="flex h-full flex-col gap-3 overflow-hidden rounded-xl border border-gray-200 bg-gray-50/80 p-4 shadow-md backdrop-blur-sm dark:border-gray-800 dark:bg-gray-800/50"
+      class="flex h-full w-full flex-col gap-3 overflow-hidden rounded-xl border border-gray-200 bg-gray-50/80 p-4 shadow-md backdrop-blur-sm dark:border-gray-800 dark:bg-gray-800/50 lg:sticky lg:top-[calc(var(--toc-offset)+1rem)] lg:max-h-[calc(100vh-var(--toc-offset)-1.5rem)] lg:h-[calc(100vh-var(--toc-offset)-1.5rem)]"
+      style={`--toc-offset: ${headerOffset}px`}
+      data-toc-container
     >
       <div class="space-y-1">
         <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">文章目录</p>
@@ -132,9 +130,13 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
   const tocLinks = Array.from(document.querySelectorAll('[data-toc-link]')) as HTMLAnchorElement[];
   const tocOverlay = document.querySelector('[data-toc-overlay]') as HTMLElement | null;
   const tocContainer = document.querySelector('[data-toc-container]') as HTMLElement | null;
+  const tocShell = document.querySelector('[data-toc-shell]') as HTMLElement | null;
   const openButton = document.querySelector('[data-toc-open]') as HTMLButtonElement | null;
   const closeButton = document.querySelector('[data-toc-close]') as HTMLButtonElement | null;
   const body = document.body;
+  const headerOffsetPx =
+    (tocContainer && getComputedStyle(tocContainer).getPropertyValue('--toc-offset')) || '96px';
+  const desktopQuery = window.matchMedia('(min-width: 1024px)');
 
   const setOverlayOpen = (open: boolean) => {
     if (!tocOverlay) return;
@@ -158,6 +160,53 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
   const headings = tocLinks
     .map((link) => document.getElementById(link.dataset.target || ''))
     .filter((el): el is HTMLElement => Boolean(el));
+
+  const resetPositioning = () => {
+    if (!tocContainer) return;
+    tocContainer.dataset.fixed = 'false';
+    tocContainer.style.position = '';
+    tocContainer.style.left = '';
+    tocContainer.style.width = '';
+    tocContainer.style.height = '';
+    tocContainer.style.maxHeight = '';
+    tocContainer.style.top = '';
+    if (tocShell) tocShell.style.minHeight = '';
+  };
+
+  const applyFixedFallback = () => {
+    if (!tocContainer || !tocShell) return;
+    const shellRect = tocShell.getBoundingClientRect();
+    const maxHeight = `calc(100vh - ${headerOffsetPx} - 1.5rem)`;
+    tocContainer.dataset.fixed = 'true';
+    tocShell.style.minHeight = `${tocContainer.offsetHeight}px`;
+    tocContainer.style.position = 'fixed';
+    tocContainer.style.top = `calc(${headerOffsetPx} + 1rem)`;
+    tocContainer.style.left = `${shellRect.left}px`;
+    tocContainer.style.width = `${shellRect.width}px`;
+    tocContainer.style.height = maxHeight;
+    tocContainer.style.maxHeight = maxHeight;
+  };
+
+  const verifySticky = () => {
+    if (!tocContainer || tocContainer.dataset.fixed === 'true' || !desktopQuery.matches) return;
+    const stickyTop = parseFloat(getComputedStyle(tocContainer).top || '0');
+    const threshold = tocContainer.offsetTop - stickyTop;
+    if (Number.isNaN(stickyTop) || window.scrollY < threshold) return;
+    const currentTop = tocContainer.getBoundingClientRect().top;
+    if (Math.abs(currentTop - stickyTop) > 2) {
+      applyFixedFallback();
+    }
+  };
+
+  const handleResize = () => {
+    if (!desktopQuery.matches) {
+      resetPositioning();
+      return;
+    }
+    if (tocContainer?.dataset.fixed === 'true') {
+      applyFixedFallback();
+    }
+  };
 
   const setActive = (id: string | null) => {
     tocLinks.forEach((link) => {
@@ -196,4 +245,16 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
 
     headings.forEach((heading) => observer.observe(heading));
   }
+
+  resetPositioning();
+  if (desktopQuery.matches) verifySticky();
+  desktopQuery.addEventListener('change', () => {
+    resetPositioning();
+    requestAnimationFrame(() => {
+      if (desktopQuery.matches) verifySticky();
+    });
+  });
+  window.addEventListener('scroll', verifySticky, { passive: true });
+  window.addEventListener('resize', handleResize);
+  window.addEventListener('load', verifySticky, { once: true });
 </script>
