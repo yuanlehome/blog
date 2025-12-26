@@ -1,20 +1,18 @@
 # Astro + Notion Static Blog
 
-一个由 **Astro** 和 **Notion** 驱动的现代静态博客。支持在 Notion（类 CMS）和 Markdown（Git 工作流）中写作，同时提供数学公式渲染、站内搜索等特性，适合个人或团队搭建内容网站。
+一个由 **Astro** 和 **Notion** 驱动的静态博客示例。通过同步 Notion 数据库里的页面生成 Markdown 内容，并在构建时完成数学公式渲染，适合想要用 Notion 作为内容源的个人或团队。
 
 ## 🎯 特性
-- **双写作模式**：Notion 数据库与本地 Markdown 并行，满足不同习惯。
-- **自动同步**：通过脚本或 GitHub Actions 定期同步 Notion 内容并修正公式格式。
-- **数学公式**：内置 KaTeX，支持行内与块级公式。
-- **现代前端**：基于 Astro + Tailwind，生成快速、可扩展的静态站点。
-- **可部署性**：适配主流静态托管，提供 RSS、Sitemap 等 SEO 基础能力。
+- **Notion 写作流程**：用 Notion Database 管理文章，状态为 Published 的页面会被拉取并转成 Markdown。
+- **图片与封面下载**：同步时自动下载 Notion 中的图片与封面到 `public/images/notion/<pageId>/`。
+- **数学公式支持**：结合 `remark-math` 与 `rehype-katex` 渲染公式，同步后还会用脚本修正常见格式问题。
+- **现代前端**：Astro + Tailwind 构建，提供 RSS、Sitemap 与基础的文章列表/详情页。
 
 ## 🚀 快速开始
 
 ### 1. 环境要求
 - Node.js 18+
-- Notion 账号与数据库
-- GitHub 账号（可选，用于自动同步）
+- 可访问的 Notion 账号与数据库
 
 ### 2. 安装与配置
 1. **克隆仓库并安装依赖**
@@ -27,71 +25,70 @@
 2. **配置环境变量**
    复制 `.env.local.example` 为 `.env.local` 并填写 Notion 信息：
    ```ini
-   NOTION_TOKEN=secret_...
-   NOTION_DATABASE_ID=...
+   NOTION_TOKEN=secret_your_token_here
+   NOTION_DATABASE_ID=your_database_id_here
    ```
    - **Token**：前往 [Create Integration](https://www.notion.so/my-integrations) 创建并获取。
-   - **Database ID**：来自 Notion 数据库 URL。
-   - **权限**：在数据库右上角 `...` → `Connect to` → 选择你的 Integration。
+   - **Database ID**：来自 Notion 数据库 URL（`notion.so/` 后的 32 位字符串）。
+   - **权限**：在数据库右上角 `...` → `Connect` → 选择你的 Integration，否则无法读取数据。
 
 3. **本地开发**
    ```bash
    npm run dev
    ```
-   访问 `http://localhost:4321` 查看效果。
+   默认在 `http://localhost:4321` 提供预览。
 
-### 3. 写作方式
+### 3. 内容同步与写作
+支持两种方式：
 
-#### 选项 A：使用 Notion（推荐）
-1. 在 Notion 数据库中撰写文章并将状态设为 **Published**。
-2. 同步内容：
-   - 本地运行：`npm run notion:sync`
-   - GitHub Actions：打开 Actions → “Sync Notion Content” → Run workflow。
-   - 默认每天 00:00 UTC 自动执行。
+1) **Notion 驱动**：在 Notion 数据库中写作并将状态设为 **Published**（支持 `select` 或 `status` 属性），然后运行同步脚本：
+   ```bash
+   npm run notion:sync
+   ```
+   - 会将页面转换为 Markdown，输出到 `src/content/blog/notion/`。
+   - 自动下载页面中的图片与封面到 `public/images/notion/`，并为引用生成本地路径。
+   - 自动运行 `scripts/fix-math.ts` 修正常见数学公式格式（如去除 `$ x $` 中的空格，将多行行内公式提升为块级）。
 
-#### 选项 B：使用本地 Markdown
-1. 在 `src/content/blog/local/` 下创建文件，如 `my-post.md`。
-2. 添加 frontmatter：
+2) **本地 Markdown**：在 `src/content/blog/` 下添加 `.md/.mdx` 文件，满足以下 Frontmatter 即可：
    ```yaml
    ---
-   title: "My Post"
-   date: 2023-10-01
-   status: "published"
+   title: 文章标题
+   date: 2025-01-01
+   tags: [tag1, tag2]
+   status: published # 或 draft
+   cover: /images/your-cover.png # 可选，指向 public 下资源或远程 URL
    ---
    ```
-3. 提交并推送代码。
+   文件名会成为路由的一部分，例如 `hello-world.md` 生成 `/hello-world/`，与 Notion 同步的文章并列展示。
 
-### 4. 数学公式支持
-- **行内公式**：`$ E=mc^2 $`
-- **块级公式**：
+构建或部署前请先同步内容，确保最新文章被包含在站点中。
+
+### 4. 数学公式
+- **行内**：`$E=mc^2$`
+- **块级**：
   ```latex
   $$
   \sum_{i=0}^n i^2 = \frac{(n^2+n)(2n+1)}{6}
   $$
   ```
 
-**自动修正脚本**：同步脚本会调用 `scripts/fix-math.ts`：
-1. 去除行内公式空格（`$ x $` → `$x$`）。
-2. 将多行行内公式提升为块级公式。
-
-手动修正指定文件：
+如需单独处理指定文件，可直接运行：
 ```bash
-npx tsx scripts/fix-math.ts src/content/blog/local/my-post.md
+npx tsx scripts/fix-math.ts src/content/blog/notion/<file>.md
 ```
 
 ## 🧭 项目结构
 ```
-├── .github/workflows/    # CI/CD（部署与同步）
-├── public/images/notion/ # 同步的 Notion 图片
+├── .github/workflows/        # CI / 部署（如果启用）
+├── public/images/notion/     # 同步的 Notion 图片与封面
 ├── scripts/
-│   ├── notion-sync.ts    # Notion → Markdown 转换
-│   └── fix-math.ts       # 数学公式修正
+│   ├── notion-sync.ts        # Notion → Markdown 转换与图片下载
+│   └── fix-math.ts           # 数学公式修正
 ├── src/
-│   ├── content/blog/
-│   │   ├── local/        # 手动维护的 Markdown 文件
-│   │   └── notion/       # Notion 自动生成内容（勿手动编辑）
-│   ├── pages/            # 路由（index, about, [...slug]）
-│   └── layouts/          # 基础页面布局
+│   ├── content/blog/local/   # 手写 Markdown（可选自行创建）
+│   ├── content/blog/notion/  # Notion 同步生成的 Markdown（自动写入）
+│   ├── pages/                # 路由（index, about, [...slug]）
+│   └── layouts/              # 基础页面布局
 ```
 
 ## 🔧 常用命令
@@ -99,22 +96,10 @@ npx tsx scripts/fix-math.ts src/content/blog/local/my-post.md
 | 命令 | 说明 |
 | :--- | :--- |
 | `npm run dev` | 启动开发服务器（默认 `localhost:4321`） |
-| `npm run search:index` | 从 Markdown/Notion 生成 `public/search-index.json` |
-| `npm run build` | 生成生产构建（会自动生成搜索索引） |
+| `npm run build` | 生成生产构建 |
 | `npm run preview` | 预览生产构建 |
 | `npm run notion:sync` | 拉取 Notion 文章、下载图片并修复公式 |
 | `npm run format` | 使用 Prettier 格式化 `scripts/` 与 `src/` 代码 |
-
-## 🔎 站内搜索
-
-- **体验**：点击导航栏的 Search 按钮或按下 `Cmd + K / Ctrl + K` 打开搜索框，输入实时返回结果，可点击跳转到对应文章；支持浅色/深色模式。
-- **索引生成**：
-  - 本地调试：在新增或修改文章后执行 `npm run search:index`，会读取 `content/posts`、`content/notion`（若存在）以及 `src/content/blog/**` 下的 Markdown，过滤掉 `status: draft` 的文章，输出精简字段的 `public/search-index.json`。
-  - 构建阶段：`npm run build` 会自动生成索引，GitHub Actions 部署和 Notion 同步的构建流程也会调用。
-- **边界处理**：
-  - slug 冲突自动追加序号（如 `post`, `post-2`）。
-  - Markdown 会去除代码块/格式符号后截断正文，限制索引体积并避免乱码。
-  - 缺失日期或 excerpt 会自动使用当前时间或正文前 200 字作为兜底。
 
 ## 🤝 贡献指南
 - 请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解分支、提交与测试流程。
