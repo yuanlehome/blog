@@ -38,9 +38,12 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
     )}
   </div>
 
-  <aside class="hidden lg:block">
+  <aside
+    class="hidden lg:block lg:sticky lg:top-[calc(var(--toc-offset)+0.75rem)] lg:self-start"
+    style={`--toc-offset: ${headerOffset}px`}
+  >
     <div
-      class="sticky top-[calc(var(--toc-offset)+0.75rem)] max-h-[calc(100vh-var(--toc-offset)-2rem)] space-y-3 overflow-hidden rounded-xl border border-gray-200 bg-gray-50/80 p-4 shadow-md backdrop-blur-sm dark:border-gray-800 dark:bg-gray-800/50"
+      class="space-y-3 overflow-hidden rounded-xl border border-gray-200 bg-gray-50/80 p-4 shadow-md backdrop-blur-sm dark:border-gray-800 dark:bg-gray-800/50 lg:max-h-[calc(100vh-var(--toc-offset)-2rem)]"
     >
       <div class="space-y-1">
         <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">文章目录</p>
