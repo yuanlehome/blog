@@ -19,9 +19,6 @@ const { posts } = Astro.props;
         >
           <div class="text-xs text-gray-500 mb-1">{post.data.date.toLocaleDateString()}</div>
           <div class="font-semibold">{post.data.title}</div>
-          {post.data.tags.length > 0 && (
-            <div class="text-xs text-gray-500 mt-1">#{post.data.tags.join(', #')}</div>
-          )}
         </a>
       ))}
     </div>

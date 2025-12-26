@@ -1,6 +1,5 @@
 ---
 import { getReadingTime } from '../utils/readingTime';
-import TagList from './TagList.astro';
 import type { CollectionEntry } from 'astro:content';
 
 interface Props {
@@ -29,11 +28,6 @@ const enriched = posts.map((post) => ({ ...post, stats: getReadingTime(post.body
           </span>
         </div>
       </a>
-      {post.data.tags.length > 0 && (
-        <div class="mt-2">
-          <TagList tags={post.data.tags} />
-        </div>
-      )}
     </li>
   ))}
 </ul>

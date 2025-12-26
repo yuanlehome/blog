@@ -4,7 +4,6 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { getReadingTime } from '../utils/readingTime';
 import TableOfContents from '../components/TableOfContents.astro';
-import TagList from '../components/TagList.astro';
 import PrevNext from '../components/PrevNext.astro';
 import RelatedPosts from '../components/RelatedPosts.astro';
 import { findPrevNext, findRelated, getPublishedPosts } from '../utils/posts';
@@ -49,7 +48,6 @@ const related = findRelated(all, post);
               <span>⏱️</span>
               {stats.text}
             </div>
-            {post.data.tags.length > 0 && <TagList tags={post.data.tags} />}
           </div>
         </header>
 
