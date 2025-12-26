@@ -1,0 +1,96 @@
+---
+export interface Props {
+  /** CSS selector for the article content element */
+  targetSelector?: string;
+}
+
+const { targetSelector = '[data-article]'} = Astro.props;
+---
+<div class="reading-progress" data-reading-progress>
+  <span class="reading-progress__bar" data-reading-progress-bar></span>
+</div>
+
+<style>
+  .reading-progress {
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: 3px;
+    width: 100%;
+    background: transparent;
+    z-index: 50;
+    pointer-events: none;
+  }
+
+  .reading-progress__bar {
+    display: block;
+    height: 100%;
+    width: 100%;
+    transform: scaleX(var(--progress-value, 0));
+    transform-origin: left center;
+    background: linear-gradient(90deg, var(--progress-color-start), var(--progress-color-end));
+    transition: transform 0.1s linear;
+  }
+
+  :global(:root) {
+    --progress-color-start: #2563eb;
+    --progress-color-end: #22d3ee;
+  }
+
+  :global(:root.dark) {
+    --progress-color-start: #38bdf8;
+    --progress-color-end: #a855f7;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reading-progress__bar {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  const selector = ${JSON.stringify(targetSelector)};
+  const progressRoot = document.querySelector('[data-reading-progress]');
+  const progressBar = progressRoot?.querySelector('[data-reading-progress-bar]');
+  const article = document.querySelector(selector);
+
+  if (progressRoot && progressBar && article) {
+    let start = 0;
+    let contentHeight = 0;
+    let ticking = false;
+
+    const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+    const measure = () => {
+      const rect = article.getBoundingClientRect();
+      start = rect.top + window.scrollY;
+      contentHeight = article.scrollHeight;
+    };
+
+    const update = () => {
+      const available = Math.max(contentHeight - window.innerHeight, 1);
+      const progress = clamp((window.scrollY - start) / available, 0, 1);
+      progressBar.style.setProperty('--progress-value', progress.toString());
+      ticking = false;
+    };
+
+    const requestTick = () => {
+      if (!ticking) {
+        ticking = true;
+        requestAnimationFrame(update);
+      }
+    };
+
+    const handleResize = () => {
+      measure();
+      requestTick();
+    };
+
+    measure();
+    update();
+
+    window.addEventListener('scroll', requestTick, { passive: true });
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('load', handleResize, { once: true });
+  }
+</script>
