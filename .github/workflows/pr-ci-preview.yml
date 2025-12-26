@@ -1,0 +1,192 @@
+name: PR CI & Preview
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, closed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-name: ${{ steps.meta.outputs.artifact-name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (if available)
+        run: npm run lint --if-present
+
+      - name: Typecheck (if available)
+        run: npm run typecheck --if-present
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify dist output
+        run: |
+          if [ ! -d dist ] || [ -z "$(ls -A dist)" ]; then
+            echo "dist/ is missing or empty"
+            exit 1
+          fi
+
+      - name: Set artifact metadata
+        id: meta
+        run: echo "artifact-name=blog-dist-pr-${{ github.event.number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs['artifact-name'] }}
+          path: dist
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    name: Deploy preview (same-repo PRs)
+    needs: build
+    if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      preview-url: ${{ steps.preview.outputs.url }}
+    steps:
+      - name: Download dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs['artifact-name'] }}
+          path: dist
+
+      - name: Deploy to GitHub Pages preview
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: dist
+          destination_dir: previews/pr-${{ github.event.number }}
+          keep_files: true
+
+      - name: Set preview URL
+        id: preview
+        run: echo "url=https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/previews/pr-${{ github.event.number }}/" >> "$GITHUB_OUTPUT"
+
+  comment:
+    name: Comment build/deploy status
+    needs: [build, deploy]
+    if: always() && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare comment body
+        id: comment-body
+        run: |
+          build_status="${{ needs.build.result }}"
+          deploy_status="${{ needs.deploy.result }}"
+          artifact="${{ needs.build.outputs['artifact-name'] }}"
+          preview_url="${{ needs.deploy.outputs['preview-url'] }}"
+          sha_short="${{ github.sha }}"
+
+          if [ "$build_status" = "success" ]; then
+            artifact_line="Artifact: \`${artifact}\` (retained 7 days in workflow run artifacts)."
+          else
+            artifact_line="Artifact: build failed; no artifact available."
+          fi
+
+          if [ "$deploy_status" = "success" ]; then
+            preview_line="Preview: ${preview_url} (commit \`${sha_short:0:7}\`)."
+          else
+            preview_line="Preview: not deployed (fork PR or build failed)."
+          fi
+
+          printf "<!-- pr-preview-comment -->\n" > body.txt
+          {
+            echo "### PR Preview CI"
+            echo "- Build status: **${build_status}**"
+            echo "- ${artifact_line}"
+            echo "- ${preview_line}"
+          } >> body.txt
+
+      - name: Upsert PR comment
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('body.txt', 'utf8');
+            const marker = '<!-- pr-preview-comment -->';
+            const {owner, repo} = context.repo;
+            const issue_number = context.issue.number;
+
+            const {data: comments} = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+
+            const existing = comments.find(comment =>
+              comment.user?.login === 'github-actions[bot]' &&
+              comment.body?.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }
+
+  cleanup:
+    name: Cleanup preview on PR close
+    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check gh-pages branch
+        id: check-branch
+        run: |
+          if git ls-remote --exit-code origin gh-pages > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout gh-pages
+        if: steps.check-branch.outputs.exists == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          fetch-depth: 0
+
+      - name: Remove preview directory
+        if: steps.check-branch.outputs.exists == 'true'
+        run: |
+          TARGET="previews/pr-${{ github.event.number }}"
+          if [ -d "$TARGET" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git rm -r "$TARGET"
+            git commit -m "chore: remove preview for PR #${{ github.event.number }}" || echo "No changes to commit."
+            git push
+          else
+            echo "No preview to clean."
+          fi
