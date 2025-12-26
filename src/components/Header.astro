@@ -1,14 +1,17 @@
 ---
+import SearchModal from './SearchModal.astro';
+
 const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
 ---
 <header class="py-6 border-b border-gray-200 dark:border-gray-800">
     <div class="container mx-auto px-4 flex justify-between items-center max-w-4xl">
         <a href={BASE} class="text-xl font-bold hover:text-blue-600 dark:hover:text-blue-400">Yuanle Liu‘s Blog</a>
-        <nav class="flex gap-4">
+        <nav class="flex items-center gap-3">
             <a href={BASE} class="hover:underline">Home</a>
             <a href={`${BASE}about/`} class="hover:underline">About</a>
             <a href={`${BASE}rss.xml`} class="hover:underline">RSS</a>
-            <button id="theme-toggle" class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800">
+            <SearchModal />
+            <button id="theme-toggle" class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800" aria-label="Toggle theme">
                 🌙/☀️
             </button>
         </nav>
