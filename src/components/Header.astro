@@ -18,7 +18,7 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
 
 <script>
     const storageKey = "theme";
-    const order = ["light", "dark", "system"];
+    const order = ["light", "dark"];
 
     const getPreference = () => {
         try {
@@ -27,28 +27,22 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
         } catch (error) {
             console.warn("Unable to read theme preference:", error);
         }
-        return "system";
+        return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     };
 
     const getResolvedTheme = () =>
         document.documentElement.classList.contains("dark") ? "dark" : "light";
 
-    const iconFor = (preference, resolved) => {
-        if (preference === "system") return resolved === "dark" ? "🖥️🌙" : "🖥️☀️";
-        return preference === "dark" ? "🌙" : "☀️";
-    };
+    const iconFor = (preference) => (preference === "dark" ? "🌙" : "☀️");
 
-    const labelFor = (preference, resolved) => {
-        if (preference === "system") return `System (${resolved})`;
-        return preference === "dark" ? "Dark" : "Light";
-    };
+    const labelFor = (preference) => (preference === "dark" ? "Dark" : "Light");
 
     const render = (preference, resolvedOverride) => {
         const button = document.getElementById("theme-toggle");
         if (!button) return;
         const resolved = resolvedOverride ?? getResolvedTheme();
-        const icon = iconFor(preference, resolved);
-        const label = labelFor(preference, resolved);
+        const icon = iconFor(resolved);
+        const label = labelFor(resolved);
         button.dataset.theme = preference;
         button.textContent = `${icon} ${label}`;
         button.setAttribute("aria-label", `Toggle theme (current: ${label})`);
@@ -60,11 +54,7 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
             return;
         }
 
-        const resolved =
-            preference === "dark" ||
-            (preference === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches)
-                ? "dark"
-                : "light";
+        const resolved = preference === "dark" ? "dark" : "light";
         document.documentElement.classList.toggle("dark", resolved === "dark");
         try {
             localStorage.setItem(storageKey, preference);
