@@ -3,11 +3,13 @@ interface Props {
   storageKey?: string;
   label?: string;
   increment?: boolean;
+  remoteKey?: string;
 }
 
 const storageKey = Astro.props.storageKey ?? 'blog-visitor-count';
 const label = Astro.props.label ?? '访客统计：';
 const increment = Astro.props.increment ?? true;
+const remoteKey = Astro.props.remoteKey ?? storageKey;
 ---
 
 <div
@@ -20,13 +22,19 @@ const increment = Astro.props.increment ?? true;
   <strong data-visitor-count class="tabular-nums">--</strong>
 </div>
 
-<script is:inline data-storage-key={storageKey} data-increment={increment}>
-  (() => {
+<script
+  is:inline
+  data-storage-key={storageKey}
+  data-increment={increment}
+  data-remote-key={remoteKey}
+>
+  (async () => {
     const scriptEl = document.currentScript;
     const storageKey = scriptEl?.dataset.storageKey ?? 'blog-visitor-count';
     const increment = scriptEl?.dataset.increment !== 'false';
+    const remoteKey = scriptEl?.dataset.remoteKey;
     const sessionKey = `${storageKey}-session`;
-    const container = scriptEl?.parentElement?.querySelector(
+    const container = document.querySelector(
       `[data-visitor-container][data-storage-key="${storageKey}"]`,
     );
     const updateText = (value) => {
@@ -37,20 +45,65 @@ const increment = Astro.props.increment ?? true;
     };
 
     try {
+      const useRemote = Boolean(remoteKey);
+      let remoteSucceeded = false;
       const hasCounted = sessionStorage.getItem(sessionKey);
-      let total = Number.parseInt(localStorage.getItem(storageKey) ?? '0', 10);
+      const readLocalCount = () => {
+        const localValue = Number.parseInt(localStorage.getItem(storageKey) ?? '0', 10);
 
-      if (!Number.isFinite(total)) {
-        total = 0;
+        if (!Number.isFinite(localValue)) {
+          return 0;
+        }
+
+        return localValue;
+      };
+
+      const shouldIncrement = increment && !hasCounted;
+      let total = readLocalCount();
+
+      if (useRemote) {
+        try {
+          const path = shouldIncrement ? 'hit' : 'get';
+          const response = await fetch(
+            `https://api.countapi.xyz/${path}/${encodeURIComponent(remoteKey)}`,
+          );
+
+          if (!response.ok) {
+            throw new Error(`Unexpected status ${response.status}`);
+          }
+
+          const data = await response.json();
+          const remoteValue = Number.parseInt(String(data?.value ?? data?.data?.value), 10);
+
+          if (!Number.isFinite(remoteValue)) {
+            throw new Error('Remote counter returned invalid value');
+          }
+
+          total = remoteValue;
+          remoteSucceeded = true;
+          localStorage.setItem(storageKey, total.toString());
+
+          if (shouldIncrement) {
+            sessionStorage.setItem(sessionKey, '1');
+          }
+        } catch (error) {
+          console.warn('远程访客计数器不可用，使用本地计数', error);
+        }
       }
 
-      if (increment && !hasCounted) {
-        total += 1;
-        sessionStorage.setItem(sessionKey, '1');
-        localStorage.setItem(storageKey, total.toString());
+      const shouldUseLocal = !useRemote || !remoteSucceeded;
+
+      if (shouldUseLocal) {
+        total = readLocalCount();
+
+        if (shouldIncrement) {
+          total += 1;
+          sessionStorage.setItem(sessionKey, '1');
+          localStorage.setItem(storageKey, total.toString());
+        }
       }
 
-      updateText(total.toLocaleString());
+      updateText(Number.isFinite(total) ? total.toLocaleString() : 'N/A');
     } catch (error) {
       console.error('无法读取访客计数器存储', error);
       updateText('N/A');
