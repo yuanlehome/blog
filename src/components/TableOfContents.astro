@@ -13,29 +13,68 @@ const headings = Astro.props.headings
   .filter((heading) => heading.depth <= 3)
   .map((heading) => ({
     ...heading,
-    indentClass: heading.depth === 3 ? 'pl-3' : '',
+    indentClass:
+      heading.depth === 3
+        ? 'pl-4 border-l border-dashed border-gray-200 dark:border-gray-700'
+        : '',
   }));
 ---
 
-<aside class="hidden lg:block w-64 shrink-0">
-  <div class="sticky top-24 space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-800/40">
+<aside class="lg:w-72 shrink-0" aria-label="文章目录">
+  <div class="mb-4 flex items-center justify-between lg:hidden">
     <div>
       <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">文章目录</p>
-      <p class="text-xs text-gray-500 dark:text-gray-400">快速跳转到你关心的章节</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400">快速跳转章节</p>
     </div>
+    <button
+      type="button"
+      class="rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:border-blue-700 dark:hover:text-blue-300"
+      data-toc-toggle
+      aria-expanded="false"
+    >
+      目录
+    </button>
+  </div>
+
+  <div
+    id="toc-panel"
+    class="hidden lg:block rounded-2xl border border-gray-200/80 bg-white/75 backdrop-blur-sm shadow-sm ring-1 ring-gray-100/40 dark:border-gray-800 dark:bg-gray-900/70 dark:ring-gray-900/60 lg:sticky lg:top-24 lg:max-h-[calc(100vh-8rem)] lg:overflow-hidden"
+  >
+    <div class="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
+      <div>
+        <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">文章目录</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400">点击平滑跳转，当前章节高亮</p>
+      </div>
+      <button
+        type="button"
+        class="rounded-full p-2 text-gray-500 transition hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-gray-400 dark:hover:text-gray-100 lg:hidden"
+        data-toc-close
+        aria-label="关闭目录"
+      >
+        ✕
+      </button>
+    </div>
+
     {headings.length === 0 ? (
-      <p class="text-sm text-gray-500 dark:text-gray-400">本文暂无目录。</p>
+      <p class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">本文暂无目录。</p>
     ) : (
-      <nav aria-label="文章目录">
-        <ol class="space-y-2 text-sm">
+      <nav
+        aria-label="文章目录"
+        class="max-h-[65vh] overflow-y-auto lg:max-h-[calc(100vh-12rem)]"
+        data-toc-list
+      >
+        <ol class="space-y-1 px-2 py-3 text-sm">
           {headings.map((heading) => (
             <li>
               <a
                 href={`#${heading.slug}`}
-                class={`flex items-start gap-2 text-gray-700 underline-offset-2 transition hover:text-blue-600 dark:text-gray-200 dark:hover:text-blue-400 ${heading.indentClass}`}
+                class={`group flex items-start gap-2 rounded-lg px-2 py-2 text-gray-700 underline-offset-4 transition hover:bg-gray-100 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-blue-400 ${heading.indentClass}`}
+                data-toc-link
+                data-slug={heading.slug}
+                title={heading.text}
               >
-                <span class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">#</span>
-                <span>{heading.text}</span>
+                <span class="mt-0.5 text-xs text-gray-400 transition group-hover:text-blue-500 dark:text-gray-500 dark:group-hover:text-blue-300">#</span>
+                <span class="flex-1 truncate" data-toc-text>{heading.text}</span>
               </a>
             </li>
           ))}
@@ -44,3 +83,101 @@ const headings = Astro.props.headings
     )}
   </div>
 </aside>
+
+<script>
+  const tocPanel = document.getElementById('toc-panel');
+  const toggleButtons = document.querySelectorAll('[data-toc-toggle]');
+  const closeButton = document.querySelector('[data-toc-close]');
+  const tocLinks = Array.from(document.querySelectorAll('[data-toc-link]'));
+  const headings = Array.from(
+    document.querySelectorAll('[data-article] h2[id], [data-article] h3[id]')
+  );
+
+  const headerOffset = 88; // 预留给站点 Header 的高度，避免锚点被遮挡
+
+  const openMobileToc = () => {
+    if (!tocPanel) return;
+    tocPanel.classList.remove('hidden');
+    tocPanel.classList.add('block', 'fixed', 'inset-x-4', 'top-24', 'bottom-6', 'z-40', 'overflow-hidden');
+    tocPanel.setAttribute('aria-modal', 'true');
+    toggleButtons.forEach((btn) => btn.setAttribute('aria-expanded', 'true'));
+  };
+
+  const closeMobileToc = (resetOnly = false) => {
+    if (!tocPanel) return;
+    tocPanel.classList.remove('fixed', 'inset-x-4', 'top-24', 'bottom-6', 'z-40', 'overflow-hidden', 'block');
+    if (!resetOnly) {
+      tocPanel.classList.add('hidden');
+      toggleButtons.forEach((btn) => btn.setAttribute('aria-expanded', 'false'));
+    }
+    tocPanel.removeAttribute('aria-modal');
+  };
+
+  toggleButtons.forEach((btn) => {
+    btn.addEventListener('click', () => openMobileToc());
+  });
+
+  closeButton?.addEventListener('click', () => closeMobileToc());
+
+  window.addEventListener('resize', () => {
+    if (window.innerWidth >= 1024) {
+      closeMobileToc(true);
+      tocPanel?.classList.remove('hidden');
+    } else {
+      // 小屏回到默认收起状态，避免在缩放后遮挡正文
+      closeMobileToc();
+    }
+  });
+
+  const setActiveLink = (slug) => {
+    tocLinks.forEach((link) => {
+      const isActive = slug && link.dataset.slug === slug;
+      link.classList.toggle('text-blue-600', isActive);
+      link.classList.toggle('dark:text-blue-300', isActive);
+      link.classList.toggle('font-semibold', isActive);
+      link.setAttribute('aria-current', isActive ? 'location' : 'false');
+    });
+  };
+
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (headings.length > 0) {
+    setActiveLink(headings[0].id);
+  }
+
+  tocLinks.forEach((link) => {
+    link.addEventListener('click', (event) => {
+      const slug = link.dataset.slug;
+      if (!slug) return;
+      const target = document.getElementById(slug);
+      if (!target) return;
+
+      event.preventDefault();
+      const top = target.getBoundingClientRect().top + window.scrollY - headerOffset;
+      window.scrollTo({ top, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
+
+      if (window.innerWidth < 1024) {
+        closeMobileToc();
+      }
+    });
+  });
+
+  if ('IntersectionObserver' in window && headings.length > 0) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setActiveLink(entry.target.id);
+          }
+        });
+      },
+      {
+        // 在视口中线稍偏上的区域判定为“当前章节”
+        rootMargin: '-40% 0px -45% 0px',
+        threshold: [0, 1],
+      }
+    );
+
+    headings.forEach((heading) => observer.observe(heading));
+  }
+</script>

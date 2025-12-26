@@ -1,0 +1,50 @@
+---
+import type { CollectionEntry } from 'astro:content';
+
+interface PostWithStats extends CollectionEntry<'blog'> {
+  stats: { text: string; wordCount: number };
+}
+
+interface Props {
+  post: PostWithStats;
+  base: string;
+  index: number;
+}
+
+const { post, base, index } = Astro.props;
+const href = `${base}${post.slug}/`;
+---
+<li
+  class="group/card animate-card-in [animation-delay:calc(var(--card-index)*45ms)]"
+  style={`--card-index:${index}`}
+>
+  <a
+    href={href}
+    class="relative block h-full overflow-hidden rounded-2xl border border-gray-200/80 bg-white/75 shadow-sm ring-1 ring-gray-100/60 transition-transform duration-200 ease-out will-change-transform hover:-translate-y-1 hover:shadow-lg hover:ring-blue-500/30 hover:border-blue-200/80 active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500 dark:border-gray-800/80 dark:bg-gray-900/70 dark:ring-gray-900/70 dark:hover:border-blue-700/70 dark:hover:ring-blue-700/30"
+  >
+    {post.data.cover && (
+      <div class="relative overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent opacity-70 transition-opacity duration-300 ease-out group-hover/card:opacity-90"></div>
+        <img
+          src={post.data.cover}
+          alt={post.data.title}
+          class="h-48 w-full object-cover transition duration-300 ease-out group-hover/card:scale-[1.01] group-focus-visible/card:scale-[1.01] motion-reduce:transform-none"
+          loading="lazy"
+        />
+      </div>
+    )}
+
+    <div class="space-y-3 p-5">
+      <h3 class="text-xl font-semibold text-gray-900 transition-colors group-hover/card:text-blue-600 group-focus-visible/card:text-blue-600 dark:text-gray-100 dark:group-hover/card:text-blue-300">
+        <span class="underline-offset-4 group-hover/card:underline">{post.data.title}</span>
+      </h3>
+      <div class="text-sm text-gray-500 flex flex-wrap items-center gap-3 dark:text-gray-400">
+        <span class="flex items-center gap-1">📅 {post.data.date.toLocaleDateString()}</span>
+        <span class="flex items-center gap-1">✍️ {post.stats.wordCount} 字</span>
+        <span class="flex items-center gap-1" title={`${post.stats.wordCount} words`}>
+          ⏱️ {post.stats.text}
+        </span>
+      </div>
+    </div>
+  </a>
+</li>
