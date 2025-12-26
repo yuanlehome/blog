@@ -1,6 +1,7 @@
 ---
 import 'katex/dist/katex.min.css';
 import '../styles/global.css';
+import ThemeScript from '../components/ThemeScript.astro';
 
 interface Props {
   title: string;
@@ -16,6 +17,7 @@ const { title, description = "A minimal Astro blog", image = `${BASE}placeholder
 <!doctype html>
 <html lang="en">
   <head>
+    <ThemeScript />
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
     <meta name="viewport" content="width=device-width" />
@@ -34,25 +36,6 @@ const { title, description = "A minimal Astro blog", image = `${BASE}placeholder
     <meta name="twitter:image" content={image} />
     <title>{title}</title>
         
-    <!-- Dark Mode Script -->
-    <script is:inline>
-      const theme = (() => {
-        if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
-          return localStorage.getItem('theme');
-        }
-        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          return 'dark';
-        }
-        return 'light';
-      })();
-
-      if (theme === 'dark') {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    </script>
-
     <style>
       :root {
         scroll-behavior: smooth;
