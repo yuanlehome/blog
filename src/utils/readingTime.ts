@@ -1,5 +1,5 @@
 export function getReadingTime(content: string) {
-  const wordsPerMinute = 200;
+  const wordsPerMinute = 450;
   // Remove HTML tags but keep spacing so that inline text stays separable
   const cleanContent = content.replace(/<[^>]*>/g, " ");
 
