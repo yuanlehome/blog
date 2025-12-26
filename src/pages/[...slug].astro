@@ -31,7 +31,7 @@ const commentsEnabled = post.data.comments ?? true;
     <div class="flex gap-8">
       <TableOfContents headings={headings} />
 
-      <article class="prose dark:prose-invert max-w-none prose-img:rounded-xl flex-1">
+      <article class="prose dark:prose-invert max-w-none prose-img:rounded-xl flex-1 min-w-0">
         <header class="mb-8 not-prose">
           {post.data.cover && (
             <img src={post.data.cover} alt={post.data.title} class="w-full h-64 object-cover rounded-xl mb-6" />
