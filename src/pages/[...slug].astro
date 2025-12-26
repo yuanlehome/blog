@@ -7,6 +7,7 @@ import TableOfContents from '../components/TableOfContents.astro';
 import PrevNext from '../components/PrevNext.astro';
 import RelatedPosts from '../components/RelatedPosts.astro';
 import { findPrevNext, findRelated, getPublishedPosts } from '../utils/posts';
+import Giscus from '../components/Giscus.astro';
 
 export async function getStaticPaths() {
   const posts = await getPublishedPosts();
@@ -21,6 +22,7 @@ const { Content, headings } = await post.render();
 const stats = getReadingTime(post.body);
 const { prev, next } = findPrevNext(all, post.slug);
 const related = findRelated(all, post);
+const commentsEnabled = post.data.comments ?? true;
 ---
 
 <Layout title={post.data.title} image={post.data.cover}>
@@ -55,6 +57,7 @@ const related = findRelated(all, post);
 
         <PrevNext prev={prev} next={next} />
         <RelatedPosts posts={related} />
+        {commentsEnabled && <Giscus lang="zh-CN" loading="lazy" />}
       </article>
     </div>
   </main>
