@@ -5,8 +5,6 @@ import Footer from '../components/Footer.astro';
 import { getCollection } from 'astro:content';
 import { getReadingTime } from '../utils/readingTime';
 
-const toPlainText = (value: string) => value.replace(/[`*_>#\-]/g, '').replace(/\s+/g, ' ').trim();
-
 const posts = (await getCollection('blog'))
   .filter((post) => post.data.status === 'published')
   .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf())
@@ -14,7 +12,6 @@ const posts = (await getCollection('blog'))
     return {
       ...post,
       stats: getReadingTime(post.body),
-      excerpt: toPlainText(post.body).slice(0, 180) + (post.body.length > 180 ? '…' : ''),
     };
   });
 const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
@@ -54,7 +51,6 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
                 </span>
               )}
             </div>
-            <p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{post.excerpt}</p>
           </a>
         </li>
       ))}
