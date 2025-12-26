@@ -1,0 +1,203 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --code-font: 'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  --code-radius: 0.9rem;
+  --code-border: 1px solid rgb(229 231 235 / 0.7);
+  --code-bg: #f8fafc;
+  --code-fg: #0f172a;
+  --code-scrollbar: rgb(203 213 225 / 0.75);
+  --code-highlight-bg: rgb(59 130 246 / 0.12);
+  --code-highlight-accent: rgb(59 130 246);
+}
+
+.dark {
+  --code-border: 1px solid rgb(51 65 85 / 0.7);
+  --code-bg: #0b1221;
+  --code-fg: #e2e8f0;
+  --code-scrollbar: rgb(71 85 105 / 0.8);
+  --code-highlight-bg: rgb(59 130 246 / 0.2);
+  --code-highlight-accent: rgb(96 165 250);
+}
+
+.prose :where(figure.code-block) {
+  margin: 1.25rem 0;
+}
+
+.code-block {
+  border-radius: var(--code-radius);
+  border: var(--code-border);
+  background: var(--code-bg);
+  color: var(--code-fg);
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.08);
+}
+
+.dark .code-block {
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.28);
+}
+
+.code-block__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  background: linear-gradient(90deg, transparent, rgb(59 130 246 / 0.08));
+}
+
+.dark .code-block__header {
+  background: linear-gradient(90deg, transparent, rgb(59 130 246 / 0.16));
+}
+
+.code-block__title {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: inherit;
+}
+
+.code-block__copy {
+  position: relative;
+  border: 1px solid rgb(148 163 184 / 0.6);
+  background: transparent;
+  border-radius: 0.65rem;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  color: inherit;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.code-block__copy:hover,
+.code-block__copy:focus-visible {
+  outline: none;
+  border-color: rgb(59 130 246 / 0.9);
+  color: rgb(37 99 235);
+  box-shadow: 0 0 0 3px rgb(59 130 246 / 0.18);
+}
+
+.dark .code-block__copy:hover,
+.dark .code-block__copy:focus-visible {
+  color: rgb(96 165 250);
+  border-color: rgb(96 165 250 / 0.8);
+  box-shadow: 0 0 0 3px rgb(96 165 250 / 0.2);
+}
+
+.code-block__copy[data-state='copied']::after,
+.code-block__copy[data-state='error']::after {
+  content: attr(data-state);
+  text-transform: capitalize;
+  font-size: 0.75rem;
+  margin-left: 0.45rem;
+  color: inherit;
+}
+
+.code-block__pre {
+  display: none;
+  margin: 0;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  scrollbar-width: thin;
+  scrollbar-color: var(--code-scrollbar) transparent;
+}
+
+.code-block__pre::-webkit-scrollbar {
+  height: 10px;
+}
+
+.code-block__pre::-webkit-scrollbar-thumb {
+  background: var(--code-scrollbar);
+  border-radius: 9999px;
+}
+
+.code-block__pre code {
+  font-family: var(--code-font);
+  font-size: 0.95rem;
+  line-height: 1.65;
+  display: block;
+  min-width: max-content;
+}
+
+.code-block__pre[data-theme='light'] {
+  display: block;
+}
+
+.dark .code-block__pre[data-theme='light'] {
+  display: none;
+}
+
+.code-block__pre[data-theme='dark'] {
+  display: none;
+}
+
+.dark .code-block__pre[data-theme='dark'] {
+  display: block;
+}
+
+.code-block[data-line-numbers='true'] .line {
+  position: relative;
+  padding-left: 3.25rem;
+}
+
+.code-block[data-line-numbers='true'] .line::before {
+  content: attr(data-line-number);
+  position: absolute;
+  left: 1rem;
+  color: rgb(148 163 184 / 0.75);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.code-block .line--highlighted {
+  background: var(--code-highlight-bg);
+  border-left: 3px solid var(--code-highlight-accent);
+  margin-left: -1.25rem;
+  padding-left: calc(3.25rem + 1.25rem - 3px);
+  padding-right: 0.5rem;
+}
+
+.code-block[data-line-numbers='false'] .line--highlighted {
+  padding-left: 0.5rem;
+  margin-left: 0;
+}
+
+.code-block[data-line-numbers='false'] .line {
+  padding-left: 0;
+}
+
+.prose pre,
+.prose code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  color: inherit;
+}
+
+.prose pre code {
+  font-family: var(--code-font);
+  font-size: 0.95rem;
+}
+
+@media (max-width: 640px) {
+  .code-block__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .code-block__title {
+    font-size: 0.8rem;
+  }
+
+  .code-block__copy {
+    width: 100%;
+    text-align: center;
+  }
+}

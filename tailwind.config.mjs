@@ -10,25 +10,34 @@ export default {
                         'code::before': { content: '""' },
                         'code::after': { content: '""' },
                         code: {
-                            color: theme('colors.blue.600'),
-                            backgroundColor: theme('colors.gray.100'),
-                            padding: '0.2em 0.4em',
-                            borderRadius: '0.25rem',
+                            color: theme('colors.sky.800'),
+                            backgroundColor: theme('colors.sky.50'),
+                            padding: '0.2em 0.35em',
+                            borderRadius: '0.35rem',
                             fontWeight: '500',
                         },
                         'code:not(pre code)': {
-                            color: theme('colors.blue.600'),
+                            color: theme('colors.sky.800'),
                         },
-                        // Dark mode overrides
+                        pre: {
+                            backgroundColor: 'transparent',
+                            color: 'inherit',
+                            padding: '0',
+                        },
+                        'pre code': {
+                            color: 'inherit',
+                            backgroundColor: 'transparent',
+                            padding: '0',
+                        },
                         '.dark code': {
-                            color: theme('colors.blue.400'),
-                            backgroundColor: theme('colors.gray.800'),
+                            color: theme('colors.sky.200'),
+                            backgroundColor: theme('colors.slate.800'),
                         },
                     },
                 },
             }),
         },
-	},
+        },
 	plugins: [
 		require('@tailwindcss/typography'),
 	],
