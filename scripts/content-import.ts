@@ -39,6 +39,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const CONTENT_ROOT = path.join(__dirname, '../src/content/blog');
 const IMAGE_ROOT = path.join(__dirname, '../public/images');
+const ARTIFACTS_ROOT = path.join(__dirname, '../artifacts');
+
+// Constants for retry and timing
+const MAX_RETRIES = 3;
+const BASE_BACKOFF_MS = 1000;
+const MAX_BACKOFF_MS = 10000;
+const JS_INITIALIZATION_DELAY = 2000;
+const MIN_CONTENT_LENGTH = 100;
+const CONTENT_WAIT_TIMEOUT = 30000;
+const MAX_URL_LENGTH_FOR_FILENAME = 50;
 
 function parseArgs(): string {
   const url =
@@ -82,6 +92,129 @@ function normalizeUrl(url: string, base?: string) {
     }
   }
   return '';
+}
+
+/**
+ * Sanitize Zhihu URL by removing tracking and share parameters
+ */
+function sanitizeZhihuUrl(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    // Remove common tracking and share parameters
+    const paramsToRemove = [
+      'share_code',
+      'utm_source',
+      'utm_medium',
+      'utm_campaign',
+      'utm_content',
+      'utm_term',
+      'utm_psn',
+      'utm_id',
+      'utm_oi',
+    ];
+    paramsToRemove.forEach((param) => urlObj.searchParams.delete(param));
+    return urlObj.toString();
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Check if a URL is from a specific domain (secure hostname validation)
+ */
+function isFromDomain(url: string, domain: string): boolean {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname.toLowerCase();
+    // Must be exact match or subdomain of the target domain
+    return hostname === domain || hostname.endsWith(`.${domain}`);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Save debug artifacts (screenshot, HTML, logs) when scraping fails
+ */
+async function saveDebugArtifacts(
+  page: Page,
+  url: string,
+  error: Error,
+  logs: { type: string; text: string; timestamp: number }[],
+): Promise<void> {
+  try {
+    fs.mkdirSync(ARTIFACTS_ROOT, { recursive: true });
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const safeUrl = url.replace(/[^a-zA-Z0-9]/g, '_').substring(0, MAX_URL_LENGTH_FOR_FILENAME);
+    const prefix = `${timestamp}_${safeUrl}`;
+
+    // Save screenshot
+    const screenshotPath = path.join(ARTIFACTS_ROOT, `${prefix}_screenshot.png`);
+    await page.screenshot({ path: screenshotPath, fullPage: true }).catch((e) => {
+      console.warn(`Failed to save screenshot: ${e.message}`);
+    });
+    console.log(`Screenshot saved: ${screenshotPath}`);
+
+    // Save HTML
+    const htmlPath = path.join(ARTIFACTS_ROOT, `${prefix}_page.html`);
+    const html = await page.content().catch(() => '<html>Failed to get page content</html>');
+    fs.writeFileSync(htmlPath, html);
+    console.log(`HTML saved: ${htmlPath}`);
+
+    // Save logs
+    const logsPath = path.join(ARTIFACTS_ROOT, `${prefix}_logs.json`);
+    const logData = {
+      url,
+      error: {
+        message: error.message,
+        stack: error.stack,
+      },
+      timestamp: new Date().toISOString(),
+      logs,
+    };
+    fs.writeFileSync(logsPath, JSON.stringify(logData, null, 2));
+    console.log(`Logs saved: ${logsPath}`);
+  } catch (artifactError) {
+    console.error('Failed to save debug artifacts:', artifactError);
+  }
+}
+
+/**
+ * Detect if the page is a login/captcha/blocked page
+ */
+async function detectBlockedPage(page: Page): Promise<string | null> {
+  try {
+    const pageContent = await page.content();
+    const title = await page.title();
+    const url = page.url();
+
+    // Check for login page
+    if (
+      /登录|login|sign.?in/i.test(title) ||
+      /登录|login|sign.?in/i.test(pageContent) ||
+      url.includes('/signin') ||
+      url.includes('/login')
+    ) {
+      return 'Zhihu blocked request (login page detected)';
+    }
+
+    // Check for captcha/verification page
+    if (
+      /验证|captcha|security.?check|human.?verification/i.test(title) ||
+      /验证|captcha|security.?check/i.test(pageContent)
+    ) {
+      return 'Zhihu blocked request (captcha/security check detected)';
+    }
+
+    // Check for anti-spider page
+    if (/安全验证|反作弊|access.?denied/i.test(pageContent)) {
+      return 'Zhihu blocked request (anti-spider protection)';
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 function resolveImageSrc(node: HastElement, base?: string) {
@@ -247,7 +380,12 @@ async function withBrowser<T>(fn: (context: BrowserContext) => Promise<T>) {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     userAgent:
-      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    locale: 'zh-CN',
+    viewport: { width: 1920, height: 1080 },
+    extraHTTPHeaders: {
+      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    },
   });
   try {
     return await fn(context);
@@ -257,14 +395,118 @@ async function withBrowser<T>(fn: (context: BrowserContext) => Promise<T>) {
   }
 }
 
-const providers: Provider[] = [
-  {
-    name: 'zhihu',
-    match: (url) => /zhihu\.com/.test(url),
-    extract: async (page, url) => {
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 120000 });
-      await page.waitForSelector('.Post-RichText, .RichText, article', { timeout: 30000 });
+/**
+ * Wait for content with three-phase strategy:
+ * 1. Wait for selector to be attached to DOM
+ * 2. Wait for content to have meaningful text
+ */
+async function waitForContent(
+  page: Page,
+  selectors: string[],
+  options: { minTextLength?: number; timeout?: number } = {},
+): Promise<void> {
+  const { minTextLength = MIN_CONTENT_LENGTH, timeout = CONTENT_WAIT_TIMEOUT } = options;
+  const startTime = Date.now();
 
+  for (const selector of selectors) {
+    try {
+      // Phase 1: Wait for element to be attached (not necessarily visible)
+      await page.waitForSelector(selector, { state: 'attached', timeout: 5000 });
+
+      // Phase 2: Wait for element to have meaningful content
+      await page.waitForFunction(
+        ({ sel, minLen }) => {
+          const el = document.querySelector(sel);
+          if (!el) return false;
+          const text = el.textContent?.trim() || '';
+          return text.length >= minLen;
+        },
+        { sel: selector, minLen: minTextLength },
+        { timeout: Math.max(5000, timeout - (Date.now() - startTime)) },
+      );
+
+      // Success!
+      return;
+    } catch (error) {
+      // Try next selector
+      continue;
+    }
+  }
+
+  // All selectors failed
+  throw new Error(
+    `Zhihu DOM structure changed: None of the expected content selectors found: ${selectors.join(', ')}`,
+  );
+}
+
+/**
+ * Enhanced Zhihu extraction with retry logic and comprehensive error handling
+ */
+async function extractZhihuWithRetry(
+  page: Page,
+  url: string,
+  maxRetries = MAX_RETRIES,
+): Promise<ExtractedArticle> {
+  // Sanitize URL first
+  const sanitizedUrl = sanitizeZhihuUrl(url);
+  console.log(`Sanitized URL: ${sanitizedUrl}`);
+
+  const logs: { type: string; text: string; timestamp: number }[] = [];
+
+  // Setup logging listeners
+  page.on('console', (msg) => {
+    logs.push({ type: 'console', text: msg.text(), timestamp: Date.now() });
+  });
+  page.on('pageerror', (error) => {
+    logs.push({ type: 'error', text: error.message, timestamp: Date.now() });
+  });
+  page.on('response', (response) => {
+    if (isFromDomain(response.url(), 'zhihu.com')) {
+      logs.push({
+        type: 'response',
+        text: `${response.status()} ${response.url()}`,
+        timestamp: Date.now(),
+      });
+    }
+  });
+
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`Attempt ${attempt}/${maxRetries} to extract from ${sanitizedUrl}`);
+
+      // Phase 1: Navigate with domcontentloaded
+      await page.goto(sanitizedUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: 60000,
+      });
+
+      // Small delay to let JS initialize
+      await page.waitForTimeout(JS_INITIALIZATION_DELAY);
+
+      // Check for blocked page
+      const blockReason = await detectBlockedPage(page);
+      if (blockReason) {
+        throw new Error(blockReason);
+      }
+
+      // Phase 2 & 3: Wait for content with robust selectors
+      const contentSelectors = [
+        '.Post-RichText',
+        '.RichText',
+        'article',
+        '.ztext',
+        '[data-za-detail-view-element_name="Article"]',
+        '.Post-Main .RichContent',
+      ];
+
+      await waitForContent(page, contentSelectors, {
+        minTextLength: MIN_CONTENT_LENGTH,
+        timeout: CONTENT_WAIT_TIMEOUT,
+      });
+
+      // Extract content
       const result = await page.evaluate(() => {
         const pickText = (selectors: string[]) => {
           for (const sel of selectors) {
@@ -284,7 +526,14 @@ const providers: Provider[] = [
           return '';
         };
 
-        const contentSelectors = ['.Post-RichText', '.RichText', 'article'];
+        const contentSelectors = [
+          '.Post-RichText',
+          '.RichText',
+          'article',
+          '.ztext',
+          '[data-za-detail-view-element_name="Article"]',
+          '.Post-Main .RichContent',
+        ];
         let html = '';
         for (const sel of contentSelectors) {
           const el = document.querySelector(sel);
@@ -312,15 +561,43 @@ const providers: Provider[] = [
       });
 
       if (!result.html?.trim()) {
-        throw new Error('Failed to extract article content.');
+        throw new Error('Zhihu DOM structure changed: Failed to extract article content');
       }
 
-      return { ...result, baseUrl: url };
+      console.log(`Successfully extracted article: ${result.title}`);
+      return { ...result, baseUrl: sanitizedUrl };
+    } catch (error) {
+      lastError = error as Error;
+      console.error(`Attempt ${attempt} failed:`, error);
+
+      // Save artifacts on last attempt
+      if (attempt === maxRetries) {
+        console.error('All retry attempts exhausted. Saving debug artifacts...');
+        await saveDebugArtifacts(page, sanitizedUrl, lastError, logs);
+      } else {
+        // Exponential backoff: wait before retry
+        const backoffMs = Math.min(BASE_BACKOFF_MS * Math.pow(2, attempt - 1), MAX_BACKOFF_MS);
+        console.log(`Waiting ${backoffMs}ms before retry...`);
+        await page.waitForTimeout(backoffMs);
+      }
+    }
+  }
+
+  // All retries failed
+  throw lastError || new Error('Failed to extract Zhihu article after all retries');
+}
+
+const providers: Provider[] = [
+  {
+    name: 'zhihu',
+    match: (url) => isFromDomain(url, 'zhihu.com'),
+    extract: async (page, url) => {
+      return extractZhihuWithRetry(page, url);
     },
   },
   {
     name: 'medium',
-    match: (url) => /medium\.com/.test(url),
+    match: (url) => isFromDomain(url, 'medium.com'),
     extract: async (page, url) => {
       await page.goto(url, { waitUntil: 'networkidle', timeout: 120000 });
       await page.waitForSelector('article', { timeout: 30000 });
@@ -362,7 +639,7 @@ const providers: Provider[] = [
   },
   {
     name: 'wechat',
-    match: (url) => /mp\.weixin\.qq\.com/.test(url),
+    match: (url) => isFromDomain(url, 'mp.weixin.qq.com'),
     extract: async (page, url) => {
       await page.goto(url, { waitUntil: 'networkidle', timeout: 120000 });
       await page.waitForSelector('#js_content, .rich_media_content', { timeout: 30000 });
