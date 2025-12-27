@@ -3,6 +3,7 @@
 一个由 **Astro** 和 **Notion** 驱动的静态博客示例。通过同步 Notion 数据库里的页面生成 Markdown 内容，并在构建时完成数学公式渲染，适合想要用 Notion 作为内容源的个人或团队。
 
 ## 🎯 特性
+
 - **Notion 写作流程**：用 Notion Database 管理文章，状态为 Published 的页面会被拉取并转成 Markdown。
 - **图片与封面下载**：同步时自动下载 Notion 中的图片与封面到 `public/images/notion/<pageId>/`。
 - **数学公式支持**：结合 `remark-math` 与 `rehype-katex` 渲染公式，同步后还会用脚本修正常见格式问题。
@@ -11,11 +12,14 @@
 ## 🚀 快速开始
 
 ### 1. 环境要求
+
 - Node.js 18+
 - 可访问的 Notion 账号与数据库
 
 ### 2. 安装与配置
+
 1. **克隆仓库并安装依赖**
+
    ```bash
    git clone <your-repo-url>
    cd blog
@@ -24,10 +28,12 @@
 
 2. **配置环境变量**
    复制 `.env.local.example` 为 `.env.local` 并填写 Notion 信息：
+
    ```ini
    NOTION_TOKEN=secret_your_token_here
    NOTION_DATABASE_ID=your_database_id_here
    ```
+
    - **Token**：前往 [Create Integration](https://www.notion.so/my-integrations) 创建并获取。
    - **Database ID**：来自 Notion 数据库 URL（`notion.so/` 后的 32 位字符串）。
    - **权限**：在数据库右上角 `...` → `Connect` → 选择你的 Integration，否则无法读取数据。
@@ -39,17 +45,20 @@
    默认在 `http://localhost:4321` 提供预览。
 
 ### 3. 内容同步与写作
+
 支持两种方式：
 
-1) **Notion 驱动**：在 Notion 数据库中写作并将状态设为 **Published**（支持 `select` 或 `status` 属性），然后运行同步脚本：
+1. **Notion 驱动**：在 Notion 数据库中写作并将状态设为 **Published**（支持 `select` 或 `status` 属性），然后运行同步脚本：
+
    ```bash
    npm run notion:sync
    ```
+
    - 会将页面转换为 Markdown，输出到 `src/content/blog/notion/`。
    - 自动下载页面中的图片与封面到 `public/images/notion/`，并为引用生成本地路径。
    - 自动运行 `scripts/fix-math.ts` 修正常见数学公式格式（如去除 `$ x $` 中的空格，将多行行内公式提升为块级）。
 
-2) **本地 Markdown**：在 `src/content/blog/` 下添加 `.md/.mdx` 文件，满足以下 Frontmatter 即可：
+2. **本地 Markdown**：在 `src/content/blog/` 下添加 `.md/.mdx` 文件，满足以下 Frontmatter 即可：
    ```yaml
    ---
    title: 文章标题
@@ -63,6 +72,7 @@
 构建或部署前请先同步内容，确保最新文章被包含在站点中。
 
 ### 4. 数学公式
+
 - **行内**：`$E=mc^2$`
 - **块级**：
   ```latex
@@ -72,11 +82,13 @@
   ```
 
 如需单独处理指定文件，可直接运行：
+
 ```bash
 npx tsx scripts/fix-math.ts src/content/blog/notion/<file>.md
 ```
 
 ## 🧭 项目结构
+
 ```
 ├── .github/workflows/        # CI / 部署（如果启用）
 ├── public/images/notion/     # 同步的 Notion 图片与封面
@@ -92,15 +104,16 @@ npx tsx scripts/fix-math.ts src/content/blog/notion/<file>.md
 
 ## 🔧 常用命令
 
-| 命令 | 说明 |
-| :--- | :--- |
-| `npm run dev` | 启动开发服务器（默认 `localhost:4321`） |
-| `npm run build` | 生成生产构建 |
-| `npm run preview` | 预览生产构建 |
-| `npm run notion:sync` | 拉取 Notion 文章、下载图片并修复公式 |
-| `npm run format` | 使用 Prettier 格式化 `scripts/` 与 `src/` 代码 |
+| 命令                  | 说明                                           |
+| :-------------------- | :--------------------------------------------- |
+| `npm run dev`         | 启动开发服务器（默认 `localhost:4321`）        |
+| `npm run build`       | 生成生产构建                                   |
+| `npm run preview`     | 预览生产构建                                   |
+| `npm run notion:sync` | 拉取 Notion 文章、下载图片并修复公式           |
+| `npm run format`      | 使用 Prettier 格式化 `scripts/` 与 `src/` 代码 |
 
 ## 🤝 贡献指南
+
 - 请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解分支、提交与测试流程。
 - 提交 Issue 前请提供复现步骤、期望结果和环境信息。
 - 行为需遵守 [行为准则](CODE_OF_CONDUCT.md)。

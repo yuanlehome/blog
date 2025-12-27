@@ -6,24 +6,28 @@ vi.mock('astro:content', () => ({
   getCollection: vi.fn(),
 }));
 
-const makePost = (slug: string, date: string, tags: string[] = ['a']): CollectionEntry<'blog'> => ({
-  slug,
-  id: slug,
-  collection: 'blog',
-  data: {
-    title: slug,
-    date: new Date(date),
-    tags,
-    status: 'published',
-  },
-  body: `${slug} body`,
-  render: async () => ({ Content: () => null, headings: [] as any[] }),
-} as unknown as CollectionEntry<'blog'>);
+const makePost = (slug: string, date: string, tags: string[] = ['a']): CollectionEntry<'blog'> =>
+  ({
+    slug,
+    id: slug,
+    collection: 'blog',
+    data: {
+      title: slug,
+      date: new Date(date),
+      tags,
+      status: 'published',
+    },
+    body: `${slug} body`,
+    render: async () => ({ Content: () => null, headings: [] as any[] }),
+  }) as unknown as CollectionEntry<'blog'>;
 
 describe('posts utils', () => {
   it('filters and sorts published posts', async () => {
     const posts = [
-      { ...makePost('b', '2024-01-01'), data: { ...makePost('b', '2024-01-01').data, status: 'draft' } },
+      {
+        ...makePost('b', '2024-01-01'),
+        data: { ...makePost('b', '2024-01-01').data, status: 'draft' },
+      },
       makePost('a', '2024-03-01'),
       makePost('c', '2024-02-01'),
     ];
@@ -39,7 +43,11 @@ describe('posts utils', () => {
   });
 
   it('finds previous and next posts', () => {
-    const posts = [makePost('first', '2024-01-01'), makePost('second', '2024-02-01'), makePost('third', '2024-03-01')];
+    const posts = [
+      makePost('first', '2024-01-01'),
+      makePost('second', '2024-02-01'),
+      makePost('third', '2024-03-01'),
+    ];
     const { prev, next } = findPrevNext(posts, 'second');
 
     expect(prev?.slug).toBe('first');
@@ -47,7 +55,11 @@ describe('posts utils', () => {
   });
 
   it('groups posts by year and month', () => {
-    const posts = [makePost('jan', '2024-01-15'), makePost('feb', '2024-02-01'), makePost('jan-old', '2024-01-01')];
+    const posts = [
+      makePost('jan', '2024-01-15'),
+      makePost('feb', '2024-02-01'),
+      makePost('jan-old', '2024-01-01'),
+    ];
     const grouped = groupByYearMonth(posts);
 
     expect(grouped[0].key).toBe('2024-02');

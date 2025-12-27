@@ -6,6 +6,7 @@ export interface Props {
 
 const { targetSelector = '[data-article]' } = Astro.props;
 ---
+
 <div class="reading-progress" data-reading-progress data-target-selector={targetSelector}>
   <span class="reading-progress__bar" data-reading-progress-bar></span>
 </div>
@@ -13,7 +14,12 @@ const { targetSelector = '[data-article]' } = Astro.props;
   <button type="button" class="reading-progress__control" data-scroll-top aria-label="返回文章顶部">
     ⬆️ 顶部
   </button>
-  <button type="button" class="reading-progress__control" data-scroll-bottom aria-label="跳转文章底部">
+  <button
+    type="button"
+    class="reading-progress__control"
+    data-scroll-bottom
+    aria-label="跳转文章底部"
+  >
     ⬇️ 底部
   </button>
 </div>
@@ -75,7 +81,10 @@ const { targetSelector = '[data-article]' } = Astro.props;
     font-size: 0.875rem;
     line-height: 1.25rem;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-    transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease,
+      background-color 0.15s ease;
   }
 
   .reading-progress__control:hover,
@@ -118,18 +127,23 @@ const { targetSelector = '[data-article]' } = Astro.props;
 <script>
   const progressRoot = document.querySelector('[data-reading-progress]') as HTMLElement | null;
   const selector = progressRoot?.dataset?.targetSelector || '[data-article]';
-  const progressBar = progressRoot?.querySelector('[data-reading-progress-bar]') as HTMLElement | null;
+  const progressBar = progressRoot?.querySelector(
+    '[data-reading-progress-bar]',
+  ) as HTMLElement | null;
   const article = selector ? (document.querySelector(selector) as HTMLElement | null) : null;
   const controls = document.querySelector('[data-reading-progress-controls]') as HTMLElement | null;
   const scrollTopButton = controls?.querySelector('[data-scroll-top]') as HTMLButtonElement | null;
-  const scrollBottomButton = controls?.querySelector('[data-scroll-bottom]') as HTMLButtonElement | null;
+  const scrollBottomButton = controls?.querySelector(
+    '[data-scroll-bottom]',
+  ) as HTMLButtonElement | null;
 
   if (progressRoot && progressBar && article) {
     let start: number = 0;
     let contentHeight: number = 0;
     let ticking: boolean = false;
 
-    const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), max);
+    const clamp = (value: number, min: number, max: number): number =>
+      Math.min(Math.max(value, min), max);
 
     const measure = () => {
       const rect = article.getBoundingClientRect();

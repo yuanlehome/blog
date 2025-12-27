@@ -11,9 +11,7 @@ lastEditedTime: '2025-12-25T16:35:00.000Z'
 
 ---
 
-
 ## 一、RoPE 到底改了什么？
-
 
 Attention 里我们原来用：
 
@@ -27,13 +25,9 @@ RoPE 做的是把 **Q/K 先旋转**：
 
 ---
 
-
 ## 二、数学形式：2D 旋转（每两维一组）
 
-
 对每个 position $p$，对某一对维度 $(u,v)$ 做旋转：
-
-
 
 $$
 \begin{bmatrix}
@@ -51,13 +45,9 @@ x_v
 \end{bmatrix}
 $$
 
-
-
 工程实现常写成统一模板：
 
-
 $x_{\text{rot}} = x \cdot \cos + \text{rotate\_half}(x)\cdot \sin$
-
 
 关键：
 
@@ -66,15 +56,11 @@ $x_{\text{rot}} = x \cdot \cos + \text{rotate\_half}(x)\cdot \sin$
 
 ---
 
-
 ## 三、两种 RoPE style：差别只在“怎么配对维度”
-
 
 假设 head_dim $D=8$，向量：$x=[x_0,x_1,x_2,x_3,x_4,x_5,x_6,x_7]$
 
-
 ### 3.1 Adjacent-pair（相邻配对 / even-odd）
-
 
 配对方式：
 
@@ -86,7 +72,6 @@ $x_{\text{rot}} = x \cdot \cos + \text{rotate\_half}(x)\cdot \sin$
 
 ### 3.2 NeoX-style（前后半配对 / split-half）
 
-
 配对方式：
 
 - $(0,4),(1,5),(2,6),(3,7)$
@@ -97,9 +82,7 @@ $x_{\text{rot}} = x \cdot \cos + \text{rotate\_half}(x)\cdot \sin$
 
 ---
 
-
 ## 四、最容易踩坑的点：cos/sin 怎么“铺满到 D 维”
-
 
 先算基础的 $\cos,\sin$（每对一个频率），它们天然是长度 $D/2$ 的向量：
 
@@ -108,14 +91,12 @@ $x_{\text{rot}} = x \cdot \cos + \text{rotate\_half}(x)\cdot \sin$
 
 ### 4.1 NeoX-style 的展开（**拼两份**）
 
-
 因为配对是 `(i, i+D/2)`，所以要变成：
 
 - `cos_full = [c0 c1 c2 c3 c0 c1 c2 c3]`
 - `sin_full = [s0 s1 s2 s3 s0 s1 s2 s3]`
 
 ### 4.2 Adjacent-pair 的展开（**每个重复两次**）
-
 
 因为配对是 `(2i, 2i+1)`，所以要变成：
 
@@ -133,12 +114,9 @@ $x_{\text{rot}} = x \cdot \cos + \text{rotate\_half}(x)\cdot \sin$
 
 ---
 
-
 ## 五、参考实现（布局：`[B, T, H, D]`）
 
-
 ### 5.1 两种 rotate_half
-
 
 ```python
 import torch
@@ -157,9 +135,7 @@ def rotate_half_neox(x):  # x: [..., rotary_dim]
     return torch.cat((-x2, x1), dim=-1)
 ```
 
-
 ### 5.2 构建 cos/sin cache（核心：不同 style 的展开）
-
 
 ```python
 def build_rope_cache(seq_len, rotary_dim, base=10000, device=None,
@@ -196,9 +172,7 @@ def build_rope_cache(seq_len, rotary_dim, base=10000, device=None,
     return cos, sin
 ```
 
-
 ### 5.3 应用到 Q/K（只旋转前 rotary_dim）
-
 
 ```python
 def apply_rope(q, k, cos, sin, rotary_dim, style="neox"):
@@ -216,17 +190,13 @@ def apply_rope(q, k, cos, sin, rotary_dim, style="neox"):
     return q, k
 ```
 
-
 ## 六、设一个最小例子：D = 8（NeoX style）
-
 
 ```plain text
 x = [x0, x1, x2, x3, x4, x5, x6, x7]   # 一条 head 的某个 token 的向量
 ```
 
-
 `rotate_half(x)` 做什么？
-
 
 ```python
 x1 = x[..., :4]   = [x0, x1, x2, x3]
@@ -235,25 +205,19 @@ x2 = x[...,4:]   = [x4, x5, x6, x7]
 rotate_half(x) = [-x4, -x5, -x6, -x7, x0, x1, x2, x3]
 ```
 
-
 然后 RoPE：
-
 
 ```python
 q_rot = x * cos + rotate_half(x) * sin
 ```
 
-
 也就是对每个维度 $i$ 都做：
-
 
 ```plain text
 q_rot[i] = x[i] * cos[i] + rotate_half(x)[i] * sin[i]
 ```
 
-
 用我们上面的 $cos/sin$ 记号 (`cos = [c0..c3,c0..c3]`, `sin=[s0..s3,s0..s3]`)，展开就是：
-
 
 ```plain text
 q0 = x0 * c0 + (-x4) * s0 = x0 * c0 - x4 * s0
@@ -267,22 +231,16 @@ q6 = x6 * c2 + ( x2) * s2 = x6 * c2 + x2 * s2
 q7 = x7 * c3 + ( x3) * s3 = x7 * c3 + x3 * s3
 ```
 
-
 把结果按 pair 重组一下就非常清晰了。
 
-
 使用频率`(c0,s0)`的是`(x0,x4)`这一对：
-
 
 ```plain text
 q0 =  x0 * c0 - x4 * s0
 q4 =  x4 * c0 + x0 * s0
 ```
 
-
 这是标准二维旋转：
-
-
 
 $$
 \begin{bmatrix}q0\\q4\end{bmatrix}
@@ -294,34 +252,25 @@ $$
 \begin{bmatrix}x0\\x4\end{bmatrix}
 $$
 
-
-
 其他同理：
 
-
 使用`(c1,s1)`的是`(x1,x5)`：
-
 
 ```plain text
 q1 =  x1 * c1 - x5 * s1
 q5 =  x5 * c1 + x1 * s1
 ```
 
-
 使用`(c2,s2)`的是`(x2,x6)`：
-
 
 ```plain text
 q2 =  x2 * c2 - x6 * s2
 q6 =  x6 * c2 + x2 * s2
 ```
 
-
 使用`(c3,s3)`的是`(x3,x7)`：
-
 
 ```plain text
 q3 =  x3 * c3 - x7 * s3
 q7 =  x7 * c3 + x3 * s3
 ```
-

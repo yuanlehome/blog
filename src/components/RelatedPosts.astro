@@ -5,22 +5,27 @@ interface Props {
   posts: CollectionEntry<'blog'>[];
 }
 
-const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
+const BASE = import.meta.env.BASE_URL.endsWith('/')
+  ? import.meta.env.BASE_URL
+  : import.meta.env.BASE_URL + '/';
 const { posts } = Astro.props;
 ---
-{posts.length > 0 && (
-  <div class="mt-10 border-t border-gray-200 dark:border-gray-800 pt-6">
-    <h3 class="text-lg font-semibold mb-4">Related posts</h3>
-    <div class="grid md:grid-cols-2 gap-4">
-      {posts.map((post) => (
-        <a
-          href={`${BASE}${post.slug}/`}
-          class="block p-4 rounded-lg border border-gray-200 dark:border-gray-800 hover:border-blue-500 hover:-translate-y-0.5 transition"
-        >
-          <div class="text-xs text-gray-500 mb-1">{post.data.date.toLocaleDateString()}</div>
-          <div class="font-semibold">{post.data.title}</div>
-        </a>
-      ))}
+
+{
+  posts.length > 0 && (
+    <div class="mt-10 border-t border-gray-200 dark:border-gray-800 pt-6">
+      <h3 class="text-lg font-semibold mb-4">Related posts</h3>
+      <div class="grid md:grid-cols-2 gap-4">
+        {posts.map((post) => (
+          <a
+            href={`${BASE}${post.slug}/`}
+            class="block p-4 rounded-lg border border-gray-200 dark:border-gray-800 hover:border-blue-500 hover:-translate-y-0.5 transition"
+          >
+            <div class="text-xs text-gray-500 mb-1">{post.data.date.toLocaleDateString()}</div>
+            <div class="font-semibold">{post.data.title}</div>
+          </a>
+        ))}
+      </div>
     </div>
-  </div>
-)}
+  )
+}

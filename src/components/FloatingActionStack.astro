@@ -22,32 +22,35 @@ const {
 
 const actions = buildActions({ enableTop, enableToc, enableBottom });
 ---
-{actions.length > 0 && (
-  <div
-    class={`${STACK_CLASSNAMES}`}
-    data-floating-action-stack
-    data-target-selector={targetSelector}
-    style={`inset-inline-end: calc(env(safe-area-inset-right, 0px) + 1rem); inset-block-end: calc(env(safe-area-inset-bottom, 0px) + 1rem);`}
-  >
-    {actions.map((action, index) => (
-      <button
-        type="button"
-        class={BUTTON_CLASSNAMES}
-        data-floating-action-button
-        data-action={action.kind}
-        data-visible={action.kind === 'top' ? 'false' : 'true'}
-        style={`transition-delay: ${index * 10}ms;`}
-        aria-label={action.ariaLabel}
-        {...(action.dataAttributes || {})}
-      >
-        <span class="sr-only">{action.label}</span>
-        <span aria-hidden="true" class={BUTTON_ICON_CLASSNAMES}>
-          {action.icon}
-        </span>
-      </button>
-    ))}
-  </div>
-)}
+
+{
+  actions.length > 0 && (
+    <div
+      class={`${STACK_CLASSNAMES}`}
+      data-floating-action-stack
+      data-target-selector={targetSelector}
+      style={`inset-inline-end: calc(env(safe-area-inset-right, 0px) + 1rem); inset-block-end: calc(env(safe-area-inset-bottom, 0px) + 1rem);`}
+    >
+      {actions.map((action, index) => (
+        <button
+          type="button"
+          class={BUTTON_CLASSNAMES}
+          data-floating-action-button
+          data-action={action.kind}
+          data-visible={action.kind === 'top' ? 'false' : 'true'}
+          style={`transition-delay: ${index * 10}ms;`}
+          aria-label={action.ariaLabel}
+          {...(action.dataAttributes || {})}
+        >
+          <span class="sr-only">{action.label}</span>
+          <span aria-hidden="true" class={BUTTON_ICON_CLASSNAMES}>
+            {action.icon}
+          </span>
+        </button>
+      ))}
+    </div>
+  )
+}
 
 <script>
   const stack = document.querySelector('[data-floating-action-stack]') as HTMLElement | null;
@@ -77,10 +80,7 @@ const actions = buildActions({ enableTop, enableToc, enableBottom });
   const clamp = (value: number, min: number, max: number): number =>
     Math.min(Math.max(value, min), max);
 
-  const setButtonVisibility = (
-    button: HTMLButtonElement | null,
-    visible: boolean
-  ) => {
+  const setButtonVisibility = (button: HTMLButtonElement | null, visible: boolean) => {
     if (!button) return;
     button.dataset.visible = visible ? 'true' : 'false';
   };
@@ -135,7 +135,7 @@ const actions = buildActions({ enableTop, enableToc, enableBottom });
         measure();
         updateVisibility();
       },
-      { once: true }
+      { once: true },
     );
 
     topButton?.addEventListener('click', scrollToTop);

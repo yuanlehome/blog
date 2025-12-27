@@ -1,13 +1,13 @@
-import rss from "@astrojs/rss";
-import { getCollection } from "astro:content";
+import rss from '@astrojs/rss';
+import { getCollection } from 'astro:content';
 
 export async function GET(context) {
-  const posts = (await getCollection("blog"))
-    .filter((post) => post.data.status === "published")
+  const posts = (await getCollection('blog'))
+    .filter((post) => post.data.status === 'published')
     .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
   return rss({
-    title: "Yuanle Liu‘s Blog",
-    description: "Engineering notes from Astro + Notion",
+    title: 'Yuanle Liu‘s Blog',
+    description: 'Engineering notes from Astro + Notion',
     site: context.site,
     items: posts.map((post) => ({
       title: post.data.title,

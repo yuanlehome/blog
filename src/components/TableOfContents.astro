@@ -1,5 +1,5 @@
 ---
-import { createHeadingSlugger } from "../utils/slugger";
+import { createHeadingSlugger } from '../utils/slugger';
 
 interface Heading {
   depth: number;
@@ -17,7 +17,7 @@ const headings = Astro.props.headings
   .map((heading) => ({
     ...heading,
     slug: slugger(heading.text),
-    indentClass: heading.depth === 3 ? "pl-4" : "",
+    indentClass: heading.depth === 3 ? 'pl-4' : '',
   }));
 
 const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) to avoid overlap
@@ -34,31 +34,36 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
         <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">文章目录</p>
         <p class="text-xs text-gray-500 dark:text-gray-400">快速跳转到你关心的章节</p>
       </div>
-      {headings.length === 0 ? (
-        <p class="text-sm text-gray-500 dark:text-gray-400">本文暂无目录。</p>
-      ) : (
-        <nav aria-label="文章目录" class="flex-1 min-h-0 overflow-y-auto pr-1" data-toc-scroll>
-          <ol class="space-y-2 text-sm">
-            {headings.map((heading) => (
-              <li>
-                <a
-                  href={`#${heading.slug}`}
-                  data-toc-link
-                  data-target={heading.slug}
-                  title={heading.text}
-                  class={`group flex items-start gap-2 truncate text-gray-700 underline-offset-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:text-gray-200 dark:focus-visible:ring-offset-gray-900 ${heading.indentClass}`}
-                >
-                  <span class="mt-0.5 text-xs text-gray-400 transition-colors group-data-[active=true]:text-blue-600 dark:text-gray-500 dark:group-data-[active=true]:text-blue-400">#</span>
-                  <span class="flex-1 truncate" data-title>{heading.text}</span>
-                </a>
-              </li>
-            ))}
-          </ol>
-        </nav>
-      )}
+      {
+        headings.length === 0 ? (
+          <p class="text-sm text-gray-500 dark:text-gray-400">本文暂无目录。</p>
+        ) : (
+          <nav aria-label="文章目录" class="flex-1 min-h-0 overflow-y-auto pr-1" data-toc-scroll>
+            <ol class="space-y-2 text-sm">
+              {headings.map((heading) => (
+                <li>
+                  <a
+                    href={`#${heading.slug}`}
+                    data-toc-link
+                    data-target={heading.slug}
+                    title={heading.text}
+                    class={`group flex items-start gap-2 truncate text-gray-700 underline-offset-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:text-gray-200 dark:focus-visible:ring-offset-gray-900 ${heading.indentClass}`}
+                  >
+                    <span class="mt-0.5 text-xs text-gray-400 transition-colors group-data-[active=true]:text-blue-600 dark:text-gray-500 dark:group-data-[active=true]:text-blue-400">
+                      #
+                    </span>
+                    <span class="flex-1 truncate" data-title>
+                      {heading.text}
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        )
+      }
     </div>
   </aside>
-
 </div>
 
 <script>
@@ -110,7 +115,7 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
       if (!targetId) return;
       event.preventDefault();
       scrollToHeading(targetId);
-    })
+    }),
   );
 
   const resetPositioning = () => {
@@ -169,7 +174,9 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
       (entries) => {
         const visible = entries
           .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => a.target.getBoundingClientRect().top - b.target.getBoundingClientRect().top);
+          .sort(
+            (a, b) => a.target.getBoundingClientRect().top - b.target.getBoundingClientRect().top,
+          );
 
         if (visible[0]) {
           setActive(visible[0].target.id);
@@ -178,13 +185,15 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
 
         const above = entries
           .filter((entry) => entry.boundingClientRect.top < 0)
-          .sort((a, b) => b.target.getBoundingClientRect().top - a.target.getBoundingClientRect().top);
+          .sort(
+            (a, b) => b.target.getBoundingClientRect().top - a.target.getBoundingClientRect().top,
+          );
         if (above[0]) setActive(above[0].target.id);
       },
       {
         rootMargin: `-${rootMarginTop.trim()} 0% -55% 0%`,
         threshold: [0, 0.25, 0.5, 1],
-      }
+      },
     );
 
     headings.forEach((heading) => observer.observe(heading));
@@ -210,8 +219,12 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
   });
   window.addEventListener('scroll', verifySticky, { passive: true });
   window.addEventListener('resize', handleResize);
-  window.addEventListener('load', () => {
-    verifySticky();
-    applyScrollMargin();
-  }, { once: true });
+  window.addEventListener(
+    'load',
+    () => {
+      verifySticky();
+      applyScrollMargin();
+    },
+    { once: true },
+  );
 </script>

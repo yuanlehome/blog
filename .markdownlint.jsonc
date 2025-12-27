@@ -1,0 +1,9 @@
+{
+  "default": true,
+  "MD013": false, // 行长不限制
+  "MD033": false, // 允许 HTML
+  "MD041": false, // 不强制从 H1 开始
+
+  "MD026": false, // 允许标题末尾标点（issue 模板、英文标题常见）
+  "MD001": false  // 不强制标题级别逐级+1（有些文档结构会跳级）
+}
