@@ -37,13 +37,15 @@ jobs:
 
       - name: Check for changes
         id: changes
+        shell: bash
         run: |
-          if git diff --quiet --exit-code -- src/content/blog/ public/images/ scripts/content-import.ts; then
+          if [[ -z "$(git status --porcelain)" ]]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "No content changes detected."
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            git status --short
+            echo "Detected changes:"
+            git status --porcelain
           fi
 
       - name: Create Pull Request
