@@ -27,6 +27,8 @@ skip_missing = true
 exclude = [
   '^https://zhuanlan.zhihu.com',
   '^https://medium.com',
+  '^https://gordicaleksa.medium.com',
+  '^https://www.semanticscholar.org',
 ]
 
 # 可选：减少噪声（例如忽略 node_modules/dist 内部特定文件等）
