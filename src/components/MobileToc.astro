@@ -1,0 +1,189 @@
+---
+import { createHeadingSlugger } from "../utils/slugger";
+
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
+interface Props {
+  headings: Heading[];
+}
+
+const slugger = createHeadingSlugger();
+const headings = Astro.props.headings
+  .filter((heading) => heading.depth <= 3)
+  .map((heading) => ({
+    ...heading,
+    slug: slugger(heading.text),
+    indentClass: heading.depth === 3 ? "pl-6" : "",
+  }));
+
+const headerOffset = 96; // px, matches desktop toc offset
+---
+
+{headings.length > 0 && (
+  <>
+    <button
+      type="button"
+      class="fixed bottom-6 right-4 z-40 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/90 px-4 py-2 text-sm font-medium text-gray-900 shadow-lg backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-gray-800 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:border-blue-500/50 dark:hover:text-blue-300 dark:focus-visible:ring-offset-gray-900 lg:hidden"
+      data-mobile-toc-open
+      aria-haspopup="dialog"
+      aria-expanded="false"
+      aria-controls="mobile-toc-drawer"
+    >
+      📑 目录
+    </button>
+
+    <div
+      class="fixed inset-0 z-50 pointer-events-none data-[open=true]:pointer-events-auto lg:hidden"
+      data-mobile-toc
+      data-open="false"
+      aria-hidden="true"
+    >
+      <div
+        class="absolute inset-0 bg-gray-900/40 opacity-0 transition duration-200 data-[open=true]:opacity-100 dark:bg-black/50"
+        data-mobile-toc-backdrop
+      ></div>
+      <div
+        id="mobile-toc-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label="文章目录"
+        class="absolute inset-x-0 bottom-0 translate-y-full rounded-t-2xl border border-gray-200 bg-white/95 shadow-2xl ring-1 ring-black/5 transition duration-200 data-[open=true]:translate-y-0 dark:border-gray-800 dark:bg-gray-900/95 dark:ring-white/10"
+        data-mobile-toc-drawer
+      >
+        <div class="flex items-center justify-between gap-3 px-4 pt-4 pb-3">
+          <div>
+            <p class="text-sm font-semibold text-gray-900 dark:text-gray-50">文章目录</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">点击条目可跳转</p>
+          </div>
+          <button
+            type="button"
+            class="rounded-full border border-gray-200 bg-white px-3 py-1 text-sm font-medium text-gray-800 shadow-sm transition hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-gray-800 dark:bg-gray-800 dark:text-gray-100 dark:hover:text-blue-300 dark:focus-visible:ring-offset-gray-900"
+            data-mobile-toc-close
+          >
+            关闭
+          </button>
+        </div>
+        <div class="max-h-[60vh] overflow-y-auto px-4 pb-5" data-mobile-toc-scroll>
+          <ol class="space-y-2 text-sm">
+            {headings.map((heading) => (
+              <li>
+                <a
+                  href={`#${heading.slug}`}
+                  data-mobile-toc-link
+                  data-target={heading.slug}
+                  class={`group flex items-start gap-2 truncate text-gray-800 underline-offset-2 transition hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:text-gray-200 dark:hover:text-blue-300 dark:focus-visible:ring-offset-gray-900 ${heading.indentClass}`}
+                >
+                  <span class="mt-0.5 text-xs text-gray-400 transition-colors group-data-[active=true]:text-blue-600 dark:text-gray-500 dark:group-data-[active=true]:text-blue-300">#</span>
+                  <span class="flex-1 truncate" data-title>{heading.text}</span>
+                </a>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+    </div>
+  </>
+)}
+
+<script>
+  const tocRoot = document.querySelector('[data-mobile-toc]') as HTMLElement | null;
+  const tocDrawer = document.querySelector('[data-mobile-toc-drawer]') as HTMLElement | null;
+  const tocBackdrop = document.querySelector('[data-mobile-toc-backdrop]') as HTMLElement | null;
+  const tocOpenButton = document.querySelector('[data-mobile-toc-open]') as HTMLButtonElement | null;
+  const tocCloseButton = document.querySelector('[data-mobile-toc-close]') as HTMLButtonElement | null;
+  const tocLinks = Array.from(
+    document.querySelectorAll('[data-mobile-toc-link]')
+  ) as HTMLAnchorElement[];
+  const body = document.body;
+  const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const prefersReduce = reducedMotionQuery.matches;
+
+  const headerOffset = ${headerOffset};
+  let scrollYBeforeLock = 0;
+
+  const setAriaExpanded = (open: boolean) => {
+    tocOpenButton?.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+
+  const lockScroll = () => {
+    scrollYBeforeLock = window.scrollY;
+    body.style.position = 'fixed';
+    body.style.width = '100%';
+    body.style.top = `-${scrollYBeforeLock}px`;
+  };
+
+  const unlockScroll = () => {
+    body.style.position = '';
+    body.style.width = '';
+    body.style.top = '';
+    window.scrollTo({ top: scrollYBeforeLock });
+  };
+
+  const setOpen = (open: boolean) => {
+    if (!tocRoot || !tocDrawer) return;
+    tocRoot.dataset.open = String(open);
+    tocDrawer.dataset.open = String(open);
+    tocBackdrop?.setAttribute('data-open', String(open));
+    tocRoot.setAttribute('aria-hidden', open ? 'false' : 'true');
+    setAriaExpanded(open);
+    if (open) {
+      lockScroll();
+    } else {
+      unlockScroll();
+    }
+  };
+
+  const applyScrollMargin = () => {
+    const headings = tocLinks
+      .map((link) => document.getElementById(link.dataset.target || ''))
+      .filter((el): el is HTMLElement => Boolean(el));
+    headings.forEach((heading) => {
+      heading.style.scrollMarginTop = `${headerOffset + 12}px`;
+    });
+  };
+
+  const encodedHash = (id: string) => `#${encodeURIComponent(id)}`;
+
+  const scrollToHeading = (id: string, replace = false) => {
+    const target = document.getElementById(id);
+    if (!target) return;
+    const top = window.scrollY + target.getBoundingClientRect().top - headerOffset - 12;
+    if (replace) {
+      history.replaceState(null, '', encodedHash(id));
+    } else {
+      history.pushState(null, '', encodedHash(id));
+    }
+    window.scrollTo({ top, behavior: prefersReduce ? 'auto' : 'smooth' });
+  };
+
+  tocOpenButton?.addEventListener('click', () => setOpen(true));
+  tocCloseButton?.addEventListener('click', () => setOpen(false));
+  tocBackdrop?.addEventListener('click', (event) => {
+    if (event.target === tocBackdrop) setOpen(false);
+  });
+
+  tocLinks.forEach((link) =>
+    link.addEventListener('click', (event) => {
+      const targetId = link.dataset.target;
+      if (!targetId) return;
+      event.preventDefault();
+      setOpen(false);
+      scrollToHeading(targetId);
+    })
+  );
+
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') setOpen(false);
+  });
+
+  applyScrollMargin();
+
+  const initialHash = decodeURIComponent(location.hash.replace(/^#/, ''));
+  if (initialHash) {
+    requestAnimationFrame(() => scrollToHeading(initialHash, true));
+  }
+</script>

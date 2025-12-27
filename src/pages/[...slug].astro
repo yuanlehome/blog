@@ -4,6 +4,7 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { getReadingTime } from '../utils/readingTime';
 import TableOfContents from '../components/TableOfContents.astro';
+import MobileToc from '../components/MobileToc.astro';
 import PrevNext from '../components/PrevNext.astro';
 import RelatedPosts from '../components/RelatedPosts.astro';
 import { findPrevNext, findRelated, getPublishedPosts } from '../utils/posts';
@@ -64,6 +65,7 @@ const commentsEnabled = post.data.comments ?? true;
       </article>
       <TableOfContents headings={headings} />
     </div>
+    <MobileToc headings={headings} />
   </main>
   <Footer />
 </Layout>
