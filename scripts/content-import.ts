@@ -120,6 +120,20 @@ function sanitizeZhihuUrl(url: string): string {
 }
 
 /**
+ * Check if a URL is from a specific domain (secure hostname validation)
+ */
+function isFromDomain(url: string, domain: string): boolean {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname.toLowerCase();
+    // Must be exact match or subdomain of the target domain
+    return hostname === domain || hostname.endsWith(`.${domain}`);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Save debug artifacts (screenshot, HTML, logs) when scraping fails
  */
 async function saveDebugArtifacts(
@@ -447,7 +461,7 @@ async function extractZhihuWithRetry(
     logs.push({ type: 'error', text: error.message, timestamp: Date.now() });
   });
   page.on('response', (response) => {
-    if (response.url().includes('zhihu.com')) {
+    if (isFromDomain(response.url(), 'zhihu.com')) {
       logs.push({
         type: 'response',
         text: `${response.status()} ${response.url()}`,
@@ -573,14 +587,14 @@ async function extractZhihuWithRetry(
 const providers: Provider[] = [
   {
     name: 'zhihu',
-    match: (url) => /zhihu\.com/.test(url),
+    match: (url) => isFromDomain(url, 'zhihu.com'),
     extract: async (page, url) => {
       return extractZhihuWithRetry(page, url);
     },
   },
   {
     name: 'medium',
-    match: (url) => /medium\.com/.test(url),
+    match: (url) => isFromDomain(url, 'medium.com'),
     extract: async (page, url) => {
       await page.goto(url, { waitUntil: 'networkidle', timeout: 120000 });
       await page.waitForSelector('article', { timeout: 30000 });
@@ -622,7 +636,7 @@ const providers: Provider[] = [
   },
   {
     name: 'wechat',
-    match: (url) => /mp\.weixin\.qq\.com/.test(url),
+    match: (url) => isFromDomain(url, 'mp.weixin.qq.com'),
     extract: async (page, url) => {
       await page.goto(url, { waitUntil: 'networkidle', timeout: 120000 });
       await page.waitForSelector('#js_content, .rich_media_content', { timeout: 30000 });
