@@ -41,6 +41,15 @@ const CONTENT_ROOT = path.join(__dirname, '../src/content/blog');
 const IMAGE_ROOT = path.join(__dirname, '../public/images');
 const ARTIFACTS_ROOT = path.join(__dirname, '../artifacts');
 
+// Constants for retry and timing
+const MAX_RETRIES = 3;
+const BASE_BACKOFF_MS = 1000;
+const MAX_BACKOFF_MS = 10000;
+const JS_INITIALIZATION_DELAY = 2000;
+const MIN_CONTENT_LENGTH = 100;
+const CONTENT_WAIT_TIMEOUT = 30000;
+const MAX_URL_LENGTH_FOR_FILENAME = 50;
+
 function parseArgs(): string {
   const url =
     process.argv.find((arg) => arg.startsWith('--url='))?.replace('--url=', '') ||
@@ -122,7 +131,7 @@ async function saveDebugArtifacts(
   try {
     fs.mkdirSync(ARTIFACTS_ROOT, { recursive: true });
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const safeUrl = url.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 50);
+    const safeUrl = url.replace(/[^a-zA-Z0-9]/g, '_').substring(0, MAX_URL_LENGTH_FOR_FILENAME);
     const prefix = `${timestamp}_${safeUrl}`;
 
     // Save screenshot
@@ -382,7 +391,7 @@ async function waitForContent(
   selectors: string[],
   options: { minTextLength?: number; timeout?: number } = {},
 ): Promise<void> {
-  const { minTextLength = 100, timeout = 30000 } = options;
+  const { minTextLength = MIN_CONTENT_LENGTH, timeout = CONTENT_WAIT_TIMEOUT } = options;
   const startTime = Date.now();
 
   for (const selector of selectors) {
@@ -422,7 +431,7 @@ async function waitForContent(
 async function extractZhihuWithRetry(
   page: Page,
   url: string,
-  maxRetries = 3,
+  maxRetries = MAX_RETRIES,
 ): Promise<ExtractedArticle> {
   // Sanitize URL first
   const sanitizedUrl = sanitizeZhihuUrl(url);
@@ -460,7 +469,7 @@ async function extractZhihuWithRetry(
       });
 
       // Small delay to let JS initialize
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(JS_INITIALIZATION_DELAY);
 
       // Check for blocked page
       const blockReason = await detectBlockedPage(page);
@@ -478,7 +487,7 @@ async function extractZhihuWithRetry(
         '.Post-Main .RichContent',
       ];
 
-      await waitForContent(page, contentSelectors, { minTextLength: 100, timeout: 30000 });
+      await waitForContent(page, contentSelectors, { minTextLength: MIN_CONTENT_LENGTH, timeout: CONTENT_WAIT_TIMEOUT });
 
       // Extract content
       const result = await page.evaluate(() => {
@@ -550,7 +559,7 @@ async function extractZhihuWithRetry(
         await saveDebugArtifacts(page, sanitizedUrl, lastError, logs);
       } else {
         // Exponential backoff: wait before retry
-        const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+        const backoffMs = Math.min(BASE_BACKOFF_MS * Math.pow(2, attempt - 1), MAX_BACKOFF_MS);
         console.log(`Waiting ${backoffMs}ms before retry...`);
         await page.waitForTimeout(backoffMs);
       }
