@@ -33,7 +33,9 @@ jobs:
       - name: Import content
         env:
           URL: ${{ inputs.url }}
-        run: npm run import:content -- --url "${{ inputs.url }}"
+        run: |
+          npm run import:content -- --url "${{ inputs.url }}"
+          npm run lint
 
       - name: Check for changes
         id: changes

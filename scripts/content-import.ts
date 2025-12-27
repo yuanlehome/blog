@@ -713,8 +713,9 @@ async function main() {
 
   const frontmatter: Record<string, any> = {
     title: title || 'Imported Article',
+    slug: slug,
     date: safeDate.toISOString().split('T')[0],
-    tags: [provider.name],
+    tags: [],
     status: 'published',
     source: provider.name,
     source_url: targetUrl,
