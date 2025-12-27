@@ -1,7 +1,7 @@
 # .lychee.dist.toml
 # For built site (dist)
 
-verbose = true
+verbose = "debug"
 no_progress = true
 
 # dist 本身就是站点 root
