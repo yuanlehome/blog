@@ -1,0 +1,132 @@
+---
+title: DeepSeek-V3.2 128K 推理秒开？百度百舸开源 CP 上下文并行方案
+slug: deepseek-v32-128k-cp
+date: '2025-12-27'
+tags: []
+status: published
+source_url: 'https://mp.weixin.qq.com/s/AS6EgPtILuBNVtXDusClXQ'
+source_author: 百度智能云技术站
+imported_at: '2025-12-27T23:29:28.797Z'
+cover: /images/wechat/deepseek-v32-128k-cp/001.jpg
+---
+
+![图片](/images/wechat/deepseek-v32-128k-cp/001.jpg)
+
+随着大语言模型（LLM）长上下文推理需求飙升至 128K Tokens，首字延迟（TTFT）和显存压力已成为制约工业化落地的核心瓶颈。在处理数万字的法律合同或长篇技术手册时，过高的 TTFT 往往让用户面临漫长的等待。
+
+**2025 年 12 月 23 日，SGLang 社区官方宣布：百度百舸 AIAK 团队为 DeepSeek V3.2 开发的上下文并行（Context Parallelism, CP）方案已正式合入 SGLang 主分支。实测数据显示，该方案在 32K 序列长度下实现了高达 80% 的 TTFT 降幅，成功将长文本推理推向秒级响应时代。**
+
+开源代码地址：**https\://github.com/sgl-project/sglang/pull/12065**
+
+![图片](/images/wechat/deepseek-v32-128k-cp/002.jpg)
+
+1\. DSA 架构的挑战与并行策略的进化
+
+在超长上下文应用场景中，DeepSeek V3.2 引入了 DSA (DeepSeek Sparse Attention) 架构。这一架构旨在通过算法创新降低计算复杂度，但在工程落地中，传统的并行策略遇到了冲突。
+
+传统策略：TP + SP 加速长序列的原理
+
+在 DeepSeek V3.2 出现之前，张量并行（TP）与序列并行（SP） 的组合是加速长文本推理的行业标准方案：
+
+- TP 解决计算瓶颈： 通过沿隐藏层维度 H 切分权重，将大规模矩阵乘法分摊至多张 GPU，是降低首字延迟（TTFT）的关键手段。
+
+- SP 解决显存瓶颈： 沿序列长度维度 L 切分激活值（如 KV Cache），有效避免长序列导致的显存溢出（OOM）。
+
+DSA 的核心机制：打破 O(L^2) 限制
+
+传统注意力机制的计算量随序列长度平方级增长（O(L^2)）。在 128K 级别的超长序列场景下，这种二次方的增长使得推理时间过长。DeepSeek V3.2 通过 DSA 架构中的 Indexer（索引器） 机制打破了这一限制：
+
+- 工作原理：Indexer 为每一个 Query Token 快速筛选出全量序列中最相关的 Top-K 个 Key Token。
+
+- 复杂度优化： 将注意力计算的复杂度从 O(L^2) 优化为近乎线性的 O(L·K)，使 128K 长度的推理在理论上成为可能。
+
+DSA 部署面临的工程难题
+
+尽管有了 Indexer 的稀疏化优化，单张 GPU 在面对 128K 序列时仍不堪重负：
+
+- 单卡压力的延续： QKV 投影计算（O(L) 级别）及 Indexer 筛选过程（涉及近似 O(L^2) 的负荷）在 128K 长度下已是单张 GPU 难以独立完成的任务。
+
+- TP 与 Indexer 的冲突：Indexer 模块在计算相关性时需要在 H 轴执行聚合（Reduce Sum）。如果采用 TP 切分 H 轴，会引发高频且昂贵的 AllReduce 通信开销。这种开销会抵消 TP 的计算加速收益，导致整体性能下降。
+
+因此，Context Parallelism (CP) 成为破解这一难题的关键：它避开了对 H 轴的切分，转而沿序列长度 L 维度进行任务分摊。
+
+2\. CP 核心原理：计算分摊与负载均衡
+
+百度百舸设计的 CP 方案通过切分输入数据，从根本上分摊了每张 GPU 的计算与显存压力。
+
+计算分摊与 TTFT 缩减
+
+CP 策略将输入序列沿着 L 维度切分成 N 份（N 为并行度/CP 大小），让多张卡共同协作处理一个请求。如架构图所示，通过 cp_split_tokens 模块，每个 Rank 只接收 1/N 的 Query 片段。
+
+这直接将 QKV 投影计算量和 Indexer 的 O(L^2) 筛选负荷分摊给 N 张卡，将单卡计算量降至 O(L^2/P) 级别，实现了近线性的 TTFT 缩减
+
+2N 块重排负载均衡
+
+由于因果注意力机制的特性，序列不同位置的 Token 计算量并不均等。为解决此问题，方案引入了负载均衡序列切分（Load-balanced sequence splitting）：
+
+- 重排逻辑： 将 Hidden States 精细划分为 2N 个子块。
+
+- 首尾配对： 采用「首尾配对」方式重新组合（例如 Rank 0 处理 b_1 和 b_2N 块）。这确保了各 Rank 承担的计算负荷高度一致，显著压低整体 TTFT。
+
+![图片](<data:image/svg+xml,%3C%3Fxml version='1.0' encoding='UTF-8'%3F%3E%3Csvg width='1px' height='1px' viewBox='0 0 1 1' version='1.1' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink'%3E%3Ctitle%3E%3C/title%3E%3Cg stroke='none' stroke-width='1' fill='none' fill-rule='evenodd' fill-opacity='0'%3E%3Cg transform='translate(-249.000000, -126.000000)' fill='%23FFFFFF'%3E%3Crect x='249' y='126' width='1' height='1'%3E%3C/rect%3E%3C/g%3E%3C/g%3E%3C/svg%3E>)
+
+3\. 深度解析：高效混合并行流水线
+
+该方案不仅是简单的切分，而是一套与 DeepSeek 特色架构（如 MLA、MoE）深度融合的精密流水线。
+
+根据架构图，数据在系统中的流动遵循以下高效路径：
+
+- 数据切分和重排： 经过 Embedding 后，cp_split_tokens 将 Token 序列进行 2N 负载均衡重排并分发至各并行 Rank。
+
+- 层内计算与局部投影（图中 qkv_a_atten_tp1）：TP 大小设为 1，每个 Rank 仅负责计算本地 1/N 长度的局部 Q_i 和 K_i，V_i ，大幅缩短了 TTFT，规避了 AllReduce 开销。
+
+- 全局 KV 聚合与顺序恢复：进入 attention 计算前，所有 Rank 的 K_i 和 V_i 片段通过 AllGather 集合通信，聚合为完整的 K_full, V_full。其中 rerange 操作将负载均衡导致的乱序片段重新校准回正确的逻辑顺序。这使得每张 GPU 在做 Attention 计算时，依然拥有超长序列的「全局视野」，使得模型输出与单机方案完全一致。
+
+- 核心计算（图中 Attention 内部流程）
+  - Indexer 筛选（对应 Indexer_prepare）： Indexer 模块利用本地 Q_i 与全量的 K_full 进行相关性评估，为每个 Query Token 筛选出全量序列中最相关的 Top-K 个 Key 位置索引。
+
+* - 稀疏 Attention 计算（对应 `MLA_prepare` 与核心算子）：Attention 算子根据筛选出的 Top-K 索引，从全量的 K_full，V_full 中提取对应的 token 向量，与本地 Q_i 进行极低 FLOPs 的稀疏矩阵乘法。
+
+  专家并行协同： FFN 阶段采用 moe_dense_tp1 并结合 Deep_EP（专家并行），实现与 CP 的高效协同。
+
+* 最终输出聚合： 在完成 61 层计算后，执行 hidden_states_allgather_rerange，确保每个 Rank 最终持有完整的 Hidden States 并由 logits_processor 输出。
+
+### **4. 算法与工程的深度协同，共筑 AI Infra 基石**
+
+DeepSeek V3.2 的 DSA 架构是算法效率的创新探索，而 CP 方案则是其在长文本场景下必不可少的 AI Infra 协同组件。DSA 通过动态稀疏机制降低了整体计算量，CP 使多卡能协同、均衡地分摊显存与计算负载，从而实现长文本的 TTFT 显著降低。
+
+目前，该 CP 方案已经在百度百舸 AI 计算平台落地，并支持了百度千帆大模型平台的 DeepSeek V3.2 高性能长文本推理服务。
+
+百度百舸正持续将经生产验证的方案开源至 SGLang 社区。我们期待在算法创新与系统工程深度协同的交汇点上，与全球开发者共筑 AI Infra 基石。
+
+\- - - - - - - - - - END - - - - - - - - - -
+
+点击阅读原文，了解百度百舸更多信息
+
+**传送门**
+
+- [百度百舸面向 DeepSeek V3 系列模型 AE 分离框架的实战](https://mp.weixin.qq.com/s?__biz=MzkxOTM4MTM3Ng==&mid=2247489601&idx=1&sn=fd25e174328efd36f46528b781ebfb3f&scene=21#wechat_redirect)
+
+- [针对 DeepSeek V3.2 的推理引擎深度优化](https://mp.weixin.qq.com/s?__biz=MzkxOTM4MTM3Ng==&mid=2247489582&idx=1&sn=1c906023b9dddb54a3d089f150f88ea4&scene=21#wechat_redirect)
+
+- [百度百舸打造大规模分布式推理集群的基础设施](https://mp.weixin.qq.com/s?__biz=MzkxOTM4MTM3Ng==&mid=2247489541&idx=1&sn=1b5bf1bf72a41f586ed1b1fc35354ae6&scene=21#wechat_redirect)
+
+- [提升超长上下文本推理吞吐，百度百舸 ESS 技术报告新鲜奉上](https://mp.weixin.qq.com/s?__biz=MzkxOTM4MTM3Ng==&mid=2247489495&idx=1&sn=8a041d12b3ccb6e42d50b829410941c1&scene=21#wechat_redirect)
+
+- [突破显存瓶颈：基于 DeepSeek-V3.2-Exp 的 Latent Cache 卸载预取方案设计与模拟验证](https://mp.weixin.qq.com/s?__biz=MzkxOTM4MTM3Ng==&mid=2247489458&idx=1&sn=7d82300ad92c6144ec3ac7ab5d68add7&scene=21#wechat_redirect)
+
+- [百度百舸 X SGLang 社区 | 开源生产级 MTP 代码，助力 DeepSeek-V3.2 推理服务 2 倍以上吞吐提升](https://mp.weixin.qq.com/s?__biz=MzkxOTM4MTM3Ng==&mid=2247489321&idx=1&sn=4e50727b3a2df8421d6e28177eff7cbc&scene=21#wechat_redirect)
+
+- [面向复杂生产场景的 Token 双流：百度百舸开源贡献至 SGLang 社区](https://mp.weixin.qq.com/s?__biz=MzkxOTM4MTM3Ng==&mid=2247489381&idx=1&sn=f65990bd2c562684633771e55b43faf4&scene=21#wechat_redirect)
+
+- [一次快速响应的开源协作，让 DeepSeek-V3.2-Exp 性能满血回归](https://mp.weixin.qq.com/s?__biz=MzkxOTM4MTM3Ng==&mid=2247489415&idx=1&sn=781cc7171df330cea006e4aa9e13ae11&scene=21#wechat_redirect)
+
+- [百度百舸 X 昆仑芯 | 开源 vLLM-Kunlun Plugin，快速适配新模型、跑出极致性能](https://mp.weixin.qq.com/s?__biz=MzkxOTM4MTM3Ng==&mid=2247489485&idx=1&sn=efc9166c163ee321e864b0e42f09bc5e&scene=21#wechat_redirect)
+
+- [昆仑芯 X HAMi X 百度智能云 | 昆仑芯 P800 XPU/vXPU 双模式算力调度方案落地](https://mp.weixin.qq.com/s?__biz=MzkxOTM4MTM3Ng==&mid=2247489342&idx=1&sn=55755db0634f217845975ad3332fdd2e&scene=21#wechat_redirect)
+
+- [超节点选型：跳出性能迷局，聚焦稳定与落地价值](https://mp.weixin.qq.com/s?__biz=MzkxOTM4MTM3Ng==&mid=2247489431&idx=1&sn=98c00ab203ef6a2ec17434e608b183ac&scene=21#wechat_redirect)
+
+- [昆仑芯超节点创新设计：1U 4 卡高密算力，无缝适配各类机房环境](https://mp.weixin.qq.com/s?__biz=MzkxOTM4MTM3Ng==&mid=2247489035&idx=1&sn=8eb067678dfe2533dc1d1cd43d75c741&scene=21#wechat_redirect)
+
+- [PD 分离推理的加速大招，百度智能云网络基础设施和通信组件的优化实践](https://mp.weixin.qq.com/s?__biz=MzkxOTM4MTM3Ng==&mid=2247489022&idx=1&sn=9f5e0f96106a2cc358ea26520be6ffbd&scene=21#wechat_redirect)
