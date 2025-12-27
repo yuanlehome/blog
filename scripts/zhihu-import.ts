@@ -182,7 +182,13 @@ function localizeImages(options: {
     let index = 0;
     for (const { url } of imageNodes) {
       if (mapping.has(url)) continue;
-      const local = await downloadImage(url, options.provider, options.slug, options.imageRoot, index);
+      const local = await downloadImage(
+        url,
+        options.provider,
+        options.slug,
+        options.imageRoot,
+        index,
+      );
       if (local) {
         mapping.set(url, local);
         index += 1;
@@ -214,7 +220,15 @@ async function htmlToMdx(
     .use(rehypeParse, { fragment: true })
     .use(rehypeRaw)
     .use(transformMath())
-    .use(localizeImages({ slug: options.slug, baseUrl: options.baseUrl, collected: images, provider: options.provider, imageRoot: options.imageRoot }))
+    .use(
+      localizeImages({
+        slug: options.slug,
+        baseUrl: options.baseUrl,
+        collected: images,
+        provider: options.provider,
+        imageRoot: options.imageRoot,
+      }),
+    )
     .use(rehypeRemark, { allowDangerousHtml: true })
     .use(remarkMath)
     .use(remarkGfm)
@@ -324,7 +338,8 @@ const providers: Provider[] = [
 
         const article = document.querySelector('article');
         return {
-          title: document.querySelector('h1')?.textContent?.trim() || document.title || 'Medium Article',
+          title:
+            document.querySelector('h1')?.textContent?.trim() || document.title || 'Medium Article',
           author:
             pickMeta(['meta[name="author"]']) ||
             document.querySelector('a[rel="author"]')?.textContent?.trim() ||
