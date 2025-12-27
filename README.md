@@ -112,12 +112,6 @@ npx tsx scripts/fix-math.ts src/content/blog/notion/<file>.md
 | `npm run notion:sync` | 拉取 Notion 文章、下载图片并修复公式    |
 | `npm run lint`        | 格式化代码                              |
 
-## 🤝 贡献指南
-
-- 请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解分支、提交与测试流程。
-- 提交 Issue 前请提供复现步骤、期望结果和环境信息。
-- 行为需遵守 [行为准则](CODE_OF_CONDUCT.md)。
-
 ## 📄 许可证
 
 本项目基于 [ISC License](LICENSE) 开源，欢迎在许可范围内自由使用与修改。

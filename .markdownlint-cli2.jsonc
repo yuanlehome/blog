@@ -11,7 +11,6 @@
 
     "src/content/blog/notion/**",
     "public/images/notion/**",
-    "CONTRIBUTING.md",
     "README.md",
     "tests/fixtures"
   ]
