@@ -2,6 +2,7 @@
 # Lychee link checker configuration
 
 # 基础行为
+root_dir = "public"
 verbose = "info"
 no_progress = true
 
