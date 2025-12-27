@@ -14,48 +14,45 @@ permissions:
 jobs:
   link-check:
     runs-on: ubuntu-latest
+    container:
+      image: lycheeverse/lychee:0.15.1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # ---------- 1) 源码侧 link check ----------
+      - name: Link check (source)
+        run: |
+          lychee \
+            --verbose \
+            --no-progress \
+            --max-concurrency 8 \
+            --timeout 20 \
+            --max-retries 3 \
+            --accept 200,206,429 \
+            --exclude-fragments \
+            README.md src public docs
+
+      # ---------- 2) 构建产物侧 link check ----------
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      # ---------- 1) 源码侧 link check ----------
-      - name: Link check (source)
-        uses: lycheeverse/lychee-action@v2
-        with:
-          lycheeVersion: "0.15.1"
-          args: >
-            --verbose
-            --no-progress
-            --max-concurrency 8
-            --timeout 20
-            --max-retries 3
-            --accept 200,206,429
-            --exclude-fragments
-            README.md src public docs
-
-      # ---------- 2) 构建产物侧 link check ----------
       - name: Build (for dist link check)
         run: npm run build
 
       - name: Link check (dist)
-        uses: lycheeverse/lychee-action@v2
-        with:
-          lycheeVersion: "0.15.1"
-          args: >
-            --verbose
-            --no-progress
-            --max-concurrency 8
-            --timeout 20
-            --max-retries 3
-            --accept 200,206,429
-            --exclude-fragments
+        run: |
+          lychee \
+            --verbose \
+            --no-progress \
+            --max-concurrency 8 \
+            --timeout 20 \
+            --max-retries 3 \
+            --accept 200,206,429 \
+            --exclude-fragments \
             dist
