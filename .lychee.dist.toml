@@ -17,3 +17,5 @@ skip_missing = true
 max_concurrency = 4
 timeout = 20
 max_retries = 2
+
+index_files = ["index.html"]
