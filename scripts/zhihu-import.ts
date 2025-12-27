@@ -202,10 +202,11 @@ async function htmlToMdx(html: string, slug: string, baseUrl?: string) {
 
 async function fetchArticle(url: string) {
   const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage({
+  const context = await browser.newContext({
     userAgent:
       'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
   });
+  const page = await context.newPage();
 
   try {
     await page.goto(url, { waitUntil: 'networkidle', timeout: 120000 });
@@ -263,6 +264,7 @@ async function fetchArticle(url: string) {
 
     return result;
   } finally {
+    await context.close();
     await browser.close();
   }
 }
