@@ -3,6 +3,8 @@
 
 # 基础行为
 root_dir = "."
+# PR / CI 场景下用占位即可，不会真的请求网络
+base_url = "https://example.com"
 verbose = "info"
 no_progress = true
 
