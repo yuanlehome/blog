@@ -60,7 +60,7 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
-          commit-message: '[skip ci] chore: import content'
+          commit-message: 'chore: import content'
           branch: chore/import-content
           title: 'chore: import content'
           body: |
