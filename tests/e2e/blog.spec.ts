@@ -87,4 +87,72 @@ test.describe('Blog smoke journey', () => {
       test.info().annotations.push({ type: 'todo', description: 'Search UI not yet implemented' });
     }
   });
+
+  test('mobile floating actions are vertically ordered and non-overlapping', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+
+    await page.goto('/');
+    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
+    if (await notFoundHeading.count()) {
+      const baseLink = page.locator('a[href="/blog/"]');
+      if (await baseLink.count()) {
+        await baseLink.first().click();
+      }
+    }
+
+    const firstLink = page.locator('#post-list li a').first();
+    await firstLink.click();
+    await expect(page.locator('[data-article]')).toBeVisible();
+
+    await page.evaluate(() =>
+      window.scrollTo(0, document.documentElement.scrollHeight)
+    );
+
+    const stack = page.locator('[data-floating-action-stack]');
+    await expect(stack).toBeVisible();
+
+    const topButton = stack.locator('[data-action="top"]');
+    const tocButton = stack.locator('[data-action="toc"]');
+    const bottomButton = stack.locator('[data-action="bottom"]');
+
+    await expect(topButton).toBeVisible();
+    await expect(tocButton).toBeVisible();
+    await expect(bottomButton).toBeVisible();
+
+    const [topBox, tocBox, bottomBox] = await Promise.all([
+      topButton.boundingBox(),
+      tocButton.boundingBox(),
+      bottomButton.boundingBox(),
+    ]);
+
+    expect(topBox && tocBox && bottomBox).toBeTruthy();
+    if (topBox && tocBox && bottomBox) {
+      expect(topBox.y + topBox.height).toBeLessThanOrEqual(tocBox.y - 1);
+      expect(tocBox.y + tocBox.height).toBeLessThanOrEqual(bottomBox.y - 1);
+    }
+
+    await tocButton.click();
+    await expect(page.locator('[data-mobile-toc][data-open="true"]')).toBeVisible();
+    await page.locator('[data-mobile-toc-close]').click();
+    await expect(page.locator('[data-mobile-toc][data-open="true"]')).toHaveCount(0);
+
+    await page.evaluate(() =>
+      window.scrollTo(0, document.documentElement.scrollHeight)
+    );
+    const articleTop = await page.evaluate(() => {
+      const article = document.querySelector('[data-article]');
+      if (!article) return null;
+      const rect = article.getBoundingClientRect();
+      return rect.top + window.scrollY;
+    });
+    await topButton.click();
+    await expect
+      .poll(async () => page.evaluate(() => window.scrollY), {
+        message: 'top button should scroll toward article start',
+      })
+      .toBeLessThanOrEqual((articleTop ?? 0) + 10);
+
+    await context.close();
+  });
 });

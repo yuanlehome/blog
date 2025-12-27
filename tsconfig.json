@@ -2,6 +2,7 @@
   "extends": "astro/tsconfigs/strict",
   "compilerOptions": {
     "strictNullChecks": true,
-    "types": ["vitest/globals"]
-  }
+    "types": ["vitest/globals", "node", "jsdom"]
+  },
+  "exclude": ["coverage"]
 }

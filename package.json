@@ -14,7 +14,8 @@
     "test": "vitest run --coverage",
     "test:watch": "vitest watch",
     "test:e2e": "npm run build && PLAYWRIGHT_TEST_BASE_URL=http://127.0.0.1:4173/blog/ playwright test",
-    "test:ci": "npm run check && npm run test && npm run test:e2e && npm run build"
+    "test:ci": "npm run check && npm run test && npm run test:e2e && npm run build",
+    "ci": "npm run test:ci"
   },
   "keywords": [],
   "author": "",
@@ -44,9 +45,11 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.49.1",
+    "@types/jsdom": "^21.1.7",
     "@rollup/plugin-yaml": "^4.1.2",
     "@types/node": "^25.0.3",
     "@vitest/coverage-v8": "^4.0.16",
+    "jsdom": "^27.4.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16"
