@@ -23,25 +23,7 @@ const headings = Astro.props.headings
 const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) to avoid overlap
 ---
 
-<div class="w-full lg:w-full" data-toc-shell>
-  <div class="lg:hidden mb-4 flex items-center justify-between gap-3">
-    <div>
-      <p class="text-sm font-semibold">文章目录</p>
-      <p class="text-xs text-gray-500">快速跳转到你关心的章节</p>
-    </div>
-    {headings.length > 0 && (
-      <button
-        type="button"
-        class="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium shadow-sm transition hover:border-blue-200 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-blue-500/50 dark:hover:text-blue-300 dark:focus-visible:ring-offset-gray-900"
-        data-toc-open
-        aria-haspopup="dialog"
-        aria-expanded="false"
-      >
-        📑 目录
-      </button>
-    )}
-  </div>
-
+<div class="w-full" data-toc-shell>
   <aside class="hidden lg:block h-full">
     <div
       class="flex h-full w-full flex-col gap-3 overflow-hidden rounded-xl border border-gray-200 bg-gray-50/80 p-4 shadow-md backdrop-blur-sm dark:border-gray-800 dark:bg-gray-800/50 lg:sticky lg:top-[calc(var(--toc-offset)+1rem)] lg:max-h-[calc(100vh-var(--toc-offset)-1.5rem)] lg:h-[calc(100vh-var(--toc-offset)-1.5rem)]"
@@ -77,81 +59,16 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
     </div>
   </aside>
 
-  <div
-    class="pointer-events-none fixed inset-0 z-40 bg-gray-900/40 opacity-0 backdrop-blur-sm transition data-[open=true]:pointer-events-auto data-[open=true]:opacity-100 lg:hidden"
-    data-toc-overlay
-    aria-hidden="true"
-  >
-    <div
-      class="absolute inset-x-4 top-[calc(var(--toc-offset)+1rem)] max-h-[70vh] overflow-hidden rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-xl ring-1 ring-black/5 transition dark:border-gray-800 dark:bg-gray-900/95 dark:ring-white/5"
-      role="dialog"
-      aria-modal="true"
-      aria-label="文章目录"
-    >
-      <div class="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <p class="text-sm font-semibold">文章目录</p>
-          <p class="text-xs text-gray-500">点击条目可跳转</p>
-        </div>
-        <button
-          type="button"
-          class="rounded-full border border-gray-200 bg-white px-3 py-1 text-sm font-medium shadow-sm transition hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-gray-800 dark:bg-gray-900 dark:hover:text-blue-300 dark:focus-visible:ring-offset-gray-900"
-          data-toc-close
-        >
-          关闭
-        </button>
-      </div>
-      {headings.length === 0 ? (
-        <p class="text-sm text-gray-500">本文暂无目录。</p>
-      ) : (
-        <nav aria-label="文章目录" class="max-h-[60vh] overflow-y-auto pr-1" data-toc-scroll>
-          <ol class="space-y-2 text-sm">
-            {headings.map((heading) => (
-              <li>
-                <a
-                  href={`#${heading.slug}`}
-                  data-toc-link
-                  data-target={heading.slug}
-                  title={heading.text}
-                  class={`group flex items-start gap-2 truncate rounded-lg px-2 py-1 text-gray-800 underline-offset-2 transition hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:text-gray-100 dark:hover:bg-blue-500/10 dark:hover:text-blue-300 dark:focus-visible:ring-offset-gray-900 ${heading.indentClass}`}
-                >
-                  <span class="mt-0.5 text-xs text-gray-400 transition-colors group-data-[active=true]:text-blue-600 dark:text-gray-500 dark:group-data-[active=true]:text-blue-300">#</span>
-                  <span class="flex-1 truncate" data-title>{heading.text}</span>
-                </a>
-              </li>
-            ))}
-          </ol>
-        </nav>
-      )}
-    </div>
-  </div>
 </div>
 
 <script>
   const tocLinks = Array.from(document.querySelectorAll('[data-toc-link]')) as HTMLAnchorElement[];
-  const tocOverlay = document.querySelector('[data-toc-overlay]') as HTMLElement | null;
   const tocContainer = document.querySelector('[data-toc-container]') as HTMLElement | null;
   const tocShell = document.querySelector('[data-toc-shell]') as HTMLElement | null;
-  const openButton = document.querySelector('[data-toc-open]') as HTMLButtonElement | null;
-  const closeButton = document.querySelector('[data-toc-close]') as HTMLButtonElement | null;
-  const body = document.body;
   const headerOffsetPx =
     (tocContainer && getComputedStyle(tocContainer).getPropertyValue('--toc-offset')) || '96px';
   const headerOffset = parseFloat(headerOffsetPx) || 0;
   const desktopQuery = window.matchMedia('(min-width: 1024px)');
-
-  const setOverlayOpen = (open: boolean) => {
-    if (!tocOverlay) return;
-    tocOverlay.dataset.open = String(open);
-    if (openButton) openButton.setAttribute('aria-expanded', open ? 'true' : 'false');
-    body.classList.toggle('overflow-hidden', open);
-  };
-
-  openButton?.addEventListener('click', () => setOverlayOpen(true));
-  closeButton?.addEventListener('click', () => setOverlayOpen(false));
-  tocOverlay?.addEventListener('click', (event) => {
-    if (event.target === tocOverlay) setOverlayOpen(false);
-  });
 
   const headings = tocLinks
     .map((link) => document.getElementById(link.dataset.target || ''))
@@ -192,7 +109,6 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
       const targetId = link.dataset.target;
       if (!targetId) return;
       event.preventDefault();
-      setOverlayOpen(false);
       scrollToHeading(targetId);
     })
   );
