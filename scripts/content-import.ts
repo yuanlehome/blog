@@ -70,7 +70,7 @@ const WECHAT_IMAGE_HEADERS = {
 
 const DEFAULT_IMAGE_HEADERS = {
   'User-Agent':
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   Referer: 'https://www.zhihu.com',
 };
 
@@ -256,8 +256,11 @@ function resolveImageSrc(node: HastElement, base?: string) {
 }
 
 function isSuspectedWechatPlaceholder(buffer: Buffer, contentType: string) {
-  const contentTypeIsImage = contentType.toLowerCase().startsWith('image/');
-  return buffer.length === 0 || buffer.length < WECHAT_PLACEHOLDER_THRESHOLD || !contentTypeIsImage;
+  const normalizedContentType = contentType.toLowerCase();
+  const contentTypeIsImage = normalizedContentType.startsWith('image/');
+  if (!contentTypeIsImage) return true;
+  if (buffer.length === 0) return true;
+  return buffer.length < WECHAT_PLACEHOLDER_THRESHOLD;
 }
 
 async function downloadImage(
@@ -272,6 +275,15 @@ async function downloadImage(
     if (!finalUrl) return null;
 
     const extFromUrl = path.extname(new URL(finalUrl).pathname).split('?')[0];
+    const filenameBase = String(index + 1).padStart(3, '0');
+    const dir = path.join(imageRoot, slug);
+    if (extFromUrl) {
+      const existingPath = path.join(dir, `${filenameBase}${extFromUrl}`);
+      if (fs.existsSync(existingPath)) {
+        return `/images/${provider}/${slug}/${filenameBase}${extFromUrl}`;
+      }
+    }
+
     const buildHeaders = (): Record<string, string> => {
       if (provider === 'wechat') {
         return WECHAT_IMAGE_HEADERS;
@@ -301,8 +313,7 @@ async function downloadImage(
     const mimeType = (contentType.split(';')[0] || '').trim().toLowerCase();
     const extFromMime = MIME_TYPE_EXTENSION_MAP[mimeType];
     const ext = extFromUrl || extFromMime || '.jpg';
-    const dir = path.join(imageRoot, slug);
-    const filename = `${String(index + 1).padStart(3, '0')}${ext}`;
+    const filename = `${filenameBase}${ext}`;
     const localPath = path.join(dir, filename);
 
     fs.mkdirSync(dir, { recursive: true });
