@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: lycheeverse/lychee:0.15.1
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,15 +24,7 @@ jobs:
       # ---------- 1) 源码侧 link check ----------
       - name: Link check (source)
         run: |
-          lychee \
-            --verbose \
-            --no-progress \
-            --max-concurrency 8 \
-            --timeout 20 \
-            --max-retries 3 \
-            --accept 200,206,429 \
-            --exclude-fragments \
-            README.md src public docs
+          lychee --config .lychee.toml README.md src public docs
 
       # ---------- 2) 构建产物侧 link check ----------
       - name: Setup Node
@@ -47,12 +40,4 @@ jobs:
 
       - name: Link check (dist)
         run: |
-          lychee \
-            --verbose \
-            --no-progress \
-            --max-concurrency 8 \
-            --timeout 20 \
-            --max-retries 3 \
-            --accept 200,206,429 \
-            --exclude-fragments \
-            dist
+          lychee --config .lychee.toml dist

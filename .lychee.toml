@@ -1,0 +1,31 @@
+# .lychee.toml
+# Lychee link checker configuration
+
+# 基础行为
+verbose = true
+no_progress = true
+
+# 稳定性/性能
+max_concurrency = 8
+timeout = 20
+max_retries = 3
+
+# HTTP 接受码：206=Range，429=限流（把 429 视为“可接受”，减少误伤）
+accept = [200, 206, 429]
+
+# 忽略 #fragment（锚点）
+exclude_fragment = true
+
+# 默认不检查 mailto（新版本 lychee 默认就是 false；这里显式写清楚）
+include_mail = false
+
+# 可选：如果你有大量会拦 bot 的站点，可以逐条加 exclude（不要全盘排除）
+# exclude = [
+#   '^https://twitter.com/',
+#   '^https://x.com/'
+# ]
+
+# 可选：减少噪声（例如忽略 node_modules/dist 内部特定文件等）
+# exclude_path = [
+#   "node_modules",
+# ]
