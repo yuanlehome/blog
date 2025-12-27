@@ -1,0 +1,19 @@
+# .lychee.dist.toml
+# For built site (dist)
+
+verbose = true
+no_progress = true
+
+# dist 本身就是站点 root
+root_dir = "dist"
+
+# 仍然只检查站内文件
+scheme = ["file"]
+
+include_fragments = false
+include_mail = false
+skip_missing = true
+
+max_concurrency = 4
+timeout = 20
+max_retries = 2

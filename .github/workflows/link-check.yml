@@ -24,7 +24,7 @@ jobs:
       # ---------- 1) 源码侧 link check ----------
       - name: Link check (source)
         run: |
-          lychee --config .lychee.toml README.md src public docs
+          lychee --config .lychee.src.toml README.md src public docs
 
       # ---------- 2) 构建产物侧 link check ----------
       - name: Setup Node
@@ -40,4 +40,4 @@ jobs:
 
       - name: Link check (dist)
         run: |
-          lychee --config .lychee.toml dist
+          lychee --config .lychee.dist.toml dist
