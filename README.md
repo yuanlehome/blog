@@ -4,7 +4,9 @@
 
 ## 🎯 特性
 
-- **Notion 写作流程**：用 Notion Database 管理文章，状态为 Published 的页面会被拉取并转成 Markdown。
+- **Notion 写作流程**：用 Notion Database 管
+-
+  da     als理文章，状态为 Published 的页面会被拉取并转成 Markdown。
 - **图片与封面下载**：同步时自动下载 Notion 中的图片与封面到 `public/images/notion/<pageId>/`。
 - **数学公式支持**：结合 `remark-math` 与 `rehype-katex` 渲染公式，同步后还会用脚本修正常见格式问题。
 - **现代前端**：Astro + Tailwind 构建，提供 RSS、Sitemap 与基础的文章列表/详情页。
