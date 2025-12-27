@@ -14,9 +14,9 @@ max_retries = 3
 accept = [200, 206, 429]
 
 # 忽略 #fragment（锚点）
-exclude_fragment = true
+include_fragments = false
 
-# 默认不检查 mailto（新版本 lychee 默认就是 false；这里显式写清楚）
+# 默认不检查 mailto
 include_mail = false
 
 # 可选：如果你有大量会拦 bot 的站点，可以逐条加 exclude（不要全盘排除）
