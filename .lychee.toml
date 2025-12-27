@@ -1,31 +1,36 @@
 # .lychee.toml
-# Lychee link checker configuration
+# Lychee configuration: INTERNAL LINKS ONLY
 
-# 基础行为
-root_dir = "public"
-verbose = "info"
+# ---------- 基础 ----------
+verbose = true
 no_progress = true
 
-# 稳定性/性能
-max_concurrency = 8
+# ---------- 只检查站内 / 本地 ----------
+root_dir = "public"
+
+# 关键：只允许检查 file / relative 链接
+# 任何 http / https 外链都会被直接忽略
+scheme = ["file"]
+
+# ---------- 稳定性 ----------
+max_concurrency = 4
 timeout = 20
-max_retries = 3
+max_retries = 2
 
-# HTTP 接受码：206=Range，429=限流（把 429 视为“可接受”，减少误伤）
-accept = [200, 206, 429]
+# 本地文件检查不需要 accept HTTP code，但留着也无害
+accept = [200, 206]
 
-# 忽略 #fragment（锚点）
+# ---------- 行为控制 ----------
+# 不检查 #fragment
 include_fragments = false
 
-# 默认不检查 mailto
+# 不检查 mailto
 include_mail = false
 
-# 输入源缺失/无文件时跳过，不要中断或触发异常路径
+# 输入源缺失 / 空目录直接跳过
 skip_missing = true
 
-# 可选：减少噪声（例如忽略 node_modules/dist 内部特定文件等）
+# ---------- 忽略噪声目录 ----------
 exclude_path = [
   "node_modules",
 ]
-
-user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
