@@ -2,7 +2,7 @@
 # Lychee configuration: INTERNAL LINKS ONLY
 
 # ---------- 基础 ----------
-verbose = true
+verbose = "debug"
 no_progress = true
 
 # ---------- 只检查站内 / 本地 ----------
