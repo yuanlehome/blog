@@ -28,3 +28,18 @@ jobs:
       - name: lint
         run: |
           npm run lint
+
+      - name: Fail if lint/format modified files
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet; then
+            echo "❌ Lint/format modified files. Please run lint/format locally and commit the changes."
+            echo ""
+            echo "Changed files:"
+            git diff --name-only
+            echo ""
+            echo "Diff:"
+            git diff
+            exit 1
+          fi
