@@ -1,0 +1,27 @@
+name: Dead Link Check
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: "0 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  link-check:
+    runs-on: ubuntu-latest
+    container:
+      image: lycheeverse/lychee:0.22.0
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ---------- 1) link check ----------
+      - name: Link check (source)
+        run: |
+          lychee --config .lychee.toml README.md src public docs

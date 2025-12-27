@@ -1,0 +1,97 @@
+name: Post-deploy Smoke Test
+
+on:
+  workflow_run:
+    workflows: ["Deploy to GitHub Pages"]
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+jobs:
+  post-deploy-smoke-test:
+    # 只在部署 workflow 成功后执行
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    env:
+      # workflow_run 不能直接拿到上一个 workflow 的 deploy step page_url 输出，
+      # 因此使用固定站点 URL（符合你的 fallback 要求）
+      SITE_URL: ${{ vars.SITE_URL || 'https://yuanlehome.github.io/blog' }}
+
+    steps:
+      - name: Smoke test (online)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "SITE_URL=${SITE_URL}"
+
+          sleep 10
+
+          curl_check() {
+            local url="$1"
+            echo "==> curl ${url}"
+            curl -sS -L --fail \
+              --retry 10 --retry-delay 2 --retry-all-errors \
+              --connect-timeout 10 --max-time 20 \
+              "${url}"
+          }
+
+          # 线上探测 prefix：优先 /blog，其次 root
+          PREFIX=""
+          if curl_check "${SITE_URL}/blog/" > /dev/null 2>&1; then
+            PREFIX="/blog"
+          elif curl_check "${SITE_URL}/" > /dev/null 2>&1; then
+            PREFIX=""
+          else
+            echo "Neither ${SITE_URL}/ nor ${SITE_URL}/blog/ is reachable"
+            exit 1
+          fi
+          echo "Detected PREFIX='${PREFIX}'"
+
+          # 首页 + 内容断言
+          home_html="$(curl_check "${SITE_URL}${PREFIX}/")"
+          grep -q "Recent Posts" <<<"${home_html}"
+
+          # 可选页面（存在就测，不存在就跳过）
+          for p in "/archive/" "/about/"; do
+            if curl_check "${SITE_URL}${PREFIX}${p}" > /dev/null 2>&1; then
+              echo "${p} OK"
+            else
+              echo "Skip ${p} (404 or not present)"
+            fi
+          done
+
+          # RSS（存在就测）
+          if curl_check "${SITE_URL}${PREFIX}/rss.xml" > /dev/null 2>&1; then
+            echo "rss.xml OK"
+          elif curl_check "${SITE_URL}/rss.xml" > /dev/null 2>&1; then
+            echo "rss.xml OK (root)"
+          else
+            echo "Skip RSS (not present)"
+          fi
+
+          # Sitemap 二选一
+          if curl_check "${SITE_URL}${PREFIX}/sitemap.xml" > /dev/null 2>&1; then
+            echo "sitemap.xml OK"
+          elif curl_check "${SITE_URL}${PREFIX}/sitemap-index.xml" > /dev/null 2>&1; then
+            echo "sitemap-index.xml OK"
+          elif curl_check "${SITE_URL}/sitemap.xml" > /dev/null 2>&1; then
+            echo "sitemap.xml OK (root)"
+          elif curl_check "${SITE_URL}/sitemap-index.xml" > /dev/null 2>&1; then
+            echo "sitemap-index.xml OK (root)"
+          else
+            echo "No sitemap found"
+            exit 1
+          fi
+
+          # 稳定文章页：优先 flashattention，否则退化为只验证首页
+          if curl_check "${SITE_URL}${PREFIX}/flashattention/" > /dev/null 2>&1; then
+            article_html="$(curl_check "${SITE_URL}${PREFIX}/flashattention/")"
+            grep -q "FlashAttention" <<<"${article_html}"
+          else
+            echo "Skip article assertion (flashattention not present at this prefix)"
+          fi
+
+          echo "✅ Post-deploy smoke test passed."

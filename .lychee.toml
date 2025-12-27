@@ -1,0 +1,36 @@
+# .lychee.toml
+# Lychee configuration: INTERNAL LINKS ONLY
+
+# ---------- 基础 ----------
+verbose = "debug"
+no_progress = true
+
+# ---------- 只检查站内 / 本地 ----------
+root_dir = "public"
+
+# 关键：只允许检查 file / relative 链接
+# 任何 http / https 外链都会被直接忽略
+scheme = ["file"]
+
+# ---------- 稳定性 ----------
+max_concurrency = 4
+timeout = 20
+max_retries = 2
+
+# 本地文件检查不需要 accept HTTP code，但留着也无害
+accept = [200, 206]
+
+# ---------- 行为控制 ----------
+# 不检查 #fragment
+include_fragments = false
+
+# 不检查 mailto
+include_mail = false
+
+# 输入源缺失 / 空目录直接跳过
+skip_missing = true
+
+# ---------- 忽略噪声目录 ----------
+exclude_path = [
+  "node_modules",
+]
