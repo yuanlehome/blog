@@ -9,6 +9,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "notion:sync": "tsx scripts/notion-sync.ts && tsx scripts/fix-math.ts src/content/blog/notion && npm run lint",
+    "import:content": "tsx scripts/zhihu-import.ts",
     "zhihu:import": "tsx scripts/zhihu-import.ts",
     "check": "astro check",
     "test": "vitest run --coverage",

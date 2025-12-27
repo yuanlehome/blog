@@ -1,4 +1,4 @@
-name: Import Article
+name: Import Content
 
 on:
   workflow_dispatch:
@@ -30,10 +30,10 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Import article
+      - name: Import content
         env:
           URL: ${{ inputs.url }}
-        run: npm run zhihu:import -- --url "${{ inputs.url }}"
+        run: npm run import:content -- --url "${{ inputs.url }}"
 
       - name: Configure git
         run: |

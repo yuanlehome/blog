@@ -9,7 +9,7 @@ import rehypeParse from 'rehype-parse';
 import rehypeRaw from 'rehype-raw';
 import rehypeRemark from 'rehype-remark';
 import slugify from 'slugify';
-import { unified } from 'unified';
+import { unified, type Plugin } from 'unified';
 import { visit } from 'unist-util-visit';
 import { fileURLToPath } from 'url';
 
@@ -143,101 +143,101 @@ async function downloadImage(
   }
 }
 
-function transformMath() {
-  return (tree: HastElement) => {
-    visit(tree as any, 'element', (node: HastElement, index: number | null, parent: any) => {
-      if (!parent || index === null || index === undefined) return;
-      if (node.tagName === 'span' && hasClass(node, 'ztext-math')) {
-        const latex = (node.properties?.['data-tex'] as string) || getTextContent(node);
-        const value = `$${latex.trim()}$`;
-        parent.children.splice(index, 1, { type: 'text', value });
-      }
-      if (node.tagName === 'div' && hasClass(node, 'ztext-math')) {
-        const latex = (node.properties?.['data-tex'] as string) || getTextContent(node);
-        const value = `$$${latex.trim()}$$`;
-        parent.children.splice(index, 1, { type: 'text', value });
-      }
-    });
-  };
-}
+const transformMath: Plugin<[], any> = () => (tree: any) => {
+  visit(tree, 'element', (node: HastElement, index: number | null | undefined, parent: any) => {
+    const idx = typeof index === 'number' ? index : null;
+    if (!parent || idx === null) return;
+    if (node.tagName === 'span' && hasClass(node, 'ztext-math')) {
+      const latex = (node.properties?.['data-tex'] as string) || getTextContent(node);
+      const value = `$${latex.trim()}$`;
+      parent.children.splice(idx, 1, { type: 'text', value });
+    }
+    if (node.tagName === 'div' && hasClass(node, 'ztext-math')) {
+      const latex = (node.properties?.['data-tex'] as string) || getTextContent(node);
+      const value = `$$${latex.trim()}$$`;
+      parent.children.splice(idx, 1, { type: 'text', value });
+    }
+  });
+};
 
-function localizeImages(options: {
+const localizeImages = (options: {
   slug: string;
   baseUrl?: string;
   collected: string[];
   provider: string;
   imageRoot: string;
-}) {
-  return async (tree: HastElement) => {
-    const imageNodes: { node: HastElement; url: string }[] = [];
+}): Plugin<[], any> => {
+  return function plugin() {
+    return async (tree: any) => {
+      const imageNodes: { node: HastElement; url: string }[] = [];
 
-    visit(tree as any, 'element', (node: HastElement) => {
-      if (node.tagName !== 'img') return;
-      const src = resolveImageSrc(node, options.baseUrl);
-      if (!src) return;
-      imageNodes.push({ node, url: src });
-    });
+      visit(tree, 'element', (node: HastElement) => {
+        if (node.tagName !== 'img') return;
+        const src = resolveImageSrc(node, options.baseUrl);
+        if (!src) return;
+        imageNodes.push({ node, url: src });
+      });
 
-    const mapping = new Map<string, string>();
-    let index = 0;
-    for (const { url } of imageNodes) {
-      if (mapping.has(url)) continue;
-      const local = await downloadImage(
-        url,
-        options.provider,
-        options.slug,
-        options.imageRoot,
-        index,
-      );
-      if (local) {
-        mapping.set(url, local);
-        index += 1;
-        if (!options.collected.includes(local)) {
-          options.collected.push(local);
+      const mapping = new Map<string, string>();
+      let index = 0;
+      for (const { url } of imageNodes) {
+        if (mapping.has(url)) continue;
+        const local = await downloadImage(
+          url,
+          options.provider,
+          options.slug,
+          options.imageRoot,
+          index,
+        );
+        if (local) {
+          mapping.set(url, local);
+          index += 1;
+          if (!options.collected.includes(local)) {
+            options.collected.push(local);
+          }
         }
       }
-    }
 
-    imageNodes.forEach(({ node, url }) => {
-      const local = mapping.get(url);
-      if (local) {
-        node.properties = { ...(node.properties || {}), src: local };
-        delete node.properties?.['data-original'];
-        delete node.properties?.['data-actualsrc'];
-        delete node.properties?.['data-src'];
-        delete node.properties?.srcset;
-      }
-    });
+      imageNodes.forEach(({ node, url }) => {
+        const local = mapping.get(url);
+        if (local) {
+          node.properties = { ...(node.properties || {}), src: local };
+          delete node.properties?.['data-original'];
+          delete node.properties?.['data-actualsrc'];
+          delete node.properties?.['data-src'];
+          delete node.properties?.srcset;
+        }
+      });
+    };
   };
-}
+};
 
 async function htmlToMdx(
   html: string,
   options: { slug: string; provider: string; baseUrl?: string; imageRoot: string },
 ) {
   const images: string[] = [];
-  const file = await unified()
+  const imagePlugin = localizeImages({
+    slug: options.slug,
+    baseUrl: options.baseUrl,
+    collected: images,
+    provider: options.provider,
+    imageRoot: options.imageRoot,
+  });
+  const processor: any = unified();
+  const file = await processor
     .use(rehypeParse, { fragment: true })
     .use(rehypeRaw)
-    .use(transformMath())
-    .use(
-      localizeImages({
-        slug: options.slug,
-        baseUrl: options.baseUrl,
-        collected: images,
-        provider: options.provider,
-        imageRoot: options.imageRoot,
-      }),
-    )
-    .use(rehypeRemark, { allowDangerousHtml: true })
+    .use(transformMath)
+    .use(imagePlugin)
+    .use(rehypeRemark as any)
     .use(remarkMath)
     .use(remarkGfm)
     .use(remarkStringify, {
-      allowDangerousHtml: true,
       fences: true,
       bullet: '-',
       rule: '-',
-    })
+    } as any)
     .process(html);
 
   return { markdown: String(file).trim(), images };
