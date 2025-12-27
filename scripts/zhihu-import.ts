@@ -389,9 +389,7 @@ async function fetchArticle(provider: Provider, url: string) {
 
 async function main() {
   const targetUrl = parseArgs();
-  const provider =
-    providers.find((p) => p.match(targetUrl)) ||
-    providers.find((p) => p.name === 'zhihu');
+  const provider = providers.find((p) => p.match(targetUrl));
 
   if (!provider) {
     throw new Error('No provider matched the given URL.');
