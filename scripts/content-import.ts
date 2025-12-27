@@ -717,7 +717,6 @@ async function main() {
     date: safeDate.toISOString().split('T')[0],
     tags: [],
     status: 'published',
-    source: provider.name,
     source_url: targetUrl,
     source_author: author || provider.name,
     imported_at: new Date().toISOString(),
