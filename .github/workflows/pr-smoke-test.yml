@@ -1,0 +1,95 @@
+name: PR Smoke Test
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  pr-smoke-test:
+    runs-on: ubuntu-latest
+    env:
+      PORT: "4173"
+      BASE_URL: "http://127.0.0.1:4173"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (Astro)
+        run: npm run build
+
+      - name: Start static server for dist
+        shell: bash
+        run: |
+          set -euo pipefail
+          # 使用 npx 直接起服务，不污染依赖
+          nohup npx --yes http-server dist -p "${PORT}" -a 127.0.0.1 -c-1 > server.log 2>&1 &
+          # 等待服务就绪
+          for i in {1..30}; do
+            if curl -sS "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
+              echo "Server is up."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server failed to start."
+          tail -n 200 server.log || true
+          exit 1
+
+      - name: Smoke test (HTTP + content assertions)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          curl_check() {
+            local url="$1"
+            echo "==> curl ${url}"
+            curl -sS -L --fail \
+              --retry 10 --retry-delay 2 --retry-all-errors \
+              --connect-timeout 10 --max-time 20 \
+              "${url}"
+          }
+
+          # 1) 首页：内容断言（不要只看 200）
+          home_html="$(curl_check "${BASE_URL}/")"
+          echo "${home_html}" | grep -q "Recent Posts"
+
+          # 2) 稳定页面（仓库真实路由）
+          curl_check "${BASE_URL}/archive/" > /dev/null
+          curl_check "${BASE_URL}/about/" > /dev/null
+
+          # 3) RSS
+          curl_check "${BASE_URL}/rss.xml" > /dev/null
+
+          # 4) Sitemap 二选一
+          if curl_check "${BASE_URL}/sitemap.xml" > /dev/null; then
+            echo "sitemap.xml OK"
+          elif curl_check "${BASE_URL}/sitemap-index.xml" > /dev/null; then
+            echo "sitemap-index.xml OK"
+          else
+            echo "No sitemap found at /sitemap.xml or /sitemap-index.xml"
+            exit 1
+          fi
+
+          # 5) 稳定文章页 + 内容断言
+          article_html="$(curl_check "${BASE_URL}/flashattention/")"
+          echo "${article_html}" | grep -q "FlashAttention"
+
+          echo "✅ PR smoke test passed."
+
+      - name: Dump server log on failure
+        if: failure()
+        run: |
+          echo "----- server.log (tail) -----"
+          tail -n 200 server.log || true
