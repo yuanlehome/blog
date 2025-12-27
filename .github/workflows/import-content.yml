@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       url:
-        description: 'Article URL to import (Zhihu / Medium / WeChat)'
+        description: 'Article URL to import (Zhihu / Medium / WeChat / others)'
         required: true
         type: string
 
@@ -47,5 +47,5 @@ jobs:
             exit 0
           fi
           git add -A
-          git commit -m "[skip ci] chore: import zhihu article"
+          git commit -m "[skip ci] chore: import content"
           git push

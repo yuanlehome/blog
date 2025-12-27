@@ -48,7 +48,7 @@ function parseArgs(): string {
     process.argv[2];
 
   if (!url) {
-    throw new Error('Usage: npm run zhihu:import -- --url=<URL>');
+    throw new Error('Usage: npm run import:content -- --url=<URL>');
   }
 
   return url;
@@ -233,11 +233,14 @@ async function htmlToMdx(
     .use(rehypeRemark as any)
     .use(remarkMath)
     .use(remarkGfm)
-    .use(remarkStringify, {
-      fences: true,
-      bullet: '-',
-      rule: '-',
-    } as any)
+    .use(
+      remarkStringify,
+      {
+        fences: true,
+        bullet: '-',
+        rule: '-',
+      } as any,
+    )
     .process(html);
 
   return { markdown: String(file).trim(), images };
@@ -338,8 +341,7 @@ const providers: Provider[] = [
 
         const article = document.querySelector('article');
         return {
-          title:
-            document.querySelector('h1')?.textContent?.trim() || document.title || 'Medium Article',
+          title: document.querySelector('h1')?.textContent?.trim() || document.title || 'Medium Article',
           author:
             pickMeta(['meta[name="author"]']) ||
             document.querySelector('a[rel="author"]')?.textContent?.trim() ||
