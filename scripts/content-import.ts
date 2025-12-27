@@ -501,7 +501,10 @@ async function extractZhihuWithRetry(
         '.Post-Main .RichContent',
       ];
 
-      await waitForContent(page, contentSelectors, { minTextLength: MIN_CONTENT_LENGTH, timeout: CONTENT_WAIT_TIMEOUT });
+      await waitForContent(page, contentSelectors, {
+        minTextLength: MIN_CONTENT_LENGTH,
+        timeout: CONTENT_WAIT_TIMEOUT,
+      });
 
       // Extract content
       const result = await page.evaluate(() => {
