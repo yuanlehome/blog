@@ -19,6 +19,9 @@ include_fragments = false
 # 默认不检查 mailto
 include_mail = false
 
+# 输入源缺失/无文件时跳过，不要中断或触发异常路径
+skip_missing = true
+
 # 可选：如果你有大量会拦 bot 的站点，可以逐条加 exclude（不要全盘排除）
 # exclude = [
 #   '^https://twitter.com/',
