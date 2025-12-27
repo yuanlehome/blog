@@ -110,7 +110,7 @@ npx tsx scripts/fix-math.ts src/content/blog/notion/<file>.md
 | `npm run build`       | 生成生产构建                                   |
 | `npm run preview`     | 预览生产构建                                   |
 | `npm run notion:sync` | 拉取 Notion 文章、下载图片并修复公式           |
-| `npm run format`      | 使用 Prettier 格式化 `scripts/` 与 `src/` 代码 |
+| `npm run lint`        | 格式化代码 |
 
 ## 🤝 贡献指南
 
