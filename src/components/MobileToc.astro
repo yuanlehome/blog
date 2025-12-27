@@ -1,9 +1,6 @@
 ---
-interface Heading {
-  depth: number;
-  slug: string;
-  text: string;
-}
+import TocTree from './TocTree.astro';
+import { buildTocForest, flattenForest, type Heading } from '../utils/tocTree';
 
 interface Props {
   headings: Heading[];
@@ -11,18 +8,15 @@ interface Props {
   showTrigger?: boolean;
 }
 
-const headings = Astro.props.headings
-  .filter((heading) => heading.depth <= 3)
-  .map((heading) => ({
-    ...heading,
-    indentClass: heading.depth === 3 ? 'pl-6' : '',
-  }));
+// Build tree structure supporting multiple H1s
+const tocForest = buildTocForest(Astro.props.headings);
+const allNodes = flattenForest(tocForest);
 
 const showTrigger = Astro.props.showTrigger ?? false;
 ---
 
 {
-  headings.length > 0 && (
+  tocForest.length > 0 && (
     <>
       {showTrigger && (
         <button
@@ -69,24 +63,8 @@ const showTrigger = Astro.props.showTrigger ?? false;
             </button>
           </div>
           <div class="max-h-[60vh] overflow-y-auto px-4 pb-5" data-mobile-toc-scroll>
-            <ol class="space-y-2 text-sm">
-              {headings.map((heading) => (
-                <li>
-                  <a
-                    href={`#${heading.slug}`}
-                    data-mobile-toc-link
-                    data-target={heading.slug}
-                    class={`group flex items-start gap-2 truncate text-gray-800 underline-offset-2 transition hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:text-gray-200 dark:hover:text-blue-300 dark:focus-visible:ring-offset-gray-900 ${heading.indentClass}`}
-                  >
-                    <span class="mt-0.5 text-xs text-gray-400 transition-colors group-data-[active=true]:text-blue-600 dark:text-gray-500 dark:group-data-[active=true]:text-blue-300">
-                      #
-                    </span>
-                    <span class="flex-1 truncate" data-title>
-                      {heading.text}
-                    </span>
-                  </a>
-                </li>
-              ))}
+            <ol class="space-y-3 text-sm">
+              <TocTree nodes={tocForest} />
             </ol>
           </div>
         </div>
