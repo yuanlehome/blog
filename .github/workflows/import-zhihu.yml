@@ -1,10 +1,10 @@
-name: Import Zhihu Article
+name: Import Article
 
 on:
   workflow_dispatch:
     inputs:
       url:
-        description: 'Zhihu article URL to import'
+        description: 'Article URL to import (Zhihu / Medium / WeChat)'
         required: true
         type: string
 
@@ -30,7 +30,7 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Import Zhihu article
+      - name: Import article
         env:
           URL: ${{ inputs.url }}
         run: npm run zhihu:import -- --url "${{ inputs.url }}"
