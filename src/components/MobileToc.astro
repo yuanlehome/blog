@@ -24,7 +24,6 @@ const headings = Astro.props.headings
 
 const showTrigger = Astro.props.showTrigger ?? false;
 
-const headerOffset = 96; // px, matches desktop toc offset
 ---
 
 {headings.length > 0 && (
@@ -99,9 +98,10 @@ const headerOffset = 96; // px, matches desktop toc offset
   const tocRoot = document.querySelector('[data-mobile-toc]') as HTMLElement | null;
   const tocDrawer = document.querySelector('[data-mobile-toc-drawer]') as HTMLElement | null;
   const tocBackdrop = document.querySelector('[data-mobile-toc-backdrop]') as HTMLElement | null;
-  const tocOpenButtons = Array.from(
-    document.querySelectorAll('[data-mobile-toc-open]')
-  ) as HTMLButtonElement[];
+  const getTocOpenButtons = () =>
+    Array.from(
+      document.querySelectorAll('[data-mobile-toc-open]')
+    ) as HTMLButtonElement[];
   const tocCloseButton = document.querySelector('[data-mobile-toc-close]') as HTMLButtonElement | null;
   const tocLinks = Array.from(
     document.querySelectorAll('[data-mobile-toc-link]')
@@ -117,9 +117,21 @@ const headerOffset = 96; // px, matches desktop toc offset
     window.dispatchEvent(new CustomEvent('mobile-toc:toggle', { detail: { open } }));
 
   const setAriaExpanded = (open: boolean) => {
-    tocOpenButtons.forEach((button) =>
+    getTocOpenButtons().forEach((button) =>
       button.setAttribute('aria-expanded', open ? 'true' : 'false')
     );
+  };
+
+  const handleOpenTrigger = (event: Event) => {
+    event.preventDefault();
+    setOpen(true);
+  };
+
+  const syncOpenButtons = () => {
+    getTocOpenButtons().forEach((button) => {
+      button.removeEventListener('click', handleOpenTrigger);
+      button.addEventListener('click', handleOpenTrigger);
+    });
   };
 
   const lockScroll = () => {
@@ -174,23 +186,30 @@ const headerOffset = 96; // px, matches desktop toc offset
     window.scrollTo({ top, behavior: prefersReduce ? 'auto' : 'smooth' });
   };
 
-  tocOpenButtons.forEach((button) =>
-    button.addEventListener('click', () => setOpen(true))
-  );
-  tocCloseButton?.addEventListener('click', () => setOpen(false));
-  tocBackdrop?.addEventListener('click', (event) => {
-    if (event.target === tocBackdrop) setOpen(false);
-  });
+    syncOpenButtons();
 
-  tocLinks.forEach((link) =>
-    link.addEventListener('click', (event) => {
-      const targetId = link.dataset.target;
-      if (!targetId) return;
-      event.preventDefault();
-      setOpen(false);
-      scrollToHeading(targetId);
-    })
-  );
+    const openButtonObserver = new MutationObserver(syncOpenButtons);
+    openButtonObserver.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['data-mobile-toc-open'],
+    });
+
+    tocCloseButton?.addEventListener('click', () => setOpen(false));
+    tocBackdrop?.addEventListener('click', (event) => {
+      if (event.target === tocBackdrop) setOpen(false);
+    });
+
+    tocLinks.forEach((link) =>
+      link.addEventListener('click', (event) => {
+        const targetId = link.dataset.target;
+        if (!targetId) return;
+        event.preventDefault();
+        setOpen(false);
+        scrollToHeading(targetId);
+      })
+    );
 
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') setOpen(false);

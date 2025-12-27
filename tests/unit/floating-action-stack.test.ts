@@ -29,8 +29,11 @@ describe('FloatingActionStack layout', () => {
 
     expect(container.className).toContain('flex-col');
     expect(container.className).toContain('gap-3');
+    expect(container.className).toContain('pointer-events-auto');
 
-    const buttons = Array.from(container.querySelectorAll('button'));
+    const buttons: HTMLButtonElement[] = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('button')
+    );
     expect(buttons).toHaveLength(3);
     expect(buttons.map((button) => button.dataset.action)).toEqual([
       'top',

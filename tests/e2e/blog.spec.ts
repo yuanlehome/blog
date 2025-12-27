@@ -105,7 +105,9 @@ test.describe('Blog smoke journey', () => {
     await firstLink.click();
     await expect(page.locator('[data-article]')).toBeVisible();
 
-    await page.evaluate(() => window.scrollTo(0, 600));
+    await page.evaluate(() =>
+      window.scrollTo(0, document.documentElement.scrollHeight)
+    );
 
     const stack = page.locator('[data-floating-action-stack]');
     await expect(stack).toBeVisible();
@@ -129,6 +131,27 @@ test.describe('Blog smoke journey', () => {
       expect(topBox.y + topBox.height).toBeLessThanOrEqual(tocBox.y - 1);
       expect(tocBox.y + tocBox.height).toBeLessThanOrEqual(bottomBox.y - 1);
     }
+
+    await tocButton.click();
+    await expect(page.locator('[data-mobile-toc][data-open="true"]')).toBeVisible();
+    await page.locator('[data-mobile-toc-close]').click();
+    await expect(page.locator('[data-mobile-toc][data-open="true"]')).toHaveCount(0);
+
+    await page.evaluate(() =>
+      window.scrollTo(0, document.documentElement.scrollHeight)
+    );
+    const articleTop = await page.evaluate(() => {
+      const article = document.querySelector('[data-article]');
+      if (!article) return null;
+      const rect = article.getBoundingClientRect();
+      return rect.top + window.scrollY;
+    });
+    await topButton.click();
+    await expect
+      .poll(async () => page.evaluate(() => window.scrollY), {
+        message: 'top button should scroll toward article start',
+      })
+      .toBeLessThanOrEqual((articleTop ?? 0) + 10);
 
     await context.close();
   });

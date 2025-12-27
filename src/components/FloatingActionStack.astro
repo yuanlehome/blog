@@ -129,6 +129,15 @@ const actions = buildActions({ enableTop, enableToc, enableBottom });
       requestTick();
     });
 
+    window.addEventListener(
+      'load',
+      () => {
+        measure();
+        updateVisibility();
+      },
+      { once: true }
+    );
+
     topButton?.addEventListener('click', scrollToTop);
     bottomButton?.addEventListener('click', scrollToBottom);
   }
