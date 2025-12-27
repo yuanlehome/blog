@@ -9,6 +9,8 @@ interface Heading {
 
 interface Props {
   headings: Heading[];
+  /** Whether to render the built-in floating trigger button */
+  showTrigger?: boolean;
 }
 
 const slugger = createHeadingSlugger();
@@ -20,21 +22,25 @@ const headings = Astro.props.headings
     indentClass: heading.depth === 3 ? "pl-6" : "",
   }));
 
+const showTrigger = Astro.props.showTrigger ?? false;
+
 const headerOffset = 96; // px, matches desktop toc offset
 ---
 
 {headings.length > 0 && (
   <>
-    <button
-      type="button"
-      class="fixed bottom-6 right-4 z-40 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/90 px-4 py-2 text-sm font-medium text-gray-900 shadow-lg backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-gray-800 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:border-blue-500/50 dark:hover:text-blue-300 dark:focus-visible:ring-offset-gray-900 lg:hidden"
-      data-mobile-toc-open
-      aria-haspopup="dialog"
-      aria-expanded="false"
-      aria-controls="mobile-toc-drawer"
-    >
-      📑 目录
-    </button>
+    {showTrigger && (
+      <button
+        type="button"
+        class="fixed bottom-6 right-4 z-40 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/90 px-4 py-2 text-sm font-medium text-gray-900 shadow-lg backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-gray-800 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:border-blue-500/50 dark:hover:text-blue-300 dark:focus-visible:ring-offset-gray-900 lg:hidden"
+        data-mobile-toc-open
+        aria-haspopup="dialog"
+        aria-expanded="false"
+        aria-controls="mobile-toc-drawer"
+      >
+        📑 目录
+      </button>
+    )}
 
     <div
       class="fixed inset-0 z-50 pointer-events-none data-[open=true]:pointer-events-auto lg:hidden"
@@ -93,7 +99,9 @@ const headerOffset = 96; // px, matches desktop toc offset
   const tocRoot = document.querySelector('[data-mobile-toc]') as HTMLElement | null;
   const tocDrawer = document.querySelector('[data-mobile-toc-drawer]') as HTMLElement | null;
   const tocBackdrop = document.querySelector('[data-mobile-toc-backdrop]') as HTMLElement | null;
-  const tocOpenButton = document.querySelector('[data-mobile-toc-open]') as HTMLButtonElement | null;
+  const tocOpenButtons = Array.from(
+    document.querySelectorAll('[data-mobile-toc-open]')
+  ) as HTMLButtonElement[];
   const tocCloseButton = document.querySelector('[data-mobile-toc-close]') as HTMLButtonElement | null;
   const tocLinks = Array.from(
     document.querySelectorAll('[data-mobile-toc-link]')
@@ -105,8 +113,13 @@ const headerOffset = 96; // px, matches desktop toc offset
   const headerOffset = 96;
   let scrollYBeforeLock = 0;
 
+  const emitToggle = (open: boolean) =>
+    window.dispatchEvent(new CustomEvent('mobile-toc:toggle', { detail: { open } }));
+
   const setAriaExpanded = (open: boolean) => {
-    tocOpenButton?.setAttribute('aria-expanded', open ? 'true' : 'false');
+    tocOpenButtons.forEach((button) =>
+      button.setAttribute('aria-expanded', open ? 'true' : 'false')
+    );
   };
 
   const lockScroll = () => {
@@ -130,6 +143,7 @@ const headerOffset = 96; // px, matches desktop toc offset
     tocBackdrop?.setAttribute('data-open', String(open));
     tocRoot.setAttribute('aria-hidden', open ? 'false' : 'true');
     setAriaExpanded(open);
+    emitToggle(open);
     if (open) {
       lockScroll();
     } else {
@@ -160,7 +174,9 @@ const headerOffset = 96; // px, matches desktop toc offset
     window.scrollTo({ top, behavior: prefersReduce ? 'auto' : 'smooth' });
   };
 
-  tocOpenButton?.addEventListener('click', () => setOpen(true));
+  tocOpenButtons.forEach((button) =>
+    button.addEventListener('click', () => setOpen(true))
+  );
   tocCloseButton?.addEventListener('click', () => setOpen(false));
   tocBackdrop?.addEventListener('click', (event) => {
     if (event.target === tocBackdrop) setOpen(false);

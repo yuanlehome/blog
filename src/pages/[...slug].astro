@@ -10,6 +10,7 @@ import RelatedPosts from '../components/RelatedPosts.astro';
 import { findPrevNext, findRelated, getPublishedPosts } from '../utils/posts';
 import Giscus from '../components/Giscus.astro';
 import ReadingProgress from '../components/ReadingProgress.astro';
+import FloatingActionStack from '../components/FloatingActionStack.astro';
 
 export async function getStaticPaths() {
   const posts = await getPublishedPosts();
@@ -65,7 +66,13 @@ const commentsEnabled = post.data.comments ?? true;
       </article>
       <TableOfContents headings={headings} />
     </div>
-    <MobileToc headings={headings} />
+    <MobileToc headings={headings} showTrigger={false} />
+    <FloatingActionStack
+      enableToc={headings.length > 0}
+      enableTop={true}
+      enableBottom={true}
+      targetSelector="[data-article]"
+    />
   </main>
   <Footer />
 </Layout>

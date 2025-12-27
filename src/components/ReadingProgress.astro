@@ -107,6 +107,12 @@ const { targetSelector = '[data-article]' } = Astro.props;
       font-size: 0.8125rem;
     }
   }
+
+  @media (max-width: 1023px) {
+    .reading-progress__controls {
+      display: none;
+    }
+  }
 </style>
 
 <script>

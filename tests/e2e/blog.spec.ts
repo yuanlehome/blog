@@ -87,4 +87,49 @@ test.describe('Blog smoke journey', () => {
       test.info().annotations.push({ type: 'todo', description: 'Search UI not yet implemented' });
     }
   });
+
+  test('mobile floating actions are vertically ordered and non-overlapping', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+
+    await page.goto('/');
+    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
+    if (await notFoundHeading.count()) {
+      const baseLink = page.locator('a[href="/blog/"]');
+      if (await baseLink.count()) {
+        await baseLink.first().click();
+      }
+    }
+
+    const firstLink = page.locator('#post-list li a').first();
+    await firstLink.click();
+    await expect(page.locator('[data-article]')).toBeVisible();
+
+    await page.evaluate(() => window.scrollTo(0, 600));
+
+    const stack = page.locator('[data-floating-action-stack]');
+    await expect(stack).toBeVisible();
+
+    const topButton = stack.locator('[data-action="top"]');
+    const tocButton = stack.locator('[data-action="toc"]');
+    const bottomButton = stack.locator('[data-action="bottom"]');
+
+    await expect(topButton).toBeVisible();
+    await expect(tocButton).toBeVisible();
+    await expect(bottomButton).toBeVisible();
+
+    const [topBox, tocBox, bottomBox] = await Promise.all([
+      topButton.boundingBox(),
+      tocButton.boundingBox(),
+      bottomButton.boundingBox(),
+    ]);
+
+    expect(topBox && tocBox && bottomBox).toBeTruthy();
+    if (topBox && tocBox && bottomBox) {
+      expect(topBox.y + topBox.height).toBeLessThanOrEqual(tocBox.y - 1);
+      expect(tocBox.y + tocBox.height).toBeLessThanOrEqual(bottomBox.y - 1);
+    }
+
+    await context.close();
+  });
 });
