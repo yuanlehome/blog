@@ -2,9 +2,7 @@
 # Lychee link checker configuration
 
 # 基础行为
-root_dir = "."
-# PR / CI 场景下用占位即可，不会真的请求网络
-base_url = "https://example.com"
+root_dir = "public"
 verbose = "info"
 no_progress = true
 
@@ -25,15 +23,9 @@ include_mail = false
 # 输入源缺失/无文件时跳过，不要中断或触发异常路径
 skip_missing = true
 
-# 可选：如果你有大量会拦 bot 的站点，可以逐条加 exclude（不要全盘排除）
-exclude = [
-  '^https://zhuanlan.zhihu.com',
-  '^https://medium.com',
-  '^https://gordicaleksa.medium.com',
-  '^https://www.semanticscholar.org',
-]
-
 # 可选：减少噪声（例如忽略 node_modules/dist 内部特定文件等）
 exclude_path = [
   "node_modules",
 ]
+
+user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
