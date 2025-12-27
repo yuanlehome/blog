@@ -23,12 +23,11 @@ include_mail = false
 skip_missing = true
 
 # 可选：如果你有大量会拦 bot 的站点，可以逐条加 exclude（不要全盘排除）
-# exclude = [
-#   '^https://twitter.com/',
-#   '^https://x.com/'
-# ]
+exclude = [
+  '^https://zhuanlan.zhihu.com',
+]
 
 # 可选：减少噪声（例如忽略 node_modules/dist 内部特定文件等）
-# exclude_path = [
-#   "node_modules",
-# ]
+exclude_path = [
+  "node_modules",
+]
