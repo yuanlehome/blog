@@ -2,7 +2,7 @@ name: Post-deploy Smoke Test
 
 on:
   workflow_run:
-    workflows: ["Deploy to GitHub Pages"]
+    workflows: ['Deploy to GitHub Pages']
     types:
       - completed
 

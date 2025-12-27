@@ -38,9 +38,15 @@ const commentsEnabled = post.data.comments ?? true;
     >
       <article class="prose dark:prose-invert max-w-none prose-img:rounded-xl min-w-0" data-article>
         <header class="mb-8 not-prose">
-          {post.data.cover && (
-            <img src={post.data.cover} alt={post.data.title} class="w-full h-64 object-cover rounded-xl mb-6" />
-          )}
+          {
+            post.data.cover && (
+              <img
+                src={post.data.cover}
+                alt={post.data.title}
+                class="w-full h-64 object-cover rounded-xl mb-6"
+              />
+            )
+          }
           <h1 class="text-3xl md:text-4xl font-bold mb-4">{post.data.title}</h1>
           <div class="text-gray-500 text-sm flex items-center gap-4 flex-wrap">
             <time class="flex items-center gap-1">

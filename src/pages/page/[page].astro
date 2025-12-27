@@ -17,8 +17,11 @@ export async function getStaticPaths() {
 }
 
 const { slice, page, totalPages } = Astro.props;
-const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+const BASE = import.meta.env.BASE_URL.endsWith('/')
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
 ---
+
 <Layout title={`Page ${page} | Yuanle Liu‘s Blog`}>
   <Header />
   <main class="container mx-auto px-4 py-8 max-w-4xl">
@@ -29,16 +32,30 @@ const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL :
     <PostList posts={slice} />
 
     <div class="flex justify-between items-center mt-10 text-sm">
-      {page > 1 ? (
-        <a href={page === 2 ? `${BASE}` : `${BASE}page/${page - 1}/`} class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800">← Newer</a>
-      ) : (
-        <span />
-      )}
-      {page < totalPages ? (
-        <a href={`${BASE}page/${page + 1}/`} class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800">Older →</a>
-      ) : (
-        <span />
-      )}
+      {
+        page > 1 ? (
+          <a
+            href={page === 2 ? `${BASE}` : `${BASE}page/${page - 1}/`}
+            class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800"
+          >
+            ← Newer
+          </a>
+        ) : (
+          <span />
+        )
+      }
+      {
+        page < totalPages ? (
+          <a
+            href={`${BASE}page/${page + 1}/`}
+            class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800"
+          >
+            Older →
+          </a>
+        ) : (
+          <span />
+        )
+      }
     </div>
   </main>
   <Footer />

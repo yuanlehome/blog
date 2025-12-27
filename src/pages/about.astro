@@ -5,81 +5,100 @@ import Footer from '../components/Footer.astro';
 import aboutData from '../data/about.yml';
 
 const { name, bio, socialLinks, whatIDo, techStack, journey } = aboutData;
-const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
+const BASE = import.meta.env.BASE_URL.endsWith('/')
+  ? import.meta.env.BASE_URL
+  : import.meta.env.BASE_URL + '/';
 ---
 
 <Layout title={`About ${name} - Yuanle Liu‘s Blog`}>
-    <Header />
-    <main class="container mx-auto px-4 py-12 max-w-4xl">
-        <section class="flex flex-col md:flex-row items-center gap-12 mb-16">
-            <div class="w-48 h-48 md:w-64 md:h-64 flex-shrink-0 relative">
-                <div class="absolute inset-0 bg-blue-100 dark:bg-blue-900 rounded-full blur-2xl opacity-50 animate-pulse"></div>
-                <img 
-                    src={`${BASE}placeholder-social.jpg`} 
-                    alt="Profile" 
-                    class="relative w-full h-full object-cover rounded-full border-4 border-white dark:border-gray-800 shadow-xl"
-                />
-            </div>
-            <div class="text-center md:text-left">
-                <h1 class="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">
-                    Hi, I'm {name}
-                </h1>
-                <p class="text-xl text-gray-600 dark:text-gray-300 mb-6 max-w-lg mx-auto md:mx-0">
-                    {bio}
-                </p>
-                <div class="flex gap-4 justify-center md:justify-start">
-                    {socialLinks.map((link: any) => (
-                        <a href={link.url} target="_blank" class={`px-6 py-2 text-white rounded-full transition-colors ${link.colorClass || 'bg-gray-700 hover:bg-gray-600'}`}>
-                            {link.name}
-                        </a>
-                    ))}
-                </div>
-            </div>
-        </section>
+  <Header />
+  <main class="container mx-auto px-4 py-12 max-w-4xl">
+    <section class="flex flex-col md:flex-row items-center gap-12 mb-16">
+      <div class="w-48 h-48 md:w-64 md:h-64 flex-shrink-0 relative">
+        <div
+          class="absolute inset-0 bg-blue-100 dark:bg-blue-900 rounded-full blur-2xl opacity-50 animate-pulse"
+        >
+        </div>
+        <img
+          src={`${BASE}placeholder-social.jpg`}
+          alt="Profile"
+          class="relative w-full h-full object-cover rounded-full border-4 border-white dark:border-gray-800 shadow-xl"
+        />
+      </div>
+      <div class="text-center md:text-left">
+        <h1
+          class="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400"
+        >
+          Hi, I'm {name}
+        </h1>
+        <p class="text-xl text-gray-600 dark:text-gray-300 mb-6 max-w-lg mx-auto md:mx-0">
+          {bio}
+        </p>
+        <div class="flex gap-4 justify-center md:justify-start">
+          {
+            socialLinks.map((link: any) => (
+              <a
+                href={link.url}
+                target="_blank"
+                class={`px-6 py-2 text-white rounded-full transition-colors ${link.colorClass || 'bg-gray-700 hover:bg-gray-600'}`}
+              >
+                {link.name}
+              </a>
+            ))
+          }
+        </div>
+      </div>
+    </section>
 
-        <section class="grid md:grid-cols-2 gap-8 mb-16">
-            <div
-                class="group relative overflow-hidden rounded-2xl border border-gray-200/80 bg-white/80 p-8 shadow-[0_10px_30px_rgb(15_23_42/0.04)] transition duration-200 ease-out hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_14px_36px_rgb(59_130_246/0.12)] dark:border-gray-800/80 dark:bg-gray-900/70 dark:shadow-[0_16px_38px_rgb(0_0_0/0.45)] dark:hover:border-blue-500/35 dark:hover:shadow-[0_18px_40px_rgb(59_130_246/0.18)]"
-            >
-                <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
-                    <span>🚀</span> {whatIDo.title}
-                </h2>
-                <p class="text-gray-600 dark:text-gray-300 leading-relaxed">
-                    {whatIDo.description}
-                </p>
-            </div>
-            <div
-                class="group relative overflow-hidden rounded-2xl border border-gray-200/80 bg-white/80 p-8 shadow-[0_10px_30px_rgb(15_23_42/0.04)] transition duration-200 ease-out hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_14px_36px_rgb(59_130_246/0.12)] dark:border-gray-800/80 dark:bg-gray-900/70 dark:shadow-[0_16px_38px_rgb(0_0_0/0.45)] dark:hover:border-blue-500/35 dark:hover:shadow-[0_18px_40px_rgb(59_130_246/0.18)]"
-            >
-                <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
-                    <span>🛠️</span> {techStack.title}
-                </h2>
-                <div class="flex flex-wrap gap-2">
-                    {techStack.skills.map((tech: string) => (
-                        <span class="px-3 py-1 bg-white dark:bg-gray-700 rounded-lg text-sm font-medium shadow-sm">
-                            {tech}
-                        </span>
-                    ))}
-                </div>
-            </div>
-        </section>
+    <section class="grid md:grid-cols-2 gap-8 mb-16">
+      <div
+        class="group relative overflow-hidden rounded-2xl border border-gray-200/80 bg-white/80 p-8 shadow-[0_10px_30px_rgb(15_23_42/0.04)] transition duration-200 ease-out hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_14px_36px_rgb(59_130_246/0.12)] dark:border-gray-800/80 dark:bg-gray-900/70 dark:shadow-[0_16px_38px_rgb(0_0_0/0.45)] dark:hover:border-blue-500/35 dark:hover:shadow-[0_18px_40px_rgb(59_130_246/0.18)]"
+      >
+        <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
+          <span>🚀</span>
+          {whatIDo.title}
+        </h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed">
+          {whatIDo.description}
+        </p>
+      </div>
+      <div
+        class="group relative overflow-hidden rounded-2xl border border-gray-200/80 bg-white/80 p-8 shadow-[0_10px_30px_rgb(15_23_42/0.04)] transition duration-200 ease-out hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_14px_36px_rgb(59_130_246/0.12)] dark:border-gray-800/80 dark:bg-gray-900/70 dark:shadow-[0_16px_38px_rgb(0_0_0/0.45)] dark:hover:border-blue-500/35 dark:hover:shadow-[0_18px_40px_rgb(59_130_246/0.18)]"
+      >
+        <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
+          <span>🛠️</span>
+          {techStack.title}
+        </h2>
+        <div class="flex flex-wrap gap-2">
+          {
+            techStack.skills.map((tech: string) => (
+              <span class="px-3 py-1 bg-white dark:bg-gray-700 rounded-lg text-sm font-medium shadow-sm">
+                {tech}
+              </span>
+            ))
+          }
+        </div>
+      </div>
+    </section>
 
-        <section class="prose dark:prose-invert max-w-none">
-            <h2 class="text-3xl font-bold mb-6 text-center">{journey.title}</h2>
-            <div class="relative border-l-2 border-gray-200 dark:border-gray-700 ml-4 space-y-8">
-                {journey.items.map((item: any) => (
-                    <div
-                        class="ml-6 relative rounded-xl border border-gray-200/70 bg-white/80 p-4 shadow-[0_10px_30px_rgb(15_23_42/0.03)] transition duration-200 ease-out hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_14px_32px_rgb(59_130_246/0.12)] dark:border-gray-800/70 dark:bg-gray-900/60 dark:shadow-[0_14px_30px_rgb(0_0_0/0.4)] dark:hover:border-blue-500/35 dark:hover:shadow-[0_16px_34px_rgb(59_130_246/0.16)]"
-                    >
-                        <div class={`absolute -left-[31px] top-1 w-4 h-4 rounded-full border-4 border-white dark:border-gray-900 ${item.color || 'bg-gray-300 dark:bg-gray-600'}`}></div>
-                        <h3 class="text-lg font-bold">{item.year}</h3>
-                        <p class="text-gray-600 dark:text-gray-400">
-                            <strong>{item.role}</strong>. {item.description}
-                        </p>
-                    </div>
-                ))}
+    <section class="prose dark:prose-invert max-w-none">
+      <h2 class="text-3xl font-bold mb-6 text-center">{journey.title}</h2>
+      <div class="relative border-l-2 border-gray-200 dark:border-gray-700 ml-4 space-y-8">
+        {
+          journey.items.map((item: any) => (
+            <div class="ml-6 relative rounded-xl border border-gray-200/70 bg-white/80 p-4 shadow-[0_10px_30px_rgb(15_23_42/0.03)] transition duration-200 ease-out hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_14px_32px_rgb(59_130_246/0.12)] dark:border-gray-800/70 dark:bg-gray-900/60 dark:shadow-[0_14px_30px_rgb(0_0_0/0.4)] dark:hover:border-blue-500/35 dark:hover:shadow-[0_16px_34px_rgb(59_130_246/0.16)]">
+              <div
+                class={`absolute -left-[31px] top-1 w-4 h-4 rounded-full border-4 border-white dark:border-gray-900 ${item.color || 'bg-gray-300 dark:bg-gray-600'}`}
+              />
+              <h3 class="text-lg font-bold">{item.year}</h3>
+              <p class="text-gray-600 dark:text-gray-400">
+                <strong>{item.role}</strong>. {item.description}
+              </p>
             </div>
-        </section>
-    </main>
-    <Footer />
+          ))
+        }
+      </div>
+    </section>
+  </main>
+  <Footer />
 </Layout>

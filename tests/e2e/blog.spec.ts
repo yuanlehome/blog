@@ -13,7 +13,8 @@ const ensureHashNavigation = async (page: any, tocSelector: string) => {
   const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
   await expect(page).toHaveURL(new RegExp(`${escapeRegex(encodedHash)}$`));
-  await expect.poll(async () => decodeURIComponent((await page.evaluate(() => location.hash)) || ''))
+  await expect
+    .poll(async () => decodeURIComponent((await page.evaluate(() => location.hash)) || ''))
     .toBe(targetHash);
 };
 
@@ -47,7 +48,9 @@ test.describe('Blog smoke journey', () => {
       const clipboard = await page.evaluate(() => navigator.clipboard.readText());
       expect(clipboard.trim()).toBe((rawCode || '').trim());
     } else {
-      test.info().annotations.push({ type: 'todo', description: 'Code block not available on page' });
+      test
+        .info()
+        .annotations.push({ type: 'todo', description: 'Code block not available on page' });
     }
 
     const html = page.locator('html');
@@ -58,8 +61,13 @@ test.describe('Blog smoke journey', () => {
 
     await page.goto('/blog/archive/');
     const toggledResolved = toggledClass ? 'dark' : 'light';
-    await page.waitForFunction((expected) => document.documentElement.dataset.theme === expected, toggledResolved);
-    const persistedDataTheme = await page.evaluate(() => document.documentElement.dataset.theme || '');
+    await page.waitForFunction(
+      (expected) => document.documentElement.dataset.theme === expected,
+      toggledResolved,
+    );
+    const persistedDataTheme = await page.evaluate(
+      () => document.documentElement.dataset.theme || '',
+    );
     expect(persistedDataTheme).toBe(toggledResolved);
   });
 
@@ -88,7 +96,9 @@ test.describe('Blog smoke journey', () => {
     }
   });
 
-  test('mobile floating actions are vertically ordered and non-overlapping', async ({ browser }) => {
+  test('mobile floating actions are vertically ordered and non-overlapping', async ({
+    browser,
+  }) => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await context.newPage();
 
@@ -105,9 +115,7 @@ test.describe('Blog smoke journey', () => {
     await firstLink.click();
     await expect(page.locator('[data-article]')).toBeVisible();
 
-    await page.evaluate(() =>
-      window.scrollTo(0, document.documentElement.scrollHeight)
-    );
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
 
     const stack = page.locator('[data-floating-action-stack]');
     await expect(stack).toBeVisible();
@@ -137,9 +145,7 @@ test.describe('Blog smoke journey', () => {
     await page.locator('[data-mobile-toc-close]').click();
     await expect(page.locator('[data-mobile-toc][data-open="true"]')).toHaveCount(0);
 
-    await page.evaluate(() =>
-      window.scrollTo(0, document.documentElement.scrollHeight)
-    );
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     const articleTop = await page.evaluate(() => {
       const article = document.querySelector('[data-article]');
       if (!article) return null;

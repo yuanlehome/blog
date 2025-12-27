@@ -2,7 +2,7 @@ name: PR Smoke Test
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 permissions:
   contents: read
@@ -11,8 +11,8 @@ jobs:
   pr-smoke-test:
     runs-on: ubuntu-latest
     env:
-      PORT: "4173"
-      BASE_URL: "http://127.0.0.1:4173"
+      PORT: '4173'
+      BASE_URL: 'http://127.0.0.1:4173'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,7 +20,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: '20'
           cache: npm
 
       - name: Install dependencies

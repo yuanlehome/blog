@@ -3,7 +3,9 @@
 @tailwind utilities;
 
 :root {
-  --code-font: 'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  --code-font:
+    'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
   --code-radius: 0.9rem;
   --code-border: 1px solid rgb(229 231 235 / 0.7);
   --code-bg: #f8fafc;
@@ -45,7 +47,10 @@ body {
   z-index: 30;
   background: var(--header-bg);
   border-bottom: 1px solid var(--header-border);
-  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .site-header.reduce-motion {

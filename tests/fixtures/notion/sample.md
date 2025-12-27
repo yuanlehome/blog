@@ -1,5 +1,5 @@
 ---
-title: "Notion Export Sample"
+title: 'Notion Export Sample'
 date: 2024-10-10
 status: draft
 notionId: sample-page

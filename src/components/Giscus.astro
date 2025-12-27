@@ -4,7 +4,8 @@ const { lang = 'zh-CN' } = Astro.props;
 
 <section id="comments" class="mt-12">
   <div class="border-t border-gray-200 dark:border-gray-700 pt-8">
-    <script is:inline
+    <script
+      is:inline
       src="https://giscus.app/client.js"
       data-repo="yuanlehome/blog"
       data-repo-id="R_kgDOQu2Jjw"
@@ -18,8 +19,7 @@ const { lang = 'zh-CN' } = Astro.props;
       data-theme="preferred_color_scheme"
       data-lang={lang}
       crossorigin="anonymous"
-      async
-    ></script>
+      async></script>
   </div>
 </section>
 
@@ -45,7 +45,7 @@ const { lang = 'zh-CN' } = Astro.props;
     const nextTheme = themeMap[activeTheme] ?? 'light';
     iframe.contentWindow?.postMessage(
       { giscus: { setConfig: { theme: nextTheme } } },
-      'https://giscus.app'
+      'https://giscus.app',
     );
   };
 

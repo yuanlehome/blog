@@ -32,14 +32,10 @@ describe('FloatingActionStack layout', () => {
     expect(container.className).toContain('pointer-events-auto');
 
     const buttons: HTMLButtonElement[] = Array.from(
-      container.querySelectorAll<HTMLButtonElement>('button')
+      container.querySelectorAll<HTMLButtonElement>('button'),
     );
     expect(buttons).toHaveLength(3);
-    expect(buttons.map((button) => button.dataset.action)).toEqual([
-      'top',
-      'toc',
-      'bottom',
-    ]);
+    expect(buttons.map((button) => button.dataset.action)).toEqual(['top', 'toc', 'bottom']);
 
     buttons.forEach((button) => {
       expect(button.className).toContain('h-11');

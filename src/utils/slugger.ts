@@ -1,4 +1,4 @@
-import GithubSlugger from "github-slugger";
+import GithubSlugger from 'github-slugger';
 
 export function createHeadingSlugger() {
   const slugger = new GithubSlugger();

@@ -1,5 +1,5 @@
 ---
-title: "Fixture Alpha"
+title: 'Fixture Alpha'
 date: 2024-12-01
 tags: [testing, math]
 status: published
@@ -14,8 +14,8 @@ console.log('alpha');
 ```
 
 | Col1 | Col2 |
-| --- | --- |
-| A | B |
+| ---- | ---- |
+| A    | B    |
 
 $$
 E = mc^2

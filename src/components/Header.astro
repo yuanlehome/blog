@@ -1,106 +1,118 @@
 ---
-const BASE = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
+const BASE = import.meta.env.BASE_URL.endsWith('/')
+  ? import.meta.env.BASE_URL
+  : import.meta.env.BASE_URL + '/';
 ---
+
 <header class="site-header header-variant-frosted" data-header>
-    <div class="container mx-auto px-5 py-3 sm:py-4 flex justify-between items-center max-w-5xl">
-        <a href={BASE} class="text-xl font-bold hover:text-blue-600 dark:hover:text-blue-400">Yuanle Liu‘s Blog</a>
-        <nav class="flex items-center gap-3">
-            <a href={BASE} class="hover:underline">Home</a>
-            <a href={`${BASE}archive/`} class="hover:underline">Archive</a>
-            <a href={`${BASE}about/`} class="hover:underline">About</a>
-            <a href={`${BASE}rss.xml`} class="hover:underline">RSS</a>
-            <button id="theme-toggle" class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800" aria-label="Toggle theme">
-                🖥️☀️
-            </button>
-        </nav>
-    </div>
+  <div class="container mx-auto px-5 py-3 sm:py-4 flex justify-between items-center max-w-5xl">
+    <a href={BASE} class="text-xl font-bold hover:text-blue-600 dark:hover:text-blue-400"
+      >Yuanle Liu‘s Blog</a
+    >
+    <nav class="flex items-center gap-3">
+      <a href={BASE} class="hover:underline">Home</a>
+      <a href={`${BASE}archive/`} class="hover:underline">Archive</a>
+      <a href={`${BASE}about/`} class="hover:underline">About</a>
+      <a href={`${BASE}rss.xml`} class="hover:underline">RSS</a>
+      <button
+        id="theme-toggle"
+        class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800"
+        aria-label="Toggle theme"
+      >
+        🖥️☀️
+      </button>
+    </nav>
+  </div>
 </header>
 
 <script>
-    const storageKey = "theme";
-    const order: Array<"light" | "dark"> = ["light", "dark"];
+  const storageKey = 'theme';
+  const order: Array<'light' | 'dark'> = ['light', 'dark'];
 
-    const getPreference = (): "light" | "dark" => {
-        try {
-            const value = localStorage.getItem(storageKey);
-            if (value === "light" || value === "dark") return value;
-        } catch (error) {
-            console.warn("Unable to read theme preference:", error);
-        }
-        return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    };
+  const getPreference = (): 'light' | 'dark' => {
+    try {
+      const value = localStorage.getItem(storageKey);
+      if (value === 'light' || value === 'dark') return value;
+    } catch (error) {
+      console.warn('Unable to read theme preference:', error);
+    }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  };
 
-    const getResolvedTheme = (): "light" | "dark" =>
-        document.documentElement.classList.contains("dark") ? "dark" : "light";
+  const getResolvedTheme = (): 'light' | 'dark' =>
+    document.documentElement.classList.contains('dark') ? 'dark' : 'light';
 
-    const iconFor = (preference: "light" | "dark") => (preference === "dark" ? "🌙" : "☀️");
+  const iconFor = (preference: 'light' | 'dark') => (preference === 'dark' ? '🌙' : '☀️');
 
-    const labelFor = (preference: "light" | "dark") => (preference === "dark" ? "Dark" : "Light");
+  const labelFor = (preference: 'light' | 'dark') => (preference === 'dark' ? 'Dark' : 'Light');
 
-    const render = (preference: "light" | "dark", resolvedOverride?: "light" | "dark") => {
-        const button = document.getElementById("theme-toggle");
-        if (!button) return;
-        const resolved: "light" | "dark" = resolvedOverride ?? getResolvedTheme();
-        const icon = iconFor(resolved);
-        const label = labelFor(resolved);
-        (button as HTMLElement).dataset.theme = preference;
-        button.textContent = `${icon} ${label}`;
-        button.setAttribute("aria-label", `Toggle theme (current: ${label})`);
-    };
+  const render = (preference: 'light' | 'dark', resolvedOverride?: 'light' | 'dark') => {
+    const button = document.getElementById('theme-toggle');
+    if (!button) return;
+    const resolved: 'light' | 'dark' = resolvedOverride ?? getResolvedTheme();
+    const icon = iconFor(resolved);
+    const label = labelFor(resolved);
+    (button as HTMLElement).dataset.theme = preference;
+    button.textContent = `${icon} ${label}`;
+    button.setAttribute('aria-label', `Toggle theme (current: ${label})`);
+  };
 
-    declare global {
-        interface Window {
-            __setTheme?: (preference: "light" | "dark") => void;
-        }
+  declare global {
+    interface Window {
+      __setTheme?: (preference: 'light' | 'dark') => void;
+    }
+  }
+
+  const applyPreference = (preference: 'light' | 'dark') => {
+    if (typeof window.__setTheme === 'function') {
+      window.__setTheme?.(preference);
+      return;
     }
 
-    const applyPreference = (preference: "light" | "dark") => {
-        if (typeof window.__setTheme === "function") {
-            window.__setTheme?.(preference);
-            return;
-        }
-
-        const resolved: "light" | "dark" = preference === "dark" ? "dark" : "light";
-        document.documentElement.classList.toggle("dark", resolved === "dark");
-        try {
-            localStorage.setItem(storageKey, preference);
-        } catch (error) {
-            console.warn("Unable to persist theme preference:", error);
-        }
-        window.dispatchEvent(new CustomEvent("themechange", { detail: { theme: preference, resolved } }));
-    };
-
-    const handleToggleClick = () => {
-        const current = getPreference();
-        const next = order[(order.indexOf(current) + 1) % order.length];
-        applyPreference(next);
-        render(next);
-    };
-
-    const header = document.querySelector<HTMLElement>("[data-header]");
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    const updateHeaderState = () => {
-        if (!header) return;
-        const isScrolled = window.scrollY > 6;
-        header.classList.toggle("is-scrolled", isScrolled);
-    };
-
-    document.getElementById("theme-toggle")?.addEventListener("click", handleToggleClick);
-    render(getPreference());
-
-    window.addEventListener("themechange", (event: Event) => {
-        const detail = (event as CustomEvent<{ theme?: "light" | "dark"; resolved?: "light" | "dark" }>).detail;
-        const theme: "light" | "dark" = detail?.theme ?? getPreference();
-        const resolved: "light" | "dark" | undefined = detail?.resolved;
-        render(theme, resolved);
-    });
-
-    updateHeaderState();
-    const scrollHandler = () => updateHeaderState();
-    window.addEventListener("scroll", scrollHandler, { passive: true });
-
-    if (prefersReducedMotion) {
-        header?.classList.add("reduce-motion");
+    const resolved: 'light' | 'dark' = preference === 'dark' ? 'dark' : 'light';
+    document.documentElement.classList.toggle('dark', resolved === 'dark');
+    try {
+      localStorage.setItem(storageKey, preference);
+    } catch (error) {
+      console.warn('Unable to persist theme preference:', error);
     }
+    window.dispatchEvent(
+      new CustomEvent('themechange', { detail: { theme: preference, resolved } }),
+    );
+  };
+
+  const handleToggleClick = () => {
+    const current = getPreference();
+    const next = order[(order.indexOf(current) + 1) % order.length];
+    applyPreference(next);
+    render(next);
+  };
+
+  const header = document.querySelector<HTMLElement>('[data-header]');
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const updateHeaderState = () => {
+    if (!header) return;
+    const isScrolled = window.scrollY > 6;
+    header.classList.toggle('is-scrolled', isScrolled);
+  };
+
+  document.getElementById('theme-toggle')?.addEventListener('click', handleToggleClick);
+  render(getPreference());
+
+  window.addEventListener('themechange', (event: Event) => {
+    const detail = (event as CustomEvent<{ theme?: 'light' | 'dark'; resolved?: 'light' | 'dark' }>)
+      .detail;
+    const theme: 'light' | 'dark' = detail?.theme ?? getPreference();
+    const resolved: 'light' | 'dark' | undefined = detail?.resolved;
+    render(theme, resolved);
+  });
+
+  updateHeaderState();
+  const scrollHandler = () => updateHeaderState();
+  window.addEventListener('scroll', scrollHandler, { passive: true });
+
+  if (prefersReducedMotion) {
+    header?.classList.add('reduce-motion');
+  }
 </script>
