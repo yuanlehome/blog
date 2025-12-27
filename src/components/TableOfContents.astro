@@ -1,24 +1,13 @@
 ---
-import { createHeadingSlugger } from '../utils/slugger';
-
-interface Heading {
-  depth: number;
-  slug: string;
-  text: string;
-}
+import TocTree from './TocTree.astro';
+import { buildTocForest, type Heading } from '../utils/tocTree';
 
 interface Props {
   headings: Heading[];
 }
 
-const slugger = createHeadingSlugger();
-const headings = Astro.props.headings
-  .filter((heading) => heading.depth <= 3)
-  .map((heading) => ({
-    ...heading,
-    slug: slugger(heading.text),
-    indentClass: heading.depth === 3 ? 'pl-4' : '',
-  }));
+// Build tree structure supporting multiple H1s
+const tocForest = buildTocForest(Astro.props.headings);
 
 const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) to avoid overlap
 ---
@@ -35,29 +24,12 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
         <p class="text-xs text-gray-500 dark:text-gray-400">快速跳转到你关心的章节</p>
       </div>
       {
-        headings.length === 0 ? (
+        tocForest.length === 0 ? (
           <p class="text-sm text-gray-500 dark:text-gray-400">本文暂无目录。</p>
         ) : (
           <nav aria-label="文章目录" class="flex-1 min-h-0 overflow-y-auto pr-1" data-toc-scroll>
-            <ol class="space-y-2 text-sm">
-              {headings.map((heading) => (
-                <li>
-                  <a
-                    href={`#${heading.slug}`}
-                    data-toc-link
-                    data-target={heading.slug}
-                    title={heading.text}
-                    class={`group flex items-start gap-2 truncate text-gray-700 underline-offset-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:text-gray-200 dark:focus-visible:ring-offset-gray-900 ${heading.indentClass}`}
-                  >
-                    <span class="mt-0.5 text-xs text-gray-400 transition-colors group-data-[active=true]:text-blue-600 dark:text-gray-500 dark:group-data-[active=true]:text-blue-400">
-                      #
-                    </span>
-                    <span class="flex-1 truncate" data-title>
-                      {heading.text}
-                    </span>
-                  </a>
-                </li>
-              ))}
+            <ol class="space-y-3 text-sm">
+              <TocTree nodes={tocForest} />
             </ol>
           </nav>
         )
@@ -167,7 +139,7 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
 
   if (headings.length > 0) {
     applyScrollMargin();
-    setActive(headings[0].id);
+
     const rootMarginTop =
       (tocContainer && getComputedStyle(tocContainer).getPropertyValue('--toc-offset')) || '96px';
     const observer = new IntersectionObserver(

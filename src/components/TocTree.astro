@@ -1,0 +1,59 @@
+---
+import type { TocNode } from '../utils/tocTree';
+
+interface Props {
+  nodes: TocNode[];
+  depth?: number;
+}
+
+const { nodes, depth = 0 } = Astro.props;
+---
+
+{
+  nodes.map((node) => (
+    <li>
+      <a
+        href={`#${node.slug}`}
+        data-toc-link
+        data-target={node.slug}
+        title={node.text}
+        class:list={[
+          'group flex items-start gap-2 truncate underline-offset-2 transition',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
+          'dark:focus-visible:ring-offset-gray-900',
+          {
+            // H1 - Chapter title style
+            'text-base font-semibold text-gray-900 dark:text-gray-100': node.depth === 1,
+            // H2 - Regular style with indent
+            'text-sm text-gray-700 dark:text-gray-200 pl-3': node.depth === 2,
+            // H3 - Smaller with more indent
+            'text-sm text-gray-600 dark:text-gray-300 pl-6': node.depth === 3,
+            // H4+ - Even smaller with more indent
+            'text-xs text-gray-500 dark:text-gray-400 pl-9': node.depth >= 4,
+          },
+        ]}
+      >
+        <span
+          class:list={[
+            'mt-0.5 text-xs transition-colors',
+            'group-data-[active=true]:text-blue-600 dark:group-data-[active=true]:text-blue-400',
+            {
+              'text-gray-600 dark:text-gray-400': node.depth === 1,
+              'text-gray-400 dark:text-gray-500': node.depth > 1,
+            },
+          ]}
+        >
+          #
+        </span>
+        <span class="flex-1 truncate" data-title>
+          {node.text}
+        </span>
+      </a>
+      {node.children.length > 0 && (
+        <ol class="mt-1 space-y-1">
+          <Astro.self nodes={node.children} depth={depth + 1} />
+        </ol>
+      )}
+    </li>
+  ))
+}
