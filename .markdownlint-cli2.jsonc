@@ -9,8 +9,8 @@
     "public/**",
     ".astro/**",
 
-    "src/content/blog/notion/**",
-    "public/images/notion/**",
+    "src/content/blog/*/**",
+    "public/images/*/**",
     "README.md",
     "tests/fixtures"
   ]
