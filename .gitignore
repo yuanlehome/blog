@@ -1,7 +1,7 @@
 # build output
 dist/
 server/
-.astro/data-store.json
+.astro/
 coverage/
 test-results/
 
