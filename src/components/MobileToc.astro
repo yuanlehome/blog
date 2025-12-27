@@ -1,6 +1,6 @@
 ---
 import TocTree from './TocTree.astro';
-import { buildTocForest, flattenForest, type Heading } from '../utils/tocTree';
+import { buildTocForest, type Heading } from '../utils/tocTree';
 
 interface Props {
   headings: Heading[];
@@ -10,7 +10,6 @@ interface Props {
 
 // Build tree structure supporting multiple H1s
 const tocForest = buildTocForest(Astro.props.headings);
-const allNodes = flattenForest(tocForest);
 
 const showTrigger = Astro.props.showTrigger ?? false;
 ---
