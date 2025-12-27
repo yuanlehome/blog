@@ -11,6 +11,7 @@ const blog = defineCollection({
     comments: z.boolean().optional(),
     source_url: z.string().url().optional(),
     source_author: z.string().optional(),
+    source: z.enum(['original', 'wechat', 'notion']).optional(),
     imported_at: z.string().optional(),
   }),
 });

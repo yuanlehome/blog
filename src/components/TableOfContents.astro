@@ -1,6 +1,4 @@
 ---
-import { createHeadingSlugger } from '../utils/slugger';
-
 interface Heading {
   depth: number;
   slug: string;
@@ -11,12 +9,10 @@ interface Props {
   headings: Heading[];
 }
 
-const slugger = createHeadingSlugger();
 const headings = Astro.props.headings
   .filter((heading) => heading.depth <= 3)
   .map((heading) => ({
     ...heading,
-    slug: slugger(heading.text),
     indentClass: heading.depth === 3 ? 'pl-4' : '',
   }));
 
