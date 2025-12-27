@@ -281,20 +281,19 @@ async function downloadImage(
     const buffer = Buffer.from(await res.arrayBuffer());
 
     if (provider === 'wechat') {
+      const contentTypeIsImage = contentType.toLowerCase().startsWith('image/');
       const isPlaceholder =
-        buffer.length === 0 ||
-        buffer.length < WECHAT_PLACEHOLDER_THRESHOLD ||
-        (contentType && !contentType.toLowerCase().startsWith('image/'));
+        buffer.length === 0 || buffer.length < WECHAT_PLACEHOLDER_THRESHOLD || !contentTypeIsImage;
       if (isPlaceholder) {
         console.warn(
-          `Wechat image suspected placeholder (size=${buffer.length} bytes, content-type=${contentType})`,
+          `WeChat image suspected placeholder (size=${buffer.length} bytes, content-type=${contentType})`,
         );
         return null;
       }
     }
 
-    const extFromMime =
-      MIME_TYPE_EXTENSION_MAP[contentType.split(';')[0]?.trim().toLowerCase() || ''];
+    const mimeType = (contentType.split(';')[0] || '').trim().toLowerCase();
+    const extFromMime = MIME_TYPE_EXTENSION_MAP[mimeType];
     const ext = extFromUrl || extFromMime || '.jpg';
     const dir = path.join(imageRoot, slug);
     const filename = `${String(index + 1).padStart(3, '0')}${ext}`;
