@@ -49,6 +49,16 @@ const JS_INITIALIZATION_DELAY = 2000;
 const MIN_CONTENT_LENGTH = 100;
 const CONTENT_WAIT_TIMEOUT = 30000;
 const MAX_URL_LENGTH_FOR_FILENAME = 50;
+const WECHAT_PLACEHOLDER_THRESHOLD = 60 * 1024; // ~60KB placeholder guard
+
+const MIME_TYPE_EXTENSION_MAP: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'image/bmp': '.bmp',
+};
 
 function parseArgs(): string {
   const url =
@@ -243,10 +253,50 @@ async function downloadImage(
     if (!finalUrl) return null;
 
     const extFromUrl = path.extname(new URL(finalUrl).pathname).split('?')[0];
-    const ext = extFromUrl || '.jpg';
-    const dir = path.join(imageRoot, slug);
-    fs.mkdirSync(dir, { recursive: true });
+    const buildHeaders = (): Record<string, string> => {
+      if (provider === 'wechat') {
+        return {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          Referer: 'https://mp.weixin.qq.com/',
+          Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        };
+      }
+      return {
+        'User-Agent':
+          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
+        Referer: 'https://www.zhihu.com',
+      };
+    };
 
+    const res = await fetch(finalUrl, { headers: buildHeaders() });
+
+    if (!res.ok) {
+      console.warn(`Failed to fetch image ${finalUrl}: ${res.status}`);
+      return null;
+    }
+
+    const contentType = res.headers.get('content-type') || '';
+    const buffer = Buffer.from(await res.arrayBuffer());
+
+    if (provider === 'wechat') {
+      const isPlaceholder =
+        buffer.length === 0 ||
+        buffer.length < WECHAT_PLACEHOLDER_THRESHOLD ||
+        (contentType && !contentType.toLowerCase().startsWith('image/'));
+      if (isPlaceholder) {
+        console.warn(
+          `Wechat image suspected placeholder (size=${buffer.length} bytes, content-type=${contentType})`,
+        );
+        return null;
+      }
+    }
+
+    const extFromMime =
+      MIME_TYPE_EXTENSION_MAP[contentType.split(';')[0]?.trim().toLowerCase() || ''];
+    const ext = extFromUrl || extFromMime || '.jpg';
+    const dir = path.join(imageRoot, slug);
     const filename = `${String(index + 1).padStart(3, '0')}${ext}`;
     const localPath = path.join(dir, filename);
 
@@ -254,20 +304,7 @@ async function downloadImage(
       return `/images/${provider}/${slug}/${filename}`;
     }
 
-    const res = await fetch(finalUrl, {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
-        Referer: 'https://www.zhihu.com',
-      },
-    });
-
-    if (!res.ok) {
-      console.warn(`Failed to fetch image ${finalUrl}: ${res.status}`);
-      return null;
-    }
-
-    const buffer = Buffer.from(await res.arrayBuffer());
+    fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(localPath, buffer);
     return `/images/${provider}/${slug}/${filename}`;
   } catch (error) {
@@ -275,6 +312,29 @@ async function downloadImage(
     return null;
   }
 }
+
+/**
+ * Playwright fallback design (manual use):
+ * --------------------------------------
+ * When direct HTTP download returns a suspected placeholder, launch Playwright,
+ * open the WeChat article URL with a trusted Referer, listen for network
+ * responses from mmbiz.qpic.cn, and persist the real response body:
+ *
+ * await withBrowser(async (context) => {
+ *   const page = await context.newPage();
+ *   let imageBody: Buffer | null = null;
+ *   page.on('response', async (resp) => {
+ *     if (resp.url().includes('mmbiz.qpic.cn') && resp.request().resourceType() === 'image') {
+ *       imageBody = Buffer.from(await resp.body());
+ *     }
+ *   });
+ *   await page.goto(articleUrl, { waitUntil: 'networkidle', referer: 'https://mp.weixin.qq.com/' });
+ *   await page.waitForTimeout(2000);
+ *   if (imageBody) fs.writeFileSync(targetPath, imageBody);
+ * });
+ *
+ * This stays out of CI/build paths and can be opted in manually when needed.
+ */
 
 const transformMath: Plugin<[], any> = () => (tree: any) => {
   visit(tree, 'element', (node: HastElement, index: number | null | undefined, parent: any) => {
