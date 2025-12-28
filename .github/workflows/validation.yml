@@ -1,15 +1,68 @@
-name: PR Smoke Test
+name: Validation
 
 on:
   pull_request:
+    branches: [main]
+  push:
     branches: [main]
 
 permissions:
   contents: read
 
+# Prevent concurrent runs for the same PR/branch
+concurrency:
+  group: validation-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  pr-smoke-test:
+  validate:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system dependencies (if cached)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Type check
+        run: npm run check
+
+      - name: Lint and format check
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      - name: E2E tests
+        run: npm run test:e2e
+
+  smoke-test:
+    runs-on: ubuntu-latest
+    needs: validate
     env:
       PORT: '4173'
       BASE_URL: 'http://127.0.0.1:4173'
@@ -20,7 +73,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
 
       - name: Install dependencies
@@ -33,9 +86,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # 使用 npx 直接起服务，不污染依赖
           nohup npx --yes http-server dist -p "${PORT}" -a 127.0.0.1 -c-1 > server.log 2>&1 &
-          # 等待服务就绪
           for i in {1..30}; do
             if curl -sS "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
               echo "Server is up."
@@ -61,37 +112,32 @@ jobs:
               "${url}"
           }
 
-          # ---- 1) 自动探测 base prefix（Astro 常见：/blog）----
+          # Detect base prefix
           PREFIX=""
           if [[ -f "dist/blog/index.html" ]]; then
             PREFIX="/blog"
           fi
           echo "Detected PREFIX='${PREFIX}'"
 
-          # 根据 dist 文件是否存在，决定 URL 是否要测
           url_for_dir() {
-            # 输入：/about/ -> 输出：$BASE_URL$PREFIX/about/
             local p="$1"
             echo "${BASE_URL}${PREFIX}${p}"
           }
           exists_dir() {
-            # 输入：/about/ -> 检查 dist$PREFIX/about/index.html 是否存在
             local p="$1"
             [[ -f "dist${PREFIX}${p}index.html" ]]
           }
           exists_file() {
-            # 输入：/rss.xml -> 检查 dist$PREFIX/rss.xml 是否存在
             local p="$1"
             [[ -f "dist${PREFIX}${p}" ]]
           }
 
-          # ---- 2) 首页：必须检查 + 内容断言（避免 200 但内容错误）----
+          # Homepage with content assertion
           home_url="${BASE_URL}${PREFIX}/"
           home_html="$(curl_check "${home_url}")"
-          # 用 here-string 避免 pipefail + broken pipe
           grep -q "Recent Posts" <<<"${home_html}"
 
-          # ---- 3) 稳定页面：只测“确实存在”的路由，避免硬编码导致 404 ----
+          # Stable pages
           for p in "/archive/" "/about/"; do
             if exists_dir "${p}"; then
               curl_check "$(url_for_dir "${p}")" > /dev/null
@@ -100,7 +146,7 @@ jobs:
             fi
           done
 
-          # ---- 4) RSS：优先 prefix 下，其次根路径（两者都不存在就跳过/失败可二选一）----
+          # RSS
           rss_ok="false"
           if exists_file "/rss.xml"; then
             curl_check "${BASE_URL}${PREFIX}/rss.xml" > /dev/null
@@ -113,7 +159,7 @@ jobs:
             echo "Skip RSS (rss.xml not found in dist)"
           fi
 
-          # ---- 5) Sitemap：支持 sitemap.xml / sitemap-index.xml，并兼容 prefix ----
+          # Sitemap
           sitemap_ok="false"
           for sm in "/sitemap.xml" "/sitemap-index.xml"; do
             if [[ -f "dist${PREFIX}${sm}" ]]; then
@@ -129,11 +175,11 @@ jobs:
             fi
           done
           if [[ "${sitemap_ok}" != "true" ]]; then
-            echo "No sitemap found in dist (sitemap.xml or sitemap-index.xml)"
+            echo "No sitemap found in dist"
             exit 1
           fi
 
-          # ---- 6) 文章/内容页：优先 flashattention，否则自动选一个非首页 html ----
+          # Article/content page
           article_path="/flashattention/"
           article_url="${BASE_URL}${PREFIX}${article_path}"
           article_ok="false"
@@ -143,7 +189,6 @@ jobs:
             grep -q "FlashAttention" <<<"${article_html}"
             article_ok="true"
           else
-            # 自动挑一个内容页：找 dist$PREFIX 下的某个非 index 的 html
             cand="$(find "dist${PREFIX}" -type f -name "*.html" \
               ! -path "*/index.html" \
               ! -path "*/404.html" \
@@ -151,9 +196,7 @@ jobs:
               | head -n 1 || true)"
             if [[ -n "${cand}" ]]; then
               rel="${cand#dist${PREFIX}}"
-              # 对于 .../foo.html -> URL /foo.html；对于 .../bar/index.html 已排除
               article_html="$(curl_check "${BASE_URL}${PREFIX}${rel}")"
-              # 最低限度内容断言：HTML 必须包含 <html 或 <article（尽量不脆弱）
               grep -qiE "<html|<article" <<<"${article_html}"
               echo "Picked content page: ${BASE_URL}${PREFIX}${rel}"
               article_ok="true"
@@ -165,7 +208,7 @@ jobs:
             exit 1
           fi
 
-          echo "✅ PR smoke test passed."
+          echo "✅ Smoke test passed."
 
       - name: Dump server log on failure
         if: failure()
