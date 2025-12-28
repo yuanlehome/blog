@@ -81,9 +81,10 @@ const showTrigger = Astro.props.showTrigger ?? false;
   const tocCloseButton = document.querySelector(
     '[data-mobile-toc-close]',
   ) as HTMLButtonElement | null;
-  const tocLinks = Array.from(
-    document.querySelectorAll('[data-mobile-toc-link]'),
-  ) as HTMLAnchorElement[];
+  const getTocLinks = () =>
+    Array.from(
+      (tocDrawer ?? tocRoot)?.querySelectorAll('[data-mobile-toc-link]') ?? [],
+    ) as HTMLAnchorElement[];
   const body = document.body;
   const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
   const prefersReduce = reducedMotionQuery.matches;
@@ -142,7 +143,7 @@ const showTrigger = Astro.props.showTrigger ?? false;
   };
 
   const applyScrollMargin = () => {
-    const headings = tocLinks
+    const headings = getTocLinks()
       .map((link) => document.getElementById(link.dataset.target || ''))
       .filter((el): el is HTMLElement => Boolean(el));
     headings.forEach((heading) => {
@@ -179,15 +180,20 @@ const showTrigger = Astro.props.showTrigger ?? false;
     if (event.target === tocBackdrop) setOpen(false);
   });
 
-  tocLinks.forEach((link) =>
-    link.addEventListener('click', (event) => {
-      const targetId = link.dataset.target;
-      if (!targetId) return;
-      event.preventDefault();
-      setOpen(false);
-      scrollToHeading(targetId);
-    }),
-  );
+  const handleTocLinkClick = (event: Event) => {
+    const link = event.currentTarget as HTMLAnchorElement | null;
+    const targetId = link?.dataset.target;
+    if (!targetId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setOpen(false);
+    requestAnimationFrame(() => requestAnimationFrame(() => scrollToHeading(targetId)));
+  };
+
+  getTocLinks().forEach((link) => {
+    link.removeEventListener('click', handleTocLinkClick);
+    link.addEventListener('click', handleTocLinkClick);
+  });
 
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') setOpen(false);

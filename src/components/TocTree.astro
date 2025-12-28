@@ -15,6 +15,7 @@ const { nodes, depth = 0 } = Astro.props;
       <a
         href={`#${node.slug}`}
         data-toc-link
+        data-mobile-toc-link
         data-target={node.slug}
         title={node.text}
         class:list={[

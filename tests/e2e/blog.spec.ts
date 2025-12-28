@@ -99,6 +99,60 @@ test.describe('Blog smoke journey', () => {
     await context.close();
   });
 
+  test('mobile toc navigates to heading', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 375, height: 812 } });
+    const page = await context.newPage();
+
+    await page.goto('/');
+    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
+    if (await notFoundHeading.count()) {
+      const baseLink = page.locator('a[href="/blog/"]');
+      if (await baseLink.count()) {
+        await baseLink.first().click();
+      }
+    }
+
+    const firstLink = page.locator('#post-list li a').first();
+    await firstLink.click();
+    await expect(page.locator('[data-article]')).toBeVisible();
+
+    const tocButton = page.locator('[data-action="toc"]');
+    await expect(tocButton).toBeVisible();
+    await tocButton.click();
+
+    const toc = page.locator('[data-mobile-toc][data-open="true"]');
+    await expect(toc).toBeVisible();
+
+    const tocLink = toc.locator('[data-mobile-toc-link]').first();
+    await expect(tocLink).toBeVisible();
+    const rawHash = await tocLink.getAttribute('href');
+    if (!rawHash) {
+      await context.close();
+      return;
+    }
+    const targetHash = rawHash.startsWith('#') ? rawHash : `#${rawHash}`;
+    const targetId = targetHash.replace(/^#/, '');
+    const encodedHash = `#${encodeURIComponent(targetId)}`;
+    const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    await tocLink.click();
+
+    await expect(page).toHaveURL(new RegExp(`${escapeRegex(encodedHash)}$`));
+    await expect
+      .poll(async () => decodeURIComponent((await page.evaluate(() => location.hash)) || ''))
+      .toBe(targetHash);
+
+    const headingBox = await page.locator(`#${targetId}`).boundingBox();
+    const viewportHeight = await page.evaluate(() => window.innerHeight);
+    expect(headingBox).toBeTruthy();
+    if (headingBox) {
+      expect(headingBox.y).toBeGreaterThanOrEqual(0);
+      expect(headingBox.y).toBeLessThanOrEqual(viewportHeight - 40);
+    }
+
+    await context.close();
+  });
+
   test('search box is noted when available', async ({ page }) => {
     await page.goto('/');
     const searchInput = page.locator('input[type="search"]');
