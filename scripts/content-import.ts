@@ -11,9 +11,11 @@ import rehypeRemark from 'rehype-remark';
 import slugify from 'slugify';
 import { unified, type Plugin } from 'unified';
 import { visit } from 'unist-util-visit';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import crypto from 'crypto';
 import sharp from 'sharp';
+import { JSDOM } from 'jsdom';
+import readline from 'readline';
 
 type HastElement = {
   type?: string;
@@ -27,8 +29,10 @@ type ExtractedArticle = {
   title: string;
   author?: string;
   published?: string;
+  updated?: string;
   html: string;
   baseUrl?: string;
+  sourceTitle?: string;
 };
 
 type Provider = {
@@ -48,7 +52,7 @@ const MAX_RETRIES = 3;
 const BASE_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 10000;
 const JS_INITIALIZATION_DELAY = 2000;
-const MIN_CONTENT_LENGTH = 100;
+const MIN_CONTENT_LENGTH = 100; // Minimum meaningful text length when choosing main article content
 const CONTENT_WAIT_TIMEOUT = 30000;
 const MAX_URL_LENGTH_FOR_FILENAME = 50;
 const WECHAT_PLACEHOLDER_THRESHOLD = 60 * 1024; // ~60KB placeholder guard
@@ -62,6 +66,7 @@ const WECHAT_REQUEST_DELAY_MAX_MS = 400;
 const WECHAT_CONCURRENCY_LIMIT = 2;
 const WECHAT_PLACEHOLDER_MIN_WIDTH = 200; // WeChat placeholder is typically small
 const WECHAT_PLACEHOLDER_MIN_HEIGHT = 150;
+const KATEX_TEX_ENCODING = 'application/x-tex';
 
 const MIME_TYPE_EXTENSION_MAP: Record<string, string> = {
   'image/jpeg': '.jpg',
@@ -128,18 +133,55 @@ function getProviderConfig(provider: string): ProviderConfig {
   );
 }
 
-function parseArgs(): string {
-  const url =
+type ImportArgs = {
+  url: string;
+  force: boolean;
+  dryRun: boolean;
+  useFirstImageAsCover: boolean;
+};
+
+async function parseArgs(): Promise<ImportArgs> {
+  const argUrl =
     process.argv.find((arg) => arg.startsWith('--url='))?.replace('--url=', '') ||
     process.env.URL ||
     process.env.url ||
     process.argv[2];
 
+  const force = process.argv.includes('--force');
+  const dryRun = process.argv.includes('--dry-run');
+  const useFirstImageAsCover = process.argv.includes('--use-first-image-as-cover');
+  let url = argUrl;
+
+  if (!url && !process.stdin.isTTY) {
+    const stdin = await new Promise<string>((resolve) => {
+      let data = '';
+      process.stdin.setEncoding('utf8');
+      process.stdin.on('data', (chunk) => {
+        data += String(chunk);
+      });
+      process.stdin.on('end', () => resolve(data.trim()));
+      process.stdin.on('error', () => resolve(''));
+    });
+    if (stdin) {
+      url = stdin;
+    }
+  }
+
+  if (!url && process.stdin.isTTY) {
+    url = await new Promise((resolve) => {
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+      rl.question('Enter article URL: ', (answer) => {
+        rl.close();
+        resolve(answer.trim());
+      });
+    });
+  }
+
   if (!url) {
     throw new Error('Usage: npm run import:content -- --url=<URL>');
   }
 
-  return url;
+  return { url, force, dryRun, useFirstImageAsCover };
 }
 
 function hasClass(node: HastElement, className: string) {
@@ -209,6 +251,161 @@ function isFromDomain(url: string, domain: string): boolean {
   } catch {
     return false;
   }
+}
+
+function pickFirstText(document: Document, selectors: string[]) {
+  for (const selector of selectors) {
+    const el = document.querySelector(selector);
+    const text = el?.textContent?.trim();
+    if (text) return text;
+  }
+  return '';
+}
+
+function pickFirstAttr(document: Document, selectors: string[], attr: string) {
+  for (const selector of selectors) {
+    const el = document.querySelector(selector) as HTMLElement | HTMLMetaElement | null;
+    const value = el?.getAttribute(attr)?.trim();
+    if (value) return value;
+  }
+  return '';
+}
+
+function removeNodes(root: Document | Element, selectors: string[]) {
+  selectors.forEach((selector) => {
+    root.querySelectorAll(selector).forEach((node) => node.remove());
+  });
+}
+
+type ContentCandidate = { el: HTMLElement; score: number };
+
+function selectMainContent(document: Document): HTMLElement | null {
+  const candidates = [
+    'article',
+    'main article',
+    'main',
+    '[data-article]',
+    '.article',
+    '.article-body',
+    '.post',
+    '.post-content',
+    '.blog-post',
+    '.markdown',
+    '.mdx',
+    '.prose',
+    '.content',
+    '.entry-content',
+  ];
+
+  let best: ContentCandidate | null = null;
+
+  const evaluate = (el: Element) => {
+    const textLength = el.textContent?.trim().length || 0;
+    // Ignore containers that are too short to be real article bodies (navigation, headers, etc.)
+    if (textLength < MIN_CONTENT_LENGTH) return;
+    if (!best || textLength > best.score) {
+      best = { el: el as HTMLElement, score: textLength };
+    }
+  };
+
+  for (const selector of candidates) {
+    document.querySelectorAll(selector).forEach((el) => evaluate(el));
+  }
+
+  if (!best) {
+    document.querySelectorAll('div').forEach((el) => evaluate(el));
+  }
+
+  const winner = best as ContentCandidate | null;
+  return winner ? winner.el : null;
+}
+
+function stripNoise(root: Element) {
+  const NOISE_SELECTORS = [
+    'nav',
+    'footer',
+    'aside',
+    '.toc',
+    '#toc',
+    '.table-of-contents',
+    '.TableOfContents',
+    '.toc-container',
+    '.TableOfContents__root',
+    '.breadcrumb',
+    '.breadcrumbs',
+    '.comment',
+    '.comments',
+    '#comments',
+    '[data-component="comments"]',
+    '.related',
+    '.related-posts',
+    '.post-navigation',
+    '.next-post',
+    '.prev-post',
+    '.subscribe',
+    '.newsletter',
+    '.cookie',
+    '.cookie-banner',
+    '.share',
+    '.social',
+    '.ad',
+    '.ads',
+    '.advert',
+    '.promo',
+  ];
+  removeNodes(root, NOISE_SELECTORS);
+}
+
+export function extractArticleFromHtml(html: string, url: string): ExtractedArticle {
+  const dom = new JSDOM(html);
+  const { document } = dom.window;
+
+  removeNodes(document, ['script', 'style', 'noscript', 'template']);
+  const sourceUrl = new URL(url);
+  const title =
+    pickFirstText(document, ['main h1', 'article h1', 'h1']) ||
+    pickFirstAttr(document, ['meta[property="og:title"]', 'meta[name="title"]'], 'content') ||
+    document.title ||
+    sourceUrl.hostname;
+
+  const author =
+    pickFirstAttr(
+      document,
+      ['meta[name="author"]', 'meta[property="article:author"]'],
+      'content',
+    ) || pickFirstText(document, ['[rel="author"]', '.author', '.post-author', '.byline']);
+
+  const published =
+    pickFirstAttr(
+      document,
+      [
+        'meta[property="article:published_time"]',
+        'meta[name="publish_date"]',
+        'meta[name="date"]',
+        'time[datetime]',
+      ],
+      'content',
+    ) || pickFirstAttr(document, ['time[datetime]'], 'datetime');
+
+  const updated =
+    pickFirstAttr(
+      document,
+      ['meta[property="article:modified_time"]', 'meta[name="lastmod"]'],
+      'content',
+    ) || pickFirstAttr(document, ['time[datetime][itemprop="dateModified"]'], 'datetime');
+
+  const main = selectMainContent(document) || document.body;
+  stripNoise(main);
+
+  return {
+    title,
+    author,
+    published,
+    updated,
+    html: main.innerHTML,
+    baseUrl: sourceUrl.origin,
+    sourceTitle: sourceUrl.hostname,
+  };
 }
 
 /**
@@ -297,6 +494,31 @@ async function detectBlockedPage(page: Page): Promise<string | null> {
 
 function resolveImageSrc(node: HastElement, base?: string) {
   const props = node.properties || {};
+  const pickFromSrcset = (value?: string) => {
+    if (!value) return '';
+    const candidates = value
+      .split(',')
+      .map((part) => part.trim())
+      .map((part) => {
+        const [urlPart, size] = part.split(/\s+/);
+        const descriptor = size?.trim() || '';
+        let score = parseFloat(descriptor);
+        if (descriptor.endsWith('w')) {
+          score = parseFloat(descriptor.slice(0, -1));
+        } else if (descriptor.endsWith('x')) {
+          score = parseFloat(descriptor.slice(0, -1)) * 1000;
+        }
+        const width = Number.isFinite(score) ? score : -1;
+        return { url: urlPart, width };
+      })
+      .filter((item) => item.url);
+    if (!candidates.length) {
+      console.warn('No usable entries found in srcset; falling back to original src.');
+      return '';
+    }
+    candidates.sort((a, b) => b.width - a.width);
+    return candidates[0].url;
+  };
   // Priority order for WeChat lazy-loaded images:
   // 1. data-src (primary lazy-load attribute)
   // 2. data-original (alternative lazy-load attribute)
@@ -310,7 +532,15 @@ function resolveImageSrc(node: HastElement, base?: string) {
     props.src,
     props['data-actual-url'],
   ];
-  const url = candidates.find((u) => typeof u === 'string' && u.trim().length > 0);
+  let url = candidates.find((u) => typeof u === 'string' && u.trim().length > 0);
+
+  if (!url && typeof props.srcset === 'string') {
+    url = pickFromSrcset(props.srcset);
+  }
+  if (!url && typeof props['data-srcset'] === 'string') {
+    url = pickFromSrcset(props['data-srcset'] as string);
+  }
+
   // Filter out data URLs (base64 encoded images) and empty URLs
   if (!url || url.startsWith('data:')) return '';
   return normalizeUrl(url, base);
@@ -564,6 +794,7 @@ async function downloadImage(
   imageRoot: string,
   index: number,
   articleUrl?: string,
+  publicBasePath?: string,
 ): Promise<string | null> {
   const finalUrl = normalizeUrl(url);
   if (!finalUrl) {
@@ -579,13 +810,14 @@ async function downloadImage(
   const filenameBase = `${String(index + 1).padStart(3, '0')}-${urlHash}`;
   const dir = path.join(imageRoot, slug);
   fs.mkdirSync(dir, { recursive: true });
+  const publicBase = publicBasePath || `/images/${provider}/${slug}`;
 
   // Check if image already exists with any extension
   const existingFiles = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
   const existingFile = existingFiles.find((f) => f.startsWith(filenameBase));
   if (existingFile) {
     console.log(`[${provider}] Image already exists: ${existingFile}`);
-    return `/images/${provider}/${slug}/${existingFile}`;
+    return path.posix.join(publicBase, existingFile);
   }
 
   // Acquire semaphore for rate-limited providers
@@ -630,7 +862,7 @@ async function downloadImage(
                 const localPath = path.join(dir, filename);
                 fs.writeFileSync(localPath, playwrightBuffer);
                 console.log(`[${provider}] Saved via Playwright: ${localPath}`);
-                return `/images/${provider}/${slug}/${filename}`;
+                return path.posix.join(publicBase, filename);
               } else {
                 console.warn(
                   `[${provider}] Playwright fallback also returned placeholder for ${finalUrl}`,
@@ -654,7 +886,7 @@ async function downloadImage(
 
       fs.writeFileSync(localPath, buffer);
       console.log(`[${provider}] Successfully saved: ${localPath}`);
-      return `/images/${provider}/${slug}/${filename}`;
+      return path.posix.join(publicBase, filename);
     }
 
     // HTTP download failed, try Playwright fallback for WeChat
@@ -677,7 +909,7 @@ async function downloadImage(
         const localPath = path.join(dir, filename);
         fs.writeFileSync(localPath, playwrightBuffer);
         console.log(`[${provider}] Saved via Playwright fallback: ${localPath}`);
-        return `/images/${provider}/${slug}/${filename}`;
+        return path.posix.join(publicBase, filename);
       }
     }
 
@@ -720,6 +952,22 @@ const transformMath: Plugin<[], any> = () => (tree: any) => {
   visit(tree, 'element', (node: HastElement, index: number | null | undefined, parent: any) => {
     const idx = typeof index === 'number' ? index : null;
     if (!parent || idx === null) return;
+    const extractAnnotation = (target: HastElement): string | null => {
+      if (target.tagName === 'annotation' && target.properties?.encoding === KATEX_TEX_ENCODING) {
+        const firstChild = target.children?.[0];
+        if (firstChild && typeof firstChild.value === 'string') {
+          return firstChild.value;
+        }
+      }
+      if (target.children?.length) {
+        for (const child of target.children) {
+          const result = extractAnnotation(child);
+          if (result) return result;
+        }
+      }
+      return null;
+    };
+
     if (node.tagName === 'span' && hasClass(node, 'ztext-math')) {
       const latex = (node.properties?.['data-tex'] as string) || getTextContent(node);
       const value = `$${latex.trim()}$`;
@@ -729,6 +977,15 @@ const transformMath: Plugin<[], any> = () => (tree: any) => {
       const latex = (node.properties?.['data-tex'] as string) || getTextContent(node);
       const value = `$$${latex.trim()}$$`;
       parent.children.splice(idx, 1, { type: 'text', value });
+    }
+
+    if (hasClass(node, 'katex') || hasClass(node, 'katex-display')) {
+      const latex = extractAnnotation(node);
+      if (latex) {
+        const display = hasClass(node, 'katex-display');
+        const value = display ? `$$${latex.trim()}$$` : `$${latex.trim()}$`;
+        parent.children.splice(idx, 1, { type: 'text', value });
+      }
     }
   });
 };
@@ -740,6 +997,8 @@ const localizeImages = (options: {
   provider: string;
   imageRoot: string;
   articleUrl?: string;
+  publicBasePath?: string;
+  downloadImage?: typeof downloadImage;
 }): Plugin<[], any> => {
   return function plugin() {
     return async (tree: any) => {
@@ -753,16 +1012,20 @@ const localizeImages = (options: {
       });
 
       const mapping = new Map<string, string>();
+      const downloader = options.downloadImage ?? downloadImage;
+      const publicBasePath =
+        options.publicBasePath || `/images/${options.provider}/${options.slug}`;
       let index = 0;
       for (const { url } of imageNodes) {
         if (mapping.has(url)) continue;
-        const local = await downloadImage(
+        const local = await downloader(
           url,
           options.provider,
           options.slug,
           options.imageRoot,
           index,
           options.articleUrl,
+          publicBasePath,
         );
         if (local) {
           mapping.set(url, local);
@@ -787,7 +1050,13 @@ const localizeImages = (options: {
   };
 };
 
-async function htmlToMdx(
+function normalizeMathDelimiters(markdown: string) {
+  // remark-stringify escapes dollar signs in inline ($) and display ($$) math; restore them.
+  // Imported articles are expected to use dollars for math, so we unescape them globally.
+  return markdown.replace(/\\\$\\\$/g, '$$').replace(/\\\$/g, '$');
+}
+
+export async function htmlToMdx(
   html: string,
   options: {
     slug: string;
@@ -795,6 +1064,8 @@ async function htmlToMdx(
     baseUrl?: string;
     imageRoot: string;
     articleUrl?: string;
+    publicBasePath?: string;
+    downloadImage?: typeof downloadImage;
   },
 ) {
   const images: string[] = [];
@@ -805,6 +1076,8 @@ async function htmlToMdx(
     provider: options.provider,
     imageRoot: options.imageRoot,
     articleUrl: options.articleUrl,
+    publicBasePath: options.publicBasePath,
+    downloadImage: options.downloadImage,
   });
   const processor: any = unified();
   const file = await processor
@@ -822,7 +1095,10 @@ async function htmlToMdx(
     } as any)
     .process(html);
 
-  return { markdown: String(file).trim(), images };
+  let markdown = String(file).trim();
+  markdown = normalizeMathDelimiters(markdown);
+
+  return { markdown, images };
 }
 
 async function withBrowser<T>(fn: (context: BrowserContext) => Promise<T>) {
@@ -1147,6 +1423,29 @@ const providers: Provider[] = [
       return { ...result, baseUrl: 'https://mp.weixin.qq.com' };
     },
   },
+  {
+    name: 'imported',
+    match: () => true,
+    extract: async (page, url) => {
+      await page.goto(url, { waitUntil: 'networkidle', timeout: 120000 });
+      const content = await page.content();
+      const article = extractArticleFromHtml(content, url);
+
+      if (!article.html?.trim()) {
+        throw new Error('Failed to extract article content.');
+      }
+
+      return {
+        title: article.title,
+        author: article.author,
+        published: article.published,
+        updated: article.updated,
+        html: article.html,
+        baseUrl: article.baseUrl || new URL(url).origin,
+        sourceTitle: article.sourceTitle,
+      };
+    },
+  },
 ];
 
 async function fetchArticle(provider: Provider, url: string) {
@@ -1157,7 +1456,8 @@ async function fetchArticle(provider: Provider, url: string) {
 }
 
 async function main() {
-  const targetUrl = parseArgs();
+  const options = await parseArgs();
+  const targetUrl = options.url;
   const provider = providers.find((p) => p.match(targetUrl));
 
   if (!provider) {
@@ -1169,7 +1469,10 @@ async function main() {
   fs.mkdirSync(contentDir, { recursive: true });
   fs.mkdirSync(imageRoot, { recursive: true });
 
-  const { title, author, published, html, baseUrl } = await fetchArticle(provider, targetUrl);
+  const { title, author, published, updated, html, baseUrl, sourceTitle } = await fetchArticle(
+    provider,
+    targetUrl,
+  );
 
   const slugFromTitle = slugify(title, { lower: true, strict: true });
   const fallbackSlug = slugify(new URL(targetUrl).pathname.split('/').filter(Boolean).pop() || '', {
@@ -1184,6 +1487,8 @@ async function main() {
     baseUrl: baseUrl || targetUrl,
     imageRoot,
     articleUrl: targetUrl, // Pass article URL for Playwright fallback
+    publicBasePath: `/images/${provider.name}/${slug}`,
+    downloadImage: options.dryRun ? async () => null : undefined,
   });
 
   // Safety check: Ensure no WeChat lazy-load placeholders in final markdown
@@ -1197,6 +1502,9 @@ async function main() {
 
   const publishedDate = published ? new Date(published) : new Date();
   const safeDate = Number.isNaN(publishedDate.valueOf()) ? new Date() : publishedDate;
+  const parsedUpdated = updated ? new Date(updated) : null;
+  const safeUpdatedDate =
+    parsedUpdated && !Number.isNaN(parsedUpdated.valueOf()) ? parsedUpdated : null;
 
   const frontmatter: Record<string, any> = {
     title: title || 'Imported Article',
@@ -1207,20 +1515,41 @@ async function main() {
     source_url: targetUrl,
     source_author: author || provider.name,
     imported_at: new Date().toISOString(),
+    source: {
+      title: sourceTitle || new URL(targetUrl).hostname,
+      url: targetUrl,
+    },
+    ...(safeUpdatedDate ? { updated: safeUpdatedDate.toISOString().split('T')[0] } : {}),
   };
 
-  if (images[0]) {
+  if (options.useFirstImageAsCover && images[0]) {
     frontmatter.cover = images[0];
   }
 
   const fileContent = matter.stringify(markdown, frontmatter);
   const filepath = path.join(contentDir, `${slug}.mdx`);
+
+  if (fs.existsSync(filepath) && !options.force) {
+    console.log(`File already exists at ${filepath}. Use --force to overwrite.`);
+    return;
+  }
+
+  if (options.dryRun) {
+    console.log('Dry run mode enabled. Preview frontmatter + markdown:\n');
+    console.log(fileContent);
+    return;
+  }
+
   fs.writeFileSync(filepath, fileContent);
 
   console.log(`Saved article to ${filepath}`);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+// Avoid running the CLI when the module is imported (e.g., in tests or tsx -e invocations).
+const entryUrl = process.argv[1] ? pathToFileURL(process.argv[1]).href : '';
+if (entryUrl && import.meta.url === entryUrl) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}

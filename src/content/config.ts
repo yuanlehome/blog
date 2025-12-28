@@ -2,6 +2,16 @@ import { defineCollection, z } from 'astro:content';
 
 const dateField = z.coerce.date();
 
+const sourceField = z
+  .union([
+    z.enum(['original', 'wechat', 'notion']),
+    z.object({
+      title: z.string(),
+      url: z.string().url(),
+    }),
+  ])
+  .optional();
+
 const blog = defineCollection({
   schema: z.object({
     title: z.string(),
@@ -17,7 +27,7 @@ const blog = defineCollection({
     comments: z.boolean().optional(),
     source_url: z.string().url().optional(),
     source_author: z.string().optional(),
-    source: z.enum(['original', 'wechat', 'notion']).optional(), // Content source: original (author's own), wechat (imported from WeChat), notion (imported from Notion)
+    source: sourceField, // Content source: original (author's own), wechat (imported from WeChat), notion (imported from Notion)
     imported_at: z.string().optional(),
   }),
 });

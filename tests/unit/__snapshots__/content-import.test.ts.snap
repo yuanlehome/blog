@@ -1,0 +1,29 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`content import for external articles > converts matmul html into stable markdown with math and images 1`] = `
+"# Matrix Multiplication from First Principles
+
+matmul deep dive
+
+Matrix multiplication sits at the heart of deep learning. Here is inline math $y = Wx$.
+
+We start from $A \\\\\\in R^{m \\\\\\times k}$ and $B \\\\\\in R^{k \\\\\\times n}$.
+
+$C = AB$
+
+## Vectorized implementation
+
+We often express matrix multiplication as a series of dot products.
+
+\`\`\`python
+import torch
+
+C = A @ B
+\`\`\`
+
+![matrix diagram](/images/imported/matmul/001-matmul.png)
+
+Matrix diagram
+
+> Compute on contiguous memory to maximize throughput."
+`;
