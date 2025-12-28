@@ -85,6 +85,71 @@ test.describe('Blog smoke journey', () => {
     expect(persistedDataTheme).toBe(toggledResolved);
   });
 
+  test('post cover shows on desktop and hides on mobile', async ({ browser }) => {
+    const baseURL = test.info().project.use.baseURL;
+    const basePath = baseURL ? new URL(baseURL).pathname : '/';
+    const buildUrl = (value: string) =>
+      baseURL ? new URL(value, baseURL).toString() : `/${value.replace(/^\//, '')}`;
+    const normalizeSlug = (href: string) => {
+      const normalized = baseURL ? new URL(href, baseURL).pathname : href;
+      const trimmed =
+        basePath !== '/' && normalized.startsWith(basePath)
+          ? normalized.slice(basePath.length)
+          : normalized.replace(/^\//, '');
+      if (!trimmed) return '';
+      return trimmed.endsWith('/') ? trimmed : `${trimmed}/`;
+    };
+    const candidates = new Set<string>();
+    if (process.env.PLAYWRIGHT_COVER_SLUG) {
+      candidates.add(normalizeSlug(process.env.PLAYWRIGHT_COVER_SLUG));
+    }
+    let targetUrl: string | null = null;
+
+    const desktopContext = await browser.newContext({
+      viewport: { width: 1280, height: 900 },
+      baseURL,
+    });
+    const desktopPage = await desktopContext.newPage();
+    await desktopPage.goto(buildUrl(''));
+    const discoveredSlugs = await desktopPage
+      .locator('#post-list li a')
+      .evaluateAll((anchors) => anchors.map((a) => a.getAttribute('href') || ''));
+    discoveredSlugs
+      .map(normalizeSlug)
+      .filter(Boolean)
+      .forEach((slug) => candidates.add(slug));
+
+    for (const candidate of candidates) {
+      const candidateUrl = buildUrl(candidate);
+      await desktopPage.goto(candidateUrl);
+      const desktopCover = desktopPage.locator('[data-post-cover]');
+      if ((await desktopCover.count()) === 0) continue;
+      await expect(desktopCover).toBeVisible();
+      targetUrl = candidateUrl;
+      break;
+    }
+
+    if (!targetUrl) {
+      test.info().annotations.push({
+        type: 'todo',
+        description: 'No post with cover found for cover visibility test',
+      });
+      await desktopContext.close();
+      return;
+    }
+
+    await desktopContext.close();
+
+    const mobileContext = await browser.newContext({
+      viewport: { width: 375, height: 812 },
+      baseURL,
+    });
+    const mobilePage = await mobileContext.newPage();
+    await mobilePage.goto(targetUrl);
+    await expect(mobilePage.locator('[data-post-cover]')).toBeHidden();
+    await mobileContext.close();
+  });
+
   test('mobile viewport avoids horizontal overflow on flashattention page', async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 375, height: 812 } });
     const mobilePage = await context.newPage();

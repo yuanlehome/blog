@@ -43,10 +43,10 @@ const hasCover = Boolean(post.data.cover);
       <article class="prose dark:prose-invert max-w-none prose-img:rounded-xl min-w-0" data-article>
         <header class="mb-8 not-prose">
           <div
-            class={`grid gap-6 ${
+            class={`flex flex-col gap-6 ${
               hasCover
-                ? 'md:grid-cols-[minmax(0,1fr)_220px] md:items-start md:gap-8'
-                : 'md:grid-cols-1'
+                ? 'md:grid md:grid-cols-[minmax(0,1fr)_220px] md:items-start md:gap-8'
+                : 'md:grid md:grid-cols-1'
             }`}
           >
             <div class={`flex flex-col gap-4 ${hasCover ? 'md:h-full' : ''}`}>
@@ -98,7 +98,10 @@ const hasCover = Boolean(post.data.cover);
 
             {
               hasCover && (
-                <figure class="md:justify-self-end overflow-hidden rounded-xl border border-gray-200/80 shadow-md dark:border-gray-800/80 w-full max-w-[320px] md:max-w-[220px] md:min-w-[160px]">
+                <figure
+                  class="hidden md:block md:justify-self-end overflow-hidden rounded-xl border border-gray-200/80 shadow-md dark:border-gray-800/80 w-full max-w-[320px] md:max-w-[220px] md:min-w-[160px]"
+                  data-post-cover
+                >
                   <img
                     src={resolveAssetUrl(post.data.cover)}
                     alt={post.data.title}
