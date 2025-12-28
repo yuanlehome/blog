@@ -34,7 +34,7 @@ describe('content import for external articles', () => {
         _articleUrl?: string,
         publicBasePath?: string,
       ) => {
-        const base = publicBasePath || `/images/imported/${slug}`;
+        const base = publicBasePath || `/images/others/${slug}`;
         return path.posix.join(
           base,
           `${String(index + 1).padStart(3, '0')}-${path.basename(new URL(imageUrl).pathname)}`,
@@ -44,16 +44,16 @@ describe('content import for external articles', () => {
 
     const { markdown, images } = await htmlToMdx(article.html, {
       slug: 'matmul',
-      provider: 'imported',
+      provider: 'others',
       baseUrl: article.baseUrl,
       imageRoot: '/tmp/images',
       articleUrl: MATMUL_URL,
-      publicBasePath: '/images/imported/matmul',
+      publicBasePath: '/images/others/matmul',
       downloadImage,
     });
 
     expect(markdown).toMatchSnapshot();
-    expect(images[0]).toContain('/images/imported/matmul/001');
+    expect(images[0]).toContain('/images/others/matmul/001');
     expect(downloadImage).toHaveBeenCalled();
   });
 
