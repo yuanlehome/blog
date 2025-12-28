@@ -33,7 +33,6 @@ type ExtractedArticle = {
   html: string;
   baseUrl?: string;
   sourceTitle?: string;
-  sourceUrl?: string;
 };
 
 type Provider = {
@@ -402,7 +401,6 @@ export function extractArticleFromHtml(html: string, url: string): ExtractedArti
     html: main.innerHTML,
     baseUrl: sourceUrl.origin,
     sourceTitle: sourceUrl.hostname,
-    sourceUrl: sourceUrl.toString(),
   };
 }
 
@@ -499,7 +497,14 @@ function resolveImageSrc(node: HastElement, base?: string) {
       .map((part) => part.trim())
       .map((part) => {
         const [urlPart, size] = part.split(/\s+/);
-        const width = parseInt(size?.replace('w', '') || '0', 10);
+        const descriptor = size?.trim() || '';
+        let score = parseFloat(descriptor);
+        if (descriptor.endsWith('w')) {
+          score = parseFloat(descriptor.slice(0, -1));
+        } else if (descriptor.endsWith('x')) {
+          score = parseFloat(descriptor.slice(0, -1)) * 1000;
+        }
+        const width = Number.isFinite(score) ? score : 0;
         return { url: urlPart, width };
       })
       .filter((item) => item.url);
