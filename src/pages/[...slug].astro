@@ -43,15 +43,17 @@ const hasCover = Boolean(post.data.cover);
       <article class="prose dark:prose-invert max-w-none prose-img:rounded-xl min-w-0" data-article>
         <header class="mb-8 not-prose">
           <div
-            class={`flex flex-col gap-6 ${
-              hasCover ? 'lg:grid lg:grid-cols-[minmax(0,1fr)_220px] lg:items-stretch lg:gap-8' : ''
+            class={`grid gap-6 ${
+              hasCover
+                ? 'md:grid-cols-[minmax(0,1fr)_220px] md:items-start md:gap-8'
+                : 'md:grid-cols-1'
             }`}
           >
-            <div class={`flex flex-col gap-4 ${hasCover ? 'lg:h-full' : ''}`}>
+            <div class={`flex flex-col gap-4 ${hasCover ? 'md:h-full' : ''}`}>
               <h1 class="text-3xl md:text-4xl font-bold leading-tight">{post.data.title}</h1>
               <div
                 class={`text-gray-500 text-sm flex items-center gap-3 flex-wrap ${
-                  hasCover ? 'lg:mt-auto' : ''
+                  hasCover ? 'md:mt-auto' : ''
                 }`}
               >
                 {
@@ -92,33 +94,11 @@ const hasCover = Boolean(post.data.cover);
                   {stats.text}
                 </div>
               </div>
-              {
-                post.data.source_url && (
-                  <div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-900 dark:bg-blue-950">
-                    <p class="text-sm text-gray-700 dark:text-gray-300">
-                      <span class="font-semibold">📝 转载 / 引用来源：</span>
-                      {post.data.source_author && (
-                        <span>
-                          作者 <span class="font-medium">{post.data.source_author}</span> ·{' '}
-                        </span>
-                      )}
-                      <a
-                        href={post.data.source_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                      >
-                        查看原文
-                      </a>
-                    </p>
-                  </div>
-                )
-              }
             </div>
 
             {
               hasCover && (
-                <figure class="lg:justify-self-end overflow-hidden rounded-xl border border-gray-200/80 shadow-md dark:border-gray-800/80 w-full max-w-[320px] lg:max-w-[220px] lg:min-w-[160px]">
+                <figure class="md:justify-self-end overflow-hidden rounded-xl border border-gray-200/80 shadow-md dark:border-gray-800/80 w-full max-w-[320px] md:max-w-[220px] md:min-w-[160px]">
                   <img
                     src={resolveAssetUrl(post.data.cover)}
                     alt={post.data.title}
@@ -127,6 +107,33 @@ const hasCover = Boolean(post.data.cover);
                     decoding="async"
                   />
                 </figure>
+              )
+            }
+
+            {
+              post.data.source_url && (
+                <div
+                  class={`w-full rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-900 dark:bg-blue-950 ${
+                    hasCover ? 'md:col-span-2' : ''
+                  }`}
+                >
+                  <p class="text-sm text-gray-700 dark:text-gray-300 break-words">
+                    <span class="font-semibold">📝 转载 / 引用来源：</span>
+                    {post.data.source_author && (
+                      <span>
+                        作者 <span class="font-medium">{post.data.source_author}</span> ·{' '}
+                      </span>
+                    )}
+                    <a
+                      href={post.data.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                    >
+                      查看原文
+                    </a>
+                  </p>
+                </div>
               )
             }
           </div>
