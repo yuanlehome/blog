@@ -135,7 +135,7 @@ function getProviderConfig(provider: string): ProviderConfig {
 
 type ImportArgs = {
   url: string;
-  force: boolean;
+  allowOverwrite: boolean;
   dryRun: boolean;
   useFirstImageAsCover: boolean;
 };
@@ -147,7 +147,7 @@ async function parseArgs(): Promise<ImportArgs> {
     process.env.url ||
     process.argv[2];
 
-  const force = process.argv.includes('--force');
+  const allowOverwrite = process.argv.includes('--allow-overwrite');
   const dryRun = process.argv.includes('--dry-run');
   const useFirstImageAsCover = process.argv.includes('--use-first-image-as-cover');
   let url = argUrl;
@@ -181,7 +181,7 @@ async function parseArgs(): Promise<ImportArgs> {
     throw new Error('Usage: npm run import:content -- --url=<URL>');
   }
 
-  return { url, force, dryRun, useFirstImageAsCover };
+  return { url, allowOverwrite, dryRun, useFirstImageAsCover };
 }
 
 function hasClass(node: HastElement, className: string) {
@@ -1555,8 +1555,8 @@ async function main() {
   const fileContent = matter.stringify(markdown, frontmatter);
   const filepath = path.join(contentDir, `${slug}.md`);
 
-  if (fs.existsSync(filepath) && !options.force) {
-    console.log(`File already exists at ${filepath}. Use --force to overwrite.`);
+  if (fs.existsSync(filepath) && !options.allowOverwrite) {
+    console.log(`File already exists at ${filepath}. Use --allow-overwrite to overwrite.`);
     return;
   }
 

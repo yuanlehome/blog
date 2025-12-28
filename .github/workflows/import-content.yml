@@ -7,7 +7,7 @@ on:
         description: 'Article URL to import (Zhihu / Medium / WeChat / others)'
         required: true
         type: string
-      force:
+      allow_verwrite:
         description: 'Overwrite existing imported file if exists'
         required: false
         type: boolean
@@ -48,15 +48,15 @@ jobs:
       - name: Import content
         env:
           URL: ${{ inputs.url }}
-          FORCE: ${{ inputs.force }}
+          ALLOW_VERWRITE: ${{ inputs.allow_verwrite }}
           DRY_RUN: ${{ inputs.dry_run }}
           USE_FIRST_IMAGE_AS_COVER: ${{ inputs.use_first_image_as_cover }}
         run: |
           ARGS=()
           ARGS+=("--url" "${{ inputs.url }}")
 
-          if [[ "${{ inputs.force }}" == "true" ]]; then
-            ARGS+=("--force")
+          if [[ "${{ inputs.allow_verwrite }}" == "true" ]]; then
+            ARGS+=("--allow-verwrite")
           fi
 
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
