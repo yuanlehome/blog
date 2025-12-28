@@ -50,7 +50,9 @@ function renameMdxToMd() {
     try {
       // Check if target .md file already exists
       if (fs.existsSync(mdPath)) {
-        console.warn(`⚠️  Skipping ${relativePath}: target ${path.basename(mdPath)} already exists`);
+        console.warn(
+          `⚠️  Skipping ${relativePath}: target ${path.basename(mdPath)} already exists`,
+        );
         errorCount++;
         continue;
       }
