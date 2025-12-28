@@ -7,6 +7,21 @@ on:
         description: 'Article URL to import (Zhihu / Medium / WeChat / others)'
         required: true
         type: string
+      force:
+        description: 'Overwrite existing imported file if exists'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Run import without writing files'
+        required: false
+        type: boolean
+        default: false
+      use_first_image_as_cover:
+        description: 'Use the first image in the article body as cover (if applicable)'
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -33,8 +48,27 @@ jobs:
       - name: Import content
         env:
           URL: ${{ inputs.url }}
+          FORCE: ${{ inputs.force }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          USE_FIRST_IMAGE_AS_COVER: ${{ inputs.use_first_image_as_cover }}
         run: |
-          npm run import:content -- --url "${{ inputs.url }}"
+          ARGS=()
+          ARGS+=("--url" "${{ inputs.url }}")
+
+          if [[ "${{ inputs.force }}" == "true" ]]; then
+            ARGS+=("--force")
+          fi
+
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            ARGS+=("--dry-run")
+          fi
+
+          if [[ "${{ inputs.use_first_image_as_cover }}" == "true" ]]; then
+            ARGS+=("--use-first-image-as-cover")
+          fi
+
+          echo "Running: npm run import:content -- ${ARGS[*]}"
+          npm run import:content -- "${ARGS[@]}"
 
       - name: Check for changes
         id: changes
