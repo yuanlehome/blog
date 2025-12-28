@@ -142,10 +142,14 @@ type ImportArgs = {
 
 async function parseArgs(): Promise<ImportArgs> {
   const argUrl =
-    process.argv.find((arg) => arg.startsWith('--url='))?.replace('--url=', '') ||
-    process.env.URL ||
-    process.env.url ||
-    process.argv[2];
+  process.argv.find((arg) => arg.startsWith('--url='))?.slice('--url='.length) ??
+  (() => {
+    const i = process.argv.indexOf('--url');
+    return i >= 0 ? process.argv[i + 1] : undefined;
+  })() ??
+  process.env.URL ??
+  process.env.url ??
+  process.argv[2];
 
   const allowOverwrite = process.argv.includes('--allow-overwrite');
   const dryRun = process.argv.includes('--dry-run');
@@ -1550,6 +1554,7 @@ async function main() {
 
   if (options.useFirstImageAsCover && images[0]) {
     frontmatter.cover = images[0];
+    console.log(`The option --use-first-image-as-cover was enabled.`);
   }
 
   const fileContent = matter.stringify(markdown, frontmatter);

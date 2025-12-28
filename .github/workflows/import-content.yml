@@ -48,7 +48,7 @@ jobs:
       - name: Import content
         env:
           URL: ${{ inputs.url }}
-          ALLOW_VERWRITE: ${{ inputs.allow_verwrite }}
+          ALLOW_OVERWRITE: ${{ inputs.allow_overwrite }}
           DRY_RUN: ${{ inputs.dry_run }}
           USE_FIRST_IMAGE_AS_COVER: ${{ inputs.use_first_image_as_cover }}
         run: |
