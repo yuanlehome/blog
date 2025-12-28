@@ -297,14 +297,21 @@ async function detectBlockedPage(page: Page): Promise<string | null> {
 
 function resolveImageSrc(node: HastElement, base?: string) {
   const props = node.properties || {};
+  // Priority order for WeChat lazy-loaded images:
+  // 1. data-src (primary lazy-load attribute)
+  // 2. data-original (alternative lazy-load attribute)
+  // 3. data-backup-src (backup image URL)
+  // 4. src (fallback for already-loaded images)
   const candidates = [
-    props['data-original'],
-    props['data-actualsrc'],
     props['data-src'],
+    props['data-original'],
+    props['data-backup-src'],
+    props['data-actualsrc'],
     props.src,
     props['data-actual-url'],
   ];
   const url = candidates.find((u) => typeof u === 'string' && u.trim().length > 0);
+  // Filter out data URLs (base64 encoded images) and empty URLs
   if (!url || url.startsWith('data:')) return '';
   return normalizeUrl(url, base);
 }

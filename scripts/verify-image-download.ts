@@ -112,7 +112,9 @@ function main() {
   );
 
   if (providers.length === 0) {
-    console.log('⚠️  No provider content directories found. Run import:content or notion:sync first.');
+    console.log(
+      '⚠️  No provider content directories found. Run import:content or notion:sync first.',
+    );
     return;
   }
 
