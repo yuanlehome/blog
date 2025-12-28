@@ -74,3 +74,55 @@ jobs:
             public/images/
             scripts/content-import.ts
           delete-branch: false
+
+      - name: Enable auto-merge
+        if: steps.changes.outputs.changed == 'true' && steps.create_pull_request.outputs.pull-request-number != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          script: |
+            const prNumber = Number('${{ steps.create_pull_request.outputs.pull-request-number }}');
+            if (!prNumber) {
+              core.setFailed('Pull request number not available for auto-merge.');
+            }
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            const pullRequestId = pr.node_id;
+
+            try {
+              await github.graphql(
+                `mutation($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
+                  enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: $mergeMethod }) {
+                    pullRequest { number autoMergeRequest { enabledAt } }
+                  }
+                }`,
+                {
+                  pullRequestId,
+                  mergeMethod: 'SQUASH',
+                  headers: { Accept: 'application/vnd.github.merge-info-preview+json' },
+                }
+              );
+              core.info(`Auto-merge enabled for PR #${prNumber} with squash.`);
+            } catch (error) {
+              core.warning(`Failed to enable squash auto-merge: ${error.message}`);
+              core.info('Attempting to enable merge-commit auto-merge as fallback.');
+
+              await github.graphql(
+                `mutation($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
+                  enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: $mergeMethod }) {
+                    pullRequest { number autoMergeRequest { enabledAt } }
+                  }
+                }`,
+                {
+                  pullRequestId,
+                  mergeMethod: 'MERGE',
+                  headers: { Accept: 'application/vnd.github.merge-info-preview+json' },
+                }
+              );
+              core.info(`Auto-merge enabled for PR #${prNumber} with merge commit.`);
+            }
