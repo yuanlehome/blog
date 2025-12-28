@@ -1490,14 +1490,14 @@ async function main() {
 
   const publishedDate = published ? new Date(published) : new Date();
   const safeDate = Number.isNaN(publishedDate.valueOf()) ? new Date() : publishedDate;
-  const updatedDate = updated ? new Date(updated) : safeDate;
-  const safeUpdatedDate = Number.isNaN(updatedDate.valueOf()) ? safeDate : updatedDate;
+  const parsedUpdated = updated ? new Date(updated) : null;
+  const safeUpdatedDate =
+    parsedUpdated && !Number.isNaN(parsedUpdated.valueOf()) ? parsedUpdated : null;
 
   const frontmatter: Record<string, any> = {
     title: title || 'Imported Article',
     slug: slug,
     date: safeDate.toISOString().split('T')[0],
-    updated: safeUpdatedDate ? safeUpdatedDate.toISOString().split('T')[0] : undefined,
     tags: [],
     status: 'published',
     source_url: targetUrl,
@@ -1507,6 +1507,7 @@ async function main() {
       title: sourceTitle || new URL(targetUrl).hostname,
       url: targetUrl,
     },
+    ...(safeUpdatedDate ? { updated: safeUpdatedDate.toISOString().split('T')[0] } : {}),
   };
 
   if (options.useFirstImageAsCover && images[0]) {
