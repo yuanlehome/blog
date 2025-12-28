@@ -12,6 +12,8 @@ import slugify from 'slugify';
 import { unified, type Plugin } from 'unified';
 import { visit } from 'unist-util-visit';
 import { fileURLToPath } from 'url';
+import crypto from 'crypto';
+import sharp from 'sharp';
 
 type HastElement = {
   type?: string;
@@ -51,6 +53,16 @@ const CONTENT_WAIT_TIMEOUT = 30000;
 const MAX_URL_LENGTH_FOR_FILENAME = 50;
 const WECHAT_PLACEHOLDER_THRESHOLD = 60 * 1024; // ~60KB placeholder guard
 
+// Image download constants
+const IMAGE_MAX_RETRIES = 5;
+const IMAGE_BASE_BACKOFF_MS = 500;
+const IMAGE_MAX_BACKOFF_MS = 8000;
+const WECHAT_REQUEST_DELAY_MIN_MS = 150;
+const WECHAT_REQUEST_DELAY_MAX_MS = 400;
+const WECHAT_CONCURRENCY_LIMIT = 2;
+const WECHAT_PLACEHOLDER_MIN_WIDTH = 200; // WeChat placeholder is typically small
+const WECHAT_PLACEHOLDER_MIN_HEIGHT = 150;
+
 const MIME_TYPE_EXTENSION_MAP: Record<string, string> = {
   'image/jpeg': '.jpg',
   'image/jpg': '.jpg',
@@ -58,14 +70,19 @@ const MIME_TYPE_EXTENSION_MAP: Record<string, string> = {
   'image/webp': '.webp',
   'image/gif': '.gif',
   'image/bmp': '.bmp',
+  'image/avif': '.avif',
+  'image/svg+xml': '.svg',
 };
 
 const WECHAT_IMAGE_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
   Referer: 'https://mp.weixin.qq.com/',
+  Origin: 'https://mp.weixin.qq.com',
   Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
   'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+  'Cache-Control': 'no-cache',
+  Pragma: 'no-cache',
 };
 
 const DEFAULT_IMAGE_HEADERS = {
@@ -76,8 +93,12 @@ const DEFAULT_IMAGE_HEADERS = {
 
 type ProviderConfig = {
   headers: Record<string, string>;
-  placeholderGuard?: (buffer: Buffer, contentType: string) => boolean;
+  placeholderGuard?: (buffer: Buffer, contentType: string) => Promise<boolean>;
   defaultExt?: string;
+  maxRetries?: number;
+  enableRateLimiting?: boolean;
+  concurrencyLimit?: number;
+  requestDelayMs?: { min: number; max: number };
 };
 
 const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
@@ -85,15 +106,26 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
     headers: WECHAT_IMAGE_HEADERS,
     placeholderGuard: isSuspectedWechatPlaceholder,
     defaultExt: '.jpg',
+    maxRetries: IMAGE_MAX_RETRIES,
+    enableRateLimiting: true,
+    concurrencyLimit: WECHAT_CONCURRENCY_LIMIT,
+    requestDelayMs: { min: WECHAT_REQUEST_DELAY_MIN_MS, max: WECHAT_REQUEST_DELAY_MAX_MS },
   },
   zhihu: {
     headers: DEFAULT_IMAGE_HEADERS,
     defaultExt: '.jpg',
+    maxRetries: MAX_RETRIES,
   },
 };
 
 function getProviderConfig(provider: string): ProviderConfig {
-  return PROVIDER_CONFIGS[provider] || { headers: DEFAULT_IMAGE_HEADERS, defaultExt: '.jpg' };
+  return (
+    PROVIDER_CONFIGS[provider] || {
+      headers: DEFAULT_IMAGE_HEADERS,
+      defaultExt: '.jpg',
+      maxRetries: MAX_RETRIES,
+    }
+  );
 }
 
 function parseArgs(): string {
@@ -277,12 +309,245 @@ function resolveImageSrc(node: HastElement, base?: string) {
   return normalizeUrl(url, base);
 }
 
-function isSuspectedWechatPlaceholder(buffer: Buffer, contentType: string) {
+async function isSuspectedWechatPlaceholder(buffer: Buffer, contentType: string): Promise<boolean> {
   const normalizedContentType = contentType.toLowerCase();
   const contentTypeIsImage = normalizedContentType.startsWith('image/');
-  if (!contentTypeIsImage) return true;
-  if (buffer.length === 0) return true;
-  return buffer.length < WECHAT_PLACEHOLDER_THRESHOLD;
+
+  // First check: content-type must be an image
+  if (!contentTypeIsImage) {
+    console.warn(`Non-image content-type detected: ${contentType}`);
+    return true;
+  }
+
+  // Second check: empty buffer
+  if (buffer.length === 0) {
+    console.warn('Empty image buffer detected');
+    return true;
+  }
+
+  // Third check: size threshold (WeChat placeholder is typically < 60KB)
+  if (buffer.length < WECHAT_PLACEHOLDER_THRESHOLD) {
+    console.warn(`Small image detected (${buffer.length} bytes), checking dimensions...`);
+
+    // Fourth check: use sharp to validate image dimensions
+    try {
+      const metadata = await sharp(buffer).metadata();
+      const width = metadata.width || 0;
+      const height = metadata.height || 0;
+
+      if (width < WECHAT_PLACEHOLDER_MIN_WIDTH || height < WECHAT_PLACEHOLDER_MIN_HEIGHT) {
+        console.warn(`Image dimensions too small (${width}x${height}), suspected placeholder`);
+        return true;
+      }
+
+      // If size is small but dimensions are reasonable, it might be a valid small image
+      console.log(
+        `Image is small (${buffer.length} bytes) but has valid dimensions (${width}x${height})`,
+      );
+      return false;
+    } catch (error) {
+      console.warn(`Failed to read image metadata, treating as placeholder: ${error}`);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Sleep for a random duration within the specified range
+ */
+async function randomDelay(minMs: number, maxMs: number): Promise<void> {
+  const delayMs = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+/**
+ * Calculate exponential backoff with jitter
+ */
+function calculateBackoff(attempt: number, baseMs: number, maxMs: number): number {
+  const exponentialMs = baseMs * Math.pow(2, attempt - 1);
+  const jitter = Math.random() * 0.3 * exponentialMs; // 30% jitter
+  return Math.min(exponentialMs + jitter, maxMs);
+}
+
+/**
+ * Semaphore for limiting concurrent operations
+ */
+class Semaphore {
+  private permits: number;
+  private queue: Array<() => void> = [];
+
+  constructor(permits: number) {
+    this.permits = permits;
+  }
+
+  async acquire(): Promise<void> {
+    if (this.permits > 0) {
+      this.permits--;
+      return;
+    }
+    return new Promise((resolve) => {
+      this.queue.push(resolve);
+    });
+  }
+
+  release(): void {
+    const nextResolve = this.queue.shift();
+    if (nextResolve) {
+      nextResolve();
+    } else {
+      this.permits++;
+    }
+  }
+}
+
+// Global semaphore for WeChat image downloads
+const wechatImageSemaphore = new Semaphore(WECHAT_CONCURRENCY_LIMIT);
+
+/**
+ * Download image via HTTP with retry logic
+ */
+async function downloadImageViaHttp(
+  url: string,
+  config: ProviderConfig,
+  provider: string,
+): Promise<{ buffer: Buffer; contentType: string } | null> {
+  const maxRetries = config.maxRetries || MAX_RETRIES;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Rate limiting for WeChat
+      if (config.enableRateLimiting && config.requestDelayMs) {
+        await randomDelay(config.requestDelayMs.min, config.requestDelayMs.max);
+      }
+
+      const res = await fetch(url, {
+        headers: config.headers,
+        signal: AbortSignal.timeout(30000), // 30s timeout
+      });
+
+      const contentType = res.headers.get('content-type') || '';
+      const normalizedContentType = contentType.toLowerCase();
+
+      // Strict validation: response must be OK
+      if (!res.ok) {
+        const preview = await res
+          .text()
+          .then((text) => text.substring(0, 200))
+          .catch(() => '[Unable to read response body]');
+        console.warn(
+          `[${provider}] HTTP ${res.status} for ${url}, content-type: ${contentType}, preview: ${preview}`,
+        );
+
+        // Retry on 429 (rate limit) or 5xx (server errors)
+        if (res.status === 429 || res.status >= 500) {
+          if (attempt < maxRetries) {
+            const backoffMs = calculateBackoff(
+              attempt,
+              IMAGE_BASE_BACKOFF_MS,
+              IMAGE_MAX_BACKOFF_MS,
+            );
+            console.log(
+              `[${provider}] Retrying after ${backoffMs}ms (attempt ${attempt + 1}/${maxRetries})...`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, backoffMs));
+            continue;
+          }
+        }
+        return null;
+      }
+
+      // Strict validation: content-type must be image/*
+      if (!normalizedContentType.startsWith('image/')) {
+        console.warn(
+          `[${provider}] Non-image content-type: ${contentType} for ${url}, treating as failure`,
+        );
+        return null;
+      }
+
+      const buffer = Buffer.from(await res.arrayBuffer());
+      console.log(
+        `[${provider}] Downloaded ${buffer.length} bytes from ${url} (content-type: ${contentType})`,
+      );
+      return { buffer, contentType };
+    } catch (error: any) {
+      console.warn(
+        `[${provider}] Download attempt ${attempt}/${maxRetries} failed for ${url}: ${error.message}`,
+      );
+
+      // Retry on network errors
+      if (attempt < maxRetries) {
+        const backoffMs = calculateBackoff(attempt, IMAGE_BASE_BACKOFF_MS, IMAGE_MAX_BACKOFF_MS);
+        console.log(`[${provider}] Retrying after ${backoffMs}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, backoffMs));
+        continue;
+      }
+    }
+  }
+
+  console.error(`[${provider}] All ${maxRetries} download attempts failed for ${url}`);
+  return null;
+}
+
+/**
+ * Download WeChat image via Playwright fallback
+ * This is called when HTTP download fails or returns a placeholder
+ */
+async function downloadWechatImageViaPlaywright(
+  articleUrl: string,
+  imageUrl: string,
+): Promise<Buffer | null> {
+  console.log(
+    `[wechat] Attempting Playwright fallback for image: ${imageUrl} from article: ${articleUrl}`,
+  );
+
+  try {
+    return await withBrowser(async (context) => {
+      const page = await context.newPage();
+      let capturedBuffer: Buffer | null = null;
+
+      // Listen for image responses from mmbiz.qpic.cn
+      page.on('response', async (response) => {
+        try {
+          const respUrl = response.url();
+          if (
+            respUrl.includes('mmbiz.qpic.cn') &&
+            response.request().resourceType() === 'image' &&
+            respUrl.includes(new URL(imageUrl).pathname.split('/').pop() || '')
+          ) {
+            console.log(`[wechat] Captured image response: ${respUrl}`);
+            capturedBuffer = Buffer.from(await response.body());
+          }
+        } catch (error) {
+          console.warn(`[wechat] Failed to capture response body: ${error}`);
+        }
+      });
+
+      // Navigate to the article with proper referer
+      await page.goto(articleUrl, {
+        waitUntil: 'networkidle',
+        timeout: 60000,
+        referer: 'https://mp.weixin.qq.com/',
+      });
+
+      // Wait a bit for images to load
+      await page.waitForTimeout(3000);
+
+      if (capturedBuffer) {
+        console.log(
+          `[wechat] Successfully captured ${(capturedBuffer as Buffer).length} bytes via Playwright`,
+        );
+        return capturedBuffer as Buffer;
+      }
+
+      console.warn('[wechat] Playwright fallback did not capture the image');
+      return null;
+    });
+  } catch (error) {
+    console.error(`[wechat] Playwright fallback failed: ${error}`);
+    return null;
+  }
 }
 
 async function downloadImage(
@@ -291,56 +556,133 @@ async function downloadImage(
   slug: string,
   imageRoot: string,
   index: number,
+  articleUrl?: string,
 ): Promise<string | null> {
+  const finalUrl = normalizeUrl(url);
+  if (!finalUrl) {
+    console.warn(`[${provider}] Invalid image URL: ${url}`);
+    return null;
+  }
+
+  const config = getProviderConfig(provider);
+  const { placeholderGuard, defaultExt = '.jpg' } = config;
+
+  // Generate stable filename using hash
+  const urlHash = crypto.createHash('md5').update(finalUrl).digest('hex').substring(0, 8);
+  const filenameBase = `${String(index + 1).padStart(3, '0')}-${urlHash}`;
+  const dir = path.join(imageRoot, slug);
+  fs.mkdirSync(dir, { recursive: true });
+
+  // Check if image already exists with any extension
+  const existingFiles = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
+  const existingFile = existingFiles.find((f) => f.startsWith(filenameBase));
+  if (existingFile) {
+    console.log(`[${provider}] Image already exists: ${existingFile}`);
+    return `/images/${provider}/${slug}/${existingFile}`;
+  }
+
+  // Acquire semaphore for rate-limited providers
+  let semaphoreAcquired = false;
+  if (config.enableRateLimiting) {
+    await wechatImageSemaphore.acquire();
+    semaphoreAcquired = true;
+  }
+
   try {
-    const finalUrl = normalizeUrl(url);
-    if (!finalUrl) return null;
+    // Attempt HTTP download
+    const httpResult = await downloadImageViaHttp(finalUrl, config, provider);
 
-    const extFromUrl = path.extname(new URL(finalUrl).pathname).split('?')[0];
-    const filenameBase = String(index + 1).padStart(3, '0');
-    const dir = path.join(imageRoot, slug);
-    const { headers, placeholderGuard, defaultExt = '.jpg' } = getProviderConfig(provider);
+    if (httpResult) {
+      const { buffer, contentType } = httpResult;
 
-    if (extFromUrl) {
-      const existingPath = path.join(dir, `${filenameBase}${extFromUrl}`);
-      if (fs.existsSync(existingPath)) {
-        return `/images/${provider}/${slug}/${filenameBase}${extFromUrl}`;
+      // Check for placeholder (WeChat-specific)
+      if (placeholderGuard) {
+        const isPlaceholder = await placeholderGuard(buffer, contentType);
+        if (isPlaceholder) {
+          console.warn(
+            `[${provider}] Placeholder detected for ${finalUrl} (size=${buffer.length} bytes, content-type=${contentType})`,
+          );
+
+          // Try Playwright fallback for WeChat
+          if (provider === 'wechat' && articleUrl) {
+            console.log(`[${provider}] Attempting Playwright fallback...`);
+            const playwrightBuffer = await downloadWechatImageViaPlaywright(articleUrl, finalUrl);
+
+            if (playwrightBuffer) {
+              // Re-check the playwright buffer
+              const playwrightContentType = 'image/jpeg'; // Assume JPEG from Playwright
+              const isStillPlaceholder = await placeholderGuard(
+                playwrightBuffer,
+                playwrightContentType,
+              );
+
+              if (!isStillPlaceholder) {
+                // Success! Save the Playwright buffer
+                const ext = defaultExt;
+                const filename = `${filenameBase}${ext}`;
+                const localPath = path.join(dir, filename);
+                fs.writeFileSync(localPath, playwrightBuffer);
+                console.log(`[${provider}] Saved via Playwright: ${localPath}`);
+                return `/images/${provider}/${slug}/${filename}`;
+              } else {
+                console.warn(
+                  `[${provider}] Playwright fallback also returned placeholder for ${finalUrl}`,
+                );
+              }
+            }
+          }
+
+          return null;
+        }
       }
-    }
 
-    const res = await fetch(finalUrl, { headers });
+      // Determine extension from content-type
+      const mimeType = (contentType.split(';')[0] || '').trim().toLowerCase();
+      const extFromMime = MIME_TYPE_EXTENSION_MAP[mimeType];
+      const extFromUrl = path.extname(new URL(finalUrl).pathname).split('?')[0];
+      const ext = extFromMime || extFromUrl || defaultExt;
 
-    if (!res.ok) {
-      console.warn(`Failed to fetch image ${finalUrl}: ${res.status}`);
-      return null;
-    }
+      const filename = `${filenameBase}${ext}`;
+      const localPath = path.join(dir, filename);
 
-    const contentType = res.headers.get('content-type') || '';
-    const buffer = Buffer.from(await res.arrayBuffer());
-
-    if (placeholderGuard?.(buffer, contentType)) {
-      console.warn(
-        `${provider} image suspected placeholder (size=${buffer.length} bytes, content-type=${contentType})`,
-      );
-      return null;
-    }
-
-    const mimeType = (contentType.split(';')[0] || '').trim().toLowerCase();
-    const extFromMime = MIME_TYPE_EXTENSION_MAP[mimeType];
-    const ext = extFromUrl || extFromMime || defaultExt;
-    const filename = `${filenameBase}${ext}`;
-    const localPath = path.join(dir, filename);
-
-    fs.mkdirSync(dir, { recursive: true });
-    if (fs.existsSync(localPath)) {
+      fs.writeFileSync(localPath, buffer);
+      console.log(`[${provider}] Successfully saved: ${localPath}`);
       return `/images/${provider}/${slug}/${filename}`;
     }
 
-    fs.writeFileSync(localPath, buffer);
-    return `/images/${provider}/${slug}/${filename}`;
-  } catch (error) {
-    console.warn(`Failed to download image ${url}`, error);
+    // HTTP download failed, try Playwright fallback for WeChat
+    if (provider === 'wechat' && articleUrl) {
+      console.log(`[${provider}] HTTP download failed, attempting Playwright fallback...`);
+      const playwrightBuffer = await downloadWechatImageViaPlaywright(articleUrl, finalUrl);
+
+      if (playwrightBuffer) {
+        // Check if Playwright buffer is valid
+        if (placeholderGuard) {
+          const isPlaceholder = await placeholderGuard(playwrightBuffer, 'image/jpeg');
+          if (isPlaceholder) {
+            console.warn(`[${provider}] Playwright fallback returned placeholder for ${finalUrl}`);
+            return null;
+          }
+        }
+
+        const ext = defaultExt;
+        const filename = `${filenameBase}${ext}`;
+        const localPath = path.join(dir, filename);
+        fs.writeFileSync(localPath, playwrightBuffer);
+        console.log(`[${provider}] Saved via Playwright fallback: ${localPath}`);
+        return `/images/${provider}/${slug}/${filename}`;
+      }
+    }
+
+    console.error(`[${provider}] All download methods failed for ${finalUrl}`);
     return null;
+  } catch (error) {
+    console.error(`[${provider}] Unexpected error downloading ${finalUrl}:`, error);
+    return null;
+  } finally {
+    if (semaphoreAcquired) {
+      wechatImageSemaphore.release();
+    }
   }
 }
 
@@ -390,6 +732,7 @@ const localizeImages = (options: {
   collected: string[];
   provider: string;
   imageRoot: string;
+  articleUrl?: string;
 }): Plugin<[], any> => {
   return function plugin() {
     return async (tree: any) => {
@@ -412,6 +755,7 @@ const localizeImages = (options: {
           options.slug,
           options.imageRoot,
           index,
+          options.articleUrl,
         );
         if (local) {
           mapping.set(url, local);
@@ -438,7 +782,13 @@ const localizeImages = (options: {
 
 async function htmlToMdx(
   html: string,
-  options: { slug: string; provider: string; baseUrl?: string; imageRoot: string },
+  options: {
+    slug: string;
+    provider: string;
+    baseUrl?: string;
+    imageRoot: string;
+    articleUrl?: string;
+  },
 ) {
   const images: string[] = [];
   const imagePlugin = localizeImages({
@@ -447,6 +797,7 @@ async function htmlToMdx(
     collected: images,
     provider: options.provider,
     imageRoot: options.imageRoot,
+    articleUrl: options.articleUrl,
   });
   const processor: any = unified();
   const file = await processor
@@ -797,6 +1148,7 @@ async function main() {
     provider: provider.name,
     baseUrl: baseUrl || targetUrl,
     imageRoot,
+    articleUrl: targetUrl, // Pass article URL for Playwright fallback
   });
 
   const publishedDate = published ? new Date(published) : new Date();
