@@ -14,7 +14,7 @@ const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..');
 const BLOG_ROOT = path.join(REPO_ROOT, 'src', 'content', 'blog');
 const PUBLIC_ROOT = path.join(REPO_ROOT, 'public');
-const IMPORTED_IMAGES_ROOT = path.join(PUBLIC_ROOT, 'images', 'imported');
+const IMPORTED_IMAGES_ROOT = path.join(PUBLIC_ROOT, 'images');
 
 function toBoolean(value?: string | boolean): boolean | undefined {
   if (typeof value === 'boolean') return value;
