@@ -4,10 +4,11 @@ import type { PageObjectResponse } from '@notionhq/client/build/src/api-endpoint
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import axios from 'axios';
 import slugify from 'slugify';
 import matter from 'gray-matter';
 import { fileURLToPath } from 'url';
+import type { BlockObjectResponse } from '@notionhq/client/build/src/api-endpoints';
+import crypto from 'crypto';
 
 dotenv.config({ path: '.env.local' });
 
@@ -23,46 +24,134 @@ const notion = new Client({ auth: NOTION_TOKEN });
 const n2m = new NotionToMarkdown({ notionClient: notion });
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CONTENT_DIR = path.join(__dirname, '../src/content/blog/notion');
-const PUBLIC_IMG_DIR = path.join(__dirname, '../public/images/notion');
+const CONTENT_DIR =
+  process.env.NOTION_CONTENT_DIR && process.env.NOTION_CONTENT_DIR.trim().length > 0
+    ? path.resolve(process.env.NOTION_CONTENT_DIR)
+    : path.join(__dirname, '../src/content/blog/notion');
+const PUBLIC_IMG_DIR =
+  process.env.NOTION_PUBLIC_IMG_DIR && process.env.NOTION_PUBLIC_IMG_DIR.trim().length > 0
+    ? path.resolve(process.env.NOTION_PUBLIC_IMG_DIR)
+    : path.join(__dirname, '../public/images/notion');
+
+const MIME_EXTENSION_MAP: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'image/avif': '.avif',
+};
 
 // Ensure directories exist
 if (!fs.existsSync(CONTENT_DIR)) fs.mkdirSync(CONTENT_DIR, { recursive: true });
 if (!fs.existsSync(PUBLIC_IMG_DIR)) fs.mkdirSync(PUBLIC_IMG_DIR, { recursive: true });
 
+function resolveExtension(url: string, contentType?: string | null) {
+  const pathnameExt = path.extname(new URL(url).pathname);
+  if (pathnameExt) return pathnameExt;
+  if (contentType) {
+    const mime = contentType.split(';')[0]?.trim().toLowerCase();
+    if (mime && MIME_EXTENSION_MAP[mime]) return MIME_EXTENSION_MAP[mime];
+  }
+  return '.png';
+}
+
 // Helper: Download Image
 async function downloadImage(url: string, pageId: string, imageId: string): Promise<string | null> {
-  try {
-    const ext = path.extname(new URL(url).pathname).split('?')[0] || '.png'; // Default to png if no ext
-    const dir = path.join(PUBLIC_IMG_DIR, pageId);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const dir = path.join(PUBLIC_IMG_DIR, pageId);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-    const filename = `${imageId}${ext}`;
-    const localPath = path.join(dir, filename);
-    const publicPath = `/images/notion/${pageId}/${filename}`;
-
-    // Check if file exists (optional: could check size/hash, but simple existence is fast)
-    if (fs.existsSync(localPath)) {
-      return publicPath;
-    }
-
-    const response = await axios({
-      url,
-      method: 'GET',
-      responseType: 'stream',
-    });
-
-    const writer = fs.createWriteStream(localPath);
-    response.data.pipe(writer);
-
-    return new Promise((resolve, reject) => {
-      writer.on('finish', () => resolve(publicPath));
-      writer.on('error', reject);
-    });
-  } catch (error) {
-    console.error(`Failed to download image: ${url}`, error);
-    return null;
+  const normalizedId = imageId.replace(/[^a-zA-Z0-9-_]/g, '');
+  const safeImageId =
+    normalizedId || crypto.createHash('md5').update(imageId).digest('hex').slice(0, 12);
+  const existingFile = fs.readdirSync(dir).find((f) => f.startsWith(safeImageId));
+  if (existingFile) {
+    return `/images/notion/${pageId}/${existingFile}`;
   }
+
+  let lastError: unknown = null;
+  try {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 30000);
+        try {
+          const response = await fetch(url, {
+            // Fail fast on very slow responses
+            signal: controller.signal,
+          });
+          clearTimeout(timer);
+          if (!response.ok) throw new Error(`Unexpected status ${response.status}`);
+
+          const contentType = response.headers.get('content-type');
+          const buffer = Buffer.from(await response.arrayBuffer());
+          const ext = resolveExtension(url, contentType);
+          const filename = `${safeImageId}${ext}`;
+          const localPath = path.join(dir, filename);
+          fs.writeFileSync(localPath, buffer);
+          return `/images/notion/${pageId}/${filename}`;
+        } catch (error) {
+          clearTimeout(timer);
+          throw error;
+        }
+      } catch (error) {
+        lastError = error;
+        if (attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
+        }
+      }
+    }
+  } catch (error) {
+    lastError = error;
+  }
+
+  console.error(`Failed to download image: ${url}`, lastError);
+  return null;
+}
+
+function extractCoverUrl(props: any): string | null {
+  const prop = props.cover || props.Cover || props.COVER;
+  if (!prop) return null;
+
+  if (prop.type === 'files' && Array.isArray(prop.files) && prop.files.length > 0) {
+    const first = prop.files[0];
+    if (first.type === 'external') return first.external.url;
+    if (first.type === 'file') return first.file.url;
+  }
+  if (prop.type === 'url' && prop.url) return prop.url;
+  if (prop.type === 'file' && prop.file?.url) return prop.file.url;
+  if (prop.type === 'rich_text' && prop.rich_text?.[0]?.plain_text) {
+    return prop.rich_text[0].plain_text;
+  }
+  return null;
+}
+
+function getImageUrlFromBlock(block: BlockObjectResponse): { url: string; blockId: string } | null {
+  if (block.type !== 'image') return null;
+  const image = block.image;
+  const url = image.type === 'external' ? image.external.url : image.file.url;
+  if (!url) return null;
+  return { url, blockId: block.id };
+}
+
+async function findFirstImageBlock(
+  blockId: string,
+): Promise<{ url: string; blockId: string } | null> {
+  let start_cursor: string | undefined;
+  do {
+    const response = await notion.blocks.children.list({ block_id: blockId, start_cursor });
+    for (const block of response.results) {
+      if (!('type' in block)) continue;
+      const imageData = getImageUrlFromBlock(block as BlockObjectResponse);
+      if (imageData) return imageData;
+      if ('has_children' in block && (block as BlockObjectResponse).has_children) {
+        const nested = await findFirstImageBlock(block.id);
+        if (nested) return nested;
+      }
+    }
+    start_cursor = response.has_more ? (response.next_cursor as string | undefined) : undefined;
+  } while (start_cursor);
+  return null;
 }
 
 // Remove the first dummy transformer and only keep the second one
@@ -105,7 +194,7 @@ function isFullPage(page: any): page is PageObjectResponse {
   return 'properties' in page;
 }
 
-async function sync() {
+export async function sync() {
   console.log('Starting Notion Sync...');
 
   const existingPosts = await getExistingPosts();
@@ -169,16 +258,30 @@ async function sync() {
     const tags = props.tags?.multi_select?.map((t: any) => t.name) || [];
 
     let cover = '';
-    if (page.cover) {
-      const coverUrl =
-        page.cover.type === 'external' ? page.cover.external.url : page.cover.file.url;
-      const localCover = await downloadImage(coverUrl, pageId, 'cover');
+    const pageCoverUrl =
+      page.cover && page.cover.type === 'external'
+        ? page.cover.external.url
+        : page.cover && page.cover.type === 'file'
+          ? page.cover.file.url
+          : null;
+    const propertyCoverUrl = extractCoverUrl(props);
+
+    const preferredCover = pageCoverUrl || propertyCoverUrl;
+    if (preferredCover) {
+      const localCover = await downloadImage(preferredCover, pageId, 'cover');
       if (localCover) cover = localCover;
+    }
+    if (!cover) {
+      const firstImage = await findFirstImageBlock(pageId);
+      if (firstImage) {
+        const fallbackCover = await downloadImage(firstImage.url, pageId, firstImage.blockId);
+        if (fallbackCover) cover = fallbackCover;
+      }
     }
 
     // Convert Body to MD
     const mdblocks = await n2m.pageToMarkdown(pageId);
-    const mdString = n2m.toMarkdownString(mdblocks);
+    const mdString = await n2m.toMarkdownString(mdblocks);
 
     // Construct Frontmatter
     const frontmatter = {
@@ -202,4 +305,6 @@ async function sync() {
   console.log('Sync complete.');
 }
 
-sync().catch(console.error);
+if (process.env.NODE_ENV !== 'test') {
+  sync().catch(console.error);
+}
