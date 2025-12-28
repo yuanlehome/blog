@@ -49,6 +49,52 @@ const JS_INITIALIZATION_DELAY = 2000;
 const MIN_CONTENT_LENGTH = 100;
 const CONTENT_WAIT_TIMEOUT = 30000;
 const MAX_URL_LENGTH_FOR_FILENAME = 50;
+const WECHAT_PLACEHOLDER_THRESHOLD = 60 * 1024; // ~60KB placeholder guard
+
+const MIME_TYPE_EXTENSION_MAP: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'image/bmp': '.bmp',
+};
+
+const WECHAT_IMAGE_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+  Referer: 'https://mp.weixin.qq.com/',
+  Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+  'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+};
+
+const DEFAULT_IMAGE_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  Referer: 'https://www.zhihu.com',
+};
+
+type ProviderConfig = {
+  headers: Record<string, string>;
+  placeholderGuard?: (buffer: Buffer, contentType: string) => boolean;
+  defaultExt?: string;
+};
+
+const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
+  wechat: {
+    headers: WECHAT_IMAGE_HEADERS,
+    placeholderGuard: isSuspectedWechatPlaceholder,
+    defaultExt: '.jpg',
+  },
+  zhihu: {
+    headers: DEFAULT_IMAGE_HEADERS,
+    defaultExt: '.jpg',
+  },
+};
+
+function getProviderConfig(provider: string): ProviderConfig {
+  return PROVIDER_CONFIGS[provider] || { headers: DEFAULT_IMAGE_HEADERS, defaultExt: '.jpg' };
+}
 
 function parseArgs(): string {
   const url =
@@ -231,6 +277,14 @@ function resolveImageSrc(node: HastElement, base?: string) {
   return normalizeUrl(url, base);
 }
 
+function isSuspectedWechatPlaceholder(buffer: Buffer, contentType: string) {
+  const normalizedContentType = contentType.toLowerCase();
+  const contentTypeIsImage = normalizedContentType.startsWith('image/');
+  if (!contentTypeIsImage) return true;
+  if (buffer.length === 0) return true;
+  return buffer.length < WECHAT_PLACEHOLDER_THRESHOLD;
+}
+
 async function downloadImage(
   url: string,
   provider: string,
@@ -243,31 +297,45 @@ async function downloadImage(
     if (!finalUrl) return null;
 
     const extFromUrl = path.extname(new URL(finalUrl).pathname).split('?')[0];
-    const ext = extFromUrl || '.jpg';
+    const filenameBase = String(index + 1).padStart(3, '0');
     const dir = path.join(imageRoot, slug);
-    fs.mkdirSync(dir, { recursive: true });
+    const { headers, placeholderGuard, defaultExt = '.jpg' } = getProviderConfig(provider);
 
-    const filename = `${String(index + 1).padStart(3, '0')}${ext}`;
-    const localPath = path.join(dir, filename);
-
-    if (fs.existsSync(localPath)) {
-      return `/images/${provider}/${slug}/${filename}`;
+    if (extFromUrl) {
+      const existingPath = path.join(dir, `${filenameBase}${extFromUrl}`);
+      if (fs.existsSync(existingPath)) {
+        return `/images/${provider}/${slug}/${filenameBase}${extFromUrl}`;
+      }
     }
 
-    const res = await fetch(finalUrl, {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
-        Referer: 'https://www.zhihu.com',
-      },
-    });
+    const res = await fetch(finalUrl, { headers });
 
     if (!res.ok) {
       console.warn(`Failed to fetch image ${finalUrl}: ${res.status}`);
       return null;
     }
 
+    const contentType = res.headers.get('content-type') || '';
     const buffer = Buffer.from(await res.arrayBuffer());
+
+    if (placeholderGuard?.(buffer, contentType)) {
+      console.warn(
+        `${provider} image suspected placeholder (size=${buffer.length} bytes, content-type=${contentType})`,
+      );
+      return null;
+    }
+
+    const mimeType = (contentType.split(';')[0] || '').trim().toLowerCase();
+    const extFromMime = MIME_TYPE_EXTENSION_MAP[mimeType];
+    const ext = extFromUrl || extFromMime || defaultExt;
+    const filename = `${filenameBase}${ext}`;
+    const localPath = path.join(dir, filename);
+
+    fs.mkdirSync(dir, { recursive: true });
+    if (fs.existsSync(localPath)) {
+      return `/images/${provider}/${slug}/${filename}`;
+    }
+
     fs.writeFileSync(localPath, buffer);
     return `/images/${provider}/${slug}/${filename}`;
   } catch (error) {
@@ -275,6 +343,29 @@ async function downloadImage(
     return null;
   }
 }
+
+/**
+ * Playwright fallback design (manual use):
+ * --------------------------------------
+ * When direct HTTP download returns a suspected placeholder, launch Playwright,
+ * open the WeChat article URL with a trusted Referer, listen for network
+ * responses from mmbiz.qpic.cn, and persist the real response body:
+ *
+ * await withBrowser(async (context) => {
+ *   const page = await context.newPage();
+ *   let imageBody: Buffer | null = null;
+ *   page.on('response', async (resp) => {
+ *     if (resp.url().includes('mmbiz.qpic.cn') && resp.request().resourceType() === 'image') {
+ *       imageBody = Buffer.from(await resp.body());
+ *     }
+ *   });
+ *   await page.goto(articleUrl, { waitUntil: 'networkidle', referer: 'https://mp.weixin.qq.com/' });
+ *   await page.waitForTimeout(2000);
+ *   if (imageBody) fs.writeFileSync(targetPath, imageBody);
+ * });
+ *
+ * This stays out of CI/build paths and can be opted in manually when needed.
+ */
 
 const transformMath: Plugin<[], any> = () => (tree: any) => {
   visit(tree, 'element', (node: HastElement, index: number | null | undefined, parent: any) => {
