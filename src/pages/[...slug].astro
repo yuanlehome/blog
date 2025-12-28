@@ -26,9 +26,13 @@ const stats = getReadingTime(post.body);
 const { prev, next } = findPrevNext(all, post.slug);
 const related = findRelated(all, post);
 const commentsEnabled = post.data.comments ?? true;
+
+const BASE = import.meta.env.BASE_URL.endsWith('/')
+  ? import.meta.env.BASE_URL
+  : import.meta.env.BASE_URL + '/';
 ---
 
-<Layout title={post.data.title} image={post.data.cover}>
+<Layout title={post.data.title} image={'${BASE}post.data.cover'}>
   <ReadingProgress />
   <Header />
   <main class="container mx-auto px-4 py-8 max-w-6xl">
@@ -41,7 +45,7 @@ const commentsEnabled = post.data.comments ?? true;
           {
             post.data.cover && (
               <img
-                src={post.data.cover}
+                src={'${BASE}post.data.cover'}
                 alt={post.data.title}
                 class="w-full h-64 object-cover rounded-xl mb-6"
               />
