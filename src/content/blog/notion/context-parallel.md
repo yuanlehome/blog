@@ -4,10 +4,10 @@ slug: context-parallel
 date: '2025-12-28'
 tags: []
 status: published
-cover: >-
-  /images/notion/2cd22dca-4210-81ec-89e2-f27eefb312e5/2cd22dca-4210-8065-8a1a-e0bf7582b90e.png
-notionId: 2cd22dca-4210-81ec-89e2-f27eefb312e5
+cover: /images/notion/context-parallel/2cd22dca-4210-8065-8a1a-e0bf7582b90e.png
 lastEditedTime: '2025-12-28T06:59:00.000Z'
+notion:
+  id: 2cd22dca-4210-81ec-89e2-f27eefb312e5
 ---
 
 ---
@@ -223,7 +223,7 @@ $\text{attn\_out}=\frac{o}{l},\qquad \text{LSE}=m+\log l$
 
   整个 Ring Attention 过程通过将通信和计算**重叠**（Overlap）实现了高效并行：只要 KV 块传输时间小于下一块计算时间，就不会产生额外延迟。也就是说，通信几乎被完全隐藏在计算过程中，使得多卡协同计算长序列注意力时的总用时近似等于纯计算用时。这种“块状环形并行”策略可以在线性扩展序列长度的同时，保持接近线性的吞吐提升。Berkeley 等机构的研究表明，利用 Ring Attention 可以在训练和推理中将 Transformer 上下文长度扩展到接近“设备数量 × 原始长度”，实现**近乎无限长**的上下文处理能力。vLLM 对 Ring Attention 的支持还在积极开发中，目前的实现主要聚焦于前一种 All-Gather 策略，而对于极限长度场景将逐步引入 Ring Attention 机制。
 
-![图2：预填充上下文并行的 Ring Attention 流程示意（部分查询，部分 KV 的场景）。左侧橙/灰色块表示不同 GPU 持有的键、值片段（K0/K1/K2 和 V0/V1/V2）；紫色框表示各 GPU 独立执行注意力计算模块。流程: ①各 GPU 先用本地 K/V 计算自己的查询块（Q0/Q1/Q2）的注意力输出 (O_00, O_11, O_22)；② 然后按环形拓扑将本地 K/V 发送给下一个 GPU（红色箭头），同时接收来自上一个 GPU 的 K/V；③ 重复计算下一轮注意力输出 (如 Rank0 计算 O_01，Rank1 计算 O_12，Rank2 计算 O_20)，共进行 N-1 轮通信+计算；④ 每轮计算后对局部输出进行 LogSumExp 校正以准备合并；⑤ 所有分块结果通过累加校正得到最终输出 O（红色块）。整个过程中通信与计算充分重叠，实现了无额外开销的近线性扩展。](/images/notion/2cd22dca-4210-81ec-89e2-f27eefb312e5/2cd22dca-4210-8065-8a1a-e0bf7582b90e.png)
+![图2：预填充上下文并行的 Ring Attention 流程示意（部分查询，部分 KV 的场景）。左侧橙/灰色块表示不同 GPU 持有的键、值片段（K0/K1/K2 和 V0/V1/V2）；紫色框表示各 GPU 独立执行注意力计算模块。流程: ①各 GPU 先用本地 K/V 计算自己的查询块（Q0/Q1/Q2）的注意力输出 (O_00, O_11, O_22)；② 然后按环形拓扑将本地 K/V 发送给下一个 GPU（红色箭头），同时接收来自上一个 GPU 的 K/V；③ 重复计算下一轮注意力输出 (如 Rank0 计算 O_01，Rank1 计算 O_12，Rank2 计算 O_20)，共进行 N-1 轮通信+计算；④ 每轮计算后对局部输出进行 LogSumExp 校正以准备合并；⑤ 所有分块结果通过累加校正得到最终输出 O（红色块）。整个过程中通信与计算充分重叠，实现了无额外开销的近线性扩展。](/images/notion/context-parallel/2cd22dca-4210-8065-8a1a-e0bf7582b90e.png)
 
 需要注意的是，在 PCP 与 Ring Attention 结合使用的预填充阶段，上下文并行不再依赖对同一 token 的非注意力模块进行重复计算，而是通过在序列维度同时切分 Q、K、V，使每个 GPU 仅处理其负责的 token 子序列，从而避免了前馈层、LayerNorm 等非注意力计算的冗余。各 GPU 在本地完成 embedding、FFN 与 QKV 投影后，通过 Ring Attention 的环形通信机制逐步交换 K/V 分片，并以稳定的 LSE / Max-Sum 形式累积注意力统计量，实现与单卡等价的全上下文注意力结果。由于预填充阶段的主要计算瓶颈来自注意力随上下文长度增长的 $O(T^2)$ 复杂度，该方式能够在不引入额外冗余计算的前提下，将超长序列的注意力计算均匀分摊到多 GPU 上。随着上下文规模增大，通信开销相较于被并行化的计算量增长更为缓慢，使得该方案在极长 Prompt 场景下仍具备良好的扩展性。
 
@@ -237,7 +237,7 @@ $\text{attn\_out}=\frac{o}{l},\qquad \text{LSE}=m+\log l$
 
 ### 5.1 Ring Attention 的计算–通信流程
 
-![](/images/notion/2cd22dca-4210-81ec-89e2-f27eefb312e5/2cd22dca-4210-801b-a04d-f4249deae18c.png)
+![](/images/notion/context-parallel/2cd22dca-4210-801b-a04d-f4249deae18c.png)
 
 在 Ring Attention 中，序列被按 token 维度切分到不同 GPU 上，每个 GPU 仅持有自己负责的 token 子序列的 **Q/K/V**。注意力计算不再是“先收集全部 KV 再算”，而是以 **环形（ring）方式**逐步交换 KV 分片并同步进行计算。具体而言，对某一 GPU 来说：
 

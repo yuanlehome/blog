@@ -4,10 +4,10 @@ slug: flashattention
 date: '2025-12-28'
 tags: []
 status: published
-cover: >-
-  /images/notion/1fb22dca-4210-80cd-a96e-e32787cfd674/2d022dca-4210-80ec-a195-c3adbd923096.png
-notionId: 1fb22dca-4210-80cd-a96e-e32787cfd674
+cover: /images/notion/flashattention/2d022dca-4210-80ec-a195-c3adbd923096.png
 lastEditedTime: '2025-12-28T06:59:00.000Z'
+notion:
+  id: 1fb22dca-4210-80cd-a96e-e32787cfd674
 ---
 
 ---
@@ -40,7 +40,7 @@ $O = \text{softmax}\left(\frac{Q K^T}{\sqrt{d}}\right) V$
 
 其中 $Q, K, V$ 分别是查询、键、值矩阵，$d$ 是每个注意力头的维度。这个计算需要先计算 $QK^T$ 得到 $N \times N$ 的注意力得分矩阵，再对每一行执行 Softmax 归一化，最后与 $V$ 相乘得到输出 $O$。如图 1 所示，标准实现中，这三个步骤通常拆分为独立的矩阵运算，会产生大量中间结果。
 
-![图 1](/images/notion/1fb22dca-4210-80cd-a96e-e32787cfd674/2d022dca-4210-80ec-a195-c3adbd923096.png)
+![图 1](/images/notion/flashattention/2d022dca-4210-80ec-a195-c3adbd923096.png)
 
 **内存与计算挑战：** 注意力的时间和空间复杂度均为 $O(N^2)$，当序列长度 $N$ 增大时，内存占用和数据传输量会呈二次方增长。例如，长度翻倍会导致注意力矩阵元素数量增加四倍。这导致 GPU 上**内存访问**成为瓶颈——对巨大的 $QK^T$ 矩阵和 Softmax 中间结果的反复读写使计算受限于内存带宽。事实上，在大模型推理中，尽管 GPU 算力很强，**显存的读写速度**往往限制了注意力层的性能。
 
@@ -54,9 +54,9 @@ FlashAttention 正是在这种背景下诞生：通过**重排计算顺序和融
 
 FlashAttention V1（最初发表于 2022 年）是 Tri Dao 等人提出的**精确且内存高效**的注意力计算算法。它的核心思想是在**不引入近似**的前提下，通过**块式（block-wise）计算**和**在线 Softmax** 技巧，将注意力的中间结果限制在高速缓存中，从而减少显存读写。
 
-![](/images/notion/1fb22dca-4210-80cd-a96e-e32787cfd674/2d222dca-4210-808b-8f4d-e92e18a8d8b6.png)
+![](/images/notion/flashattention/2d222dca-4210-808b-8f4d-e92e18a8d8b6.png)
 
-![图 2：FlashAttention V1 的块式注意力计算原理示意图。将长序列的 K, V 拆分成多个块分批加载至片上高速内存（SRAM）计算，与每个块对应的 Q 批次进行乘积并软最大归一化，再累积输出结果。蓝色框表示存储在 GPU 显存（HBM）的大矩阵未被 materialize，橙色虚线框表示在片上 SRAM 中计算的部分。最终通过重新缩放确保整体 Softmax 正确归一化。](/images/notion/1fb22dca-4210-80cd-a96e-e32787cfd674/2cf22dca-4210-801c-9beb-dddea5d7e160.png)
+![图 2：FlashAttention V1 的块式注意力计算原理示意图。将长序列的 K, V 拆分成多个块分批加载至片上高速内存（SRAM）计算，与每个块对应的 Q 批次进行乘积并软最大归一化，再累积输出结果。蓝色框表示存储在 GPU 显存（HBM）的大矩阵未被 materialize，橙色虚线框表示在片上 SRAM 中计算的部分。最终通过重新缩放确保整体 Softmax 正确归一化。](/images/notion/flashattention/2cf22dca-4210-801c-9beb-dddea5d7e160.png)
 
 ### 2.1 块式计算与内存优化
 
@@ -182,13 +182,13 @@ return O, LSE
 
 FlashAttention V1 的并行化维度主要是**批次（batch）和多头（head）**。它为每个注意力头启动一个线程块（block），总共启动`batch_size * num_heads`个线程块并行计算。在典型训练场景（大batch、多头）下，这样可以占满 GPU 的大部分 SM。然而在**长序列-小 batch** 的推理或训练下，V1 常出现 GPU 资源利用不充分的问题：比如 batch size 很小且序列很长时，线程块数不足以占用全部 SM。V2 针对这一情况，增加了沿**序列长度方向的并行**。具体做法是在前向计算中，将注意力矩阵按“查询序列”的行拆分，由多个线程块分别处理不同的行块。这样，即使 batch 很小，每个 head 的长序列也能拆分成多个部分并行计算，从而大幅提高 SM 占用率。如**图 3** 所示，在前向过程中，不同线程块（Worker）各负责注意力矩阵的一部分行；在反向过程中，则各负责一部分列，以避免竞争更新梯度时的冲突。这种沿序列拆分的调度使 FlashAttention 在极长序列、小批量情况下仍能接近满 GPU 并行度，从而**支持更长上下文**并提升此情形下的速度。
 
-![图 3：FlashAttention-2 中跨线程块的并行调度示意。左图为前向传播：每个“Worker”（线程块）负责注意力矩阵的一块行片段，例如 Worker1 处理红色行块，Worker2 处理粉色行块等。右图为反向传播：每个线程块负责一块列片段，例如 Worker1 处理红色列块，Worker2 处理粉色列块等。这种沿序列长度的划分提高了长序列小批量情况下 GPU 的利用率。](/images/notion/1fb22dca-4210-80cd-a96e-e32787cfd674/2d022dca-4210-8038-a862-fb77cf289cdf.png)
+![图 3：FlashAttention-2 中跨线程块的并行调度示意。左图为前向传播：每个“Worker”（线程块）负责注意力矩阵的一块行片段，例如 Worker1 处理红色行块，Worker2 处理粉色行块等。右图为反向传播：每个线程块负责一块列片段，例如 Worker1 处理红色列块，Worker2 处理粉色列块等。这种沿序列长度的划分提高了长序列小批量情况下 GPU 的利用率。](/images/notion/flashattention/2d022dca-4210-8038-a862-fb77cf289cdf.png)
 
 ### **3.3 改进线程块内的 Warp 分工**
 
 在 GPU 上，一个线程块包含若干个 Warp（每个 Warp 32 个线程）。在 FlashAttention V1 中，采用的是“**切分 K（split-K）**”的方案：即每个 Warp 各自处理一部分 $K$ 和对应的 $V$，计算部分的 $QK^T$，然后需要将各 Warp 的结果写入共享内存并同步，加和得到完整输出。这种方案需要 Warps 间频繁同步和共享内存通信，造成一定开销。FlashAttention V2 改为“**切分 Q（split-Q）**”方案：让每个 Warp 处理**不同的查询** $Q$ **子块**，而使所有 Warp 都能访问完整的 $K$ 和 $V$ 块。这样，每个 Warp 可以独立完成自己那部分 $QK^T$ 乘积并直接乘以共享的 $V$ 得到对应输出片段，无需与其他 Warp 交换中间结果。**图 4** 展示了两种 Warp 分工方式的对比：FlashAttention-1（左）中不同颜色 Warp 各处理一部分 $K,V$，需要写共享内存（圆圈部分）再汇总；FlashAttention-2（右）则每个 Warp 处理不同的 $Q$ 行，避免了 Warp 间通信。这种改进显著减少了片内共享内存的读写和同步屏障，使单个线程块内部执行更高效。
 
-![图 4：Warp 级工作划分对比。（左）FlashAttention-1 中采用“切分 K”方案，不同 Warp 处理不同列块（K 块），需要在共享内存同步累加。（右）FlashAttention-2 改为“切分 Q”方案，不同 Warp 处理不同行块（Q 块），各 Warp 直接算出自己负责的输出部分，无需 Warp 间通信。新方案减少了共享内存读写和同步，提升了效率。](/images/notion/1fb22dca-4210-80cd-a96e-e32787cfd674/2d022dca-4210-8014-8fb1-c14621251b02.png)
+![图 4：Warp 级工作划分对比。（左）FlashAttention-1 中采用“切分 K”方案，不同 Warp 处理不同列块（K 块），需要在共享内存同步累加。（右）FlashAttention-2 改为“切分 Q”方案，不同 Warp 处理不同行块（Q 块），各 Warp 直接算出自己负责的输出部分，无需 Warp 间通信。新方案减少了共享内存读写和同步，提升了效率。](/images/notion/flashattention/2d022dca-4210-8014-8fb1-c14621251b02.png)
 
 ### **3.4 支持更大 Head 维度与多查询注意力**
 
@@ -208,11 +208,11 @@ NVIDIA Hopper 架构（如 H100 GPU）引入了若干新特性：Warp 级并行 
 
 传统注意力计算流程中，矩阵乘法（GEMM）和 Softmax 是串行的：必须先算完所有 $QK^T$ 得到注意力得分，再计算 Softmax，再乘 $V$。然而在 H100上，**GEMM 和 Softmax 两类操作可以并行重叠**执行。原因在于它们使用 GPU 上不同的计算单元（Tensor Core vs. 标量单元），例如 H100 的 FP16 Tensor Core 峰值 989 TFLOPs，而执行指数的标量单元仅 ~3.9 TFLOPs，相差达 256 倍。Softmax 尽管 FLOPs 占比不高，但因为速度慢，如果串行执行会占用总时间约一半。理想状况下，我们希望**在 Tensor Core 做矩阵乘法的同时，利用其他单元并行计算Softmax**。
 
-![图 5：FlashAttention-3 中跨 Warp 组的 Ping-Pong 异步调度。Warp 组 1（上方）和 Warp 组 2（下方）交替执行矩阵乘 GEMM 和 Softmax 操作：当一组等待矩阵乘结果时，另一组利用空闲执行 Softmax。虚线分隔不同迭代，彩色块表示 GEMM 或 Softmax 所占用的时间段。这样实现两类操作重叠并行，提高了硬件利用率。](/images/notion/1fb22dca-4210-80cd-a96e-e32787cfd674/2d022dca-4210-8058-95fe-d57ccd03d3b6.png)
+![图 5：FlashAttention-3 中跨 Warp 组的 Ping-Pong 异步调度。Warp 组 1（上方）和 Warp 组 2（下方）交替执行矩阵乘 GEMM 和 Softmax 操作：当一组等待矩阵乘结果时，另一组利用空闲执行 Softmax。虚线分隔不同迭代，彩色块表示 GEMM 或 Softmax 所占用的时间段。这样实现两类操作重叠并行，提高了硬件利用率。](/images/notion/flashattention/2d022dca-4210-8058-95fe-d57ccd03d3b6.png)
 
 FlashAttention-3 通过 Warp 级专业化（warp specialization）实现这一点：将同一线程块内的 Warp 分成两个角色，一部分 Warp 专职执行 GEMM（通过新 WGMMA 指令提高吞吐），另一部分 Warp 专职执行 Softmax 和归一化。然后采用“**Ping-Pong 调度**”在 Warp 组间交替执行：例如两个 Warp 组，一组先进行当前块的 GEMM 计算，另一组利用这段时间对上一个块执行 Softmax；随后两组交换角色，如此往复。**图 5** 展示了有两个 Warp 组时的流水线时间表：相同颜色代表同一次迭代，Warp 组 1 先执行 GEMM0 然后 Softmax，而 Warp 组 2 稍后开始 GEMM0，当 Warp 组 1 切换去执行 GEMM1 时，Warp组 2 正好执行 Softmax，以此交错重叠。这种手动的 barrier 调度让两个 Warp 组总有一个在算 Softmax 而另一个在算 GEMM，从而把 Softmax 隐藏在别的计算“阴影”下，提升流水线并行度。实测在 H100 上，FP16 前向算力通过这种 Warp 组 Ping-Pong 调度，速度从 570 TFLOPs 提高到 620 TFLOPs 左右。
 
-![图 6](/images/notion/1fb22dca-4210-80cd-a96e-e32787cfd674/2d022dca-4210-808c-928e-d45bfea290a2.png)
+![图 6](/images/notion/flashattention/2d022dca-4210-808c-928e-d45bfea290a2.png)
 
 除了 Warp 组之间的并行，如图 6 所示，FlashAttention-3 还进一步在**单个 Warp 组内实现流水线**：将一次 Attention 计算拆成两个阶段，先执行部分 GEMM 累积，再插入 Softmax 计算，然后继续下一个 GEMM。通过在 Warp 内交叉执行，小部分 Softmax 计算可以与本组后续的 GEMM 重叠，从而进一步榨取并行度。这种方案增加了一些寄存器开销（需要同时保存 GEMM 累积和 Softmax 中间值），但换来约 3% 左右额外性能提升（FP16 前向从 620 提升到约 640+ TFLOPs）。
 

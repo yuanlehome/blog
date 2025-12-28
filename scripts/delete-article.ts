@@ -14,7 +14,8 @@ const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..');
 const BLOG_ROOT = path.join(REPO_ROOT, 'src', 'content', 'blog');
 const PUBLIC_ROOT = path.join(REPO_ROOT, 'public');
-const IMPORTED_IMAGES_ROOT = path.join(PUBLIC_ROOT, 'images');
+const IMPORTED_IMAGES_ROOT = path.join(PUBLIC_ROOT, 'images', 'imported');
+const NOTION_IMAGES_ROOT = path.join(PUBLIC_ROOT, 'images', 'notion');
 
 function toBoolean(value?: string | boolean): boolean | undefined {
   if (typeof value === 'boolean') return value;
@@ -203,8 +204,10 @@ async function main() {
   await removeFile(articlePath, options.dryRun);
 
   if (options.deleteImages) {
-    const imagesDir = path.join(IMPORTED_IMAGES_ROOT, slug);
-    await removeDirectory(imagesDir, options.dryRun);
+    const imageDirs = [path.join(IMPORTED_IMAGES_ROOT, slug), path.join(NOTION_IMAGES_ROOT, slug)];
+    for (const dir of imageDirs) {
+      await removeDirectory(dir, options.dryRun);
+    }
     if (coverPath) {
       if (await fileExists(coverPath)) {
         await removeFile(coverPath, options.dryRun);

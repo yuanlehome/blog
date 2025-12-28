@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { shortHash } from '../../scripts/slug';
 
 const queryMock = vi.fn();
 const blocksListMock = vi.fn();
@@ -90,7 +91,7 @@ describe('notion sync helpers', () => {
 
   it('returns existing image paths and logs when download fails', async () => {
     const mod = await import('../../scripts/notion-sync');
-    const dir = path.join(process.env.NOTION_PUBLIC_IMG_DIR!, 'page');
+    const dir = path.join(process.env.NOTION_PUBLIC_IMG_DIR!, 'slug');
     fs.mkdirSync(dir, { recursive: true });
     const existing = path.join(dir, 'imageid.png');
     fs.writeFileSync(existing, 'data');
@@ -99,11 +100,11 @@ describe('notion sync helpers', () => {
     vi.stubGlobal('fetch', fetchMock);
     vi.useFakeTimers();
 
-    const existingUrl = await mod.downloadImage('https://example.com/a', 'page', 'imageid');
-    expect(existingUrl).toBe('/images/notion/page/imageid.png');
+    const existingUrl = await mod.downloadImage('https://example.com/a', 'slug', 'imageid');
+    expect(existingUrl).toBe('/images/notion/slug/imageid.png');
     expect(fetchMock).not.toHaveBeenCalled();
 
-    const missingPromise = mod.downloadImage('https://example.com/b', 'page', 'new-image');
+    const missingPromise = mod.downloadImage('https://example.com/b', 'slug', 'new-image');
     await vi.runAllTimersAsync();
     const missingUrl = await missingPromise;
     expect(missingUrl).toBeNull();
@@ -119,9 +120,9 @@ describe('notion sync helpers', () => {
       );
     vi.stubGlobal('fetch', fetchMock);
 
-    const url = await mod.downloadImage('https://example.com/noext', 'page', 'img-123');
+    const url = await mod.downloadImage('https://example.com/noext', 'slug', 'img-123');
     expect(url).toMatch(/img-123\.webp$/);
-    const saved = fs.readdirSync(path.join(process.env.NOTION_PUBLIC_IMG_DIR!, 'page'));
+    const saved = fs.readdirSync(path.join(process.env.NOTION_PUBLIC_IMG_DIR!, 'slug'));
     expect(saved.some((f) => f.endsWith('.webp'))).toBe(true);
   });
 
@@ -155,10 +156,10 @@ describe('notion sync helpers', () => {
     vi.stubGlobal('fetch', fetchMock);
     vi.useFakeTimers();
 
-    const resultPromise = mod.downloadImage('https://example.com/image', 'page', '###');
+    const resultPromise = mod.downloadImage('https://example.com/image', 'slug', '###');
     await vi.runAllTimersAsync();
     expect(await resultPromise).toBeNull();
-    const files = fs.readdirSync(path.join(process.env.NOTION_PUBLIC_IMG_DIR!, 'page'));
+    const files = fs.readdirSync(path.join(process.env.NOTION_PUBLIC_IMG_DIR!, 'slug'));
     expect(files.length).toBe(0);
   });
 
@@ -266,10 +267,11 @@ describe('notion sync helpers', () => {
     const contentDir = process.env.NOTION_CONTENT_DIR!;
     fs.mkdirSync(contentDir, { recursive: true });
     const existing = matter.stringify('old', {
-      notionId: 'page-status',
+      slug: 'should-skip',
+      notion: { id: 'page-status' },
       lastEditedTime: '2024-02-02T00:00:00.000Z',
     });
-    fs.writeFileSync(path.join(contentDir, 'existing.md'), existing);
+    fs.writeFileSync(path.join(contentDir, 'should-skip.md'), existing);
 
     const pages = [
       {
@@ -336,7 +338,7 @@ describe('notion sync helpers', () => {
     const files = fs.readdirSync(contentDir);
     expect(files.some((f) => f.startsWith('select-post'))).toBe(true);
     expect(files.some((f) => f.includes('no-status'))).toBe(true);
-    expect(files.some((f) => f.includes('existing'))).toBe(true);
+    expect(files.some((f) => f.includes('should-skip'))).toBe(true);
     expect(files.some((f) => f.includes('draft'))).toBe(false);
   });
 
@@ -376,7 +378,7 @@ describe('notion sync helpers', () => {
 
     const files = fs.readdirSync(process.env.NOTION_CONTENT_DIR!);
     const content = matter.read(path.join(process.env.NOTION_CONTENT_DIR!, files[0]));
-    expect(content.data.cover).toContain('/images/notion/page-fallback/img');
+    expect(content.data.cover).toContain('/images/notion/fallback-cover/img');
   });
 
   it('skips unsupported pages and respects provided slugs', async () => {
@@ -479,6 +481,100 @@ describe('notion sync helpers', () => {
     );
     const frontmatter = matter(file).data;
     expect(frontmatter.cover).toBe('');
+  });
+
+  it('resolves slug conflicts by hashing notion id', async () => {
+    const contentDir = process.env.NOTION_CONTENT_DIR!;
+    fs.mkdirSync(contentDir, { recursive: true });
+    fs.mkdirSync(process.env.NOTION_PUBLIC_IMG_DIR!, { recursive: true });
+    queryMock.mockResolvedValue({
+      results: [
+        {
+          id: 'page-dup-a',
+          last_edited_time: '2024-07-01T00:00:00.000Z',
+          cover: null,
+          properties: {
+            Name: { title: [{ plain_text: 'Dup' }] },
+            tags: { multi_select: [] },
+            slug: { rich_text: [{ plain_text: 'dup' }] },
+            date: { date: { start: '2024-07-01' } },
+          },
+        },
+        {
+          id: 'page-dup-b',
+          last_edited_time: '2024-07-02T00:00:00.000Z',
+          cover: null,
+          properties: {
+            Name: { title: [{ plain_text: 'Dup' }] },
+            tags: { multi_select: [] },
+            slug: { rich_text: [{ plain_text: 'dup' }] },
+            date: { date: { start: '2024-07-02' } },
+          },
+        },
+      ],
+    });
+    blocksListMock.mockResolvedValue({ results: [], has_more: false, next_cursor: null });
+    const mod = await import('../../scripts/notion-sync');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(Buffer.from('img'), {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        }),
+      ),
+    );
+    await mod.sync();
+    const files = fs.readdirSync(contentDir);
+    expect(files).toContain('dup.md');
+    expect(files).toContain(`dup-${shortHash('page-dup-b')}.md`);
+  });
+
+  it('migrates images and files when slug changes for the same notion page', async () => {
+    const contentDir = process.env.NOTION_CONTENT_DIR!;
+    const imagesDir = process.env.NOTION_PUBLIC_IMG_DIR!;
+    fs.mkdirSync(contentDir, { recursive: true });
+    fs.mkdirSync(imagesDir, { recursive: true });
+    const existingPath = path.join(contentDir, 'old-slug.md');
+    fs.writeFileSync(
+      existingPath,
+      matter.stringify('body', {
+        slug: 'old-slug',
+        notion: { id: 'page-rename' },
+        lastEditedTime: '2024-01-01T00:00:00.000Z',
+      }),
+    );
+    const sourceImageDir = path.join(imagesDir, 'page-rename');
+    fs.mkdirSync(sourceImageDir, { recursive: true });
+    fs.writeFileSync(path.join(sourceImageDir, 'img.png'), 'img');
+
+    queryMock.mockResolvedValue({
+      results: [
+        {
+          id: 'page-rename',
+          last_edited_time: '2024-02-01T00:00:00.000Z',
+          cover: null,
+          properties: {
+            Name: { title: [{ plain_text: 'Renamed' }] },
+            tags: { multi_select: [] },
+            slug: { rich_text: [{ plain_text: 'new-slug' }] },
+            date: { date: { start: '2024-02-01' } },
+          },
+        },
+      ],
+    });
+    blocksListMock.mockResolvedValue({ results: [], has_more: false, next_cursor: null });
+    const mod = await import('../../scripts/notion-sync');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(Buffer.from('img'), { status: 200 })),
+    );
+    await mod.sync();
+
+    expect(fs.existsSync(path.join(contentDir, 'new-slug.md'))).toBe(true);
+    expect(fs.existsSync(existingPath)).toBe(false);
+    expect(fs.existsSync(path.join(imagesDir, 'new-slug', 'img.png'))).toBe(true);
+    expect(fs.existsSync(sourceImageDir)).toBe(false);
   });
 
   it('runs autorun branch when NODE_ENV is not test', async () => {

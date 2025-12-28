@@ -4,18 +4,18 @@ slug: tp-sp-ep
 date: '2025-12-28'
 tags: []
 status: published
-cover: >-
-  /images/notion/2a122dca-4210-805b-ae7e-fb6b09a2e44f/2b222dca-4210-80d9-98fb-cf78ef53eb91.jpeg
-notionId: 2a122dca-4210-805b-ae7e-fb6b09a2e44f
+cover: /images/notion/tp-sp-ep/2b222dca-4210-80d9-98fb-cf78ef53eb91.jpeg
 lastEditedTime: '2025-12-28T10:25:00.000Z'
 updated: '2025-12-28T10:25:00.000Z'
+notion:
+  id: 2a122dca-4210-805b-ae7e-fb6b09a2e44f
 ---
 
 ---
 
 ## 一、两种混合并行图示
 
-![非完整图示，不含后续 EP 并行 MoE 层。](/images/notion/2a122dca-4210-805b-ae7e-fb6b09a2e44f/2b222dca-4210-80d9-98fb-cf78ef53eb91.jpeg)
+![非完整图示，不含后续 EP 并行 MoE 层。](/images/notion/tp-sp-ep/2b222dca-4210-80d9-98fb-cf78ef53eb91.jpeg)
 
 ---
 

@@ -23,7 +23,11 @@ const blog = defineCollection({
     tags: z.array(z.string()).default([]),
     cover: z.string().optional(), // Path to image in public or URL
     status: z.enum(['published', 'draft']).default('published'),
-    notionId: z.string().optional(),
+    notion: z
+      .object({
+        id: z.string(),
+      })
+      .optional(),
     comments: z.boolean().optional(),
     source_url: z.string().url().optional(),
     source_author: z.string().optional(),

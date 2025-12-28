@@ -4,10 +4,10 @@ slug: long-context
 date: '2025-12-28'
 tags: []
 status: published
-cover: >-
-  /images/notion/1fa22dca-4210-8019-9f72-ec95b62c0c39/2d222dca-4210-80e1-ac42-f75500bbf908.png
-notionId: 1fa22dca-4210-8019-9f72-ec95b62c0c39
+cover: /images/notion/long-context/2d222dca-4210-80e1-ac42-f75500bbf908.png
 lastEditedTime: '2025-12-28T06:30:00.000Z'
+notion:
+  id: 1fa22dca-4210-8019-9f72-ec95b62c0c39
 ---
 
 ---
@@ -57,7 +57,7 @@ lastEditedTime: '2025-12-28T06:30:00.000Z'
 
 - **FlashAttention 系列（FA1/2/3）：** 这是近年来最受关注的 Attention 优化内核。
 
-  ![FlashAttention 通过分块计算和在高速片上 SRAM 复用来避免显式构建完整的 QK^T 矩阵，并采用“在线”逐块 Softmax 归一化策略，大幅减少了 GPU 高带宽显存（HBM）的读写，极大提升了长序列 Attention 的速度。右图对比了未优化（PyTorch 标准 Attention）与 FlashAttention 的计算时间，可以看到 FlashAttention 将 Attention 算子的耗时显著缩短。](/images/notion/1fa22dca-4210-8019-9f72-ec95b62c0c39/2d222dca-4210-80e1-ac42-f75500bbf908.png)
+  ![FlashAttention 通过分块计算和在高速片上 SRAM 复用来避免显式构建完整的 QK^T 矩阵，并采用“在线”逐块 Softmax 归一化策略，大幅减少了 GPU 高带宽显存（HBM）的读写，极大提升了长序列 Attention 的速度。右图对比了未优化（PyTorch 标准 Attention）与 FlashAttention 的计算时间，可以看到 FlashAttention 将 Attention 算子的耗时显著缩短。](/images/notion/long-context/2d222dca-4210-80e1-ac42-f75500bbf908.png)
 
   FlashAttention 的核心思想是 **IO 优化**：将注意力的计算按块(tile)分割，在高速的 SMEM 寄存器/片上存储器中完成 $Q,K,V$ 片块的乘积和归一化，避免反复在 HBM 读取大矩阵。这样 Prefill 阶段的 $L^2$ 计算大量变为片上操作，大幅加速；Decode阶段 FlashAttention 3（FA3）进一步针对生成场景优化了 kernel，实现极致高效的单步解码 Attention。
 
@@ -140,7 +140,7 @@ lastEditedTime: '2025-12-28T06:30:00.000Z'
 
   这是为**高吞吐+长上下文服务**打造的系统级优化，被认为是工业部署的“标配”方案之一。其核心思想是将原本在同一 GPU 上串行执行的 Prefill 和 Decode 两阶段**拆解到不同的 GPU 资源池**中各自执行。原因在前面也分析过：Prefill 和 Decode 的资源瓶颈截然不同，一个重计算、一个重内存，并且混跑时互相干扰效率。通过物理上分离：部署**算力强大的 GPU** 专门跑 Prefill，**显存超大的 GPU** 专门跑 Decode，分别优化 TTFT 和 ITL，就能兼顾两者。
 
-  ![SGLang 中的 Prefill-Decode 解耦示意。左侧“Prefill Server”负责计算完整输入的前向并产生 KV 缓存，右侧“Decode Server”预先分配好 KV 空间，二者通过高速网络建立连接（RDMA 队列对），Prefill 算完后将 KV 数据直接传输给 Decode 服务器，后者随即开始迭代生成输出。这种架构让两阶段各自利用最优硬件资源，互不打扰。](/images/notion/1fa22dca-4210-8019-9f72-ec95b62c0c39/2d222dca-4210-80fa-94c7-da329dca8b22.png)
+  ![SGLang 中的 Prefill-Decode 解耦示意。左侧“Prefill Server”负责计算完整输入的前向并产生 KV 缓存，右侧“Decode Server”预先分配好 KV 空间，二者通过高速网络建立连接（RDMA 队列对），Prefill 算完后将 KV 数据直接传输给 Decode 服务器，后者随即开始迭代生成输出。这种架构让两阶段各自利用最优硬件资源，互不打扰。](/images/notion/long-context/2d222dca-4210-80fa-94c7-da329dca8b22.png)
 
   PD分离的实现需要解决 **KV 缓存传输**问题——这通常通过 **RDMA** 等技术实现零拷贝高速传送。例如 SGLang 的实现中，Prefill 端通过 RDMA 把 KV 缓存直接写入 Decode 端 GPU 内存，采用后台线程异步传输以不阻塞主计算流程。NVidia 的 TensorRT-LLM 也提供了类似的 Disaggregated Serving 模式，并支持将 KV 传输与计算重叠以进一步提高效率。实际效果方面，PD 分离在高并发场景下大幅提高了吞吐延迟表现，据报道相比传统单引擎可提升 1.7~2 倍性能。需要注意 PD 分离在低并发短上下文时未必有优势，部署时需评估开销平衡。
 
