@@ -59,8 +59,22 @@ test.describe('Blog smoke journey', () => {
     const toggledClass = await html.getAttribute('class');
     expect(toggledClass).not.toBe(initialClass);
 
+    const expectedGiscusTheme = await page.evaluate(() => {
+      const resolved = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+      return resolved === 'dark' ? 'dark_dimmed' : 'light';
+    });
+    await expect
+      .poll(async () =>
+        page.evaluate(
+          () => document.getElementById('comments')?.getAttribute('data-giscus-theme') || '',
+        ),
+      )
+      .toBe(expectedGiscusTheme);
+
     await page.goto('/blog/archive/');
-    const toggledResolved = toggledClass ? 'dark' : 'light';
+    const toggledResolved = await page.evaluate(() =>
+      document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
+    );
     await page.waitForFunction(
       (expected) => document.documentElement.dataset.theme === expected,
       toggledResolved,

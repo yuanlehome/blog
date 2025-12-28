@@ -293,6 +293,7 @@ export async function sync() {
       cover,
       notionId: pageId,
       lastEditedTime, // Important for incremental sync
+      updated: lastEditedTime,
     };
 
     const fileContent = matter.stringify(mdString.parent || '', frontmatter);

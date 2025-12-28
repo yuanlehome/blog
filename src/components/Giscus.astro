@@ -24,65 +24,92 @@ const { lang = 'zh-CN' } = Astro.props;
 </section>
 
 <script is:inline>
-  // Mapping uses `pathname` to keep one discussion per URL path, which is stable for static sites.
-  const themeMap = {
-    light: 'light',
-    dark: 'dark_dimmed',
-  };
+  (() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
-  const getCurrentTheme = () =>
-    document.documentElement.classList.contains('dark') ||
-    document.documentElement.dataset.theme === 'dark'
-      ? 'dark'
-      : 'light';
+    // Mapping uses `pathname` to keep one discussion per URL path, which is stable for static sites.
+    const themeMap = {
+      light: 'light',
+      dark: 'dark_dimmed',
+    };
 
-  let activeTheme = getCurrentTheme();
+    const getResolvedTheme = () =>
+      document.documentElement.dataset.theme === 'dark' ||
+      document.documentElement.classList.contains('dark')
+        ? 'dark'
+        : 'light';
 
-  const postThemeMessage = () => {
-    const iframe = document.querySelector('iframe.giscus-frame');
-    if (!iframe) return;
+    let activeTheme = getResolvedTheme();
 
-    const nextTheme = themeMap[activeTheme] ?? 'light';
-    iframe.contentWindow?.postMessage(
-      { giscus: { setConfig: { theme: nextTheme } } },
-      'https://giscus.app',
-    );
-  };
-
-  const syncTheme = () => {
-    const detected = getCurrentTheme();
-    if (detected !== activeTheme) {
-      activeTheme = detected;
-    }
-    postThemeMessage();
-  };
-
-  const observer = new MutationObserver(syncTheme);
-  observer.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ['class', 'data-theme'],
-  });
-
-  const waitForFrame = () => {
-    const frame = document.querySelector('iframe.giscus-frame');
-    if (!frame) {
-      requestAnimationFrame(waitForFrame);
-      return;
-    }
-
-    const sendWhenReady = () => postThemeMessage();
-    if (frame instanceof HTMLIFrameElement) {
-      if (frame.complete) {
-        sendWhenReady();
-      } else {
-        frame.addEventListener('load', sendWhenReady, { once: true });
+    const setContainerTheme = (theme) => {
+      const container = document.getElementById('comments');
+      if (container) {
+        container.setAttribute('data-giscus-theme', theme);
       }
-    }
-    // Ensure we apply the current theme even if the iframe was already ready.
-    postThemeMessage();
-  };
+    };
 
-  // Run once after load to sync the initial theme and keep retrying until the iframe is present.
-  waitForFrame();
-  syncTheme();
+    const postThemeMessage = (resolvedTheme) => {
+      const effective = resolvedTheme ?? activeTheme;
+      const nextTheme = themeMap[effective] ?? 'light';
+      setContainerTheme(nextTheme);
+      const iframe = document.querySelector('iframe.giscus-frame');
+      if (iframe) {
+        iframe.contentWindow?.postMessage(
+          { giscus: { setConfig: { theme: nextTheme } } },
+          'https://giscus.app',
+        );
+      }
+      window.dispatchEvent(
+        new CustomEvent('giscus-theme-applied', {
+          detail: { theme: nextTheme, resolved: effective },
+        }),
+      );
+    };
+
+    const syncTheme = (resolvedOverride) => {
+      const detected = resolvedOverride ?? getResolvedTheme();
+      if (detected !== activeTheme) {
+        activeTheme = detected;
+      }
+      postThemeMessage(detected);
+    };
+
+    const observer = new MutationObserver(() => syncTheme());
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'data-theme'],
+    });
+
+    window.addEventListener('themechange', (event) => {
+      const detail = event?.detail || {};
+      if (detail.resolved) {
+        syncTheme(detail.resolved);
+      } else {
+        syncTheme();
+      }
+    });
+
+    const waitForFrame = () => {
+      const frame = document.querySelector('iframe.giscus-frame');
+      if (!frame) {
+        requestAnimationFrame(waitForFrame);
+        return;
+      }
+
+      const sendWhenReady = () => postThemeMessage();
+      if (frame instanceof HTMLIFrameElement) {
+        if (frame.complete) {
+          sendWhenReady();
+        } else {
+          frame.addEventListener('load', sendWhenReady, { once: true });
+        }
+      }
+      // Ensure we apply the current theme even if the iframe was already ready.
+      postThemeMessage();
+    };
+
+    // Run once after load to sync the initial theme and keep retrying until the iframe is present.
+    waitForFrame();
+    syncTheme();
+  })();
 </script>
