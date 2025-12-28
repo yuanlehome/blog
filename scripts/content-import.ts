@@ -1056,6 +1056,31 @@ function normalizeMathDelimiters(markdown: string) {
   return markdown.replace(/\\\$\\\$/g, '$$').replace(/\\\$/g, '$');
 }
 
+/**
+ * Sanitize MDX content to avoid parse errors from imported sources.
+ *
+ * Rules:
+ * A) Convert autolinks like <https://example.com> into [https://example.com](https://example.com)
+ *    without touching real HTML/JSX tags.
+ * B) Remove empty HTML comments (<!-- --> or <!--   -->) and collapse 3+ consecutive blank lines.
+ */
+export function sanitizeMdx(content: string): string {
+  const autolinkPattern = /<https?:\/\/[^<>\s]+>/g;
+  const withSafeLinks = content.replace(autolinkPattern, (match) => {
+    const url = match.slice(1, -1);
+    return `[${url}](${url})`;
+  });
+
+  const withoutEmptyComments = withSafeLinks.replace(/<!--([\s\S]*?)-->/g, (match, inner) => {
+    return inner.trim() === '' ? '' : match;
+  });
+
+  // Collapse 3 or more consecutive newlines (potentially introduced after comment removal) down to 2
+  const collapsedBlankLines = withoutEmptyComments.replace(/\n{3,}/g, '\n\n');
+
+  return collapsedBlankLines;
+}
+
 export async function htmlToMdx(
   html: string,
   options: {
@@ -1097,6 +1122,7 @@ export async function htmlToMdx(
 
   let markdown = String(file).trim();
   markdown = normalizeMathDelimiters(markdown);
+  markdown = sanitizeMdx(markdown);
 
   return { markdown, images };
 }
