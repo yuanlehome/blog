@@ -202,43 +202,27 @@ describe('delete-article image matching', () => {
 });
 
 describe('delete-article slug matching logic', () => {
-  it('matches basename equal to slug', () => {
-    const slug = 'my-article';
-    const basename = 'my-article';
+  function matchesSlug(slug: string, basename: string): boolean {
+    return basename === slug || basename.startsWith(`${slug}-`);
+  }
 
-    const matches = basename === slug || basename.startsWith(`${slug}-`);
-    expect(matches).toBe(true);
+  it('matches basename equal to slug', () => {
+    expect(matchesSlug('my-article', 'my-article')).toBe(true);
   });
 
   it('matches basename starting with slug-', () => {
-    const slug = 'my-article';
-    const basename = 'my-article-2';
-
-    const matches = basename === slug || basename.startsWith(`${slug}-`);
-    expect(matches).toBe(true);
+    expect(matchesSlug('my-article', 'my-article-2')).toBe(true);
   });
 
   it('does not match when slug is substring in middle', () => {
-    const slug = 'article';
-    const basename = 'my-article';
-
-    const matches = basename === slug || basename.startsWith(`${slug}-`);
-    expect(matches).toBe(false);
+    expect(matchesSlug('article', 'my-article')).toBe(false);
   });
 
   it('does not match when slug is at end', () => {
-    const slug = 'test';
-    const basename = 'my-test';
-
-    const matches = basename === slug || basename.startsWith(`${slug}-`);
-    expect(matches).toBe(false);
+    expect(matchesSlug('test', 'my-test')).toBe(false);
   });
 
   it('does not match similar but different slug', () => {
-    const slug = 'bar';
-    const basename = 'barbaz';
-
-    const matches = basename === slug || basename.startsWith(`${slug}-`);
-    expect(matches).toBe(false);
+    expect(matchesSlug('bar', 'barbaz')).toBe(false);
   });
 });
