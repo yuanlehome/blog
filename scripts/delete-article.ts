@@ -202,16 +202,18 @@ async function findImageDirsBySlug(slug: string): Promise<string[]> {
     return matches;
   }
 
+  const imagesRootResolved = path.resolve(IMAGES_ROOT);
+  const imagesWithSep = `${imagesRootResolved}${path.sep}`;
+
   // Check if path is inside IMAGES_ROOT
-  function isInsideImagesRoot(p: string): boolean {
-    const resolved = path.resolve(p);
-    const imagesWithSep = `${IMAGES_ROOT}${path.sep}`;
-    return resolved === IMAGES_ROOT || resolved.startsWith(imagesWithSep);
+  function isInsideImagesRoot(resolved: string): boolean {
+    return resolved === imagesRootResolved || resolved.startsWith(imagesWithSep);
   }
 
   // Recursively scan IMAGES_ROOT for matching directories
   async function scanDir(dir: string) {
-    if (!isInsideImagesRoot(dir)) {
+    const resolvedDir = path.resolve(dir);
+    if (!isInsideImagesRoot(resolvedDir)) {
       return;
     }
 
