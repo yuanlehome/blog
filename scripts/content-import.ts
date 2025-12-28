@@ -52,7 +52,7 @@ const MAX_RETRIES = 3;
 const BASE_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 10000;
 const JS_INITIALIZATION_DELAY = 2000;
-const MIN_CONTENT_LENGTH = 100;
+const MIN_CONTENT_LENGTH = 100; // Minimum meaningful text length when choosing main article content
 const CONTENT_WAIT_TIMEOUT = 30000;
 const MAX_URL_LENGTH_FOR_FILENAME = 50;
 const WECHAT_PLACEHOLDER_THRESHOLD = 60 * 1024; // ~60KB placeholder guard
@@ -508,11 +508,14 @@ function resolveImageSrc(node: HastElement, base?: string) {
         } else if (descriptor.endsWith('x')) {
           score = parseFloat(descriptor.slice(0, -1)) * 1000;
         }
-        const width = Number.isFinite(score) ? score : 0;
+        const width = Number.isFinite(score) ? score : -1;
         return { url: urlPart, width };
       })
       .filter((item) => item.url);
-    if (!candidates.length) return '';
+    if (!candidates.length) {
+      console.warn('No usable entries found in srcset; falling back to original src.');
+      return '';
+    }
     candidates.sort((a, b) => b.width - a.width);
     return candidates[0].url;
   };
@@ -1048,7 +1051,7 @@ const localizeImages = (options: {
 };
 
 function normalizeMathDelimiters(markdown: string) {
-  // remark-stringify escapes dollar signs in math spans; restore them for proper rendering.
+  // remark-stringify escapes dollar signs in inline ($) and display ($$) math; restore them.
   // Imported articles are expected to use dollars for math, so we unescape them globally.
   return markdown.replace(/\\\$\\\$/g, '$$').replace(/\\\$/g, '$');
 }
@@ -1542,6 +1545,7 @@ async function main() {
   console.log(`Saved article to ${filepath}`);
 }
 
+// Avoid running the CLI when the module is imported (e.g., in tests or tsx -e invocations).
 const entryUrl = process.argv[1] ? pathToFileURL(process.argv[1]).href : '';
 if (entryUrl && import.meta.url === entryUrl) {
   main().catch((error) => {
