@@ -3,6 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { getReadingTime } from '../utils/readingTime';
+import { resolveAssetUrl } from '../utils/assetUrl';
 import TableOfContents from '../components/TableOfContents.astro';
 import MobileToc from '../components/MobileToc.astro';
 import PrevNext from '../components/PrevNext.astro';
@@ -28,7 +29,7 @@ const related = findRelated(all, post);
 const commentsEnabled = post.data.comments ?? true;
 ---
 
-<Layout title={post.data.title} image={post.data.cover}>
+<Layout title={post.data.title} image={resolveAssetUrl(post.data.cover)}>
   <ReadingProgress />
   <Header />
   <main class="container mx-auto px-4 py-8 max-w-6xl">
@@ -41,7 +42,7 @@ const commentsEnabled = post.data.comments ?? true;
           {
             post.data.cover && (
               <img
-                src={post.data.cover}
+                src={resolveAssetUrl(post.data.cover)}
                 alt={post.data.title}
                 class="w-full h-64 object-cover rounded-xl mb-6"
               />
