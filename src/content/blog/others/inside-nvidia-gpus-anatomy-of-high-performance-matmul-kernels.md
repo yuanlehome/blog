@@ -5,11 +5,13 @@ date: '2025-12-28'
 tags: []
 status: published
 source_url: 'https://www.aleksagordic.com/blog/matmul'
-source_author: others
-imported_at: '2025-12-28T12:52:12.640Z'
+source_author: www.aleksagordic.com
+imported_at: '2025-12-28T15:17:34.698Z'
 source:
   title: www.aleksagordic.com
   url: 'https://www.aleksagordic.com/blog/matmul'
+cover: >-
+  /images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/001-8ee6a76e.png
 ---
 
 # Inside NVIDIA GPUs: Anatomy of high performance matmul kernels
