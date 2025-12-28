@@ -8,6 +8,7 @@ import slugify from 'slugify';
 import matter from 'gray-matter';
 import { fileURLToPath } from 'url';
 import type { BlockObjectResponse } from '@notionhq/client/build/src/api-endpoints';
+import crypto from 'crypto';
 
 dotenv.config({ path: '.env.local' });
 
@@ -57,17 +58,19 @@ function resolveExtension(url: string, contentType?: string | null) {
 
 // Helper: Download Image
 async function downloadImage(url: string, pageId: string, imageId: string): Promise<string | null> {
+  const dir = path.join(PUBLIC_IMG_DIR, pageId);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+  const normalizedId = imageId.replace(/[^a-zA-Z0-9-_]/g, '');
+  const safeImageId =
+    normalizedId || crypto.createHash('md5').update(imageId).digest('hex').slice(0, 12);
+  const existingFile = fs.readdirSync(dir).find((f) => f.startsWith(safeImageId));
+  if (existingFile) {
+    return `/images/notion/${pageId}/${existingFile}`;
+  }
+
+  let lastError: unknown = null;
   try {
-    const dir = path.join(PUBLIC_IMG_DIR, pageId);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-    const safeImageId = imageId.replace(/[^a-zA-Z0-9-_]/g, '');
-    const existingFile = fs.readdirSync(dir).find((f) => f.startsWith(safeImageId));
-    if (existingFile) {
-      return `/images/notion/${pageId}/${existingFile}`;
-    }
-
-    let lastError: unknown;
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
         const controller = new AbortController();
@@ -98,13 +101,12 @@ async function downloadImage(url: string, pageId: string, imageId: string): Prom
         }
       }
     }
-
-    console.error(`Failed to download image: ${url}`, lastError);
-    return null;
   } catch (error) {
-    console.error(`Failed to download image: ${url}`, error);
-    return null;
+    lastError = error;
   }
+
+  console.error(`Failed to download image: ${url}`, lastError);
+  return null;
 }
 
 function extractCoverUrl(props: any): string | null {
@@ -142,7 +144,7 @@ async function findFirstImageBlock(
       if (!('type' in block)) continue;
       const imageData = getImageUrlFromBlock(block as BlockObjectResponse);
       if (imageData) return imageData;
-      if ((block as any).has_children) {
+      if ('has_children' in block && (block as BlockObjectResponse).has_children) {
         const nested = await findFirstImageBlock(block.id);
         if (nested) return nested;
       }
