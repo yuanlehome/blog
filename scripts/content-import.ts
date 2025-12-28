@@ -11,11 +11,12 @@ import rehypeRemark from 'rehype-remark';
 import slugify from 'slugify';
 import { unified, type Plugin } from 'unified';
 import { visit } from 'unist-util-visit';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { pathToFileURL } from 'url';
 import crypto from 'crypto';
 import sharp from 'sharp';
 import { JSDOM } from 'jsdom';
 import readline from 'readline';
+import { ARTIFACTS_DIR, BLOG_CONTENT_DIR, PUBLIC_IMAGES_DIR } from '../src/config/paths';
 
 type HastElement = {
   type?: string;
@@ -41,11 +42,9 @@ type Provider = {
   extract: (page: Page, url: string) => Promise<ExtractedArticle>;
 };
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const CONTENT_ROOT = path.join(__dirname, '../src/content/blog');
-const IMAGE_ROOT = path.join(__dirname, '../public/images');
-const ARTIFACTS_ROOT = path.join(__dirname, '../artifacts');
+const CONTENT_ROOT = BLOG_CONTENT_DIR;
+const IMAGE_ROOT = PUBLIC_IMAGES_DIR;
+const ARTIFACTS_ROOT = ARTIFACTS_DIR;
 
 // Constants for retry and timing
 const MAX_RETRIES = 3;
