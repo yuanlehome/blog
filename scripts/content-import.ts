@@ -152,14 +152,18 @@ async function parseArgs(): Promise<ImportArgs> {
   const useFirstImageAsCover = process.argv.includes('--use-first-image-as-cover');
   let url = argUrl;
 
-  if (!url) {
-    try {
-      const stdin = fs.readFileSync(0, 'utf8').trim();
-      if (stdin) {
-        url = stdin;
-      }
-    } catch {
-      // ignore
+  if (!url && !process.stdin.isTTY) {
+    const stdin = await new Promise<string>((resolve) => {
+      let data = '';
+      process.stdin.setEncoding('utf8');
+      process.stdin.on('data', (chunk) => {
+        data += String(chunk);
+      });
+      process.stdin.on('end', () => resolve(data.trim()));
+      process.stdin.on('error', () => resolve(''));
+    });
+    if (stdin) {
+      url = stdin;
     }
   }
 
@@ -1045,6 +1049,7 @@ const localizeImages = (options: {
 
 function normalizeMathDelimiters(markdown: string) {
   // remark-stringify escapes dollar signs in math spans; restore them for proper rendering.
+  // Imported articles are expected to use dollars for math, so we unescape them globally.
   return markdown.replace(/\\\$\\\$/g, '$$').replace(/\\\$/g, '$');
 }
 
@@ -1435,7 +1440,6 @@ const providers: Provider[] = [
         html: article.html,
         baseUrl: article.baseUrl || new URL(url).origin,
         sourceTitle: article.sourceTitle,
-        sourceUrl: article.sourceUrl,
       };
     },
   },
@@ -1538,7 +1542,8 @@ async function main() {
   console.log(`Saved article to ${filepath}`);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+const entryUrl = process.argv[1] ? pathToFileURL(process.argv[1]).href : '';
+if (entryUrl && import.meta.url === entryUrl) {
   main().catch((error) => {
     console.error(error);
     process.exit(1);
