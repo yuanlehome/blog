@@ -112,7 +112,11 @@ const hasCover = Boolean(post.data.cover);
 
             {
               post.data.source_url && (
-                <div class="w-full rounded-lg border border-blue-200 bg-blue-50 px-5 py-3 dark:border-blue-900 dark:bg-blue-950 md:col-span-2">
+                <div
+                  class={`w-full rounded-lg border border-blue-200 bg-blue-50 px-5 py-3 dark:border-blue-900 dark:bg-blue-950 ${
+                    hasCover ? 'md:col-span-2' : 'md:col-span-1'
+                  }`}
+                >
                   <p class="text-sm text-gray-700 dark:text-gray-300 break-words">
                     <span class="font-semibold">📝 转载 / 引用来源：</span>
                     {post.data.source_author && (
