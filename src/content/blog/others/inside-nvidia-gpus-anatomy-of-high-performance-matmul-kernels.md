@@ -5,7 +5,7 @@ date: '2025-12-28'
 tags: []
 status: published
 source_url: 'https://www.aleksagordic.com/blog/matmul'
-source_author: imported
+source_author: others
 imported_at: '2025-12-28T12:52:12.640Z'
 source:
   title: www.aleksagordic.com
