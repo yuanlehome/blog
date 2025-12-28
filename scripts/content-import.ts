@@ -1096,6 +1096,20 @@ const providers: Provider[] = [
       // Fix lazy-loaded images: replace data:image/svg+xml placeholders with actual URLs
       // This ensures real image URLs (https://mmbiz.qpic.cn/...) are captured in the HTML
       await page.evaluate(() => {
+        // Validate and normalize that a candidate is a safe http/https URL before using it.
+        function isSafeHttpUrl(raw: string | null | undefined): string | null {
+          if (!raw) return null;
+          try {
+            const url = new URL(raw, document.baseURI);
+            if (url.protocol === 'http:' || url.protocol === 'https:') {
+              return url.toString();
+            }
+          } catch {
+            // Ignore invalid URLs
+          }
+          return null;
+        }
+
         const root =
           document.querySelector('#js_content') || document.querySelector('.rich_media_content');
         if (root) {
@@ -1109,9 +1123,10 @@ const providers: Provider[] = [
               img.getAttribute('data-actualsrc') ||
               img.getAttribute('data-actual-url');
 
-            // Replace placeholder with actual URL if found
-            if (realUrl && /^https?:\/\//i.test(realUrl)) {
-              img.setAttribute('src', realUrl);
+            // Replace placeholder with actual URL if found and safe
+            const safeUrl = isSafeHttpUrl(realUrl);
+            if (safeUrl) {
+              img.setAttribute('src', safeUrl);
               // Clean up lazy-load attributes to avoid confusion
               img.removeAttribute('data-src');
               img.removeAttribute('data-original');
