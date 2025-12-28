@@ -44,7 +44,9 @@ const hasCover = Boolean(post.data.cover);
         <header class="mb-8 not-prose">
           <div
             class={`grid gap-6 ${
-              hasCover ? 'md:grid-cols-[minmax(0,1fr)_220px] md:items-start md:gap-8' : ''
+              hasCover
+                ? 'md:grid-cols-[minmax(0,1fr)_220px] md:items-start md:gap-8'
+                : 'md:grid-cols-1'
             }`}
           >
             <div class={`flex flex-col gap-4 ${hasCover ? 'md:h-full' : ''}`}>
