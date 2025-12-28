@@ -53,7 +53,7 @@ At the highest level, a GPU performs two essential tasks:
 
 The block diagram of H100 below reflects this division: components in blue represent memory or data movement, while components in red are compute (hot) units.
 
-![Figure 1: Model of the NVIDIA Hopper H100 GPU](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/001-8ee6a76e.png)
+![Figure 1: Model of the NVIDIA Hopper H100 GPU](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/001-8ee6a76e.png)
 
 Figure 1: Model of the NVIDIA Hopper H100 GPU
 
@@ -81,7 +81,7 @@ The GPU memory system consists of:
 
 5. **Register file (RMEM)**. The fastest storage, located next to the compute units. Registers are private to individual threads. Compared to CPUs, GPUs contain far more registers, and the total RMEM capacity is of the same size as the combined L1/SMEM storage.
 
-![Figure 2: Memory hierarchy of the H100 (SXM5) GPU](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/002-a9f61b85.png)
+![Figure 2: Memory hierarchy of the H100 (SXM5) GPU](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/002-a9f61b85.png)
 
 Figure 2: Memory hierarchy of the H100 (SXM5) GPU
 
@@ -141,7 +141,7 @@ The peak throughput is calculated as: `perf = freq_clk_max * num_tc * flop_per_t
 
 or in words: maximum clock frequency × number of tensor cores × FLOPs per tensor core per cycle.
 
-![Figure 3: H100 SXM5 BF16 speed-of-light derivation](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/003-9cf3af00.png)
+![Figure 3: H100 SXM5 BF16 speed-of-light derivation](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/003-9cf3af00.png)
 
 Figure 3: H100 SXM5 BF16 speed-of-light derivation
 
@@ -156,7 +156,7 @@ I left one hint in the figure above: the "speed of light" is not actually consta
 
 In practice, the peak throughput depends on the actual clock frequency, which can vary under power or thermal throttling. If the GPU clock drops, so does the effective speed of light:
 
-![Figure 4: Power throttling reduces clock frequency and lowers the effective “speed of light”](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/004-821585f3.png)
+![Figure 4: Power throttling reduces clock frequency and lowers the effective “speed of light”](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/004-821585f3.png)
 
 Figure 4: Power throttling reduces clock frequency and lowers the effective “speed of light”
 
@@ -180,7 +180,7 @@ The key abstractions are:
 4. thread block cluster
 5. grid (of thread blocks or clusters)
 
-![Figure 5: CUDA Programming Model: threads, warps, blocks, clusters, grids](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/005-0d49d664.png)
+![Figure 5: CUDA Programming Model: threads, warps, blocks, clusters, grids](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/005-0d49d664.png)
 
 Figure 5: CUDA Programming Model: threads, warps, blocks, clusters, grids
 
@@ -199,7 +199,7 @@ and use those to fetch its assigned pixel from global memory (`image[x][y]`), pe
 
 Here is how those variables relate to each other:
 
-![Figure 6: CUDA's built-in variables: how threads know where they are](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/006-a3c6cd90.png)
+![Figure 6: CUDA's built-in variables: how threads know where they are](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/006-a3c6cd90.png)
 
 Figure 6: CUDA's built-in variables: how threads know where they are
 
@@ -226,13 +226,13 @@ Armed with the CUDA programming model terminology, we can now continue our desce
 
 Let's dive into GMEM. As noted earlier, it is implemented as a stack of DRAM layers with a logic layer at the bottom (HBM). But what exactly is DRAM?
 
-![Figure 7: Inside a DRAM cell: transistor + capacitor, wordline + bitline](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/007-0c5a4437.png)
+![Figure 7: Inside a DRAM cell: transistor + capacitor, wordline + bitline](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/007-0c5a4437.png)
 
 Figure 7: Inside a DRAM cell: transistor + capacitor, wordline + bitline
 
 Now that we understand how a single bit is stored, let's zoom out to the entire memory matrix. At a high level, it looks like this:
 
-![Figure 8: GMEM model](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/008-dbb04e9b.png)
+![Figure 8: GMEM model](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/008-dbb04e9b.png)
 
 Figure 8: GMEM model
 
@@ -242,7 +242,7 @@ If you want to dive deeper into HBM, I found the paper ["Demystifying the Charac
 
 Thus we conclude: access patterns matter because of the physics of DRAM cells. Here is an example:
 
-![Figure 9: Effect of access pattern in GMEM](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/009-9ffead5b.png)
+![Figure 9: Effect of access pattern in GMEM](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/009-9ffead5b.png)
 
 Figure 9: Effect of access pattern in GMEM
 
@@ -262,7 +262,7 @@ The exact design of SRAM cell doesn't matter - suffice to say it takes many more
 
 SMEM is organized into 32 banks, each bank 32 bits wide (4 bytes):
 
-![Figure 10: SMEM model](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/010-349393f4.png)
+![Figure 10: SMEM model](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/010-349393f4.png)
 
 Figure 10: SMEM model
 
@@ -276,7 +276,7 @@ In the worst case, all 32 threads target different addresses in the same bank, a
 
 To illustrate, suppose the warp size were 5. The two access patterns below would take 3 cycles and 1 cycle to serve, respectively:
 
-![Figure 11: SMEM: good vs. bad access patterns](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/011-651002e5.png)
+![Figure 11: SMEM: good vs. bad access patterns](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/011-651002e5.png)
 
 Figure 11: SMEM: good vs. bad access patterns
 
@@ -287,7 +287,7 @@ In the below example, the request is served in a single cycle:
 - Bank 1 can multicast a value to 2 threads.
 - Bank 2 can multicast a value to 3 threads.
 
-![Figure 12: SMEM: multicasting (served in a single cycle)](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/012-2c95f4f4.png)
+![Figure 12: SMEM: multicasting (served in a single cycle)](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/012-2c95f4f4.png)
 
 Figure 12: SMEM: multicasting (served in a single cycle)
 
@@ -310,13 +310,13 @@ At a high level, the logic flow of the L1 cache is:
 
 Here is the system I just described:
 
-![Figure 13: L1 cache model](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/013-8e982c04.png)
+![Figure 13: L1 cache model](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/013-8e982c04.png)
 
 Figure 13: L1 cache model
 
 Let's go one level deeper and look at the tag stage and data stage in detail:
 
-![Figure 14: Breakdown of k-way set-associative cache organization](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/014-c6c094a8.png)
+![Figure 14: Breakdown of k-way set-associative cache organization](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/014-c6c094a8.png)
 
 Figure 14: Breakdown of k-way set-associative cache organization
 
@@ -371,7 +371,7 @@ The key advantage of PTX is forward compatibility. A CUDA program compiled to PT
 
 This works because PTX is embedded into the CUDA binary alongside native SASS. When the binary runs on a future GPU, if matching SASS code is not already present, the PTX is JIT-compiled into SASS for the target architecture:
 
-![Figure 15: CUDA compilation flow: from CUDA C++ → PTX → SASS](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/015-aa3bd47e.png)
+![Figure 15: CUDA compilation flow: from CUDA C++ → PTX → SASS](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/015-aa3bd47e.png)
 
 Figure 15: CUDA compilation flow: from CUDA C++ → PTX → SASS
 
@@ -407,7 +407,7 @@ for (int m = 0; m < M; m++) {
 
 We loop over the rows (`m`) and columns (`n`) of the output matrix (`C`), and at each location compute a dot product (`C[m,n] = dot(a[m,k],b[k,n])`). This is the textbook definition of matmul:
 
-![Figure 16: Naive CPU matmul example](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/016-6bf0d586.png)
+![Figure 16: Naive CPU matmul example](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/016-6bf0d586.png)
 
 Figure 16: Naive CPU matmul example
 
@@ -464,7 +464,7 @@ You can observe a few things here:
 
 The last two points combined lead to a phenomenon commonly known as the **tile quantization:**
 
-![Figure 17: Tile quantization](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/017-20e073fb.png)
+![Figure 17: Tile quantization](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/017-20e073fb.png)
 
 Figure 17: Tile quantization
 
@@ -478,13 +478,13 @@ Let's take a closer look at what this kernel actually does. For the rest of this
 
 The logical organization of threads looks like this:
 
-![Figure 18: Thread organization in naive matmul kernel](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/018-9c5036fe.png)
+![Figure 18: Thread organization in naive matmul kernel](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/018-9c5036fe.png)
 
 Figure 18: Thread organization in naive matmul kernel
 
 And the matmul logic itself looks like this:
 
-![Figure 19: Naive matmul kernel](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/019-63cad355.png)
+![Figure 19: Naive matmul kernel](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/019-63cad355.png)
 
 Figure 19: Naive matmul kernel
 
@@ -527,7 +527,7 @@ Occupancy (warps): the ratio of active warps to the maximum number of warps per 
 
 Here, "active warps" means the warps of a thread block after they've been allocated resources (registers, SMEM, etc.) at launch.
 
-![Figure 20: Nsight Compute: Occupancy, Waves info](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/020-08298cc8.png)
+![Figure 20: Nsight Compute: Occupancy, Waves info](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/020-08298cc8.png)
 
 Figure 20: Nsight Compute: Occupancy, Waves info
 
@@ -537,7 +537,7 @@ Worth mentioning here: just like **tile quantization**, there's also a concept o
 
 For example, suppose I launch a kernel with 114 blocks (exactly the number of SMs on my H100 PCIe). And suppose we can only run 1 block / SM at the time. With only one block per SM, the kernel finishes in a single wave. Now imagine I increase the launch to 115 blocks. Suddenly, execution time nearly doubles — because we need two waves — yet most of the resources in that second wave sit idle, with only a single block running:
 
-![Figure 21: Wave quantization](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/021-90e8eef8.png)
+![Figure 21: Wave quantization](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/021-90e8eef8.png)
 
 Figure 21: Wave quantization
 
@@ -563,7 +563,7 @@ One more important setting is `--use_fast_math`. It trades numerical accuracy fo
 
 Below is the annotated PTX for the CUDA C++ kernel shown above. I decoded it manually to better internalize the ISA. Feel free to zoom in and take a moment to digest the structure (alternatively jump right after the figure to read my summary and then get back to the figure):
 
-![Figure 22: PTX code corresponding to naive matmul CUDA kernel](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/022-6ddbe5f8.png)
+![Figure 22: PTX code corresponding to naive matmul CUDA kernel](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/022-6ddbe5f8.png)
 
 Figure 22: PTX code corresponding to naive matmul CUDA kernel
 
@@ -622,7 +622,7 @@ I did also observe a few compiler inefficiencies, such as:
 
 Fun! Now let's see the corresponding SASS code:
 
-![Figure 23: SASS code corresponding to naive matmul CUDA kernel](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/023-8a52ed55.png)
+![Figure 23: SASS code corresponding to naive matmul CUDA kernel](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/023-8a52ed55.png)
 
 Figure 23: SASS code corresponding to naive matmul CUDA kernel
 
@@ -686,13 +686,13 @@ In other words, we just swap the `%` and `/`operators.
 
 Swapping `row2` and `col2` is the only change in the logical structure compared to the previous example:
 
-![Figure 24: New logical organization of row2 and col2 variables](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/024-a1578a89.png)
+![Figure 24: New logical organization of row2 and col2 variables](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/024-a1578a89.png)
 
 Figure 24: New logical organization of row2 and col2 variables
 
 And here's what the modified kernel does now:
 
-![Figure 25: Naive kernel with uncoalesced GMEM access](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/025-a98a3759.png)
+![Figure 25: Naive kernel with uncoalesced GMEM access](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/025-a98a3759.png)
 
 Figure 25: Naive kernel with uncoalesced GMEM access
 
@@ -702,7 +702,7 @@ On my H100 PCIe card, performance dropped from 3171 GFLOP/s to just 243 GFLOP/s 
 
 From the outside, it looks like just a trivial swap between two operators. But if you don't have a mental model of the hardware, you'd never expect such a dramatic effect.
 
-![Figure 26: Roofline model](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/026-5d1c148e.png)
+![Figure 26: Roofline model](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/026-5d1c148e.png)
 
 Figure 26: Roofline model
 
@@ -749,13 +749,13 @@ If these loads were coming from GMEM, we've just saved roughly 2× bandwidth by 
 
 But the more important insight is algorithmic: this version computes matmul as a **partial sum of outer products**. That perspective is crucial for understanding the warp-tiling method, which we'll dive into next:
 
-![Figure 27: Matmul as a sum of partial outer products](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/027-d86b0b62.png)
+![Figure 27: Matmul as a sum of partial outer products](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/027-d86b0b62.png)
 
 Figure 27: Matmul as a sum of partial outer products
 
 It may be obvious, but it's worth emphasizing: a dot product is equivalent to a sum of partial dot products:
 
-![Figure 28: Dot product is equivalent to a sum of partial dot products](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/028-ba9329f3.png)
+![Figure 28: Dot product is equivalent to a sum of partial dot products](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/028-ba9329f3.png)
 
 Figure 28: Dot product is equivalent to a sum of partial dot products
 
@@ -770,7 +770,7 @@ Recall also that our initial kernels had very low arithmetic intensity — they 
 
 Here's a visual intuition for why that matters:
 
-![Figure 29: Arithmetic intensity improves when each thread computes multiple outputs and when tiles approach a square shape](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/029-438eb3c2.png)
+![Figure 29: Arithmetic intensity improves when each thread computes multiple outputs and when tiles approach a square shape](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/029-438eb3c2.png)
 
 Figure 29: Arithmetic intensity improves when each thread computes multiple outputs and when tiles approach a square shape
 
@@ -783,7 +783,7 @@ We know two key things:
 
 With that in mind, the high-level structure of the algorithm looks like this:
 
-![Figure 30: High-level structure of the warp-tiling algorithm, also referred to as block tiling.](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/030-5306a1ba.png)
+![Figure 30: High-level structure of the warp-tiling algorithm, also referred to as block tiling.](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/030-5306a1ba.png)
 
 Figure 30: High-level structure of the warp-tiling algorithm, also referred to as block tiling.
 
@@ -819,7 +819,7 @@ for (uint offset = 0; offset + rowStrideB <= BK; offset += rowStrideB) {
   }
 ```
 
-![Figure 31: Loading a chunk of B (GMEM) into Bs (SMEM)](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/031-636ace81.png)
+![Figure 31: Loading a chunk of B (GMEM) into Bs (SMEM)](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/031-636ace81.png)
 
 Figure 31: Loading a chunk of B (GMEM) into Bs (SMEM)
 
@@ -843,7 +843,7 @@ for (uint offset = 0; offset + rowStrideA <= BM; offset += rowStrideA) {
 }
 ```
 
-![Figure 32: Loading a chunk of A (GMEM) into As (SMEM)](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/032-c438d970.png)
+![Figure 32: Loading a chunk of A (GMEM) into As (SMEM)](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/032-c438d970.png)
 
 Figure 32: Loading a chunk of A (GMEM) into As (SMEM)
 
@@ -895,7 +895,7 @@ for (uint dotIdx = 0; dotIdx < BK; ++dotIdx) {  // dotIdx is the outer most loop
 }
 ```
 
-![Figure 33: Performing matmul between As and Bs as a series of thread-level outer products (warp-tiling + thread-tiling).](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/033-130a37f6.png)
+![Figure 33: Performing matmul between As and Bs as a series of thread-level outer products (warp-tiling + thread-tiling).](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/033-130a37f6.png)
 
 Figure 33: Performing matmul between As and Bs as a series of thread-level outer products (warp-tiling + thread-tiling).
 
@@ -943,7 +943,7 @@ We keep the exact same program structure, except that:
 - We now need only 128 threads (4 warps) per thread block.
 - Tile sizes are set to `BM = BN = BK = 64`.
 
-![Figure 34: We keep the same high-level structure of the warp-tiling algorithm (block-tiling).](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/034-5640c629.png)
+![Figure 34: We keep the same high-level structure of the warp-tiling algorithm (block-tiling).](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/034-5640c629.png)
 
 Figure 34: We keep the same high-level structure of the warp-tiling algorithm (block-tiling).
 
@@ -1038,7 +1038,7 @@ Let's take a moment to unpack what swizzling actually means. I couldn't find a c
 
 Let's start with a motivating example:
 
-![Figure 35: Swizzling example](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/035-942f2ad1.png)
+![Figure 35: Swizzling example](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/035-942f2ad1.png)
 
 Figure 35: Swizzling example
 
@@ -1052,7 +1052,7 @@ Without swizzling, this access would map all those column elements into the same
 
 The same property holds for any row or column: after swizzling, they can all be served in a single cycle!
 
-![Figure 36: No bank conflicts when loading rows or columns](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/036-e56ada57.png)
+![Figure 36: No bank conflicts when loading rows or columns](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/036-e56ada57.png)
 
 Figure 36: No bank conflicts when loading rows or columns
 
@@ -1135,7 +1135,7 @@ In plain language: The swizzle function looks at bits `GHI` (positions 9, 8, 7, 
 
 Let's build some intuition for how the swizzling function behaves:
 
-![Figure 37: Swizzle function intuition](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/037-faf268e7.png)
+![Figure 37: Swizzle function intuition](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/037-faf268e7.png)
 
 Figure 37: Swizzle function intuition
 
@@ -1147,7 +1147,7 @@ How does all this connect back to the motivating example we started with?
 
 Here's the link:
 
-![Figure 38: Connecting the swizzle function to the matrix swizzle example](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/038-16982d93.png)
+![Figure 38: Connecting the swizzle function to the matrix swizzle example](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/038-16982d93.png)
 
 Figure 38: Connecting the swizzle function to the matrix swizzle example
 
@@ -1242,7 +1242,7 @@ I am deliberately skipping the details of how the SMEM descriptors for `sA` and 
 
 Here is an explanation of why we need 4 wgmma calls:
 
-![Figure 39: Why doing four 64x16 @ 16x64 wgmma calls is equivalent to doing a 64x64 @ 64x64 matmul](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/039-c08b9966.png)
+![Figure 39: Why doing four 64x16 @ 16x64 wgmma calls is equivalent to doing a 64x64 @ 64x64 matmul](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/039-c08b9966.png)
 
 Figure 39: Why doing four 64x16 @ 16x64 wgmma calls is equivalent to doing a 64x64 @ 64x64 matmul
 
@@ -1252,7 +1252,7 @@ But the key takeaway is that much of the warp-tiling and thread-tiling complexit
 
 That said, this is only the starting point. We are still wasting both TMA and tensor core cycles:
 
-![Figure 40: We are wasting TMA and TC cycles - we can do better](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/040-12899786.png)
+![Figure 40: We are wasting TMA and TC cycles - we can do better](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/040-12899786.png)
 
 Figure 40: We are wasting TMA and TC cycles - we can do better
 
@@ -1363,7 +1363,7 @@ if (wg_idx == 0) {  // wg_idx = threadIdx.x / 128
 
 The visualization should make it much clearer:
 
-![Figure 41: More efficient TC/TMA pipeline: producer warp-group streams tiles into a circular buffer; consumer warp-group drains tiles into tensor cores.](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/041-12a260d3.png)
+![Figure 41: More efficient TC/TMA pipeline: producer warp-group streams tiles into a circular buffer; consumer warp-group drains tiles into tensor cores.](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/041-12a260d3.png)
 
 Figure 41: More efficient TC/TMA pipeline: producer warp-group streams tiles into a circular buffer; consumer warp-group drains tiles into tensor cores.
 
@@ -1379,13 +1379,13 @@ Each consumer owns a 64×256 half-tile of the output, so the per-thread accumula
 
 Here is how the matmul is executed now:
 
-![Figure 42: Two consumer warp groups let us grow the tile from 128x128 -> 128x256 without register spills](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/042-b5e9ea8f.png)
+![Figure 42: Two consumer warp groups let us grow the tile from 128x128 -> 128x256 without register spills](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/042-b5e9ea8f.png)
 
 Figure 42: Two consumer warp groups let us grow the tile from 128x128 -> 128x256 without register spills
 
 The next big idea is that we can hide the latency of writing the output tile as well:
 
-![Figure 43: Persistent kernels: overlap the output store with incoming loads by launching one long-lived block per SM that processes many tiles.](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/043-688f6329.png)
+![Figure 43: Persistent kernels: overlap the output store with incoming loads by launching one long-lived block per SM that processes many tiles.](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/043-688f6329.png)
 
 Figure 43: Persistent kernels: overlap the output store with incoming loads by launching one long-lived block per SM that processes many tiles.
 
@@ -1405,25 +1405,25 @@ Let's start with a toy setup to reason about options:
 
 A first attempt might look like this:
 
-![Figure 44: Naïve schedule](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/044-94473507.png)
+![Figure 44: Naïve schedule](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/044-94473507.png)
 
 Figure 44: Naïve schedule
 
 Can we do better? Yes—by making the schedule cache-aware:
 
-![Figure 45: Block-wise cache-aware schedule](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/045-9f30c858.png)
+![Figure 45: Block-wise cache-aware schedule](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/045-9f30c858.png)
 
 Figure 45: Block-wise cache-aware schedule
 
 But can we do even better? Surprisingly, yes—by using a space-filling curve:
 
-![Figure 46: Hilbert-curve schedule](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/046-22c81af3.png)
+![Figure 46: Hilbert-curve schedule](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/046-22c81af3.png)
 
 Figure 46: Hilbert-curve schedule
 
 The final idea I'll cover in depth is to exploit Hopper's new cluster-level CUDA execution model to cut down on L2/GMEM traffic:
 
-![Figure 47: Using thread block clusters to reduce the number of L2/GMEM loads.](/images/imported/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/047-21a30a9b.png)
+![Figure 47: Using thread block clusters to reduce the number of L2/GMEM loads.](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/047-21a30a9b.png)
 
 Figure 47: Using thread block clusters to reduce the number of L2/GMEM loads.
 
