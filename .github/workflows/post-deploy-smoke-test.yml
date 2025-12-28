@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: post-deploy-smoke-${{ github.event.workflow_run.head_branch || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   post-deploy-smoke-test:
     # 只在部署 workflow 成功后执行

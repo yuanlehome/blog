@@ -1,14 +1,31 @@
-name: CI
-permissions:
-  contents: read
+name: Validation
 
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright
+  PORT: '4173'
+  BASE_URL: 'http://127.0.0.1:4173'
+  SERVER_WAIT_RETRIES: '30'
+  FAIL_ON_MISSING_SITEMAP: 'false'
 
 jobs:
-  test:
+  validate:
     runs-on: ubuntu-latest
+    env:
+      SITE_BASE: /blog
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -16,17 +33,28 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
+      - name: Cache Playwright browsers
+        id: cache-playwright
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Install Playwright browsers
+        if: steps.cache-playwright.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
 
       - name: Type check
         run: npm run check
+
+      - name: Lint
+        run: npm run lint
 
       - name: Unit & integration tests
         run: npm run test
@@ -36,3 +64,106 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Smoke test (built site)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "BASE_URL=${BASE_URL}"
+          echo "SITE_BASE=${SITE_BASE}"
+          PREFIX=""
+          if [[ -d "dist${SITE_BASE}" ]]; then
+            PREFIX="${SITE_BASE}"
+          fi
+          echo "prefix:${PREFIX:-root}"
+
+          nohup npx --yes http-server dist -p "${PORT}" -a 127.0.0.1 -c-1 > server.log 2>&1 &
+
+          for i in $(seq 1 "${SERVER_WAIT_RETRIES}"); do
+            if curl -sS "http://127.0.0.1:${PORT}${PREFIX}/" >/dev/null 2>&1; then
+              echo "server:ready"
+              break
+            fi
+            sleep 1
+          done
+
+          curl_check() {
+            local url="$1"
+            echo "curl:${url}"
+            curl -sS -L --fail \
+              --retry 5 --retry-delay 2 --retry-all-errors \
+              --connect-timeout 10 --max-time 20 \
+              "${url}"
+          }
+
+          home_url="${BASE_URL}${PREFIX}/"
+          home_html="$(curl_check "${home_url}")"
+          grep -q "Recent Posts" <<<"${home_html}"
+
+          for p in "/archive/" "/about/"; do
+            if [[ -f "dist${PREFIX}${p}index.html" ]]; then
+              curl_check "${BASE_URL}${PREFIX}${p}" > /dev/null
+            else
+              echo "skip:${p}"
+            fi
+          done
+
+          rss_target=""
+          if [[ -f "dist${PREFIX}/rss.xml" ]]; then
+            rss_target="${BASE_URL}${PREFIX}/rss.xml"
+          elif [[ -f "dist/rss.xml" ]]; then
+            rss_target="${BASE_URL}/rss.xml"
+          fi
+          if [[ -n "${rss_target}" ]]; then
+            curl_check "${rss_target}" > /dev/null
+          else
+            echo "skip:rss"
+          fi
+
+          sitemap_target=""
+          for sm in "/sitemap.xml" "/sitemap-index.xml"; do
+            if [[ -f "dist${PREFIX}${sm}" ]]; then
+              sitemap_target="${BASE_URL}${PREFIX}${sm}"
+              break
+            elif [[ -f "dist${sm}" ]]; then
+              sitemap_target="${BASE_URL}${sm}"
+              break
+            fi
+          done
+          if [[ -z "${sitemap_target}" ]]; then
+            echo "sitemap:missing"
+            if [[ "${FAIL_ON_MISSING_SITEMAP}" == "true" ]]; then
+              exit 1
+            fi
+          else
+            curl_check "${sitemap_target}" > /dev/null
+          fi
+
+          pick_content_page() {
+            find "dist${PREFIX}" -type f -name "*.html" \
+              ! -name "index.html" \
+              ! -name "404.html" \
+              ! -name "500.html" \
+              ! -path "*/admin/*" \
+              | head -n 1
+          }
+
+          cand="$(pick_content_page || true)"
+          if [[ -z "${cand}" ]]; then
+            cand="$(find "dist${PREFIX}" -type f -name "index.html" | head -n 1 || true)"
+          fi
+          if [[ -n "${cand}" ]]; then
+            dist_prefix="dist${PREFIX%/}/"
+            rel="${cand#${dist_prefix}}"
+            article_html="$(curl_check "${BASE_URL}${PREFIX}${rel}")"
+            grep -qiE "<html|<article" <<<"${article_html}"
+          else
+            echo "content:missing"
+            exit 1
+          fi
+
+      - name: Dump server log on failure
+        if: failure()
+        run: |
+          echo "----- server.log (tail) -----"
+          tail -n 200 server.log || true

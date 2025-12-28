@@ -141,6 +141,30 @@ type ImportArgs = {
 };
 
 async function parseArgs(): Promise<ImportArgs> {
+  const readArgValue = (name: string) => {
+    const eq = process.argv.find((arg) => arg.startsWith(`--${name}=`));
+    if (eq) return eq.slice(`--${name}=`.length);
+
+    const idx = process.argv.indexOf(`--${name}`);
+    if (idx >= 0 && process.argv[idx + 1] && !process.argv[idx + 1].startsWith('--')) {
+      return process.argv[idx + 1];
+    }
+    return undefined;
+  };
+
+  const readBoolean = (name: string, envVar?: string, defaultValue = false) => {
+    const valueFromArg = readArgValue(name);
+    const present = process.argv.some((arg) => arg === `--${name}` || arg.startsWith(`--${name}=`));
+    // Priority: explicit flag value > environment variable > bare flag presence.
+    const envKey = (envVar || name).toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+    const raw = valueFromArg ?? process.env[envKey] ?? (present ? 'true' : undefined);
+    if (raw === undefined) return defaultValue;
+    const normalized = String(raw).trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+    return defaultValue;
+  };
+
   const argUrl =
     process.argv.find((arg) => arg.startsWith('--url='))?.slice('--url='.length) ??
     (() => {
@@ -151,14 +175,13 @@ async function parseArgs(): Promise<ImportArgs> {
     process.env.url ??
     process.argv[2];
 
-  const allowOverwrite =
-    process.argv.includes('--allow-overwrite') || process.env.ALLOW_OVERWRITE === 'true';
-
-  const dryRun = process.argv.includes('--dry-run') || process.env.DRY_RUN === 'true';
-
-  const useFirstImageAsCover =
-    process.argv.includes('--use-first-image-as-cover') ||
-    process.env.USE_FIRST_IMAGE_AS_COVER === 'true';
+  const allowOverwrite = readBoolean('allow-overwrite', 'ALLOW_OVERWRITE', false);
+  const dryRun = readBoolean('dry-run', 'DRY_RUN', false);
+  const useFirstImageAsCover = readBoolean(
+    'use-first-image-as-cover',
+    'USE_FIRST_IMAGE_AS_COVER',
+    false,
+  );
   let url = argUrl;
 
   if (!url && !process.stdin.isTTY) {
@@ -1493,6 +1516,14 @@ async function fetchArticle(provider: Provider, url: string) {
 async function main() {
   const options = await parseArgs();
   const targetUrl = options.url;
+  console.info(
+    [
+      `url:${targetUrl}`,
+      `allow_overwrite:${options.allowOverwrite ? 'true' : 'false'}`,
+      `dry_run:${options.dryRun ? 'true' : 'false'}`,
+      `use_first_image_as_cover:${options.useFirstImageAsCover ? 'true' : 'false'}`,
+    ].join(' '),
+  );
   const provider = providers.find((p) => p.match(targetUrl));
 
   if (!provider) {

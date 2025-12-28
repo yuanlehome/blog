@@ -11,12 +11,14 @@ permissions:
   id-token: write
 
 concurrency:
-  group: 'pages'
-  cancel-in-progress: false
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: '20'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,23 +26,14 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Sync Notion content
-        env:
-          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
-        run: npm run notion:sync
-
       - name: Build with Astro
         run: npm run build
-
-      - name: CI
-        run: npm run ci
 
       - name: Disable Jekyll
         run: touch dist/.nojekyll
