@@ -1057,7 +1057,7 @@ function normalizeMathDelimiters(markdown: string) {
 }
 
 /**
- * Sanitize MDX content to avoid parse errors from imported sources.
+ * Sanitize Markdown content to avoid parse errors from imported sources.
  *
  * Rules:
  * A) Convert autolinks like <https://example.com> into [https://example.com](https://example.com)
@@ -1553,7 +1553,7 @@ async function main() {
   }
 
   const fileContent = matter.stringify(markdown, frontmatter);
-  const filepath = path.join(contentDir, `${slug}.mdx`);
+  const filepath = path.join(contentDir, `${slug}.md`);
 
   if (fs.existsSync(filepath) && !options.force) {
     console.log(`File already exists at ${filepath}. Use --force to overwrite.`);
