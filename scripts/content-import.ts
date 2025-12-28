@@ -8,7 +8,6 @@ import remarkStringify from 'remark-stringify';
 import rehypeParse from 'rehype-parse';
 import rehypeRaw from 'rehype-raw';
 import rehypeRemark from 'rehype-remark';
-import slugify from 'slugify';
 import { unified, type Plugin } from 'unified';
 import { visit } from 'unist-util-visit';
 import { pathToFileURL } from 'url';
@@ -17,6 +16,7 @@ import sharp from 'sharp';
 import { JSDOM } from 'jsdom';
 import readline from 'readline';
 import { ARTIFACTS_DIR, BLOG_CONTENT_DIR, PUBLIC_IMAGES_DIR } from '../src/config/paths';
+import { slugFromTitle } from '../src/lib/slug';
 
 type HastElement = {
   type?: string;
@@ -1508,12 +1508,12 @@ async function main() {
     targetUrl,
   );
 
-  const slugFromTitle = slugify(title, { lower: true, strict: true });
-  const fallbackSlug = slugify(new URL(targetUrl).pathname.split('/').filter(Boolean).pop() || '', {
-    lower: true,
-    strict: true,
+  // Generate slug from title or URL path as fallback
+  const urlPath = new URL(targetUrl).pathname.split('/').filter(Boolean).pop() || '';
+  const slug = slugFromTitle({
+    title,
+    fallbackId: urlPath || `${provider.name}-${Date.now()}`,
   });
-  const slug = slugFromTitle || fallbackSlug || `${provider.name}-${Date.now()}`;
 
   const { markdown, images } = await htmlToMdx(html, {
     slug,
