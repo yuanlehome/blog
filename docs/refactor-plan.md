@@ -71,11 +71,11 @@
    - 回滚：保留迁移前 commit（仅文档+模块新增），回退即可恢复旧行为。
    - 验证：`npm run test`（含 slug 单测）、针对 slug 场景的新增用例。
 
-2. **脚本拆层与目录规范** (`scripts/{notion,content,release,lib}`)
+2. **脚本拆层与目录规范** (`scripts/{notion,content,release,lib}`，其中 `release` 预留发布/构建相关脚本位)
    - 改动：为 `notion-sync`/`content-import`/`fix-math`/`delete-article` 划分 CLI 层 + `scripts/lib/*` 纯逻辑；统一参数解析与 logger 接口；移动至对应子目录并新增 `scripts/README.md`。
    - 风险：路径/导入错误导致脚本失效。
    - 回滚：逐脚本独立提交，必要时还原单个脚本的 commit。
-   - 验证：`npm run notion:sync`、`npm run import:content -- --url=<fixture>`、`npm run lint`（覆盖脚本格式）。
+   - 验证：`npm run notion:sync`、`npm run import:content -- --url=https://example.com/demo`（或仓库内 e2e 使用的示例页）、`npm run lint`（覆盖脚本格式）。
 
 3. **slug 应用端对齐**
    - 改动：`content-import`、`notion-sync`、文件命名、图片目录迁移均通过 `src/lib/slug` API；必要时为 slug 冲突返回结构化结果。
