@@ -1,0 +1,174 @@
+name: PR Smoke Test
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  pr-smoke-test:
+    runs-on: ubuntu-latest
+    env:
+      PORT: '4173'
+      BASE_URL: 'http://127.0.0.1:4173'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (Astro)
+        run: npm run build
+
+      - name: Start static server for dist
+        shell: bash
+        run: |
+          set -euo pipefail
+          # 使用 npx 直接起服务，不污染依赖
+          nohup npx --yes http-server dist -p "${PORT}" -a 127.0.0.1 -c-1 > server.log 2>&1 &
+          # 等待服务就绪
+          for i in {1..30}; do
+            if curl -sS "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
+              echo "Server is up."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server failed to start."
+          tail -n 200 server.log || true
+          exit 1
+
+      - name: Smoke test (HTTP + content assertions)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          curl_check() {
+            local url="$1"
+            echo "==> curl ${url}"
+            curl -sS -L --fail \
+              --retry 10 --retry-delay 2 --retry-all-errors \
+              --connect-timeout 10 --max-time 20 \
+              "${url}"
+          }
+
+          # ---- 1) 自动探测 base prefix（Astro 常见：/blog）----
+          PREFIX=""
+          if [[ -f "dist/blog/index.html" ]]; then
+            PREFIX="/blog"
+          fi
+          echo "Detected PREFIX='${PREFIX}'"
+
+          # 根据 dist 文件是否存在，决定 URL 是否要测
+          url_for_dir() {
+            # 输入：/about/ -> 输出：$BASE_URL$PREFIX/about/
+            local p="$1"
+            echo "${BASE_URL}${PREFIX}${p}"
+          }
+          exists_dir() {
+            # 输入：/about/ -> 检查 dist$PREFIX/about/index.html 是否存在
+            local p="$1"
+            [[ -f "dist${PREFIX}${p}index.html" ]]
+          }
+          exists_file() {
+            # 输入：/rss.xml -> 检查 dist$PREFIX/rss.xml 是否存在
+            local p="$1"
+            [[ -f "dist${PREFIX}${p}" ]]
+          }
+
+          # ---- 2) 首页：必须检查 + 内容断言（避免 200 但内容错误）----
+          home_url="${BASE_URL}${PREFIX}/"
+          home_html="$(curl_check "${home_url}")"
+          # 用 here-string 避免 pipefail + broken pipe
+          grep -q "Recent Posts" <<<"${home_html}"
+
+          # ---- 3) 稳定页面：只测“确实存在”的路由，避免硬编码导致 404 ----
+          for p in "/archive/" "/about/"; do
+            if exists_dir "${p}"; then
+              curl_check "$(url_for_dir "${p}")" > /dev/null
+            else
+              echo "Skip ${p} (not found in dist)"
+            fi
+          done
+
+          # ---- 4) RSS：优先 prefix 下，其次根路径（两者都不存在就跳过/失败可二选一）----
+          rss_ok="false"
+          if exists_file "/rss.xml"; then
+            curl_check "${BASE_URL}${PREFIX}/rss.xml" > /dev/null
+            rss_ok="true"
+          elif [[ -f "dist/rss.xml" ]]; then
+            curl_check "${BASE_URL}/rss.xml" > /dev/null
+            rss_ok="true"
+          fi
+          if [[ "${rss_ok}" != "true" ]]; then
+            echo "Skip RSS (rss.xml not found in dist)"
+          fi
+
+          # ---- 5) Sitemap：支持 sitemap.xml / sitemap-index.xml，并兼容 prefix ----
+          sitemap_ok="false"
+          for sm in "/sitemap.xml" "/sitemap-index.xml"; do
+            if [[ -f "dist${PREFIX}${sm}" ]]; then
+              curl_check "${BASE_URL}${PREFIX}${sm}" > /dev/null
+              echo "${sm} OK (with prefix)"
+              sitemap_ok="true"
+              break
+            elif [[ -f "dist${sm}" ]]; then
+              curl_check "${BASE_URL}${sm}" > /dev/null
+              echo "${sm} OK (root)"
+              sitemap_ok="true"
+              break
+            fi
+          done
+          if [[ "${sitemap_ok}" != "true" ]]; then
+            echo "No sitemap found in dist (sitemap.xml or sitemap-index.xml)"
+            exit 1
+          fi
+
+          # ---- 6) 文章/内容页：优先 flashattention，否则自动选一个非首页 html ----
+          article_path="/flashattention/"
+          article_url="${BASE_URL}${PREFIX}${article_path}"
+          article_ok="false"
+
+          if exists_dir "${article_path}"; then
+            article_html="$(curl_check "${article_url}")"
+            grep -q "FlashAttention" <<<"${article_html}"
+            article_ok="true"
+          else
+            # 自动挑一个内容页：找 dist$PREFIX 下的某个非 index 的 html
+            cand="$(find "dist${PREFIX}" -type f -name "*.html" \
+              ! -path "*/index.html" \
+              ! -path "*/404.html" \
+              ! -path "*/500.html" \
+              | head -n 1 || true)"
+            if [[ -n "${cand}" ]]; then
+              rel="${cand#dist${PREFIX}}"
+              # 对于 .../foo.html -> URL /foo.html；对于 .../bar/index.html 已排除
+              article_html="$(curl_check "${BASE_URL}${PREFIX}${rel}")"
+              # 最低限度内容断言：HTML 必须包含 <html 或 <article（尽量不脆弱）
+              grep -qiE "<html|<article" <<<"${article_html}"
+              echo "Picked content page: ${BASE_URL}${PREFIX}${rel}"
+              article_ok="true"
+            fi
+          fi
+
+          if [[ "${article_ok}" != "true" ]]; then
+            echo "No stable content page found for assertion."
+            exit 1
+          fi
+
+          echo "✅ PR smoke test passed."
+
+      - name: Dump server log on failure
+        if: failure()
+        run: |
+          echo "----- server.log (tail) -----"
+          tail -n 200 server.log || true
