@@ -43,7 +43,7 @@
    npm run dev
    ```
    默认在 `http://localhost:4321` 提供预览。
-   （如需运行 E2E，请先执行一次 `npx playwright install --with-deps chromium` 安装浏览器。）
+   （本地首次运行 E2E 请先执行一次 `npx playwright install --with-deps chromium` 安装浏览器，CI 已自动处理。）
 
 ### 3. 内容同步与写作
 
@@ -132,17 +132,17 @@ npx tsx scripts/fix-math.ts src/content/blog/notion/<file>.md
 
 ## 🔧 常用命令
 
-| 命令                                      | 说明                                                                        |
-| :---------------------------------------- | :-------------------------------------------------------------------------- |
-| `npm run dev`                             | 启动开发服务器（默认 `localhost:4321`）                                     |
-| `npm run build`                           | 生成生产构建                                                                |
-| `npm run preview`                         | 预览生产构建                                                                |
-| `npm run notion:sync`                     | 拉取 Notion 文章、下载图片、修复公式并运行 lint（会改写内容）               |
-| `npm run import:content -- --url="<URL>"` | 从指定 URL 导入文章并本地化资源，随后修复公式并运行 lint                    |
-| `npm run check`                           | Astro 类型检查                                                              |
-| `npm run test`                            | Vitest 单元测试（含覆盖率）                                                 |
-| `npm run test:e2e`                        | Playwright 端到端测试（需先 `npx playwright install --with-deps chromium`） |
-| `npm run lint`                            | prettier + markdownlint（含自动修复，可能改写文件）                         |
+| 命令                                      | 说明                                                                                             |
+| :---------------------------------------- | :----------------------------------------------------------------------------------------------- |
+| `npm run dev`                             | 启动开发服务器（默认 `localhost:4321`）                                                          |
+| `npm run build`                           | 生成生产构建                                                                                     |
+| `npm run preview`                         | 预览生产构建                                                                                     |
+| `npm run notion:sync`                     | 拉取 Notion 文章、下载图片、修复公式并运行 lint（会改写内容）                                    |
+| `npm run import:content -- --url="<URL>"` | 从指定 URL 导入文章并本地化资源，随后修复公式并运行 lint                                         |
+| `npm run check`                           | Astro 类型检查                                                                                   |
+| `npm run test`                            | Vitest 单元测试（含覆盖率）                                                                      |
+| `npm run test:e2e`                        | Playwright 端到端测试（本地首次需 `npx playwright install --with-deps chromium`，CI 已自动处理） |
+| `npm run lint`                            | prettier + markdownlint（含自动修复，可能改写文件）                                              |
 
 ## 🛠️ CI / Workflow 对齐
 

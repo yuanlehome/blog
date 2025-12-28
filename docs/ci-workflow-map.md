@@ -30,7 +30,7 @@
 ## 四、执行与依赖关系图
 
 ```mermaid
-%%{init: {'theme':'neutral','themeVariables':{'background':'#0d1117','textColor':'#c9d1d9','primaryColor':'#1f6feb','primaryTextColor':'#0b1f33','primaryBorderColor':'#58a6ff','secondaryColor':'#30363d','secondaryTextColor':'#c9d1d9','tertiaryColor':'#161b22','tertiaryTextColor':'#c9d1d9','lineColor':'#58a6ff','clusterBkg':'#161b22','clusterBorder':'#58a6ff','fontFamily':'Inter, "Helvetica Neue", Arial, sans-serif'}}}%%
+%%{init: {'theme':'dark','themeVariables':{'background':'#0d1117','textColor':'#c9d1d9','primaryColor':'#1f6feb','primaryTextColor':'#0b1f33','lineColor':'#58a6ff','clusterBkg':'#161b22','clusterBorder':'#58a6ff','fontFamily':'Inter, "Helvetica Neue", Arial, sans-serif'}}}%%
 flowchart TD
   PR[PR -> main] --> VAL[validation.yml<br/>校验 + smoke job]
   PUSH[Push main] --> VAL
