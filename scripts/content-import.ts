@@ -151,9 +151,14 @@ async function parseArgs(): Promise<ImportArgs> {
     process.env.url ??
     process.argv[2];
 
-  const allowOverwrite = process.argv.includes('--allow-overwrite');
-  const dryRun = process.argv.includes('--dry-run');
-  const useFirstImageAsCover = process.argv.includes('--use-first-image-as-cover');
+  const allowOverwrite =
+    process.argv.includes('--allow-overwrite') || process.env.ALLOW_OVERWRITE === 'true';
+
+  const dryRun = process.argv.includes('--dry-run') || process.env.DRY_RUN === 'true';
+
+  const useFirstImageAsCover =
+    process.argv.includes('--use-first-image-as-cover') ||
+    process.env.USE_FIRST_IMAGE_AS_COVER === 'true';
   let url = argUrl;
 
   if (!url && !process.stdin.isTTY) {

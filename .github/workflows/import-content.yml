@@ -48,22 +48,22 @@ jobs:
       - name: Import content
         env:
           URL: ${{ inputs.url }}
-          ALLOW_OVERWRITE: ${{ inputs.allow_overwrite }}
-          DRY_RUN: ${{ inputs.dry_run }}
-          USE_FIRST_IMAGE_AS_COVER: ${{ inputs.use_first_image_as_cover }}
+          ALLOW_OVERWRITE: ${{ inputs.allow_overwrite && 'true' || 'false' }}
+          DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
+          USE_FIRST_IMAGE_AS_COVER: ${{ inputs.use_first_image_as_cover && 'true' || 'false' }}
         run: |
           ARGS=()
-          ARGS+=("--url" "${{ inputs.url }}")
+          ARGS+=("--url" "$URL")
 
-          if [[ "${{ inputs.allow_overwrite }}" == "true" ]]; then
+          if [[ "$ALLOW_OVERWRITE" == "true" ]]; then
             ARGS+=("--allow-overwrite")
           fi
 
-          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+          if [[ "$DRY_RUN" == "true" ]]; then
             ARGS+=("--dry-run")
           fi
 
-          if [[ "${{ inputs.use_first_image_as_cover }}" == "true" ]]; then
+          if [[ "$USE_FIRST_IMAGE_AS_COVER" == "true" ]]; then
             ARGS+=("--use-first-image-as-cover")
           fi
 
