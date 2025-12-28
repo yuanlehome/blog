@@ -35,12 +35,19 @@ interface VerificationResult {
 
 function extractImageReferencesFromMdx(mdxPath: string): string[] {
   const content = fs.readFileSync(mdxPath, 'utf-8');
-  const imageRegex = /!\[.*?\]\((\/images\/[^)]+)\)|src=["'](\/images\/[^"']+)["']/g;
   const images: string[] = [];
 
+  // Match markdown image syntax: ![alt](path)
+  const markdownImageRegex = /!\[.*?\]\((\/images\/[^)]+)\)/g;
   let match;
-  while ((match = imageRegex.exec(content)) !== null) {
-    images.push(match[1] || match[2]);
+  while ((match = markdownImageRegex.exec(content)) !== null) {
+    images.push(match[1]);
+  }
+
+  // Match HTML img src attributes: src="/images/..."
+  const htmlImageRegex = /src=["'](\/images\/[^"']+)["']/g;
+  while ((match = htmlImageRegex.exec(content)) !== null) {
+    images.push(match[1]);
   }
 
   return images;
@@ -98,7 +105,17 @@ function verifyProvider(provider: string): VerificationResult {
 function main() {
   console.log('🔍 Verifying image download functionality...\n');
 
-  const providers = ['wechat', 'zhihu', 'notion', 'medium'];
+  // Check which provider directories actually exist
+  const allProviders = ['wechat', 'zhihu', 'notion', 'medium'];
+  const providers = allProviders.filter((provider) =>
+    fs.existsSync(path.join(CONTENT_ROOT, provider)),
+  );
+
+  if (providers.length === 0) {
+    console.log('⚠️  No provider content directories found. Run import:content or notion:sync first.');
+    return;
+  }
+
   const results: VerificationResult[] = [];
 
   for (const provider of providers) {
