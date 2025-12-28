@@ -18,7 +18,7 @@ function processDirectory(dirPath: string) {
     const stat = fs.statSync(p);
     if (stat.isDirectory()) {
       processDirectory(p);
-    } else if (file.endsWith('.md') || file.endsWith('.mdx')) {
+    } else if (file.endsWith('.md')) {
       processFile(p);
     }
   }
