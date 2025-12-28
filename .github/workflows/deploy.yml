@@ -39,6 +39,9 @@ jobs:
       - name: Build with Astro
         run: npm run build
 
+      - name: CI
+        run: npm run ci
+
       - name: Disable Jekyll
         run: touch dist/.nojekyll
 
