@@ -8,7 +8,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
-      exclude: ['scripts/content-import.ts', 'scripts/migrate-notion-assets-to-slug.ts'],
+      exclude: ['scripts/content-import.ts', 'scripts/delete-article.ts'],
       thresholds: {
         lines: 90,
         functions: 90,

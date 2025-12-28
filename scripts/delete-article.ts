@@ -14,8 +14,11 @@ const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..');
 const BLOG_ROOT = path.join(REPO_ROOT, 'src', 'content', 'blog');
 const PUBLIC_ROOT = path.join(REPO_ROOT, 'public');
-const IMPORTED_IMAGES_ROOT = path.join(PUBLIC_ROOT, 'images', 'imported');
-const NOTION_IMAGES_ROOT = path.join(PUBLIC_ROOT, 'images', 'notion');
+const IMAGES_ROOT = path.join(PUBLIC_ROOT, 'images');
+
+// Maximum number of image directories that can be matched before requiring confirmation
+// This prevents accidental mass deletion due to overly broad slug matches
+const MAX_IMAGE_DIRS_MATCH = 20;
 
 function toBoolean(value?: string | boolean): boolean | undefined {
   if (typeof value === 'boolean') return value;
@@ -189,6 +192,64 @@ async function removeDirectory(targetPath: string, dryRun: boolean) {
   console.log(`Deleted directory: ${rel}`);
 }
 
+/**
+ * Check if a directory basename matches the slug.
+ * Matches if basename equals slug OR starts with "slug-"
+ */
+export function matchesSlugPattern(slug: string, basename: string): boolean {
+  return basename === slug || basename.startsWith(`${slug}-`);
+}
+
+/**
+ * Find all image directories matching the slug.
+ * Matches directories where:
+ * - basename === slug (exact match)
+ * - basename.startsWith(slug + '-') (prefix match for conflict suffixes)
+ */
+async function findImageDirsBySlug(slug: string): Promise<string[]> {
+  const matches: string[] = [];
+
+  // Ensure IMAGES_ROOT exists
+  if (!(await fileExists(IMAGES_ROOT))) {
+    return matches;
+  }
+
+  const imagesRootResolved = path.resolve(IMAGES_ROOT);
+  const imagesWithSep = `${imagesRootResolved}${path.sep}`;
+
+  // Check if path is inside IMAGES_ROOT
+  function isInsideImagesRoot(resolved: string): boolean {
+    return resolved === imagesRootResolved || resolved.startsWith(imagesWithSep);
+  }
+
+  // Recursively scan IMAGES_ROOT for matching directories
+  async function scanDir(dir: string) {
+    const resolvedDir = path.resolve(dir);
+    if (!isInsideImagesRoot(resolvedDir)) {
+      return;
+    }
+
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+
+      const entryPath = path.join(dir, entry.name);
+      const basename = entry.name;
+
+      // Match logic: exact match or starts with "slug-"
+      if (matchesSlugPattern(slug, basename)) {
+        matches.push(entryPath);
+      }
+
+      // Recursively scan subdirectories
+      await scanDir(entryPath);
+    }
+  }
+
+  await scanDir(IMAGES_ROOT);
+  return matches;
+}
+
 async function main() {
   const options = parseOptions();
   console.log(`Starting delete-article with target="${options.target}"`);
@@ -204,10 +265,35 @@ async function main() {
   await removeFile(articlePath, options.dryRun);
 
   if (options.deleteImages) {
-    const imageDirs = [path.join(IMPORTED_IMAGES_ROOT, slug), path.join(NOTION_IMAGES_ROOT, slug)];
-    for (const dir of imageDirs) {
-      await removeDirectory(dir, options.dryRun);
+    console.log('Delete images: enabled');
+
+    // Find all matching image directories
+    const imageDirs = await findImageDirsBySlug(slug);
+
+    if (imageDirs.length === 0) {
+      console.log(`No image directories found for slug: ${slug}`);
+    } else {
+      // Safety check: prevent deletion of too many directories
+      if (imageDirs.length > MAX_IMAGE_DIRS_MATCH) {
+        throw new Error(
+          `Too many image directories matched (${imageDirs.length} > ${MAX_IMAGE_DIRS_MATCH}). ` +
+            `This may indicate an overly broad match pattern. ` +
+            `Matched directories:\n${imageDirs.map((d) => path.relative(REPO_ROOT, d)).join('\n')}`,
+        );
+      }
+
+      console.log(`Matched image dirs (${imageDirs.length}):`);
+      for (const dir of imageDirs) {
+        console.log(`  - ${path.relative(REPO_ROOT, dir)}`);
+      }
+
+      // Delete matched directories
+      for (const dir of imageDirs) {
+        await removeDirectory(dir, options.dryRun);
+      }
     }
+
+    // Delete cover file if it exists
     if (coverPath) {
       if (await fileExists(coverPath)) {
         await removeFile(coverPath, options.dryRun);
@@ -216,7 +302,7 @@ async function main() {
       }
     }
   } else {
-    console.log('Skipping image deletion (delete-images disabled).');
+    console.log('Delete images: disabled');
   }
 
   if (options.dryRun) {
@@ -226,8 +312,16 @@ async function main() {
   }
 }
 
-main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(`Delete article failed: ${message}`);
-  process.exit(1);
-});
+// Only run main if this script is executed directly (not imported during tests)
+if (process.env.NODE_ENV !== 'test') {
+  // Check if this module is being run directly
+  const isMain =
+    process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+  if (isMain) {
+    main().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Delete article failed: ${message}`);
+      process.exit(1);
+    });
+  }
+}
