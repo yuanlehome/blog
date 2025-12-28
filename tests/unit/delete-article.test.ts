@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import matter from 'gray-matter';
+
 import { matchesSlugPattern } from '../../scripts/delete-article';
 
 let tmpDir: string;

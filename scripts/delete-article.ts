@@ -313,10 +313,15 @@ async function main() {
 }
 
 // Only run main if this script is executed directly (not imported during tests)
-if (process.env.NODE_ENV !== 'test' && import.meta.url === `file://${process.argv[1]}`) {
-  main().catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`Delete article failed: ${message}`);
-    process.exit(1);
-  });
+if (process.env.NODE_ENV !== 'test') {
+  // Check if this module is being run directly
+  const isMain =
+    process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+  if (isMain) {
+    main().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Delete article failed: ${message}`);
+      process.exit(1);
+    });
+  }
 }
