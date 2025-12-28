@@ -16,6 +16,10 @@ const BLOG_ROOT = path.join(REPO_ROOT, 'src', 'content', 'blog');
 const PUBLIC_ROOT = path.join(REPO_ROOT, 'public');
 const IMAGES_ROOT = path.join(PUBLIC_ROOT, 'images');
 
+// Maximum number of image directories that can be matched before requiring confirmation
+// This prevents accidental mass deletion due to overly broad slug matches
+const MAX_IMAGE_DIRS_MATCH = 20;
+
 function toBoolean(value?: string | boolean): boolean | undefined {
   if (typeof value === 'boolean') return value;
   if (typeof value !== 'string') return undefined;
@@ -189,6 +193,14 @@ async function removeDirectory(targetPath: string, dryRun: boolean) {
 }
 
 /**
+ * Check if a directory basename matches the slug.
+ * Matches if basename equals slug OR starts with "slug-"
+ */
+export function matchesSlugPattern(slug: string, basename: string): boolean {
+  return basename === slug || basename.startsWith(`${slug}-`);
+}
+
+/**
  * Find all image directories matching the slug.
  * Matches directories where:
  * - basename === slug (exact match)
@@ -225,7 +237,7 @@ async function findImageDirsBySlug(slug: string): Promise<string[]> {
       const basename = entry.name;
 
       // Match logic: exact match or starts with "slug-"
-      if (basename === slug || basename.startsWith(`${slug}-`)) {
+      if (matchesSlugPattern(slug, basename)) {
         matches.push(entryPath);
       }
 
@@ -262,10 +274,9 @@ async function main() {
       console.log(`No image directories found for slug: ${slug}`);
     } else {
       // Safety check: prevent deletion of too many directories
-      const MAX_MATCHES = 20;
-      if (imageDirs.length > MAX_MATCHES) {
+      if (imageDirs.length > MAX_IMAGE_DIRS_MATCH) {
         throw new Error(
-          `Too many image directories matched (${imageDirs.length} > ${MAX_MATCHES}). ` +
+          `Too many image directories matched (${imageDirs.length} > ${MAX_IMAGE_DIRS_MATCH}). ` +
             `This may indicate an overly broad match pattern. ` +
             `Matched directories:\n${imageDirs.map((d) => path.relative(REPO_ROOT, d)).join('\n')}`,
         );
@@ -301,8 +312,11 @@ async function main() {
   }
 }
 
-main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(`Delete article failed: ${message}`);
-  process.exit(1);
-});
+// Only run main if this script is executed directly (not imported during tests)
+if (process.env.NODE_ENV !== 'test' && import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Delete article failed: ${message}`);
+    process.exit(1);
+  });
+}
