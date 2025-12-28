@@ -25,7 +25,7 @@ const enriched = posts.map((post) => ({ ...post, stats: getReadingTime(post.body
             {post.data.cover && (
               <div class="overflow-hidden rounded-xl border border-gray-200/70 shadow-sm transition duration-200 ease-out group-hover:shadow-md group-hover:border-blue-200 dark:border-gray-800/70 dark:group-hover:border-blue-400/40">
                 <img
-                  src={'${BASE}post.data.cover'}
+                  src={`${BASE}${post.data.cover.replace(/^\//, '')}`}
                   alt={post.data.title}
                   loading="lazy"
                   class="aspect-[16/9] w-full object-cover transition duration-300 ease-out motion-safe:group-hover:scale-[1.01] motion-reduce:transform-none"
