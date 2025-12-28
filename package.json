@@ -10,7 +10,6 @@
     "preview": "astro preview",
     "notion:sync": "tsx scripts/notion-sync.ts && tsx scripts/fix-math.ts src/content/blog/ && npm run lint",
     "import:content": "tsx scripts/content-import.ts && tsx scripts/fix-math.ts src/content/blog/ && npm run lint",
-    "zhihu:import": "tsx scripts/content-import.ts",
     "check": "astro check",
     "test": "vitest run --coverage",
     "test:watch": "vitest watch",

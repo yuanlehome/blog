@@ -1,12 +1,13 @@
 ---
 title: 一种 TP-SP-EP 混合并行策略
 slug: tp-sp-ep
-date: '2025-12-25'
+date: '2025-12-28'
 tags: []
 status: published
-cover: ''
+cover: >-
+  /images/notion/2a122dca-4210-805b-ae7e-fb6b09a2e44f/2b222dca-4210-80d9-98fb-cf78ef53eb91.jpeg
 notionId: 2a122dca-4210-805b-ae7e-fb6b09a2e44f
-lastEditedTime: '2025-12-25T18:17:00.000Z'
+lastEditedTime: '2025-12-28T06:58:00.000Z'
 ---
 
 ---

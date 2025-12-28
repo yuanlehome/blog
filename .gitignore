@@ -4,6 +4,7 @@ server/
 .astro/
 coverage/
 test-results/
+tmp/
 
 # dependencies
 node_modules/
