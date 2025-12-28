@@ -122,10 +122,10 @@ describe('notion sync cover fallback', () => {
     const generatedFile = path.join(contentDir, 'test-post.md');
     expect(fs.existsSync(generatedFile)).toBe(true);
     const { data } = matter(fs.readFileSync(generatedFile, 'utf-8'));
-    const expectedCover = `/images/notion/${pageId}/${imageBlockId}.jpg`;
+    const expectedCover = `/images/notion/test-post/${imageBlockId}.jpg`;
 
     expect(data.cover).toBe(expectedCover);
-    expect(fs.existsSync(path.join(imageDir, pageId, `${imageBlockId}.jpg`))).toBe(true);
+    expect(fs.existsSync(path.join(imageDir, 'test-post', `${imageBlockId}.jpg`))).toBe(true);
     expect(fetchMock).toHaveBeenCalled();
   });
 });

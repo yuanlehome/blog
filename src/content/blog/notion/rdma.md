@@ -5,8 +5,9 @@ date: '2025-12-25'
 tags: []
 status: published
 cover: ''
-notionId: 2d022dca-4210-8002-8300-ff0fc62fb73a
 lastEditedTime: '2025-12-25T18:13:00.000Z'
+notion:
+  id: 2d022dca-4210-8002-8300-ff0fc62fb73a
 ---
 
 ## [极简] RDMA 在大模型推理框架中的应用

@@ -4,11 +4,11 @@ import type { PageObjectResponse } from '@notionhq/client/build/src/api-endpoint
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import slugify from 'slugify';
 import matter from 'gray-matter';
 import { fileURLToPath } from 'url';
 import type { BlockObjectResponse } from '@notionhq/client/build/src/api-endpoints';
 import crypto from 'crypto';
+import { deriveSlug, ensureUniqueSlug } from './slug';
 
 dotenv.config({ path: '.env.local' });
 
@@ -59,10 +59,10 @@ export function resolveExtension(url: string, contentType?: string | null) {
 // Helper: Download Image
 export async function downloadImage(
   url: string,
-  pageId: string,
+  slug: string,
   imageId: string,
 ): Promise<string | null> {
-  const dir = path.join(PUBLIC_IMG_DIR, pageId);
+  const dir = path.join(PUBLIC_IMG_DIR, slug);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
   const normalizedId = imageId.replace(/[^a-zA-Z0-9-_]/g, '');
@@ -70,7 +70,7 @@ export async function downloadImage(
     normalizedId || crypto.createHash('md5').update(imageId).digest('hex').slice(0, 12);
   const existingFile = fs.readdirSync(dir).find((f) => f.startsWith(safeImageId));
   if (existingFile) {
-    return `/images/notion/${pageId}/${existingFile}`;
+    return `/images/notion/${slug}/${existingFile}`;
   }
 
   let lastError: unknown = null;
@@ -93,7 +93,7 @@ export async function downloadImage(
           const filename = `${safeImageId}${ext}`;
           const localPath = path.join(dir, filename);
           fs.writeFileSync(localPath, buffer);
-          return `/images/notion/${pageId}/${filename}`;
+          return `/images/notion/${slug}/${filename}`;
         } catch (error) {
           clearTimeout(timer);
           throw error;
@@ -161,21 +161,21 @@ export async function findFirstImageBlock(
 }
 
 // Remove the first dummy transformer and only keep the second one
-let currentPageId = '';
+let currentPageSlug = '';
 
-export async function transformImageBlock(block: any, pageId?: string, downloader = downloadImage) {
+export async function transformImageBlock(block: any, slug?: string, downloader = downloadImage) {
   const { image } = block as any;
   const url = image.type === 'external' ? image.external.url : image.file.url;
   const caption = image.caption?.map((c: any) => c.plain_text).join('') || '';
   const blockId = block.id;
-  const targetPageId = pageId || currentPageId;
+  const targetSlug = slug || currentPageSlug;
 
-  if (!targetPageId) {
+  if (!targetSlug) {
     // Fallback if context missing
     return `![${caption}](${url})`;
   }
 
-  const localUrl = await downloader(url, targetPageId, blockId);
+  const localUrl = await downloader(url, targetSlug, blockId);
   if (localUrl) {
     return `![${caption}](${localUrl})`;
   }
@@ -183,21 +183,68 @@ export async function transformImageBlock(block: any, pageId?: string, downloade
 }
 
 n2m.setCustomTransformer('image', async (block) =>
-  transformImageBlock(block, currentPageId, downloadImage),
+  transformImageBlock(block, currentPageSlug, downloadImage),
 );
+
+type ExistingPostMeta = {
+  slug: string;
+  lastEdited?: string;
+  path: string;
+  notionId?: string;
+};
 
 async function getExistingPosts() {
   const files = fs.readdirSync(CONTENT_DIR).filter((f) => f.endsWith('.md'));
-  const map = new Map<string, { lastEdited: string; path: string }>();
+  const bySlug = new Map<string, ExistingPostMeta>();
+  const byNotionId = new Map<string, ExistingPostMeta>();
 
   for (const file of files) {
     const content = fs.readFileSync(path.join(CONTENT_DIR, file), 'utf-8');
     const { data } = matter(content);
-    if (data.notionId && data.lastEditedTime) {
-      map.set(data.notionId, { lastEdited: data.lastEditedTime, path: file });
+    const slug = data.slug || path.basename(file, '.md');
+    const notionId = data.notion?.id || data.notionId;
+    const meta: ExistingPostMeta = {
+      slug,
+      lastEdited: data.lastEditedTime,
+      path: file,
+      notionId,
+    };
+    bySlug.set(slug, meta);
+    if (notionId) byNotionId.set(notionId, meta);
+  }
+  return { bySlug, byNotionId };
+}
+
+function moveDirContents(source: string, target: string) {
+  if (!fs.existsSync(source)) return;
+  if (source === target) return;
+  if (!fs.existsSync(target)) fs.mkdirSync(target, { recursive: true });
+
+  let skipped = false;
+  for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
+    const from = path.join(source, entry.name);
+    const to = path.join(target, entry.name);
+    if (fs.existsSync(to)) {
+      skipped = true;
+      continue;
+    }
+    if (entry.isDirectory()) {
+      fs.mkdirSync(to, { recursive: true });
+      moveDirContents(from, to);
+    } else if (entry.isFile()) {
+      fs.copyFileSync(from, to);
     }
   }
-  return map;
+  if (!skipped) {
+    fs.rmSync(source, { recursive: true, force: true });
+  }
+}
+
+function migrateImageDir(oldKey: string, newSlug: string) {
+  if (!oldKey || oldKey === newSlug) return;
+  const source = path.join(PUBLIC_IMG_DIR, oldKey);
+  const target = path.join(PUBLIC_IMG_DIR, newSlug);
+  moveDirContents(source, target);
 }
 
 // Type Guard
@@ -209,6 +256,10 @@ export async function sync() {
   console.log('Starting Notion Sync...');
 
   const existingPosts = await getExistingPosts();
+  const usedSlugs = new Map<string, string>();
+  for (const [slug, meta] of existingPosts.bySlug.entries()) {
+    usedSlugs.set(slug, meta.notionId ?? `existing-${slug}`);
+  }
 
   // Fetch all pages (filter in memory to avoid schema mismatch errors)
   const response = await notion.databases.query({
@@ -245,24 +296,34 @@ export async function sync() {
     const lastEditedTime = page.last_edited_time;
     const props = page.properties as any;
 
-    // Check incremental
-    const existing = existingPosts.get(pageId);
-    if (existing && existing.lastEdited === lastEditedTime) {
-      console.log(`Skipping ${pageId} (up to date).`);
-      continue;
-    }
-
     console.log(`Processing ${pageId}...`);
-    currentPageId = pageId; // Set context for image transformer
 
-    // Extract Frontmatter
-    // Look for property named 'Name' (standard) or 'title' or 'Title'
+    // Extract Frontmatter fields
     const titleProp = props.Name || props.title || props.Title;
     const title = titleProp?.title?.[0]?.plain_text || 'Untitled';
 
-    let slug = props.slug?.rich_text?.[0]?.plain_text || props.Slug?.rich_text?.[0]?.plain_text;
-    if (!slug) {
-      slug = slugify(title, { lower: true, strict: true }) || pageId;
+    const propSlug =
+      props.slug?.rich_text?.[0]?.plain_text || props.Slug?.rich_text?.[0]?.plain_text || null;
+    const baseSlug = deriveSlug({ explicitSlug: propSlug, title, fallbackId: pageId });
+    let slug = ensureUniqueSlug(baseSlug, pageId, usedSlugs);
+    if (slug !== baseSlug) {
+      console.log(`Slug conflict detected for ${pageId}: using ${slug} (base ${baseSlug})`);
+    }
+
+    const previousMeta = existingPosts.byNotionId.get(pageId);
+    const previousSlug = previousMeta?.slug;
+    if (previousSlug && previousSlug !== slug) {
+      console.log(`Slug changed for ${pageId}: ${previousSlug} -> ${slug}`);
+      migrateImageDir(previousSlug, slug);
+    }
+    migrateImageDir(pageId, slug);
+
+    currentPageSlug = slug; // Set context for image transformer
+
+    const existingBySlug = existingPosts.bySlug.get(slug);
+    if (existingBySlug && existingBySlug.lastEdited === lastEditedTime) {
+      console.log(`Skipping ${slug} (up to date).`);
+      continue;
     }
 
     const date = props.date?.date?.start || new Date().toISOString().split('T')[0];
@@ -279,13 +340,13 @@ export async function sync() {
 
     const preferredCover = pageCoverUrl || propertyCoverUrl;
     if (preferredCover) {
-      const localCover = await downloadImage(preferredCover, pageId, 'cover');
+      const localCover = await downloadImage(preferredCover, slug, 'cover');
       if (localCover) cover = localCover;
     }
     if (!cover) {
       const firstImage = await findFirstImageBlock(pageId);
       if (firstImage) {
-        const fallbackCover = await downloadImage(firstImage.url, pageId, firstImage.blockId);
+        const fallbackCover = await downloadImage(firstImage.url, slug, firstImage.blockId);
         if (fallbackCover) cover = fallbackCover;
       }
     }
@@ -302,9 +363,10 @@ export async function sync() {
       tags,
       status: 'published',
       cover,
-      notionId: pageId,
       lastEditedTime, // Important for incremental sync
       updated: lastEditedTime,
+      source: 'notion',
+      notion: { id: pageId },
     };
 
     const fileContent = matter.stringify(mdString.parent || '', frontmatter);
@@ -312,6 +374,14 @@ export async function sync() {
     const filePath = path.join(CONTENT_DIR, `${slug}.md`);
     fs.writeFileSync(filePath, fileContent);
     console.log(`Saved ${slug}.md`);
+
+    if (previousSlug && previousSlug !== slug) {
+      const oldPath = path.join(CONTENT_DIR, `${previousSlug}.md`);
+      if (fs.existsSync(oldPath) && oldPath !== filePath) {
+        fs.rmSync(oldPath);
+        console.log(`Removed old file for renamed slug: ${previousSlug}.md`);
+      }
+    }
   }
 
   console.log('Sync complete.');

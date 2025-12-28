@@ -5,8 +5,9 @@ date: '2025-12-25'
 tags: []
 status: published
 cover: ''
-notionId: 2ab22dca-4210-80fe-9549-e360ee12db5e
 lastEditedTime: '2025-12-25T18:15:00.000Z'
+notion:
+  id: 2ab22dca-4210-80fe-9549-e360ee12db5e
 ---
 
 <u>_**康威定律（Conway’s Law）：设计系统的组织，其产生的系统设计，必然反映该组织的沟通结构。**_</u>
