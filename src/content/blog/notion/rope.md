@@ -1,12 +1,12 @@
 ---
 title: RoPE 究竟是怎么计算的
 slug: rope
-date: '2025-12-25'
+date: '2025-12-28'
 tags: []
 status: published
 cover: ''
 notionId: 2d322dca-4210-8074-95ce-ec86131a7787
-lastEditedTime: '2025-12-25T16:35:00.000Z'
+lastEditedTime: '2025-12-28T07:15:00.000Z'
 ---
 
 ---
@@ -231,9 +231,7 @@ q6 = x6 * c2 + ( x2) * s2 = x6 * c2 + x2 * s2
 q7 = x7 * c3 + ( x3) * s3 = x7 * c3 + x3 * s3
 ```
 
-把结果按 pair 重组一下就非常清晰了。
-
-使用频率`(c0,s0)`的是`(x0,x4)`这一对：
+把结果按 pair 重组一下就非常清晰了。使用频率`(c0,s0)`的是`(x0,x4)`这一对：
 
 ```plain text
 q0 =  x0 * c0 - x4 * s0
