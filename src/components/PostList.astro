@@ -1,6 +1,7 @@
 ---
 import { getReadingTime } from '../utils/readingTime';
 import { resolveAssetUrl } from '../utils/assetUrl';
+import { formatDate } from '../utils/dates';
 import type { CollectionEntry } from 'astro:content';
 
 interface Props {
@@ -41,9 +42,7 @@ const enriched = posts.map((post) => ({ ...post, stats: getReadingTime(post.body
                 </span>
               </h3>
               <div class="text-sm text-gray-600 dark:text-gray-400">
-                <span class="flex items-center gap-1">
-                  📅 {post.data.date.toLocaleDateString()}
-                </span>
+                <span class="flex items-center gap-1">📅 {formatDate(post.data.date)}</span>
               </div>
               <div class="text-sm text-gray-500 flex items-center gap-4 flex-wrap">
                 <span class="flex items-center gap-1">✍️ {post.stats.wordCount} 字</span>

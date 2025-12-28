@@ -12,6 +12,7 @@ import { findPrevNext, findRelated, getPublishedPosts } from '../utils/posts';
 import Giscus from '../components/Giscus.astro';
 import ReadingProgress from '../components/ReadingProgress.astro';
 import FloatingActionStack from '../components/FloatingActionStack.astro';
+import { getDisplayDates } from '../utils/dates';
 
 export async function getStaticPaths() {
   const posts = await getPublishedPosts();
@@ -27,6 +28,8 @@ const stats = getReadingTime(post.body);
 const { prev, next } = findPrevNext(all, post.slug);
 const related = findRelated(all, post);
 const commentsEnabled = post.data.comments ?? true;
+const dates = getDisplayDates(post.data);
+const hasCover = Boolean(post.data.cover);
 ---
 
 <Layout title={post.data.title} image={resolveAssetUrl(post.data.cover)}>
@@ -39,52 +42,90 @@ const commentsEnabled = post.data.comments ?? true;
     >
       <article class="prose dark:prose-invert max-w-none prose-img:rounded-xl min-w-0" data-article>
         <header class="mb-8 not-prose">
-          {
-            post.data.cover && (
-              <img
-                src={resolveAssetUrl(post.data.cover)}
-                alt={post.data.title}
-                class="w-full h-64 object-cover rounded-xl mb-6"
-              />
-            )
-          }
-          <h1 class="text-3xl md:text-4xl font-bold mb-4">{post.data.title}</h1>
-          <div class="text-gray-500 text-sm flex items-center gap-4 flex-wrap">
-            <time class="flex items-center gap-1">
-              <span>📅</span>
-              {post.data.date.toLocaleDateString()}
-            </time>
-            <div class="flex items-center gap-1">
-              <span>✍️</span>
-              {stats.wordCount} 字
-            </div>
-            <div class="flex items-center gap-1" title={`${stats.wordCount} words`}>
-              <span>⏱️</span>
-              {stats.text}
-            </div>
-          </div>
-          {
-            post.data.source_url && (
-              <div class="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-900 dark:bg-blue-950">
-                <p class="text-sm text-gray-700 dark:text-gray-300">
-                  <span class="font-semibold">📝 转载 / 引用来源：</span>
-                  {post.data.source_author && (
-                    <span>
-                      作者 <span class="font-medium">{post.data.source_author}</span> ·{' '}
-                    </span>
-                  )}
-                  <a
-                    href={post.data.source_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                  >
-                    查看原文
-                  </a>
-                </p>
+          <div
+            class={`flex flex-col gap-6 ${
+              hasCover ? 'lg:grid lg:grid-cols-[minmax(0,1fr)_220px] lg:items-start lg:gap-8' : ''
+            }`}
+          >
+            <div class="flex flex-col gap-4">
+              <h1 class="text-3xl md:text-4xl font-bold leading-tight">{post.data.title}</h1>
+              <div class="text-gray-500 text-sm flex items-center gap-3 flex-wrap">
+                {
+                  dates.publishedLabel && (
+                    <time
+                      class="flex items-center gap-1"
+                      datetime={dates.published?.toISOString()}
+                      title={`发布于 ${dates.publishedLabel}`}
+                    >
+                      <span aria-hidden="true">📅</span>
+                      <span>
+                        发布于 <span class="font-medium">{dates.publishedLabel}</span>
+                      </span>
+                    </time>
+                  )
+                }
+                {dates.publishedLabel && dates.updatedLabel && <span aria-hidden="true">·</span>}
+                {
+                  dates.updatedLabel && (
+                    <time
+                      class="flex items-center gap-1"
+                      datetime={dates.updated?.toISOString()}
+                      title={`更新于 ${dates.updatedLabel}`}
+                    >
+                      <span aria-hidden="true">🔄</span>
+                      <span>
+                        更新于 <span class="font-medium">{dates.updatedLabel}</span>
+                      </span>
+                    </time>
+                  )
+                }
+                <div class="flex items-center gap-1">
+                  <span aria-hidden="true">✍️</span>
+                  {stats.wordCount} 字
+                </div>
+                <div class="flex items-center gap-1" title={`${stats.wordCount} words`}>
+                  <span aria-hidden="true">⏱️</span>
+                  {stats.text}
+                </div>
               </div>
-            )
-          }
+              {
+                post.data.source_url && (
+                  <div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-900 dark:bg-blue-950">
+                    <p class="text-sm text-gray-700 dark:text-gray-300">
+                      <span class="font-semibold">📝 转载 / 引用来源：</span>
+                      {post.data.source_author && (
+                        <span>
+                          作者 <span class="font-medium">{post.data.source_author}</span> ·{' '}
+                        </span>
+                      )}
+                      <a
+                        href={post.data.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                      >
+                        查看原文
+                      </a>
+                    </p>
+                  </div>
+                )
+              }
+            </div>
+
+            {
+              hasCover && (
+                <figure class="lg:justify-self-end overflow-hidden rounded-xl border border-gray-200/80 shadow-md dark:border-gray-800/80 w-full max-w-[320px] lg:max-w-[220px] lg:min-w-[160px]">
+                  <img
+                    src={resolveAssetUrl(post.data.cover)}
+                    alt={post.data.title}
+                    class="aspect-[4/3] w-full object-cover transition duration-200"
+                    loading="eager"
+                    decoding="async"
+                  />
+                </figure>
+              )
+            }
+          </div>
         </header>
 
         <Content />
