@@ -1450,7 +1450,7 @@ const providers: Provider[] = [
     },
   },
   {
-    name: 'imported',
+    name: 'others',
     match: () => true,
     extract: async (page, url) => {
       await page.goto(url, { waitUntil: 'networkidle', timeout: 120000 });
@@ -1539,7 +1539,7 @@ async function main() {
     tags: [],
     status: 'published',
     source_url: targetUrl,
-    source_author: author || provider.name,
+    source_author: author || sourceTitle || provider.name,
     imported_at: new Date().toISOString(),
     source: {
       title: sourceTitle || new URL(targetUrl).hostname,

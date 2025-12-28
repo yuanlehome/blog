@@ -21,7 +21,7 @@ import torch
 C = A @ B
 \`\`\`
 
-![matrix diagram](/images/imported/matmul/001-matmul.png)
+![matrix diagram](/images/others/matmul/001-matmul.png)
 
 Matrix diagram
 
