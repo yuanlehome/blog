@@ -65,10 +65,11 @@
    ```
 
    示例：
+
    ```bash
    # 导入微信公众号文章
    npm run import:content -- --url="https://mp.weixin.qq.com/s/Pe5rITX7srkWOoVHTtT4yw"
-   
+
    # 导入知乎文章
    npm run import:content -- --url="https://zhuanlan.zhihu.com/p/123456789"
    ```
@@ -130,14 +131,14 @@ npx tsx scripts/fix-math.ts src/content/blog/notion/<file>.md
 
 ## 🔧 常用命令
 
-| 命令                                      | 说明                                            |
-| :---------------------------------------- | :---------------------------------------------- |
-| `npm run dev`                             | 启动开发服务器（默认 `localhost:4321`）         |
-| `npm run build`                           | 生成生产构建                                    |
-| `npm run preview`                         | 预览生产构建                                    |
-| `npm run notion:sync`                     | 拉取 Notion 文章、下载图片并修复公式            |
-| `npm run import:content -- --url="<URL>"` | 从指定 URL 导入文章（支持微信、知乎、Medium）   |
-| `npm run lint`                            | 格式化代码                                      |
+| 命令                                      | 说明                                          |
+| :---------------------------------------- | :-------------------------------------------- |
+| `npm run dev`                             | 启动开发服务器（默认 `localhost:4321`）       |
+| `npm run build`                           | 生成生产构建                                  |
+| `npm run preview`                         | 预览生产构建                                  |
+| `npm run notion:sync`                     | 拉取 Notion 文章、下载图片并修复公式          |
+| `npm run import:content -- --url="<URL>"` | 从指定 URL 导入文章（支持微信、知乎、Medium） |
+| `npm run lint`                            | 格式化代码                                    |
 
 ## 📄 许可证
 
