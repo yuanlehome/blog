@@ -10,6 +10,7 @@ import {
 } from '../../scripts/fix-math';
 
 const fixturesDir = path.join(process.cwd(), 'tests/fixtures/posts');
+const fixMathPath = path.resolve(process.cwd(), 'scripts/fix-math.ts');
 
 describe('fix-math script', () => {
   it('normalizes inline and block math tokens', () => {
@@ -102,7 +103,7 @@ describe('fix-math script', () => {
       throw new Error('exit');
     }) as any;
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const argv = [process.argv[0], path.join(process.cwd(), 'scripts/fix-math.ts')];
+    const argv = [process.argv[0], fixMathPath];
 
     expect(() => runCli(argv)).toThrow('exit');
 
@@ -115,7 +116,7 @@ describe('fix-math script', () => {
       throw new Error('exit');
     }) as any;
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const argv = [process.argv[0], path.join(process.cwd(), 'scripts/fix-math.ts'), '/missing.md'];
+    const argv = [process.argv[0], fixMathPath, '/missing.md'];
 
     expect(() => runCli(argv)).toThrow('exit');
 

@@ -92,7 +92,7 @@ describe('notion sync helpers', () => {
     const mod = await import('../../scripts/notion-sync');
     const dir = path.join(process.env.NOTION_PUBLIC_IMG_DIR!, 'page');
     fs.mkdirSync(dir, { recursive: true });
-    const existing = path.join(dir, 'imageid.jpg');
+    const existing = path.join(dir, 'imageid.png');
     fs.writeFileSync(existing, 'data');
 
     const fetchMock = vi.fn().mockRejectedValue(new Error('network'));
@@ -100,7 +100,7 @@ describe('notion sync helpers', () => {
     vi.useFakeTimers();
 
     const existingUrl = await mod.downloadImage('https://example.com/a', 'page', 'imageid');
-    expect(existingUrl).toBe('/images/notion/page/imageid.jpg');
+    expect(existingUrl).toBe('/images/notion/page/imageid.png');
     expect(fetchMock).not.toHaveBeenCalled();
 
     const missingPromise = mod.downloadImage('https://example.com/b', 'page', 'new-image');
@@ -155,7 +155,7 @@ describe('notion sync helpers', () => {
     vi.stubGlobal('fetch', fetchMock);
     vi.useFakeTimers();
 
-    const resultPromise = mod.downloadImage('https://example.com/image', 'page', '???');
+    const resultPromise = mod.downloadImage('https://example.com/image', 'page', '###');
     await vi.runAllTimersAsync();
     expect(await resultPromise).toBeNull();
     const files = fs.readdirSync(path.join(process.env.NOTION_PUBLIC_IMG_DIR!, 'page'));
@@ -323,14 +323,12 @@ describe('notion sync helpers', () => {
     const mod = await import('../../scripts/notion-sync');
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          new Response(Buffer.from('img'), {
-            status: 200,
-            headers: { 'content-type': 'image/png' },
-          }),
-        ),
+      vi.fn().mockResolvedValue(
+        new Response(Buffer.from('img'), {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        }),
+      ),
     );
     vi.spyOn(mod, 'downloadImage');
     await mod.sync();
@@ -367,14 +365,12 @@ describe('notion sync helpers', () => {
     const mod = await import('../../scripts/notion-sync');
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          new Response(Buffer.from('img'), {
-            status: 200,
-            headers: { 'content-type': 'image/png' },
-          }),
-        ),
+      vi.fn().mockResolvedValue(
+        new Response(Buffer.from('img'), {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        }),
+      ),
     );
     await mod.sync();
 
@@ -420,14 +416,12 @@ describe('notion sync helpers', () => {
     blocksListMock.mockResolvedValue({ results: [], has_more: false, next_cursor: null });
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          new Response(Buffer.from('img'), {
-            status: 200,
-            headers: { 'content-type': 'image/png' },
-          }),
-        ),
+      vi.fn().mockResolvedValue(
+        new Response(Buffer.from('img'), {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        }),
+      ),
     );
 
     const mod = await import('../../scripts/notion-sync');
@@ -488,10 +482,14 @@ describe('notion sync helpers', () => {
   });
 
   it('runs autorun branch when NODE_ENV is not test', async () => {
-    process.env.NODE_ENV = 'production';
-    queryMock.mockResolvedValue({ results: [] });
-    vi.resetModules();
-    await import('../../scripts/notion-sync');
-    process.env.NODE_ENV = 'test';
+    const originalEnv = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = 'production';
+      queryMock.mockResolvedValue({ results: [] });
+      vi.resetModules();
+      await import('../../scripts/notion-sync');
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+    }
   });
 });
