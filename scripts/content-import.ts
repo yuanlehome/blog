@@ -67,6 +67,7 @@ const WECHAT_REQUEST_DELAY_MAX_MS = 400;
 const WECHAT_CONCURRENCY_LIMIT = 2;
 const WECHAT_PLACEHOLDER_MIN_WIDTH = 200; // WeChat placeholder is typically small
 const WECHAT_PLACEHOLDER_MIN_HEIGHT = 150;
+const KATEX_TEX_ENCODING = 'application/x-tex';
 
 const MIME_TYPE_EXTENSION_MAP: Record<string, string> = {
   'image/jpeg': '.jpg',
@@ -297,6 +298,7 @@ function selectMainContent(document: Document): HTMLElement | null {
 
   const evaluate = (el: Element) => {
     const textLength = el.textContent?.trim().length || 0;
+    // Ignore containers that are too short to be real article bodies (navigation, headers, etc.)
     if (textLength < MIN_CONTENT_LENGTH) return;
     if (!best || textLength > best.score) {
       best = { el: el as HTMLElement, score: textLength };
@@ -939,7 +941,7 @@ const transformMath: Plugin<[], any> = () => (tree: any) => {
     const idx = typeof index === 'number' ? index : null;
     if (!parent || idx === null) return;
     const extractAnnotation = (target: HastElement): string | null => {
-      if (target.tagName === 'annotation' && target.properties?.encoding === 'application/x-tex') {
+      if (target.tagName === 'annotation' && target.properties?.encoding === KATEX_TEX_ENCODING) {
         const firstChild = target.children?.[0];
         if (firstChild && typeof firstChild.value === 'string') {
           return firstChild.value;
@@ -1036,6 +1038,11 @@ const localizeImages = (options: {
   };
 };
 
+function normalizeMathDelimiters(markdown: string) {
+  // remark-stringify escapes dollar signs in math spans; restore them for proper rendering.
+  return markdown.replace(/\\\$\\\$/g, '$$').replace(/\\\$/g, '$');
+}
+
 export async function htmlToMdx(
   html: string,
   options: {
@@ -1076,7 +1083,7 @@ export async function htmlToMdx(
     .process(html);
 
   let markdown = String(file).trim();
-  markdown = markdown.replace(/\\\$\\\$/g, '$$').replace(/\\\$/g, '$');
+  markdown = normalizeMathDelimiters(markdown);
 
   return { markdown, images };
 }
