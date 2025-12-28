@@ -74,6 +74,28 @@ const DEFAULT_IMAGE_HEADERS = {
   Referer: 'https://www.zhihu.com',
 };
 
+type ProviderConfig = {
+  headers: Record<string, string>;
+  placeholderGuard?: (buffer: Buffer, contentType: string) => boolean;
+  defaultExt?: string;
+};
+
+const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
+  wechat: {
+    headers: WECHAT_IMAGE_HEADERS,
+    placeholderGuard: isSuspectedWechatPlaceholder,
+    defaultExt: '.jpg',
+  },
+  zhihu: {
+    headers: DEFAULT_IMAGE_HEADERS,
+    defaultExt: '.jpg',
+  },
+};
+
+function getProviderConfig(provider: string): ProviderConfig {
+  return PROVIDER_CONFIGS[provider] || { headers: DEFAULT_IMAGE_HEADERS, defaultExt: '.jpg' };
+}
+
 function parseArgs(): string {
   const url =
     process.argv.find((arg) => arg.startsWith('--url='))?.replace('--url=', '') ||
@@ -277,6 +299,8 @@ async function downloadImage(
     const extFromUrl = path.extname(new URL(finalUrl).pathname).split('?')[0];
     const filenameBase = String(index + 1).padStart(3, '0');
     const dir = path.join(imageRoot, slug);
+    const { headers, placeholderGuard, defaultExt = '.jpg' } = getProviderConfig(provider);
+
     if (extFromUrl) {
       const existingPath = path.join(dir, `${filenameBase}${extFromUrl}`);
       if (fs.existsSync(existingPath)) {
@@ -284,14 +308,7 @@ async function downloadImage(
       }
     }
 
-    const buildHeaders = (): Record<string, string> => {
-      if (provider === 'wechat') {
-        return WECHAT_IMAGE_HEADERS;
-      }
-      return DEFAULT_IMAGE_HEADERS;
-    };
-
-    const res = await fetch(finalUrl, { headers: buildHeaders() });
+    const res = await fetch(finalUrl, { headers });
 
     if (!res.ok) {
       console.warn(`Failed to fetch image ${finalUrl}: ${res.status}`);
@@ -301,18 +318,16 @@ async function downloadImage(
     const contentType = res.headers.get('content-type') || '';
     const buffer = Buffer.from(await res.arrayBuffer());
 
-    if (provider === 'wechat') {
-      if (isSuspectedWechatPlaceholder(buffer, contentType)) {
-        console.warn(
-          `WeChat image suspected placeholder (size=${buffer.length} bytes, content-type=${contentType})`,
-        );
-        return null;
-      }
+    if (placeholderGuard?.(buffer, contentType)) {
+      console.warn(
+        `${provider} image suspected placeholder (size=${buffer.length} bytes, content-type=${contentType})`,
+      );
+      return null;
     }
 
     const mimeType = (contentType.split(';')[0] || '').trim().toLowerCase();
     const extFromMime = MIME_TYPE_EXTENSION_MAP[mimeType];
-    const ext = extFromUrl || extFromMime || '.jpg';
+    const ext = extFromUrl || extFromMime || defaultExt;
     const filename = `${filenameBase}${ext}`;
     const localPath = path.join(dir, filename);
 
