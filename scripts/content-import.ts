@@ -1552,9 +1552,9 @@ async function main() {
     ...(safeUpdatedDate ? { updated: safeUpdatedDate.toISOString().split('T')[0] } : {}),
   };
 
+  console.log(`The --use-first-image-as-cover option is ${options.useFirstImageAsCover}.`);
   if (options.useFirstImageAsCover && images[0]) {
     frontmatter.cover = images[0];
-    console.log(`The option --use-first-image-as-cover was enabled.`);
   }
 
   const fileContent = matter.stringify(markdown, frontmatter);
