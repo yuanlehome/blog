@@ -46,7 +46,7 @@ const MIME_EXTENSION_MAP: Record<string, string> = {
 if (!fs.existsSync(CONTENT_DIR)) fs.mkdirSync(CONTENT_DIR, { recursive: true });
 if (!fs.existsSync(PUBLIC_IMG_DIR)) fs.mkdirSync(PUBLIC_IMG_DIR, { recursive: true });
 
-function resolveExtension(url: string, contentType?: string | null) {
+export function resolveExtension(url: string, contentType?: string | null) {
   const pathnameExt = path.extname(new URL(url).pathname);
   if (pathnameExt) return pathnameExt;
   if (contentType) {
@@ -57,7 +57,11 @@ function resolveExtension(url: string, contentType?: string | null) {
 }
 
 // Helper: Download Image
-async function downloadImage(url: string, pageId: string, imageId: string): Promise<string | null> {
+export async function downloadImage(
+  url: string,
+  pageId: string,
+  imageId: string,
+): Promise<string | null> {
   const dir = path.join(PUBLIC_IMG_DIR, pageId);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
@@ -109,7 +113,7 @@ async function downloadImage(url: string, pageId: string, imageId: string): Prom
   return null;
 }
 
-function extractCoverUrl(props: any): string | null {
+export function extractCoverUrl(props: any): string | null {
   const prop = props.cover || props.Cover || props.COVER;
   if (!prop) return null;
 
@@ -126,7 +130,9 @@ function extractCoverUrl(props: any): string | null {
   return null;
 }
 
-function getImageUrlFromBlock(block: BlockObjectResponse): { url: string; blockId: string } | null {
+export function getImageUrlFromBlock(
+  block: BlockObjectResponse,
+): { url: string; blockId: string } | null {
   if (block.type !== 'image') return null;
   const image = block.image;
   const url = image.type === 'external' ? image.external.url : image.file.url;
@@ -134,7 +140,7 @@ function getImageUrlFromBlock(block: BlockObjectResponse): { url: string; blockI
   return { url, blockId: block.id };
 }
 
-async function findFirstImageBlock(
+export async function findFirstImageBlock(
   blockId: string,
 ): Promise<{ url: string; blockId: string } | null> {
   let start_cursor: string | undefined;
@@ -157,23 +163,28 @@ async function findFirstImageBlock(
 // Remove the first dummy transformer and only keep the second one
 let currentPageId = '';
 
-n2m.setCustomTransformer('image', async (block) => {
+export async function transformImageBlock(block: any, pageId?: string, downloader = downloadImage) {
   const { image } = block as any;
   const url = image.type === 'external' ? image.external.url : image.file.url;
   const caption = image.caption?.map((c: any) => c.plain_text).join('') || '';
   const blockId = block.id;
+  const targetPageId = pageId || currentPageId;
 
-  if (!currentPageId) {
+  if (!targetPageId) {
     // Fallback if context missing
     return `![${caption}](${url})`;
   }
 
-  const localUrl = await downloadImage(url, currentPageId, blockId);
+  const localUrl = await downloader(url, targetPageId, blockId);
   if (localUrl) {
     return `![${caption}](${localUrl})`;
   }
   return `![${caption}](${url})`;
-});
+}
+
+n2m.setCustomTransformer('image', async (block) =>
+  transformImageBlock(block, currentPageId, downloadImage),
+);
 
 async function getExistingPosts() {
   const files = fs.readdirSync(CONTENT_DIR).filter((f) => f.endsWith('.md'));

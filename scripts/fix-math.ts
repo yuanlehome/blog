@@ -343,9 +343,11 @@ export function runFixMath(targetPath: string) {
 
 export { normalizeInvisibleCharacters, splitCodeFences, fixMath };
 
-const modulePath = fileURLToPath(import.meta.url);
-if (process.argv[1] && path.resolve(process.argv[1]) === modulePath) {
-  const targetPath = process.argv[2];
+export function runCli(argv = process.argv) {
+  const modulePath = fileURLToPath(import.meta.url);
+  if (!argv[1] || path.resolve(argv[1]) !== modulePath) return;
+
+  const targetPath = argv[2];
   if (!targetPath) {
     console.error('Usage: npx tsx scripts/fix-math.ts <file-or-directory-path>');
     process.exit(1);
@@ -358,3 +360,5 @@ if (process.argv[1] && path.resolve(process.argv[1]) === modulePath) {
     process.exit(1);
   }
 }
+
+runCli();

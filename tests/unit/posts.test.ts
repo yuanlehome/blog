@@ -54,6 +54,17 @@ describe('posts utils', () => {
     expect(next?.slug).toBe('third');
   });
 
+  it('handles edges and missing slugs when finding prev/next', () => {
+    const posts = [makePost('only', '2024-01-01'), makePost('second', '2024-02-01')];
+    const first = findPrevNext(posts, 'only');
+    const missing = findPrevNext(posts, 'absent');
+
+    expect(first.prev).toBeUndefined();
+    expect(first.next?.slug).toBe('second');
+    expect(missing.prev).toBeUndefined();
+    expect(missing.next).toBeUndefined();
+  });
+
   it('groups posts by year and month', () => {
     const posts = [
       makePost('jan', '2024-01-15'),
