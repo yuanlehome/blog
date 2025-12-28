@@ -26,7 +26,7 @@ import { siteBase } from '../../config/site';
  *
  * @example
  * normalizeSlug('Hello World') // 'hello-world'
- * normalizeSlug('你好世界') // 'ni-hao-shi-jie'
+ * normalizeSlug('你好世界') // '' (Chinese removed with strict:true)
  * normalizeSlug('Hello  World!!!') // 'hello-world'
  * normalizeSlug('😀 Emoji Test') // 'emoji-test'
  */
@@ -239,7 +239,10 @@ export function buildPostUrl(slug: string, base?: string): string {
 export function deriveSlug(options: {
   explicitSlug?: string | null;
   title?: string;
-  fallbackId: string;
+  fallbackId?: string;
 }): string {
-  return slugFromTitle(options);
+  return slugFromTitle({
+    ...options,
+    fallbackId: options.fallbackId || '',
+  });
 }
