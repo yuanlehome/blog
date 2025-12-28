@@ -130,6 +130,8 @@ npx tsx scripts/fix-math.ts src/content/blog/notion/<file>.md
 │   └── layouts/              # 基础页面布局
 ```
 
+详细的模块边界、依赖方向与脚本/工作流入口说明见 [`docs/architecture.md`](docs/architecture.md)。
+
 ## 🔧 常用命令
 
 | 命令                                      | 说明                                                                                             |

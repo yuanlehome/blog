@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import matter from 'gray-matter';
+import { BLOG_CONTENT_DIR, PUBLIC_DIR, PUBLIC_IMAGES_DIR, ROOT_DIR } from '../src/config/paths';
 
 type Options = {
   target: string;
@@ -9,12 +10,10 @@ type Options = {
   dryRun: boolean;
 };
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const REPO_ROOT = path.resolve(__dirname, '..');
-const BLOG_ROOT = path.join(REPO_ROOT, 'src', 'content', 'blog');
-const PUBLIC_ROOT = path.join(REPO_ROOT, 'public');
-const IMAGES_ROOT = path.join(PUBLIC_ROOT, 'images');
+const REPO_ROOT = ROOT_DIR;
+const BLOG_ROOT = BLOG_CONTENT_DIR;
+const PUBLIC_ROOT = PUBLIC_DIR;
+const IMAGES_ROOT = PUBLIC_IMAGES_DIR;
 
 // Maximum number of image directories that can be matched before requiring confirmation
 // This prevents accidental mass deletion due to overly broad slug matches

@@ -5,10 +5,10 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
-import { fileURLToPath } from 'url';
 import type { BlockObjectResponse } from '@notionhq/client/build/src/api-endpoints';
 import crypto from 'crypto';
 import { deriveSlug, ensureUniqueSlug } from './slug';
+import { NOTION_CONTENT_DIR, NOTION_PUBLIC_IMG_DIR, ensureDir } from '../src/config/paths';
 
 dotenv.config({ path: '.env.local' });
 
@@ -23,16 +23,6 @@ if (!NOTION_TOKEN || !DATABASE_ID) {
 const notion = new Client({ auth: NOTION_TOKEN });
 const n2m = new NotionToMarkdown({ notionClient: notion });
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CONTENT_DIR =
-  process.env.NOTION_CONTENT_DIR && process.env.NOTION_CONTENT_DIR.trim().length > 0
-    ? path.resolve(process.env.NOTION_CONTENT_DIR)
-    : path.join(__dirname, '../src/content/blog/notion');
-const PUBLIC_IMG_DIR =
-  process.env.NOTION_PUBLIC_IMG_DIR && process.env.NOTION_PUBLIC_IMG_DIR.trim().length > 0
-    ? path.resolve(process.env.NOTION_PUBLIC_IMG_DIR)
-    : path.join(__dirname, '../public/images/notion');
-
 const MIME_EXTENSION_MAP: Record<string, string> = {
   'image/jpeg': '.jpg',
   'image/jpg': '.jpg',
@@ -43,8 +33,8 @@ const MIME_EXTENSION_MAP: Record<string, string> = {
 };
 
 // Ensure directories exist
-if (!fs.existsSync(CONTENT_DIR)) fs.mkdirSync(CONTENT_DIR, { recursive: true });
-if (!fs.existsSync(PUBLIC_IMG_DIR)) fs.mkdirSync(PUBLIC_IMG_DIR, { recursive: true });
+ensureDir(NOTION_CONTENT_DIR);
+ensureDir(NOTION_PUBLIC_IMG_DIR);
 
 export function resolveExtension(url: string, contentType?: string | null) {
   const pathnameExt = path.extname(new URL(url).pathname);
@@ -62,7 +52,7 @@ export async function downloadImage(
   slug: string,
   imageId: string,
 ): Promise<string | null> {
-  const dir = path.join(PUBLIC_IMG_DIR, slug);
+  const dir = path.join(NOTION_PUBLIC_IMG_DIR, slug);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
   const normalizedId = imageId.replace(/[^a-zA-Z0-9-_]/g, '');
@@ -194,12 +184,12 @@ type ExistingPostMeta = {
 };
 
 async function getExistingPosts() {
-  const files = fs.readdirSync(CONTENT_DIR).filter((f) => f.endsWith('.md'));
+  const files = fs.readdirSync(NOTION_CONTENT_DIR).filter((f) => f.endsWith('.md'));
   const bySlug = new Map<string, ExistingPostMeta>();
   const byNotionId = new Map<string, ExistingPostMeta>();
 
   for (const file of files) {
-    const content = fs.readFileSync(path.join(CONTENT_DIR, file), 'utf-8');
+    const content = fs.readFileSync(path.join(NOTION_CONTENT_DIR, file), 'utf-8');
     const { data } = matter(content);
     const slug = data.slug || path.basename(file, '.md');
     const notionId = data.notion?.id || data.notionId;
@@ -242,8 +232,8 @@ function moveDirContents(source: string, target: string) {
 
 function migrateImageDir(oldKey: string, newSlug: string) {
   if (!oldKey || oldKey === newSlug) return;
-  const source = path.join(PUBLIC_IMG_DIR, oldKey);
-  const target = path.join(PUBLIC_IMG_DIR, newSlug);
+  const source = path.join(NOTION_PUBLIC_IMG_DIR, oldKey);
+  const target = path.join(NOTION_PUBLIC_IMG_DIR, newSlug);
   moveDirContents(source, target);
 }
 
@@ -371,12 +361,12 @@ export async function sync() {
 
     const fileContent = matter.stringify(mdString.parent || '', frontmatter);
 
-    const filePath = path.join(CONTENT_DIR, `${slug}.md`);
+    const filePath = path.join(NOTION_CONTENT_DIR, `${slug}.md`);
     fs.writeFileSync(filePath, fileContent);
     console.log(`Saved ${slug}.md`);
 
     if (previousSlug && previousSlug !== slug) {
-      const oldPath = path.join(CONTENT_DIR, `${previousSlug}.md`);
+      const oldPath = path.join(NOTION_CONTENT_DIR, `${previousSlug}.md`);
       if (fs.existsSync(oldPath) && oldPath !== filePath) {
         fs.rmSync(oldPath);
         console.log(`Removed old file for renamed slug: ${previousSlug}.md`);
