@@ -32,7 +32,7 @@ const BASE = import.meta.env.BASE_URL.endsWith('/')
   : import.meta.env.BASE_URL + '/';
 ---
 
-<Layout title={post.data.title} image={'${BASE}post.data.cover'}>
+<Layout title={post.data.title} image={`${BASE}${post.data.cover.replace(/^\//, '')}`}>
   <ReadingProgress />
   <Header />
   <main class="container mx-auto px-4 py-8 max-w-6xl">
@@ -45,7 +45,7 @@ const BASE = import.meta.env.BASE_URL.endsWith('/')
           {
             post.data.cover && (
               <img
-                src={'${BASE}post.data.cover'}
+                src={`${BASE}${post.data.cover.replace(/^\//, '')}`}
                 alt={post.data.title}
                 class="w-full h-64 object-cover rounded-xl mb-6"
               />
