@@ -297,14 +297,21 @@ async function detectBlockedPage(page: Page): Promise<string | null> {
 
 function resolveImageSrc(node: HastElement, base?: string) {
   const props = node.properties || {};
+  // Priority order for WeChat lazy-loaded images:
+  // 1. data-src (primary lazy-load attribute)
+  // 2. data-original (alternative lazy-load attribute)
+  // 3. data-backup-src (backup image URL)
+  // 4. src (fallback for already-loaded images)
   const candidates = [
-    props['data-original'],
-    props['data-actualsrc'],
     props['data-src'],
+    props['data-original'],
+    props['data-backup-src'],
+    props['data-actualsrc'],
     props.src,
     props['data-actual-url'],
   ];
   const url = candidates.find((u) => typeof u === 'string' && u.trim().length > 0);
+  // Filter out data URLs (base64 encoded images) and empty URLs
   if (!url || url.startsWith('data:')) return '';
   return normalizeUrl(url, base);
 }
@@ -1086,6 +1093,49 @@ const providers: Provider[] = [
       await page.goto(url, { waitUntil: 'networkidle', timeout: 120000 });
       await page.waitForSelector('#js_content, .rich_media_content', { timeout: 30000 });
 
+      // Fix lazy-loaded images: replace data:image/svg+xml placeholders with actual URLs
+      // This ensures real image URLs (https://mmbiz.qpic.cn/...) are captured in the HTML
+      await page.evaluate(() => {
+        // Validate and normalize that a candidate is a safe http/https URL before using it.
+        function isSafeHttpUrl(raw: string | null | undefined): string | null {
+          if (!raw) return null;
+          try {
+            const url = new URL(raw, document.baseURI);
+            if (url.protocol === 'http:' || url.protocol === 'https:') {
+              return url.toString();
+            }
+          } catch {
+            // Ignore invalid URLs
+          }
+          return null;
+        }
+
+        const root =
+          document.querySelector('#js_content') || document.querySelector('.rich_media_content');
+        if (root) {
+          const images = root.querySelectorAll('img');
+          for (const img of images) {
+            // Priority order for WeChat lazy-loaded images
+            const realUrl =
+              img.getAttribute('data-src') ||
+              img.getAttribute('data-original') ||
+              img.getAttribute('data-backup-src') ||
+              img.getAttribute('data-actualsrc') ||
+              img.getAttribute('data-actual-url');
+
+            // Replace placeholder with actual URL if found and safe
+            const safeUrl = isSafeHttpUrl(realUrl);
+            if (safeUrl) {
+              img.setAttribute('src', safeUrl);
+              // Clean up lazy-load attributes to avoid confusion
+              img.removeAttribute('data-src');
+              img.removeAttribute('data-original');
+              img.removeAttribute('data-backup-src');
+            }
+          }
+        }
+      });
+
       const result = await page.evaluate(() => {
         const content =
           (document.querySelector('#js_content') as HTMLElement | null) ||
@@ -1150,6 +1200,15 @@ async function main() {
     imageRoot,
     articleUrl: targetUrl, // Pass article URL for Playwright fallback
   });
+
+  // Safety check: Ensure no WeChat lazy-load placeholders in final markdown
+  // This prevents publishing articles with broken image placeholders
+  if (provider.name === 'wechat' && /data:image\/svg\+xml/i.test(markdown)) {
+    throw new Error(
+      'WeChat image placeholder detected (data:image/svg+xml) in generated markdown. ' +
+        'Image extraction failed - real image URLs were not properly captured from lazy-loaded attributes.',
+    );
+  }
 
   const publishedDate = published ? new Date(published) : new Date();
   const safeDate = Number.isNaN(publishedDate.valueOf()) ? new Date() : publishedDate;
