@@ -44,12 +44,16 @@ const hasCover = Boolean(post.data.cover);
         <header class="mb-8 not-prose">
           <div
             class={`flex flex-col gap-6 ${
-              hasCover ? 'lg:grid lg:grid-cols-[minmax(0,1fr)_220px] lg:items-start lg:gap-8' : ''
+              hasCover ? 'lg:grid lg:grid-cols-[minmax(0,1fr)_220px] lg:items-stretch lg:gap-8' : ''
             }`}
           >
-            <div class="flex flex-col gap-4">
+            <div class={`flex flex-col gap-4 ${hasCover ? 'lg:h-full' : ''}`}>
               <h1 class="text-3xl md:text-4xl font-bold leading-tight">{post.data.title}</h1>
-              <div class="text-gray-500 text-sm flex items-center gap-3 flex-wrap">
+              <div
+                class={`text-gray-500 text-sm flex items-center gap-3 flex-wrap ${
+                  hasCover ? 'lg:mt-auto' : ''
+                }`}
+              >
                 {
                   dates.publishedLabel && (
                     <time
