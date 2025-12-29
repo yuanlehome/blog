@@ -12,8 +12,8 @@ let helpTexts: {
 };
 
 beforeAll(async () => {
-  process.env.NOTION_TOKEN ||= 'test-token';
-  process.env.NOTION_DATABASE_ID ||= 'test-db';
+  if (!process.env.NOTION_TOKEN) process.env.NOTION_TOKEN = 'test-token';
+  if (!process.env.NOTION_DATABASE_ID) process.env.NOTION_DATABASE_ID = 'test-db';
 
   const notion = await import('../../scripts/notion-sync');
   const importer = await import('../../scripts/content-import');

@@ -141,6 +141,7 @@ type ImportArgs = {
 
 export const CONTENT_IMPORT_HELP = [
   '用法: npm run import:content -- --url=<URL> [--allow-overwrite] [--dry-run] [--use-first-image-as-cover]',
+  '输入: 必填 --url=<URL>，也可直接传 URL 位置参数或通过 STDIN',
   '环境变量: URL、ALLOW_OVERWRITE、DRY_RUN、USE_FIRST_IMAGE_AS_COVER',
   '示例: npm run import:content -- --url="https://mp.weixin.qq.com/s/xxxx" --use-first-image-as-cover',
   '提示: --help 或 -h 仅输出此说明',
@@ -152,6 +153,7 @@ async function parseArgs(argv = process.argv.slice(2)): Promise<ImportArgs> {
     process.exit(0);
   }
 
+  const positionalUrl = argv.find((arg) => !arg.startsWith('--'));
   const argUrl =
     argv.find((arg) => arg.startsWith('--url='))?.slice('--url='.length) ??
     (() => {
@@ -160,7 +162,7 @@ async function parseArgs(argv = process.argv.slice(2)): Promise<ImportArgs> {
     })() ??
     process.env.URL ??
     process.env.url ??
-    argv[0];
+    positionalUrl;
 
   const allowOverwrite =
     argv.includes('--allow-overwrite') || process.env.ALLOW_OVERWRITE === 'true';

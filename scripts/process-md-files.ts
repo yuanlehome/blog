@@ -37,7 +37,7 @@ export function runCli(argv = process.argv) {
     process.exit(0);
   }
   if (!targetPath) {
-    console.error(PROCESS_MD_FILES_HELP);
+    console.log(PROCESS_MD_FILES_HELP);
     process.exit(1);
   }
 
