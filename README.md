@@ -1,159 +1,523 @@
-# Astro + Notion Static Blog
+# Astro Static Blog
 
-一个由 **Astro** 和 **Notion** 驱动的静态博客示例。通过同步 Notion 数据库里的页面生成 Markdown 内容，并在构建时完成数学公式渲染，适合想要用 Notion 作为内容源的个人或团队。
+A production-ready static blog built with **Astro**, designed for maintainability and content flexibility. Content comes from three sources: **Notion**, **external URLs** (WeChat, Zhihu, Medium), and **local Markdown** files.
 
-## 🎯 特性
+**Core Design Philosophy**: Content acquisition (scripts) and content rendering (Astro runtime) are strictly separated, enabling reproducible builds and clear boundaries between data and logic.
 
-- **Notion 写作流程**：用 Notion Database 管理文章，状态为 Published 的页面会被拉取并转成 Markdown。
-- **图片与封面下载**：同步时自动下载 Notion 中的图片与封面到 `public/images/notion/<pageId>/`。
-- **数学公式支持**：结合 `remark-math` 与 `rehype-katex` 渲染公式，同步后还会用脚本修正常见格式问题。
-- **现代前端**：Astro + Tailwind 构建，提供 RSS、Sitemap 与基础的文章列表/详情页。
+---
 
-## 🚀 快速开始
+## 🎯 Project Overview
 
-### 1. 环境要求
+This is an **Astro-powered static blog** with the following characteristics:
 
-- Node.js 22
-- 可访问的 Notion 账号与数据库
+- **Multiple Content Sources**: Import from Notion databases, scrape from external URLs, or write local Markdown
+- **Build-Time Content Generation**: All content is pre-fetched and stored as Markdown/MDX files before Astro build
+- **Math Support**: KaTeX rendering for both inline (`$...$`) and block (`$$...$$`) math equations
+- **Modern Tooling**: TypeScript, Tailwind CSS, Vitest, Playwright, automated CI/CD
 
-### 2. 安装与配置
+**Key Design Choice**: Content is **acquired by scripts** (Node.js CLI tools) and **rendered by Astro** (static site generator). This separation ensures:
 
-1. **克隆仓库并安装依赖**
+- Reproducible builds (same content files → same output)
+- Fast builds (no API calls during `astro build`)
+- Clear ownership (content sync = scripts, content display = Astro)
+
+---
+
+## 📁 Directory Structure
+
+```
+blog/
+├── src/
+│   ├── lib/              # Runtime business logic (slug, content, markdown plugins)
+│   ├── config/           # Configuration (paths, site metadata, env variables)
+│   ├── content/          # Content collection (blog posts in Markdown/MDX)
+│   │   └── blog/
+│   │       ├── notion/   # Synced from Notion (auto-generated)
+│   │       ├── wechat/   # Imported from WeChat articles (auto-generated)
+│   │       ├── others/   # Imported from other platforms (auto-generated)
+│   │       └── [local]   # Local Markdown files (manually written)
+│   ├── components/       # Astro/React components
+│   ├── layouts/          # Page layouts
+│   └── pages/            # Astro routes
+├── scripts/
+│   ├── notion-sync.ts       # Notion → Markdown sync
+│   ├── content-import.ts    # External URL → Markdown import
+│   ├── process-md-files.ts  # Math formatting fixes
+│   ├── delete-article.ts    # Delete articles and images
+│   └── utils.ts             # Shared script utilities (NOT for runtime)
+├── public/
+│   └── images/
+│       ├── notion/       # Downloaded Notion images
+│       ├── wechat/       # Downloaded WeChat images
+│       └── others/       # Downloaded images from other platforms
+├── docs/
+│   ├── architecture.md   # Architecture and design decisions
+│   └── ci-workflow-map.md # CI/CD workflow documentation
+└── tests/
+    ├── unit/             # Unit tests (Vitest)
+    ├── integration/      # Integration tests
+    └── e2e/              # End-to-end tests (Playwright)
+```
+
+### Key Directories Explained
+
+- **`src/lib/`**: Runtime business logic organized by domain (slug, content, markdown, site, ui). **No `src/utils/`** — each module has a clear, single responsibility.
+- **`scripts/`**: Content acquisition scripts. Run independently of Astro. **No `scripts/lib/`** — shared utilities live in a single `utils.ts` file.
+- **`src/config/`**: Centralized configuration (paths, site URL, feature flags). Used by both scripts and runtime.
+- **`src/content/blog/`**: All blog posts. Subdirectories indicate content source (notion, wechat, others, or root for local files).
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- **Node.js 22+**
+- **Notion account** (if using Notion sync)
+
+### Setup
+
+1. **Clone and Install**
 
    ```bash
-   git clone <your-repo-url>
+   git clone <repository-url>
    cd blog
    npm install
    ```
 
-2. **配置环境变量**
-   复制 `.env.local.example` 为 `.env.local` 并填写 Notion 信息：
+2. **Configure Environment Variables**
 
-   ```ini
+   Copy `.env.local.example` to `.env.local`:
+
+   ```bash
+   cp .env.local.example .env.local
+   ```
+
+   Fill in Notion credentials (if using Notion sync):
+
+   ```env
    NOTION_TOKEN=secret_your_token_here
    NOTION_DATABASE_ID=your_database_id_here
    ```
 
-   - **Token**：前往 [Create Integration](https://www.notion.so/my-integrations) 创建并获取。
-   - **Database ID**：来自 Notion 数据库 URL（`notion.so/` 后的 32 位字符串）。
-   - **权限**：在数据库右上角 `...` → `Connect` → 选择你的 Integration，否则无法读取数据。
+   - **Token**: Create an integration at [Notion Integrations](https://www.notion.so/my-integrations)
+   - **Database ID**: Found in your Notion database URL (32-character string after `notion.so/`)
+   - **Connect Integration**: In Notion database, click `...` → `Connect to` → select your integration
 
-3. **本地开发**
+3. **Start Development Server**
+
    ```bash
    npm run dev
    ```
-   默认在 `http://localhost:4321` 提供预览。
-   （本地首次运行 E2E 请先执行一次 `npx playwright install --with-deps chromium` 安装浏览器，CI 已自动处理。）
 
-### 3. 内容同步与写作
+   Opens at `http://localhost:4321/blog/`
 
-支持两种方式：
+---
 
-1. **Notion 驱动**：在 Notion 数据库中写作并将状态设为 **Published**（支持 `select` 或 `status` 属性），然后运行同步脚本：
+## ✍️ Content Workflows
+
+### Workflow 1: Notion → Blog
+
+**Use Case**: Write articles in Notion, sync to blog as Markdown
+
+**Steps:**
+
+1. Create or update pages in your Notion database
+2. Set page status to **"Published"** (supports both `select` and `status` property types)
+3. Run sync command:
 
    ```bash
    npm run notion:sync
    ```
 
-   - 会将页面转换为 Markdown，输出到 `src/content/blog/notion/`。
-   - 自动下载页面中的图片与封面到 `public/images/notion/`，并为引用生成本地路径。
-   - 自动运行 `scripts/process-md-files.ts` 修正常见数学公式格式（如去除 `$ x $` 中的空格，将多行行内公式提升为块级）。
+**What Happens:**
 
-2. **从 URL 导入**：支持从知乎、微信公众号、Medium 等平台导入文章，支持覆盖、预览、封面自动取首图等可选参数：
+- Fetches all Published pages from Notion API
+- Converts pages to Markdown using `notion-to-md`
+- Downloads cover images and inline images to `public/images/notion/<pageId>/`
+- Generates URL-safe slugs from titles (detects conflicts)
+- Writes Markdown files to `src/content/blog/notion/`
+- Fixes math formatting (removes spaces in `$ x $` → `$x$`)
+- Runs linting/formatting
 
-   ```bash
-   npm run import:content -- --url="<文章URL>"
-   ```
+**Output:**
 
-   示例：
+- `src/content/blog/notion/<slug>.md`
+- `public/images/notion/<pageId>/*.{jpg,png,webp}`
 
-   ```bash
-   # 导入微信公众号文章
-   npm run import:content -- --url="https://mp.weixin.qq.com/s/Pe5rITX7srkWOoVHTtT4yw"
+**Idempotency**: Safe to run multiple times. Existing Notion files are overwritten; other content sources are untouched.
 
-   # 导入知乎文章
-   npm run import:content -- --url="https://zhuanlan.zhihu.com/p/123456789"
-   ```
+⚠️ **Important**: Do not manually edit files in `src/content/blog/notion/` — changes will be overwritten on next sync. Edit in Notion instead.
 
-   - 自动识别平台（微信、知乎、Medium）并提取内容
-   - 自动下载文章中的所有图片到 `public/images/<平台>/<文章slug>/`
-   - 生成 MDX 文件到 `src/content/blog/<平台>/`
-   - 微信公众号图片下载包含占位符检测、重试机制和浏览器回退策略
-   - 自动运行数学公式修正和代码格式化
+---
 
-3. **本地 Markdown**：在 `src/content/blog/` 下添加 `.md/.mdx` 文件，满足以下 Frontmatter 即可：
-   ```yaml
-   ---
-   title: 文章标题
-   date: 2025-01-01
-   status: published # 或 draft
-   cover: /images/your-cover.png # 可选，指向 public 下资源或远程 URL
-   ---
-   ```
-   文件名会成为路由的一部分，例如 `hello-world.md` 生成 `/hello-world/`，与 Notion 同步的文章并列展示。
+### Workflow 2: External URL → Blog
 
-构建或部署前请先同步内容，确保最新文章被包含在站点中。
+**Use Case**: Import articles from WeChat, Zhihu, Medium, etc.
 
-### 4. 数学公式
-
-- **行内**：`$E=mc^2$`
-- **块级**：
-  ```latex
-  $$
-  \sum_{i=0}^n i^2 = \frac{(n^2+n)(2n+1)}{6}
-  $$
-  ```
-
-如需单独处理指定文件，可直接运行：
+**Command:**
 
 ```bash
-npx tsx scripts/process-md-files.ts src/content/blog/notion/<file>.md
+npm run import:content -- --url="<article-url>"
 ```
 
-## 🧭 项目结构
+**Examples:**
 
-```
-├── .github/workflows/        # CI / 部署（如果启用）
-├── public/images/
-│   ├── notion/               # 同步的 Notion 图片与封面
-│   ├── wechat/               # 微信公众号文章图片
-│   └── zhihu/                # 知乎文章图片（如有）
-├── scripts/
-│   ├── notion-sync.ts        # Notion → Markdown 转换与图片下载（会串联 process-md-files 与 lint）
-│   ├── content-import.ts     # 从 URL 导入文章（支持微信、知乎、Medium，串联 process-md-files 与 lint）
-│   └── process-md-files.ts           # 数学公式修正
-├── src/
-│   ├── content/blog/local/   # 手写 Markdown（可选自行创建）
-│   ├── content/blog/notion/  # Notion 同步生成的 Markdown（自动写入）
-│   ├── content/blog/wechat/  # 微信公众号导入的文章
-│   ├── pages/                # 路由（index, about, [...slug]）
-│   └── layouts/              # 基础页面布局
+```bash
+# WeChat article
+npm run import:content -- --url="https://mp.weixin.qq.com/s/Pe5rITX7srkWOoVHTtT4yw"
+
+# Zhihu article
+npm run import:content -- --url="https://zhuanlan.zhihu.com/p/123456789"
+
+# Medium article
+npm run import:content -- --url="https://medium.com/@author/article-slug"
 ```
 
-详细的模块边界、依赖方向与脚本/工作流入口说明见 [`docs/architecture.md`](docs/architecture.md)。
+**Optional Flags:**
 
-## 🔧 常用命令
+- `--overwrite`: Allow overwriting existing article with same slug
+- `--preview`: Show extracted content without saving
+- `--cover-first-image`: Use first image as cover if no cover found
 
-| 命令                                      | 说明                                                                                             |
-| :---------------------------------------- | :----------------------------------------------------------------------------------------------- |
-| `npm run dev`                             | 启动开发服务器（默认 `localhost:4321`）                                                          |
-| `npm run build`                           | 生成生产构建                                                                                     |
-| `npm run preview`                         | 预览生产构建                                                                                     |
-| `npm run notion:sync`                     | 拉取 Notion 文章、下载图片、修复公式并运行 lint（会改写内容）                                    |
-| `npm run import:content -- --url="<URL>"` | 从指定 URL 导入文章并本地化资源，随后修复公式并运行 lint                                         |
-| `npm run check`                           | Astro 类型检查                                                                                   |
-| `npm run test`                            | Vitest 单元测试（含覆盖率）                                                                      |
-| `npm run test:e2e`                        | Playwright 端到端测试（本地首次需 `npx playwright install --with-deps chromium`，CI 已自动处理） |
-| `npm run lint`                            | prettier + markdownlint（含自动修复，可能改写文件）                                              |
+**What Happens:**
 
-## 🛠️ CI / Workflow 对齐
+- Detects platform (WeChat, Zhihu, Medium) from URL
+- Launches headless browser (Playwright) to scrape content
+- Downloads all images to `public/images/<platform>/<slug>/`
+- Converts HTML to Markdown using unified/remark/rehype
+- Generates frontmatter (title, date, author, cover)
+- Writes MDX file to `src/content/blog/<platform>/`
+- Fixes math formatting and runs linting
 
-- PR / Push：`validation.yml` 统一执行 check、lint、test、build、E2E 与 smoke job。
-- 部署：`deploy.yml` 发布 GitHub Pages，成功后由 `post-deploy-smoke-test.yml` 做线上探活。
-- 内容：`import-content.yml` 手动导入、`sync-notion.yml` 定时同步，均通过 PR 写入内容与图片。
-- 辅助：`pr-preview.yml` 提供 PR 预览，`link-check.yml` 做死链检测。
-- 详细关系图与说明见 [`docs/ci-workflow-map.md`](docs/ci-workflow-map.md)。
+**Output:**
 
-## 📄 许可证
+- `src/content/blog/<platform>/<slug>.mdx`
+- `public/images/<platform>/<slug>/*.{jpg,png,webp}`
 
-本项目基于 [ISC License](LICENSE) 开源，欢迎在许可范围内自由使用与修改。
+**Platform-Specific Notes:**
+
+- **WeChat**: Handles image placeholders, retries failed downloads, uses browser fallback for stubborn images
+- **Zhihu**: Extracts author and publish date from page metadata
+- **Medium**: Similar extraction with platform-specific DOM selectors
+
+⚠️ **Important**: Imported articles should be edited in their original platform or locally (if overwritten with `--overwrite`). Re-importing overwrites local changes unless `--overwrite` is omitted.
+
+---
+
+### Workflow 3: Local Markdown
+
+**Use Case**: Write articles directly in the repository
+
+**Steps:**
+
+1. Create a `.md` or `.mdx` file in `src/content/blog/` (not in a subdirectory)
+2. Add required frontmatter:
+
+   ```yaml
+   ---
+   title: Your Article Title
+   date: 2025-01-15
+   status: published # or draft
+   cover: /blog/images/your-cover.png # optional
+   ---
+   ```
+
+3. Write content using Markdown
+4. Build or dev to see changes
+
+**Output:**
+
+- Article appears at `/blog/<filename>/` (filename becomes slug)
+
+**Benefits:**
+
+- Full control over content and metadata
+- Git-tracked changes
+- No external dependencies
+- Coexists with Notion and imported content
+
+---
+
+## 🛠️ Scripts Reference
+
+All scripts are defined in `package.json` and run via `npm run <script>`.
+
+| Script                | Command                                   | Description                                               |
+| --------------------- | ----------------------------------------- | --------------------------------------------------------- |
+| **Development**       |
+| `dev`                 | `astro dev`                               | Start development server at `http://localhost:4321/blog/` |
+| `start`               | `astro dev`                               | Alias for `dev`                                           |
+| **Building**          |
+| `build`               | `astro build`                             | Build static site to `dist/`                              |
+| `preview`             | `astro preview`                           | Preview production build locally                          |
+| **Content Sync**      |
+| `notion:sync`         | `tsx scripts/notion-sync.ts && ...`       | Sync Notion pages, fix formatting, run linting            |
+| `import:content`      | `tsx scripts/content-import.ts && ...`    | Import from URL, fix formatting, run linting              |
+| `delete:article`      | `tsx scripts/delete-article.ts`           | Delete article and optionally associated images           |
+| **Quality Assurance** |
+| `check`               | `astro check`                             | TypeScript and Astro component validation                 |
+| `lint`                | `npm run format:check && npm run md:lint` | Format and lint all files (auto-fixes)                    |
+| `format:check`        | `prettier --check --write ...`            | Format code and Markdown                                  |
+| `md:lint`             | `markdownlint-cli2`                       | Lint Markdown files                                       |
+| `test`                | `vitest run --coverage`                   | Run unit tests with coverage                              |
+| `test:watch`          | `vitest watch`                            | Run tests in watch mode                                   |
+| `test:e2e`            | Build and run Playwright tests            | End-to-end browser tests                                  |
+| `test:ci`             | All quality checks + build                | Full CI validation pipeline                               |
+
+### Example Usage
+
+```bash
+# Sync Notion content (rewrites notion/ directory)
+npm run notion:sync
+
+# Import WeChat article (with overwrite protection)
+npm run import:content -- --url="https://mp.weixin.qq.com/s/abc123"
+
+# Import and overwrite existing article
+npm run import:content -- --url="https://mp.weixin.qq.com/s/abc123" --overwrite
+
+# Delete article by slug
+npm run delete:article -- --target=my-article-slug
+
+# Delete article by path (including images)
+npm run delete:article -- --target=src/content/blog/wechat/my-article.mdx --delete-images
+
+# Run all quality checks before committing
+npm run check && npm run lint && npm run test
+```
+
+---
+
+## 🧪 Development & Quality Assurance
+
+### Local Development
+
+```bash
+npm run dev
+```
+
+- Hot module replacement (HMR) for fast development
+- Available at `http://localhost:4321/blog/`
+- Changes to `src/` rebuild automatically
+
+### Type Checking
+
+```bash
+npm run check
+```
+
+Validates TypeScript types and Astro component props using `@astrojs/check`.
+
+### Linting & Formatting
+
+```bash
+npm run lint
+```
+
+Runs:
+
+1. **Prettier** on all code and Markdown (auto-fixes formatting)
+2. **Markdownlint** on all Markdown files (enforces style rules)
+
+⚠️ **Note**: This command **modifies files** to fix issues. Recommended to run before committing.
+
+### Testing
+
+#### Unit Tests (Vitest)
+
+```bash
+npm run test          # Run once with coverage
+npm run test:watch    # Watch mode for TDD
+```
+
+- Tests in `tests/unit/`
+- Coverage report in `coverage/`
+- Tests for `src/lib/` modules (slug, content, markdown plugins, etc.)
+
+#### End-to-End Tests (Playwright)
+
+```bash
+npm run test:e2e
+```
+
+- Tests in `tests/e2e/`
+- Builds site first, then runs browser tests
+- **First-time setup**: `npx playwright install --with-deps chromium` (CI does this automatically)
+
+### Pre-Merge Quality Gate
+
+**All PRs must pass these checks before merging to `main`:**
+
+```bash
+npm run check    # ✓ TypeScript types valid
+npm run lint     # ✓ Code formatted, Markdown linted
+npm run test     # ✓ Unit tests pass
+npm run test:e2e # ✓ E2E tests pass
+npm run build    # ✓ Site builds successfully
+```
+
+These are enforced by `.github/workflows/validation.yml`.
+
+---
+
+## 📚 Documentation
+
+- **[Architecture Guide](docs/architecture.md)**: Detailed explanation of layer boundaries, module responsibilities, and design decisions
+- **[CI Workflow Map](docs/ci-workflow-map.md)**: Overview of GitHub Actions workflows and their relationships
+
+**Read `docs/architecture.md` if you want to:**
+
+- Understand why `src/lib/` is organized by domain
+- Learn why there's no `src/utils/` or `scripts/lib/`
+- See how scripts and runtime stay isolated
+- Understand slug generation and content sync flows
+
+---
+
+## ❓ Frequently Asked Questions
+
+### Why is there no `src/utils/` directory?
+
+**Short answer**: To prevent it from becoming a dumping ground for miscellaneous functions.
+
+**Long answer**: Each function now lives in a **domain-specific module** (`src/lib/slug/`, `src/lib/content/`, etc.) with a clear responsibility. This makes dependencies explicit and prevents circular imports. If a function doesn't fit an existing domain, it either:
+
+1. Indicates a new domain should be created, or
+2. Belongs in `src/config/` (if it's configuration-related)
+
+See [Architecture Guide § 2.3](docs/architecture.md#23-why-no-srcutils) for full rationale.
+
+---
+
+### Why is there only `scripts/utils.ts` and no `scripts/lib/`?
+
+**Short answer**: Scripts are entry points, not a reusable library. A single utility file prevents over-engineering.
+
+**Long answer**: Each script (`notion-sync.ts`, `content-import.ts`, etc.) is a standalone CLI tool. They share a few simple utilities (file I/O, string processing) which live in `scripts/utils.ts`. Creating `scripts/lib/` would invite premature abstraction. See [Architecture Guide § 3.2](docs/architecture.md#32-scriptsutilsts---the-shared-utility-layer) for design rationale.
+
+---
+
+### Can scripts import from `src/lib/`?
+
+**Yes, but only specific modules**:
+
+- ✅ **`src/config/paths`**: Shared paths (content dirs, image dirs, etc.)
+- ✅ **`src/lib/slug/`**: Slug generation and conflict detection
+- ❌ **`src/lib/content/`**: Content querying (runtime only)
+- ❌ **`src/lib/markdown/`**: Markdown plugins (runtime only)
+
+**Why selective sharing?** Scripts need path configuration and slug consistency, but should not depend on runtime-specific logic. This keeps the dependency graph simple and prevents coupling.
+
+---
+
+### How are slug conflicts resolved?
+
+**Detection**: `src/lib/slug/ensureUniqueSlug()` checks for existing files with the same slug across all content sources.
+
+**Resolution**:
+
+- **Notion sync**: Logs a warning, keeps original file, skips syncing the conflicting page
+- **Content import**: Rejects import unless `--overwrite` is provided
+- **Local files**: Developer's responsibility to ensure unique filenames
+
+**Best practice**: Use descriptive, unique titles. The slug generation algorithm includes the full title, not just the first few words.
+
+---
+
+### Should I manually edit files in `src/content/blog/notion/`?
+
+**No.** Files in `src/content/blog/notion/` are **generated artifacts** from Notion. Manual edits will be **overwritten** on the next `npm run notion:sync`.
+
+**Where to edit:**
+
+- **Notion content**: Edit in Notion, then re-sync
+- **Imported content**: Edit in original platform, then re-import (or edit locally if you're okay with losing original source)
+- **Local content**: Edit directly in `src/content/blog/` (not in subdirectories)
+
+---
+
+### What happens if I run `npm run notion:sync` multiple times?
+
+**It's safe.** The script is **idempotent**:
+
+- Fetches all Published pages from Notion
+- Overwrites existing files in `src/content/blog/notion/`
+- Does **not** touch `wechat/`, `others/`, or root-level content
+- Downloads missing images (skips existing ones based on URL hash)
+
+**Use case**: Run regularly to keep blog in sync with Notion updates.
+
+---
+
+### Why does `npm run import:content` require `--overwrite`?
+
+**Safety.** Importing creates a new article. If an article with the same slug already exists (from any source), we:
+
+1. Detect the conflict
+2. Abort import with an error message
+3. Require explicit `--overwrite` flag to proceed
+
+**Rationale**: Prevents accidental overwrites of existing content. You should consciously decide whether to replace an article.
+
+---
+
+### How do I add a new content source (e.g., Dev.to)?
+
+**Steps:**
+
+1. **Create a new script or extend `content-import.ts`**:
+   - Add Dev.to URL pattern matcher
+   - Add Dev.to HTML extraction logic
+   - Follow existing pattern (see WeChat or Zhihu extractors)
+
+2. **Use standardized output**:
+   - Write to `src/content/blog/devto/<slug>.mdx`
+   - Download images to `public/images/devto/<slug>/`
+   - Use `slugFromTitle()` from `src/lib/slug/`
+   - Call `process-md-files.ts` for formatting
+
+3. **Update documentation**:
+   - Add Dev.to to README content sources list
+   - Document usage in "Content Workflows" section
+
+**Key principle**: New sources should follow the same pattern (external source → script → Markdown artifact → Astro build). No special runtime handling needed.
+
+---
+
+## 🔗 CI/CD Workflows
+
+This repository uses GitHub Actions for continuous integration and deployment:
+
+- **`validation.yml`**: Runs on all PRs and pushes (check, lint, test, build, E2E)
+- **`deploy.yml`**: Deploys to GitHub Pages on merge to `main`
+- **`sync-notion.yml`**: Scheduled Notion sync (creates PR with updated content)
+- **`import-content.yml`**: Manual workflow to import articles from URLs (creates PR)
+- **`delete-article.yml`**: Manual workflow to delete articles (creates PR)
+- **`post-deploy-smoke-test.yml`**: Verifies live site after deployment
+- **`link-check.yml`**: Checks for broken links
+- **`pr-preview.yml`**: Deploys PR preview to GitHub Pages
+
+See [CI Workflow Map](docs/ci-workflow-map.md) for detailed workflow relationships and permissions.
+
+---
+
+## 📄 License
+
+This project is licensed under the [ISC License](LICENSE). Free to use and modify within license terms.
+
+---
+
+## 🙏 Contributing
+
+Contributions are welcome! Please:
+
+1. Read [`docs/architecture.md`](docs/architecture.md) to understand design principles
+2. Run quality checks before submitting PR:
+   ```bash
+   npm run check && npm run lint && npm run test && npm run test:e2e
+   ```
+3. Follow existing code organization (domain-driven modules, no util directories)
+4. Update documentation if adding new features
+
+**Questions?** Open an issue or discussion.

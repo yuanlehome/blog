@@ -1,51 +1,535 @@
-# 架构与模块边界（Astro 博客）
+# Architecture Documentation
 
-## 目录划分
+> **Design Principle**: Code is the single source of truth. This document reflects the current repository structure and explains design decisions based on what actually exists.
 
-- `src/config/`：统一配置入口
-  - `paths.ts`：仓库根路径、内容目录、公共图片目录、构建输出、调试产物目录等（支持环境变量覆盖）。
-  - `site.ts`：站点 `site/base` 元信息。
-  - `env.ts` / `features.ts`：环境变量读取与特性开关的布尔/数字解析。
-- `src/lib/`：纯逻辑与可复用模块（无 Astro 依赖）
-  - `content/`：文章读取、日期/slug/toc、阅读时长等内容域工具。
-  - `markdown/`：remark/rehype 插件及代码高亮定制。
-  - `ui/`：纯前端交互逻辑（如代码块复制、浮动按钮栈计算）。
-  - `site/`：站点级工具（如 `assetUrl`）。
-- `src/components/` & `src/layouts/`：UI 组件与页面骨架，仅依赖 `lib`/`config`。
-- `src/pages/`：Astro 路由页面，负责组合组件与数据。
-- `scripts/`：命令入口（content import / notion sync / delete 等），路径等配置统一来自 `src/config`。
-- `tests/`：单测、集成与 e2e，依赖 `lib`/`config` 暴露的接口。
+---
 
-依赖方向约束：`config` → `lib` → `components/layouts/pages` → `scripts`，避免反向耦合。
+## 1. Overall Architecture
 
-## 配置与环境
+This is a **content-pipeline-driven static blog** where content generation and runtime rendering are strictly separated:
 
-- 路径相关：`src/config/paths.ts` 暴露 `ROOT_DIR`、`BLOG_CONTENT_DIR`、`NOTION_CONTENT_DIR`、`PUBLIC_IMAGES_DIR`、`NOTION_PUBLIC_IMG_DIR`、`ARTIFACTS_DIR` 等，统一用于脚本与工具函数。
-- 站点元信息：`src/config/site.ts`（`siteBase`、`siteUrl`）。
-- 特性开关：`src/config/features.ts`，通过 `FEATURE_*` 环境变量控制。
-- 习惯用法：在新模块中优先使用 `config` 提供的路径/开关，避免硬编码。
+```text
+┌─────────────────────────────────────────────┐
+│         Content Sources                     │
+│  ┌─────────┐ ┌──────────┐ ┌──────────────┐ │
+│  │ Notion  │ │ External │ │    Local     │ │
+│  │Database │ │   URLs   │ │  Markdown    │ │
+│  └────┬────┘ └─────┬────┘ └──────┬───────┘ │
+└───────┼────────────┼─────────────┼─────────┘
+        │            │             │
+        v            v             v
+┌───────────────────────────────────────────────┐
+│         Scripts Layer (Node.js)               │
+│  ┌──────────────┐  ┌─────────────────────┐   │
+│  │ notion-sync  │  │  content-import     │   │
+│  │     .ts      │  │      .ts            │   │
+│  └──────┬───────┘  └──────┬──────────────┘   │
+│         │                 │                   │
+│  ┌──────┴─────────────────┴──────────┐       │
+│  │      scripts/utils.ts              │       │
+│  │  (Shared utility functions)        │       │
+│  └────────────────────────────────────┘       │
+└───────────────────┬───────────────────────────┘
+                    │ writes
+                    v
+        ┌───────────────────────────┐
+        │   Content Artifacts       │
+        │  src/content/blog/        │
+        │  public/images/           │
+        └───────────┬───────────────┘
+                    │ reads at build time
+                    v
+┌───────────────────────────────────────────────┐
+│         Runtime Layer (Astro)                 │
+│                                               │
+│  ┌────────────────────────────────────────┐  │
+│  │          src/lib/                      │  │
+│  │  ┌──────┐ ┌──────┐ ┌────────┐         │  │
+│  │  │ slug │ │content│ │markdown│ ...     │  │
+│  │  └──────┘ └──────┘ └────────┘         │  │
+│  └────────────────────────────────────────┘  │
+│                                               │
+│  ┌────────────────────────────────────────┐  │
+│  │  Components / Layouts / Pages          │  │
+│  └────────────────────────────────────────┘  │
+└───────────────────┬───────────────────────────┘
+                    │ astro build
+                    v
+        ┌───────────────────────────┐
+        │   Static Site Output      │
+        │       (dist/)             │
+        └───────────────────────────┘
+```
 
-## 脚本与工具链
+### Key Architectural Principles
 
-- 入口位于 `scripts/`，仅做参数解析与调用，核心逻辑依赖 `src/config` 路径。
-- 主要命令：
-  - `npm run import:content` → `scripts/content-import.ts`（外部文章抓取、图片下载、MDX 生成）。
-  - `npm run notion:sync` → `scripts/notion-sync.ts`（Notion 同步、封面迁移、slug 冲突处理）。
-  - `npm run delete:article` → `scripts/delete-article.ts`（文章与资源清理）。
-  - `scripts/process-md-files.ts` 为辅助格式化，可被上述命令复用。
-- 参数解析：兼容 `--flag=value` 与 `--flag value`，并读取对应的环境变量兜底。
+1. **Unidirectional Data Flow**: Content flows from external sources → scripts → artifacts → runtime → static output
+2. **Strict Layer Isolation**: Scripts never import from `src/lib`; runtime never fetches external content
+3. **Content as Data**: All content in `src/content/blog/` is treated as build-time data, not application logic
+4. **Single Responsibility**: Each layer has a clear boundary and purpose
 
-## 工作流概览
+---
 
-- `validation.yml`：PR/Main 验证（check/lint/unit/build/e2e）并带缓存+并发控制。
-- `import-content.yml` / `sync-notion.yml`：内容导入/同步，跑脚本后发起 PR。
-- `deploy.yml`：主干部署。
-- 复用：Node 安装、Playwright 缓存、并发组均保持一致；权限最小化。
+## 2. Runtime Layer (`src/`)
 
-## 常见开发任务
+The runtime layer contains all code that executes during Astro build or in the browser. It is **completely isolated from scripts** and operates only on pre-generated content artifacts.
 
-- **新增工具函数**：放入 `src/lib/{domain}`，如与内容相关则置于 `content/`；需要页面使用时从 `src/utils/*` 或组件直接导入。
-- **修改站点/路径配置**：更新 `src/config/site.ts` 或 `src/config/paths.ts`，避免在业务代码中硬编码。
-- **新增 importer/脚本**：在 `scripts/` 创建薄入口，核心逻辑放入 `src/lib`/`src/tooling`，参数解析复用 `config`。
-- **Workflow 调整**：将公共步骤提炼为复用 action/workflow_call，保持缓存 key 与并发前缀一致。
-- **调试内容/目录变更**：使用 `BLOG_CONTENT_DIR`、`PUBLIC_IMAGES_DIR` 等环境变量快速切换输出位置，测试前清理或重建相关目录即可。
+### 2.1 Configuration (`src/config/`)
+
+Centralized configuration modules that serve as the single source of truth for paths and settings:
+
+- **`paths.ts`**: All filesystem paths (content directories, image directories, build output)
+  - Exports: `ROOT_DIR`, `BLOG_CONTENT_DIR`, `NOTION_CONTENT_DIR`, `PUBLIC_IMAGES_DIR`, `NOTION_PUBLIC_IMG_DIR`, `ARTIFACTS_DIR`, etc.
+  - Used by both runtime and scripts to ensure consistency
+  - Supports environment variable overrides for testing
+
+- **`site.ts`**: Site metadata (base URL, site URL, title, description)
+  - Used by RSS, sitemap, and page metadata generation
+
+- **`env.ts`**: Environment variable parsing utilities
+
+- **`features.ts`**: Feature flags (boolean toggles controlled via environment variables)
+
+**Design Rationale**: By centralizing all paths in `src/config/paths.ts`, we eliminate hardcoded paths and make it easy to reconfigure the project for different environments or deployment targets.
+
+### 2.2 Business Logic (`src/lib/`)
+
+This is the **only location for runtime business logic**. Each subdirectory represents a domain with clear responsibilities:
+
+#### `src/lib/slug/`
+
+**Responsibility**: Single source of truth for all slug generation and validation logic
+
+- Provides `slugFromTitle()` for converting titles to URL-safe slugs
+- Provides `ensureUniqueSlug()` for detecting and resolving slug conflicts
+- Used by both scripts (during content sync) and runtime (for route generation)
+
+**Why centralized**: Slug consistency is critical for URL stability. Having one module ensures:
+
+- No divergence between script-generated slugs and runtime-expected slugs
+- Easy to modify slug algorithm globally
+- Slug conflict detection works identically everywhere
+
+#### `src/lib/content/`
+
+**Responsibility**: Content querying, transformation, and metadata extraction
+
+Key modules:
+
+- `posts.ts`: Fetches published posts from Astro's content collection
+- `dates.ts`: Date formatting and parsing utilities
+- `readingTime.ts`: Calculates estimated reading time from content
+- `tocTree.ts`: Builds table-of-contents tree structure from headings
+- `slugger.ts`: Creates heading sluggers for anchor link generation
+
+**Why separate from scripts**: This logic operates on _already-synced_ content. It doesn't know or care whether content came from Notion, external URLs, or local Markdown.
+
+#### `src/lib/markdown/`
+
+**Responsibility**: Markdown processing plugins for Astro's unified/remark/rehype pipeline
+
+Key modules:
+
+- `rehypeHeadingLinks.ts`: Adds anchor links to headings
+- `rehypeExternalLinks.ts`: Adds `target="_blank"` and security attributes to external links
+- `rehypePrettyCode.ts`: Syntax highlighting via Shiki
+- `remarkNotionCompat.ts`: Notion-specific Markdown fixes (e.g., callout blocks)
+- `remarkPrefixImages.ts`: Prefixes image paths with base URL
+- `remarkCodeMeta.ts`: Parses code block metadata
+
+**Why a separate domain**: These are runtime transformations that happen during page rendering, not during content import. They are stateless transformations that work on any Markdown content.
+
+#### `src/lib/site/`
+
+**Responsibility**: Site-level utilities
+
+- `assetUrl.ts`: Resolves asset URLs with proper base path prefixing
+
+#### `src/lib/ui/`
+
+**Responsibility**: Client-side interaction logic
+
+- `code-blocks.ts`: Copy-to-clipboard functionality for code blocks
+- `floatingActionStack.ts`: Floating action button stack calculation (scroll-to-top, TOC, etc.)
+
+**Why separate**: Pure client-side JavaScript that has no dependency on content structure.
+
+### 2.3 Why No `src/utils/`?
+
+Previously, there was a `src/utils/` directory that became a dumping ground for miscellaneous functions with unclear ownership. This led to:
+
+- Circular dependencies
+- Confusion about whether a utility belonged to runtime or scripts
+- Difficulty in understanding module boundaries
+
+**Current approach**: Every function lives in a domain-specific module (`slug`, `content`, `markdown`, etc.). If a function doesn't fit a domain, it likely indicates:
+
+1. A new domain should be created, or
+2. The function belongs in `src/config/` if it's configuration-related
+
+### 2.4 Content Collection (`src/content/`)
+
+- **`src/content/blog/`**: Contains all blog post Markdown/MDX files
+  - `notion/`: Synced from Notion via `notion-sync.ts`
+  - `wechat/`: Imported from WeChat articles via `content-import.ts`
+  - `others/`: Imported from other platforms (Zhihu, Medium, etc.)
+  - Can also contain local Markdown files placed directly by developers
+
+- **`src/content/config.ts`**: Astro content collection schema definition
+
+**Important**: Content files are **data, not logic**. They are generated by scripts and consumed by runtime. Manual edits to synced content (e.g., `notion/`) will be overwritten on next sync.
+
+### 2.5 Dependency Flow in Runtime
+
+```text
+src/config/
+    ↓
+src/lib/
+    ↓
+src/components/ + src/layouts/
+    ↓
+src/pages/
+```
+
+- **`config`** has no dependencies on other runtime code
+- **`lib`** may depend on `config` but not on components/layouts/pages
+- **Components/Layouts** may depend on `lib` and `config`
+- **Pages** orchestrate everything but contain minimal logic
+
+---
+
+## 3. Scripts Layer (`scripts/`)
+
+The scripts layer is responsible for **content acquisition and preparation**. Scripts run **outside of Astro build** via Node.js and have no knowledge of Astro internals.
+
+### 3.1 Scripts Positioning
+
+**What scripts do:**
+
+- Fetch content from external sources (Notion API, web scraping)
+- Download and process images
+- Generate Markdown/MDX files with proper frontmatter
+- Fix common content issues (math formatting, invisible characters)
+- Maintain slug uniqueness and detect conflicts
+
+**What scripts do NOT do:**
+
+- Render content to HTML (that's Astro's job)
+- Implement business logic (that belongs in `src/lib/`)
+- Get imported by runtime code (strict isolation)
+
+### 3.2 `scripts/utils.ts` - The Shared Utility Layer
+
+**Design Decision**: Use a **single file** for shared script utilities instead of `scripts/lib/`
+
+**Why a single file?**
+
+1. **Scripts are entry points, not a library**: Each script is a standalone command-line tool. They don't form a complex dependency graph that requires modular structure.
+
+2. **Prevents premature abstraction**: Creating `scripts/lib/` invites over-engineering. With a single file, you think carefully before adding utilities.
+
+3. **Clear ownership**: `scripts/utils.ts` contains **only script-specific utilities** that should never be used in runtime. Examples:
+   - File I/O helpers (`ensureDir`, `processFile`, `processDirectory`)
+   - Process execution wrappers
+   - Math delimiter fixing (whitespace normalization in `$ x $` → `$x$`)
+
+4. **Easier to maintain**: One file to review when cleaning up utilities, versus navigating multiple directories.
+
+**What goes in `scripts/utils.ts`:**
+
+- Generic file system operations
+- String processing utilities for content fixing
+- Process spawning helpers
+- Utilities used by 2+ scripts
+
+**What does NOT go in `scripts/utils.ts`:**
+
+- Business logic (slug generation → `src/lib/slug/`)
+- Runtime transformations (Markdown plugins → `src/lib/markdown/`)
+- Configuration (paths → `src/config/paths.ts`)
+
+### 3.3 Core Scripts
+
+#### `notion-sync.ts`
+
+**Responsibility**: Sync published Notion pages to Markdown files
+
+**Workflow:**
+
+1. Connects to Notion API using credentials from `.env.local`
+2. Queries Notion database for pages with `status = "Published"`
+3. Downloads page content via `notion-to-md` library
+4. Downloads cover images and inline images to `public/images/notion/<pageId>/`
+5. Generates slug using `src/lib/slug/slugFromTitle()`
+6. Checks for slug conflicts using `src/lib/slug/ensureUniqueSlug()`
+7. Writes Markdown files to `src/content/blog/notion/`
+8. Calls `process-md-files.ts` to fix math formatting
+9. Runs `npm run lint` to format the generated files
+
+**Input:**
+
+- Notion API credentials (`NOTION_TOKEN`, `NOTION_DATABASE_ID`)
+- Notion database with Published pages
+
+**Output:**
+
+- `src/content/blog/notion/*.md` files
+- `public/images/notion/<pageId>/*` image files
+
+**Relationship with `scripts/utils.ts`:**
+
+- Uses `ensureDir()` for directory creation
+- Does NOT contain slug logic (delegates to `src/lib/slug/`)
+
+#### `content-import.ts`
+
+**Responsibility**: Import articles from external URLs (WeChat, Zhihu, Medium)
+
+**Workflow:**
+
+1. Accepts URL via CLI argument (`--url="..."`)
+2. Detects platform (WeChat, Zhihu, Medium) based on URL pattern
+3. Uses Playwright to scrape article content
+4. Downloads all images to `public/images/<platform>/<slug>/`
+5. Converts HTML to Markdown using rehype/remark pipeline
+6. Generates frontmatter with title, date, author, etc.
+7. Writes MDX file to `src/content/blog/<platform>/`
+8. Calls `process-md-files.ts` to fix formatting
+9. Runs `npm run lint`
+
+**Input:**
+
+- URL of article to import
+- Optional flags: `--overwrite`, `--preview`, `--cover-first-image`
+
+**Output:**
+
+- `src/content/blog/<platform>/<slug>.mdx`
+- `public/images/<platform>/<slug>/*` image files
+
+**Platform-specific logic:**
+
+- **WeChat**: Handles placeholder images, retries failed downloads, uses browser fallback for stubborn images
+- **Zhihu**: Extracts author and publish date
+- **Medium**: Similar extraction logic
+
+**Relationship with `scripts/utils.ts`:**
+
+- Uses `ensureDir()` for directory creation
+- Uses file processing utilities for post-processing
+
+#### `process-md-files.ts`
+
+**Responsibility**: Fix common formatting issues in Markdown files
+
+**Operations:**
+
+- Remove unnecessary whitespace around inline math (`$ x $` → `$x$`)
+- Normalize invisible Unicode characters
+- Fix code fence formatting
+
+**Usage:**
+
+- Can be run standalone: `npx tsx scripts/process-md-files.ts <path>`
+- Called automatically by `notion-sync.ts` and `content-import.ts`
+
+**Input:**
+
+- File path or directory path
+
+**Output:**
+
+- Modified files in place
+
+**Relationship with `scripts/utils.ts`:**
+
+- Defined as exported function in `utils.ts` for reuse
+- Uses `processFile()` and `processDirectory()` helpers
+
+#### `delete-article.ts`
+
+**Responsibility**: Delete articles and associated images
+
+**Workflow:**
+
+1. Accepts target (slug or file path) via CLI argument
+2. Finds matching article file
+3. Optionally extracts cover image path from frontmatter
+4. Deletes article file
+5. Optionally deletes associated image directory
+6. Supports dry-run mode for safety
+
+**Input:**
+
+- Article slug or file path (`--target=<value>`)
+- Optional flags: `--delete-images`, `--dry-run`
+
+**Output:**
+
+- Deleted files (or dry-run report)
+
+---
+
+## 4. Why This Architecture is Maintainable
+
+### 4.1 Single Direction Dependencies
+
+```text
+Scripts → src/config/paths ← Runtime
+   ↓                          ↓
+Content Artifacts          src/lib/
+                              ↓
+                        Components/Pages
+```
+
+- **Scripts** write content and images
+- **Runtime** reads content and images
+- **No cycles**: Scripts cannot import runtime logic; runtime cannot trigger content sync
+
+This makes it easy to reason about:
+
+- Where content comes from (always scripts)
+- Where business logic lives (always `src/lib/`)
+- What breaks if you change something (follow dependency arrows)
+
+### 4.2 Clear Module Boundaries
+
+Every module has a single, well-defined responsibility:
+
+| Module                      | Responsibility              | Does NOT                           |
+| --------------------------- | --------------------------- | ---------------------------------- |
+| `src/lib/slug/`             | Slug generation/validation  | Download content, render HTML      |
+| `src/lib/content/`          | Content querying/metadata   | Fetch from Notion, scrape URLs     |
+| `src/lib/markdown/`         | Markdown transformations    | Generate content, handle I/O       |
+| `scripts/notion-sync.ts`    | Notion → Markdown           | Render pages, contain slug logic   |
+| `scripts/content-import.ts` | URL → Markdown              | Render pages, duplicate slug logic |
+| `scripts/utils.ts`          | File I/O, string processing | Business logic, runtime transforms |
+
+### 4.3 Centralized Configuration
+
+All paths and site metadata live in `src/config/`. This means:
+
+- Changing output directory? Update `paths.ts` once
+- Adding a new content source? Extend `paths.ts` with new directory constant
+- Testing with different paths? Override via environment variables
+
+### 4.4 Minimal Abstraction
+
+We intentionally **avoid premature abstraction**:
+
+- No `scripts/lib/` directory — just `scripts/utils.ts`
+- No `src/utils/` directory — use domain-specific modules
+- No complex class hierarchies — prefer pure functions
+
+**Benefit**: Code is easier to understand, modify, and delete.
+
+### 4.5 Idempotent Scripts
+
+Scripts are designed to be run multiple times safely:
+
+- `notion-sync.ts`: Overwrites existing Notion content, preserving local edits to other directories
+- `content-import.ts`: Requires `--overwrite` flag to replace existing articles
+- Slug conflict detection prevents accidental overwrites
+
+---
+
+## 5. What We Intentionally Do NOT Do
+
+These constraints are **by design** and should be preserved:
+
+### 5.1 Runtime Does Not Fetch Content
+
+**We do NOT:**
+
+- Call Notion API from Astro pages
+- Scrape external URLs during build
+- Fetch images dynamically at runtime
+
+**Why:**
+
+- Build reproducibility: Same input artifacts → same output
+- Performance: Static generation is fast because everything is pre-fetched
+- Reliability: No external API failures during deployment
+
+**Exception**: We _could_ fetch at build time via Astro endpoints, but we choose not to. Scripts are more explicit and easier to debug.
+
+### 5.2 Scripts Do Not Import Runtime Logic
+
+**We do NOT:**
+
+- Import `src/lib/content/` from scripts
+- Import `src/lib/markdown/` plugins in scripts
+- Share code between scripts and runtime via complex abstractions
+
+**Why:**
+
+- Clear separation of concerns
+- Easier to test scripts in isolation
+- Prevents coupling between content acquisition and content rendering
+
+**Exception**: `src/config/paths` and `src/lib/slug` are shared intentionally because they are stable interfaces with no side effects.
+
+### 5.3 No "Dead" Utils Directories
+
+**We do NOT:**
+
+- Keep `src/utils/` for miscellaneous functions
+- Keep `scripts/lib/` for script utilities
+
+**Why:**
+
+- Util directories become dumping grounds
+- Hard to understand ownership
+- Encourages copying code instead of proper module design
+
+**Instead**: Every function has a clear domain home, or lives in the appropriate single-file utility module.
+
+### 5.4 No Premature Abstraction for Future Features
+
+**We do NOT:**
+
+- Create plugin systems for "potential future content sources"
+- Build generic adapters for "maybe someday we'll add X"
+- Abstract away differences between Notion/WeChat/Zhihu until we have 3+ similar cases
+
+**Why:**
+
+- YAGNI (You Aren't Gonna Need It)
+- Premature abstraction makes code harder to change
+- Better to have 3 concrete implementations than 1 leaky abstraction
+
+**When to abstract**: Only when we have **3+ concrete implementations** with clear commonalities.
+
+### 5.5 No Manual Edits to Synced Content
+
+**We do NOT:**
+
+- Hand-edit files in `src/content/blog/notion/` (will be overwritten)
+- Manually move images in `public/images/notion/` (breaks references)
+- Commit changes to synced content without re-running sync scripts
+
+**Why:**
+
+- Source of truth is Notion (or external URL), not the Git repository
+- Manual edits get lost on next sync
+- Creates confusion about where content should be updated
+
+**Exception**: Local content in `src/content/blog/` (not in `notion/`, `wechat/`, `others/` subdirectories) can be manually edited.
+
+---
+
+## Summary
+
+This architecture achieves **maintainability through clarity**:
+
+1. **Two separate worlds**: Scripts (Node.js CLI tools) and Runtime (Astro build)
+2. **Strict layer boundaries**: Config → Lib → Components → Pages (runtime); Scripts write artifacts
+3. **Domain-driven structure**: Each module has a single, well-defined purpose
+4. **Minimal abstraction**: Concrete implementations over speculative frameworks
+5. **Single source of truth**: Paths in `src/config/paths`, slugs in `src/lib/slug`, content from external sources
+
+**When in doubt:**
+
+- If it runs during `npm run dev` or `npm run build` → it belongs in `src/`
+- If it runs via `npm run notion:sync` or `npm run import:content` → it belongs in `scripts/`
+- If it's used by both → it belongs in `src/config/` or `src/lib/slug/` (the only shared modules)
