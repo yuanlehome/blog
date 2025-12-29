@@ -1,9 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { fixMath, processFile, processDirectory } from './utils.js';
+import { processMdFiles, processFile, processDirectory } from './utils.js';
 
-export function runFixMath(targetPath: string) {
+export function runProcessMdFiles(targetPath: string) {
   const fullPath = path.resolve(targetPath);
 
   if (!fs.existsSync(fullPath)) {
@@ -12,14 +12,14 @@ export function runFixMath(targetPath: string) {
 
   const stat = fs.statSync(fullPath);
   if (stat.isDirectory()) {
-    processDirectory(fullPath, (file) => file.endsWith('.md'), fixMath);
+    processDirectory(fullPath, (file) => file.endsWith('.md'), processMdFiles);
   } else {
-    processFile(fullPath, fixMath);
+    processFile(fullPath, processMdFiles);
   }
 }
 
 // Re-export for backward compatibility
-export { normalizeInvisibleCharacters, splitCodeFences, fixMath } from './utils.js';
+export { normalizeInvisibleCharacters, splitCodeFences, processMdFiles } from './utils.js';
 
 export function runCli(argv = process.argv) {
   const modulePath = fileURLToPath(import.meta.url);
@@ -27,12 +27,12 @@ export function runCli(argv = process.argv) {
 
   const targetPath = argv[2];
   if (!targetPath) {
-    console.error('Usage: npx tsx scripts/fix-math.ts <file-or-directory-path>');
+    console.error('Usage: npx tsx scripts/process-md-files.ts <file-or-directory-path>');
     process.exit(1);
   }
 
   try {
-    runFixMath(targetPath);
+    runProcessMdFiles(targetPath);
   } catch (error) {
     console.error((error as Error).message);
     process.exit(1);
