@@ -1574,6 +1574,7 @@ async function main() {
           enableCodeFenceFix: true,
           enableImageCaptionFix: true,
           enableMarkdownCleanup: true,
+          enableMathDelimiterFix: true,
         },
       );
 
@@ -1590,6 +1591,9 @@ async function main() {
         }
         if (processed.diagnostics.imageCaptionsFixed > 0) {
           console.log(`  - Fixed ${processed.diagnostics.imageCaptionsFixed} image captions`);
+        }
+        if (processed.diagnostics.mathDelimitersFixed > 0) {
+          console.log(`  - Fixed ${processed.diagnostics.mathDelimitersFixed} math delimiters`);
         }
       }
     } catch (error) {

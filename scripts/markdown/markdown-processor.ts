@@ -28,6 +28,7 @@ export interface ProcessingOptions {
   enableCodeFenceFix?: boolean;
   enableImageCaptionFix?: boolean;
   enableMarkdownCleanup?: boolean;
+  enableMathDelimiterFix?: boolean;
 }
 
 export interface ProcessingDiagnostics {
@@ -37,6 +38,7 @@ export interface ProcessingDiagnostics {
   codeFencesFixed: number;
   imageCaptionsFixed: number;
   emptyLinesCompressed: number;
+  mathDelimitersFixed: number;
   frontmatterUpdated: boolean;
   translationProvider?: string;
   translationModel?: string;
@@ -254,6 +256,321 @@ function createFigureHtml(image: Image, caption?: string): string {
 }
 
 /**
+ * Normalize invisible characters from imports (e.g., Notion exports)
+ */
+const INVISIBLE_REPLACEMENTS: Record<string, string> = {
+  // Spaces and special widths
+  '\u00a0': ' ', // non-breaking space
+  '\u2000': ' ', // en quad
+  '\u2001': ' ', // em quad
+  '\u2002': ' ', // en space
+  '\u2003': ' ', // em space
+  '\u2004': ' ', // three-per-em space
+  '\u2005': ' ', // four-per-em space
+  '\u2006': ' ', // six-per-em space
+  '\u2007': ' ', // figure space
+  '\u2008': ' ', // punctuation space
+  '\u2009': ' ', // thin space
+  '\u200a': ' ', // hair space
+  '\u202f': ' ', // narrow no-break space (common in CJK text)
+  '\u3000': ' ', // ideographic space
+  '\u200b': '', // zero width space
+  '\u200c': '', // zero width non-joiner
+  '\u200d': '', // zero width joiner
+  // Invisible glyphs that should be removed entirely
+  '\u2061': '', // function application
+  '\ufeff': '', // byte order mark
+};
+
+function normalizeInvisibleCharacters(text: string): string {
+  let normalized = text;
+
+  for (const [char, replacement] of Object.entries(INVISIBLE_REPLACEMENTS)) {
+    if (normalized.includes(char)) {
+      normalized = normalized.split(char).join(replacement);
+    }
+  }
+
+  return normalized;
+}
+
+/**
+ * Fix math delimiters in markdown content
+ * - Normalize invisible characters
+ * - Skip code fences and inline code
+ * - Fix math tokens: trim whitespace from inline math, promote multi-line inline math to block math
+ */
+function fixMathDelimiters(markdown: string): { content: string; changes: number } {
+  let content = normalizeInvisibleCharacters(markdown);
+  let changes = 0;
+
+  // Process text outside of code blocks and inline code
+  const segments = splitIntoSegments(content);
+
+  content = segments
+    .map((segment) => {
+      if (segment.type !== 'text') return segment.content;
+
+      const inlineSegments = splitInlineCode(segment.content);
+      return inlineSegments
+        .map((inline) => {
+          if (inline.type === 'code') return inline.content;
+
+          const fixed = fixMathTokens(inline.content);
+          if (fixed !== inline.content) changes++;
+          return fixed;
+        })
+        .join('');
+    })
+    .join('');
+
+  return { content, changes };
+}
+
+/**
+ * Split markdown into segments (frontmatter, code fences, text)
+ */
+type Segment = { type: 'text' | 'code' | 'frontmatter'; content: string };
+
+function splitIntoSegments(text: string): Segment[] {
+  const segments: Segment[] = [];
+
+  // Handle frontmatter
+  let body = text;
+  if (text.startsWith('---')) {
+    const end = text.indexOf('\n---', 3);
+    if (end !== -1) {
+      const fmEnd = end + '\n---'.length;
+      segments.push({ type: 'frontmatter', content: text.slice(0, fmEnd + 1) });
+      body = text.slice(fmEnd + 1);
+    }
+  }
+
+  // Split by code fences
+  const lines = body.split('\n');
+  let buffer = '';
+  let inFence = false;
+  let fenceMarker = '';
+
+  const flush = (type: Segment['type']) => {
+    if (buffer.length) {
+      segments.push({ type, content: buffer });
+      buffer = '';
+    }
+  };
+
+  for (let idx = 0; idx < lines.length; idx++) {
+    const line = lines[idx];
+    const suffix = idx < lines.length - 1 ? '\n' : '';
+    const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/);
+
+    if (fenceMatch) {
+      const marker = fenceMatch[1];
+      if (!inFence) {
+        flush('text');
+        inFence = true;
+        fenceMarker = marker;
+        buffer = line + suffix;
+      } else if (line.trim().startsWith(fenceMarker)) {
+        buffer += line + suffix;
+        flush('code');
+        inFence = false;
+        fenceMarker = '';
+      } else {
+        buffer += line + suffix;
+      }
+      continue;
+    }
+
+    buffer += line + suffix;
+  }
+
+  flush(inFence ? 'code' : 'text');
+  return segments;
+}
+
+/**
+ * Split text by inline code
+ */
+type InlineSegment = { type: 'text' | 'code'; content: string };
+
+function splitInlineCode(text: string): InlineSegment[] {
+  const segments: InlineSegment[] = [];
+  let i = 0;
+  let buffer = '';
+
+  const pushText = () => {
+    if (buffer) {
+      segments.push({ type: 'text', content: buffer });
+      buffer = '';
+    }
+  };
+
+  while (i < text.length) {
+    if (text[i] === '`') {
+      const ticks = countBackticks(text, i);
+      const closeIndex = text.indexOf('`'.repeat(ticks), i + ticks);
+
+      if (closeIndex !== -1) {
+        pushText();
+        const codeContent = text.slice(i, closeIndex + ticks);
+        segments.push({ type: 'code', content: codeContent });
+        i = closeIndex + ticks;
+        continue;
+      }
+    }
+
+    buffer += text[i];
+    i++;
+  }
+
+  if (buffer) {
+    segments.push({ type: 'text', content: buffer });
+  }
+
+  return segments;
+}
+
+function countBackticks(text: string, start: number): number {
+  let count = 0;
+  while (text[start + count] === '`') {
+    count++;
+  }
+  return count;
+}
+
+/**
+ * Fix math tokens in text (handle inline and block math)
+ */
+function fixMathTokens(text: string): string {
+  const tokens: {
+    type: 'text' | 'inline' | 'block';
+    content: string;
+    raw: string;
+  }[] = [];
+  let buffer = '';
+  let i = 0;
+
+  while (i < text.length) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    // Check for escaped dollar
+    if (char === '\\' && next === '$') {
+      buffer += '\\$';
+      i += 2;
+      continue;
+    }
+
+    // Check for Block Math $$
+    if (char === '$' && next === '$') {
+      if (buffer) {
+        tokens.push({ type: 'text', content: buffer, raw: buffer });
+        buffer = '';
+      }
+
+      // Find end of block
+      let j = i + 2;
+      let blockContent = '';
+      let closed = false;
+      while (j < text.length) {
+        if (text[j] === '$' && text[j + 1] === '$') {
+          closed = true;
+          break;
+        }
+        blockContent += text[j];
+        j++;
+      }
+
+      if (closed) {
+        tokens.push({
+          type: 'block',
+          content: blockContent,
+          raw: `$$${blockContent}$$`,
+        });
+        i = j + 2;
+      } else {
+        // Unclosed, treat as text
+        buffer += '$$';
+        i += 2;
+      }
+      continue;
+    }
+
+    // Check for Inline Math $
+    if (char === '$') {
+      if (buffer) {
+        tokens.push({ type: 'text', content: buffer, raw: buffer });
+        buffer = '';
+      }
+
+      let j = i + 1;
+      let inlineContent = '';
+      let closed = false;
+      while (j < text.length) {
+        if (text[j] === '\\' && text[j + 1] === '$') {
+          inlineContent += '\\$';
+          j += 2;
+          continue;
+        }
+        if (text[j] === '$') {
+          closed = true;
+          break;
+        }
+        inlineContent += text[j];
+        j++;
+      }
+
+      if (closed) {
+        tokens.push({
+          type: 'inline',
+          content: inlineContent,
+          raw: `$${inlineContent}$`,
+        });
+        i = j + 1;
+      } else {
+        buffer += '$';
+        i++;
+      }
+      continue;
+    }
+
+    buffer += char;
+    i++;
+  }
+
+  if (buffer) {
+    tokens.push({ type: 'text', content: buffer, raw: buffer });
+  }
+
+  // Reconstruct with fixes
+  return tokens
+    .map((token) => {
+      if (token.type === 'block') return token.raw;
+      if (token.type === 'text') return token.raw;
+
+      // Analyze Inline Math
+      const inner = token.content;
+      const needsBlock =
+        inner.includes('\n') || inner.includes('\\begin{') || inner.includes('\\[');
+
+      // Promote to block math if needed
+      if (needsBlock) {
+        const cleanInner = inner.trim();
+        return `\n$$\n${cleanInner}\n$$\n`;
+      }
+
+      // Fix inline spacing: $ x $ -> $x$
+      if (inner.startsWith(' ') || inner.endsWith(' ')) {
+        return `$${inner.trim()}$`;
+      }
+
+      return token.raw;
+    })
+    .join('');
+}
+
+/**
  * Normalize markdown formatting
  */
 function normalizeMarkdown(markdown: string): { content: string; changes: number } {
@@ -286,6 +603,7 @@ export async function processMarkdownForImport(
     enableCodeFenceFix = true,
     enableImageCaptionFix = true,
     enableMarkdownCleanup = true,
+    enableMathDelimiterFix = true,
   } = options;
 
   const diagnostics: ProcessingDiagnostics = {
@@ -294,6 +612,7 @@ export async function processMarkdownForImport(
     codeFencesFixed: 0,
     imageCaptionsFixed: 0,
     emptyLinesCompressed: 0,
+    mathDelimitersFixed: 0,
     frontmatterUpdated: false,
   };
 
@@ -388,6 +707,16 @@ export async function processMarkdownForImport(
     .use(remarkGfm);
 
   processedMarkdown = stringifyProcessor.stringify(tree);
+
+  // Fix math delimiters (must be done after AST conversion)
+  if (enableMathDelimiterFix) {
+    const { content, changes } = fixMathDelimiters(processedMarkdown);
+    processedMarkdown = content;
+    diagnostics.mathDelimitersFixed = changes;
+    if (changes > 0) {
+      diagnostics.changed = true;
+    }
+  }
 
   // Normalize markdown formatting
   if (enableMarkdownCleanup) {

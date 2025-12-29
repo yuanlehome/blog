@@ -271,18 +271,6 @@ Scripts 层负责 **内容获取与准备**。Scripts 在 **Astro 构建之外**
 
 > **详细参数与用法**：参见 [scripts/README.md](../scripts/README.md#22-content-importts)
 
-#### `process-md-files.ts`
-
-**职责**：修复 Markdown 文件中的常见格式问题
-
-**概念流程**：
-
-1. 处理数学公式空格
-2. 规范化不可见字符
-3. 原地更新文件
-
-> **详细参数与用法**：参见 [scripts/README.md](../scripts/README.md#23-process-md-filests)
-
 #### `delete-article.ts`
 
 **职责**：删除文章及其关联图片
