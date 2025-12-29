@@ -45,3 +45,6 @@ export const initCodeBlockCopy = () => {
   if (typeof document === 'undefined') return;
   registerCopyButtons();
 };
+
+// Auto-initialize when the script is loaded
+initCodeBlockCopy();
