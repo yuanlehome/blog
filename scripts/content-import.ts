@@ -17,6 +17,7 @@ import { JSDOM } from 'jsdom';
 import readline from 'readline';
 import { ARTIFACTS_DIR, BLOG_CONTENT_DIR, PUBLIC_IMAGES_DIR } from '../src/config/paths';
 import { slugFromTitle } from '../src/lib/slug';
+import { processMarkdownForImport } from './markdown/index.js';
 
 type HastElement = {
   type?: string;
@@ -1561,7 +1562,41 @@ async function main() {
     frontmatter.cover = images[0];
   }
 
-  const fileContent = matter.stringify(markdown, frontmatter);
+  let fileContent = matter.stringify(markdown, frontmatter);
+
+  // Apply markdown enhancements (translation, code fence fix, etc.)
+  if (!options.dryRun) {
+    try {
+      const processed = await processMarkdownForImport(
+        { markdown: fileContent, slug, source: provider.name },
+        {
+          enableTranslation: true,
+          enableCodeFenceFix: true,
+          enableImageCaptionFix: true,
+          enableMarkdownCleanup: true,
+        },
+      );
+
+      fileContent = processed.markdown;
+
+      // Log diagnostics
+      if (processed.diagnostics.changed) {
+        console.log(`Enhanced ${slug}:`);
+        if (processed.diagnostics.translated) {
+          console.log(`  - Translated from ${processed.diagnostics.detectedLanguage}`);
+        }
+        if (processed.diagnostics.codeFencesFixed > 0) {
+          console.log(`  - Fixed ${processed.diagnostics.codeFencesFixed} code fences`);
+        }
+        if (processed.diagnostics.imageCaptionsFixed > 0) {
+          console.log(`  - Fixed ${processed.diagnostics.imageCaptionsFixed} image captions`);
+        }
+      }
+    } catch (error) {
+      console.warn(`Failed to enhance markdown for ${slug}, using original:`, error);
+    }
+  }
+
   const filepath = path.join(contentDir, `${slug}.md`);
 
   if (fs.existsSync(filepath) && !options.allowOverwrite) {

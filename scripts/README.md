@@ -389,6 +389,168 @@ npm run delete:article -- --target=my-article-slug --delete-images --dry-run
 
 ---
 
+### 2.5 Markdown 导入增强：翻译与格式化
+
+#### 功能
+
+自动增强导入/同步的 Markdown 文章，包括：
+
+- **自动翻译**：检测英文文章并翻译为中文
+- **代码块语言标注**：自动推断并补齐缺失的语言标识符
+- **图片 caption 规范化**：转换为标准 HTML figure 结构
+- **格式清理**：压缩多余空行、统一换行符
+
+#### 使用场景
+
+- 导入英文技术文章时自动翻译
+- 修复从 Notion 或其他平台导入的格式问题
+- 统一文章格式规范
+
+#### 何时触发
+
+**自动触发**：集成在以下脚本中，无需手动调用
+
+- `notion-sync.ts`：Notion 同步时自动应用
+- `content-import.ts`：内容导入时自动应用
+
+#### 配置
+
+**环境变量**：
+
+- `MARKDOWN_TRANSLATE_ENABLED`：是否启用翻译功能
+  - `1`：启用翻译（默认）
+  - `0` 或未设置：禁用翻译
+- `MARKDOWN_TRANSLATE_PROVIDER`：翻译提供商
+  - `mock`：测试用翻译器（默认）
+  - `identity`/`none`：不翻译，保持原文
+  - 未来支持：`openai`、`deepseek`、`claude` 等
+
+**配置示例**：
+
+```bash
+# .env.local
+MARKDOWN_TRANSLATE_ENABLED=1
+MARKDOWN_TRANSLATE_PROVIDER=mock
+```
+
+#### 功能详解
+
+##### A. 语言检测
+
+- 自动分析文章主体语言（英文/中文）
+- 排除代码块、URL、行内代码的干扰
+- 英文字符占比 ≥ 60% 时触发翻译
+
+##### B. 翻译（仅在检测到英文时）
+
+- 只翻译自然语言内容：标题、段落、列表文本
+- 严格保护：代码块、行内代码、URL、图片链接、frontmatter 不翻译
+- 使用 AST + patch 策略确保结构稳定
+- 失败降级：翻译失败时保留原文并继续其他修复
+
+##### C. 代码块语言标注
+
+支持自动检测的语言（15+ 种）：
+
+- **Shebang 检测**：Python、Bash、Node.js
+- **关键字检测**：
+  - `python`：def, class, import, from...import
+  - `javascript`：function, const, let, var, console.log
+  - `typescript`：interface, type, enum, 类型注解
+  - `bash`：echo, cd, if [[, ${}
+  - `go`：package, func, defer, chan
+  - `rust`：fn, let mut, impl, trait
+  - `cpp`：#include, std::, namespace
+  - `java`：public class, System.out
+  - `dockerfile`：FROM, RUN, COPY, CMD
+  - `sql`：SELECT, FROM, WHERE, JOIN
+  - `yaml`：结构化 key-value（包括 GitHub Actions）
+  - `json`：JSON 结构
+  - `html`：HTML 标签
+  - `css`：CSS 选择器和属性
+
+##### D. 图片 caption 处理
+
+- 识别图片后紧跟的短文本（≤ 120 字符）作为 caption
+- 转换为 HTML `<figure>` 结构：
+
+  ```html
+  <figure>
+    <img src="..." alt="..." />
+    <figcaption>caption text</figcaption>
+  </figure>
+  ```
+
+- 误判保护：
+  - 超长段落不作为 caption
+  - 标题、列表、代码块不作为 caption
+  - 避免破坏文档结构
+
+##### E. Markdown 格式清理
+
+- 压缩 3+ 连续空行为 2 行
+- 统一为 LF 换行符（`\n`）
+- 规范标题和代码块间距
+
+##### F. Frontmatter 增强
+
+翻译后自动添加元数据：
+
+```yaml
+lang: zh
+translatedFrom: en
+```
+
+#### 诊断输出
+
+增强完成后会输出诊断信息：
+
+```text
+Enhanced my-article:
+  - Translated from en
+  - Fixed 3 code fences
+  - Fixed 2 image captions
+```
+
+#### 模块架构
+
+实现位于 `scripts/markdown/`：
+
+- `language-detector.ts`：语言检测
+- `translator.ts`：翻译接口与实现
+- `code-fence-fixer.ts`：代码语言检测
+- `markdown-processor.ts`：主处理管线
+- `index.ts`：导出接口
+
+#### 编程接口
+
+可在其他脚本中使用：
+
+```typescript
+import { processMarkdownForImport } from './markdown';
+
+const result = await processMarkdownForImport(
+  { markdown: content, slug: 'my-article', source: 'notion' },
+  {
+    enableTranslation: true, // 启用翻译
+    enableCodeFenceFix: true, // 修复代码块
+    enableImageCaptionFix: true, // 修复图片 caption
+    enableMarkdownCleanup: true, // 清理格式
+  },
+);
+
+console.log(result.diagnostics); // 查看修改统计
+```
+
+#### 注意事项
+
+- **测试环境**：默认使用 `mock` 翻译器，不依赖外部 API
+- **生产环境**：需要配置真实翻译提供商（未来支持）
+- **翻译质量**：Mock 翻译器仅用于测试，生产环境需使用真实 LLM
+- **失败降级**：任何步骤失败都不会中断流程，会继续其他修复
+
+---
+
 ## 三、`scripts/utils.ts` 的定位
 
 ### 3.1 为什么存在 `utils.ts`
