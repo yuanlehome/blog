@@ -42,11 +42,13 @@ CI 系统确保代码质量与部署流程的自动化：
 ### 2.3 最小风险方案
 
 ✅ **已实现**：
+
 - 所有质量检查 workflow（`validation.yml`）不使用 secrets，可在所有 PR 上自动运行
 - 需要 secrets 的 workflow 仅限 `workflow_dispatch` 手动触发
 - 自动创建的 PR（来自同仓库分支）会自动触发 `validation.yml`
 
 ❌ **无法避免**：
+
 - 来自 fork 的 PR 无法访问 secrets（这是 GitHub 安全策略，无法绕过）
 - 但这不影响正常开发流程，因为 fork PR 仍会运行 `validation.yml` 质量检查
 

@@ -272,19 +272,6 @@ function isCaptionParagraph(node: Paragraph): boolean {
 }
 
 /**
- * (Deprecated: No longer used, kept for reference)
- * Previously created HTML figure element with image and caption
- * Now we use Markdown-native syntax instead
- */
-function createFigureHtml(image: Image, caption?: string): string {
-  const img = `<img src="${image.url}" alt="${image.alt || ''}" />`;
-  if (caption && caption.trim()) {
-    return `<figure>\n  ${img}\n  <figcaption>${caption}</figcaption>\n</figure>`;
-  }
-  return `<figure>\n  ${img}\n</figure>`;
-}
-
-/**
  * Normalize invisible characters from imports (e.g., Notion exports)
  */
 const INVISIBLE_REPLACEMENTS: Record<string, string> = {
