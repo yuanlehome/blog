@@ -1,6 +1,6 @@
 /**
  * Adapter Registry
- * 
+ *
  * Central registry for all site adapters with priority-based resolution
  */
 
@@ -19,10 +19,10 @@ class DefaultAdapterRegistry implements AdapterRegistry {
   register(adapter: Adapter): void {
     // Remove existing adapter with same ID
     this.adapters = this.adapters.filter((a) => a.id !== adapter.id);
-    
+
     // Add adapter (will be sorted by priority later)
     this.adapters.push(adapter);
-    
+
     // Sort adapters: specific sites first, 'others' last
     this.adapters.sort((a, b) => {
       if (a.id === 'others') return 1;

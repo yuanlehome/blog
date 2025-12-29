@@ -1,6 +1,6 @@
 /**
  * WeChat Adapter
- * 
+ *
  * Handles article import from WeChat Official Account articles (mp.weixin.qq.com)
  */
 

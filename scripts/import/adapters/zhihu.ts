@@ -1,6 +1,6 @@
 /**
  * Zhihu Adapter
- * 
+ *
  * Handles article import from Zhihu Column (zhuanlan.zhihu.com)
  */
 

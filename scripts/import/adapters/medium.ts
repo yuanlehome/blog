@@ -1,6 +1,6 @@
 /**
  * Medium Adapter
- * 
+ *
  * Handles article import from Medium.com and custom Medium publications
  */
 

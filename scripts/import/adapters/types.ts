@@ -75,19 +75,19 @@ export type DownloadImageFunction = (
 export interface Adapter {
   /** Unique adapter identifier */
   id: 'zhihu' | 'medium' | 'wechat' | 'others';
-  
+
   /** Human-readable adapter name */
   name: string;
-  
+
   /** Check if this adapter can handle the given URL */
   canHandle(url: string): boolean;
-  
+
   /** Fetch and convert article to standardized format */
   fetchArticle(input: FetchArticleInput): Promise<Article>;
-  
+
   /** Optional: normalize article fields after extraction */
   normalize?(article: Article): Article;
-  
+
   /** Diagnostic information for logging */
   diagnostics?: {
     lastUrl?: string;
@@ -102,13 +102,13 @@ export interface Adapter {
 export interface AdapterRegistry {
   /** Register an adapter */
   register(adapter: Adapter): void;
-  
+
   /** Resolve the best adapter for a given URL */
   resolve(url: string): Adapter | null;
-  
+
   /** Get all registered adapters */
   getAll(): Adapter[];
-  
+
   /** Get adapter by ID */
   getById(id: string): Adapter | null;
 }

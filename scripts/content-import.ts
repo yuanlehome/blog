@@ -31,6 +31,16 @@ type HastElement = {
   value?: string;
 };
 
+type ExtractedArticle = {
+  title: string;
+  author?: string;
+  published?: string;
+  updated?: string;
+  html: string;
+  baseUrl?: string;
+  sourceTitle?: string;
+};
+
 const CONTENT_ROOT = BLOG_CONTENT_DIR;
 const IMAGE_ROOT = PUBLIC_IMAGES_DIR;
 const ARTIFACTS_ROOT = ARTIFACTS_DIR;
@@ -1146,7 +1156,7 @@ async function withBrowser<T>(fn: (context: BrowserContext) => Promise<T>) {
 async function main() {
   const options = await parseArgs();
   const targetUrl = options.url;
-  
+
   // Resolve adapter for URL
   const adapter = resolveAdapter(targetUrl);
 

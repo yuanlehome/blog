@@ -1,6 +1,6 @@
 /**
  * Others Adapter (Fallback)
- * 
+ *
  * Generic adapter for any website not handled by specific adapters
  * Uses Readability-based extraction as fallback
  */
@@ -26,10 +26,10 @@ export const othersAdapter: Adapter = {
 
     // Navigate to page
     await page.goto(url, { waitUntil: 'networkidle', timeout: 120000 });
-    
+
     // Get page content
     const content = await page.content();
-    
+
     // Use generic extraction
     const article = extractArticleFromHtml(content, url);
 

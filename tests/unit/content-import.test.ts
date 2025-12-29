@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { describe, expect, it, vi } from 'vitest';
 import { extractArticleFromHtml, htmlToMdx, sanitizeMdx } from '../../scripts/content-import';
+import { resolveAdapter } from '../../scripts/import/adapters/index';
 
 const fixturePath = path.join(process.cwd(), 'tests/fixtures/matmul.html');
 const fixtureHtml = fs.readFileSync(fixturePath, 'utf8');
@@ -55,6 +56,32 @@ describe('content import for external articles', () => {
     expect(markdown).toMatchSnapshot();
     expect(images[0]).toContain('/images/others/matmul/001');
     expect(downloadImage).toHaveBeenCalled();
+  });
+
+  describe('adapter resolution', () => {
+    it('resolves zhihu adapter for zhihu column URLs', () => {
+      const adapter = resolveAdapter('https://zhuanlan.zhihu.com/p/668888063');
+      expect(adapter).not.toBeNull();
+      expect(adapter?.id).toBe('zhihu');
+    });
+
+    it('resolves medium adapter for medium URLs', () => {
+      const adapter = resolveAdapter('https://medium.com/@user/article');
+      expect(adapter).not.toBeNull();
+      expect(adapter?.id).toBe('medium');
+    });
+
+    it('resolves wechat adapter for wechat URLs', () => {
+      const adapter = resolveAdapter('https://mp.weixin.qq.com/s/abc123');
+      expect(adapter).not.toBeNull();
+      expect(adapter?.id).toBe('wechat');
+    });
+
+    it('resolves others adapter for generic URLs', () => {
+      const adapter = resolveAdapter('https://example.com/article');
+      expect(adapter).not.toBeNull();
+      expect(adapter?.id).toBe('others');
+    });
   });
 
   describe('sanitizeMdx', () => {
