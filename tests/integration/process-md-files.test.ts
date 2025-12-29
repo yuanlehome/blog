@@ -95,7 +95,7 @@ describe('markdown processor integration', () => {
 
     fs.writeFileSync(tmpFile, result.markdown);
     const updated = fs.readFileSync(tmpFile, 'utf-8');
-    
+
     expect(updated).toContain('$spaced$');
     expect(result.diagnostics.mathDelimitersFixed).toBeGreaterThan(0);
 
