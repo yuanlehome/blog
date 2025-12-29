@@ -40,4 +40,6 @@ export {
   type TranslationResult,
 } from './translator.js';
 
+export { DeepSeekTranslator } from './deepseek-translator.js';
+
 export { detectCodeLanguage, isGitHubActionsWorkflow } from './code-fence-fixer.js';

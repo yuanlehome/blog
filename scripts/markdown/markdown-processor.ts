@@ -38,6 +38,12 @@ export interface ProcessingDiagnostics {
   imageCaptionsFixed: number;
   emptyLinesCompressed: number;
   frontmatterUpdated: boolean;
+  translationProvider?: string;
+  translationModel?: string;
+  translationBatches?: number;
+  translationSuccessBatches?: number;
+  translationFailedBatches?: number;
+  translationCacheHits?: number;
 }
 
 export interface ProcessingResult {
@@ -330,6 +336,16 @@ export async function processMarkdownForImport(
         applyTranslationPatches(tree, patchMap);
         diagnostics.translated = true;
         diagnostics.changed = true;
+
+        // Add translation metadata to diagnostics
+        if (translationResult.metadata) {
+          diagnostics.translationProvider = translationResult.metadata.provider;
+          diagnostics.translationModel = translationResult.metadata.model;
+          diagnostics.translationBatches = translationResult.metadata.batches;
+          diagnostics.translationSuccessBatches = translationResult.metadata.successBatches;
+          diagnostics.translationFailedBatches = translationResult.metadata.failedBatches;
+          diagnostics.translationCacheHits = translationResult.metadata.cacheHits;
+        }
 
         // Update frontmatter
         if (!frontmatter.lang || frontmatter.lang === 'en') {

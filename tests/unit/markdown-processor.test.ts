@@ -42,6 +42,16 @@ describe('Translator', () => {
   });
 
   describe('createTranslator', () => {
+    const originalEnv = process.env;
+
+    beforeEach(() => {
+      process.env = { ...originalEnv };
+    });
+
+    afterEach(() => {
+      process.env = originalEnv;
+    });
+
     it('should create MockTranslator by default', () => {
       const translator = createTranslator();
       expect(translator.name).toBe('mock');
@@ -60,6 +70,19 @@ describe('Translator', () => {
     it('should create MockTranslator for unknown provider', () => {
       const translator = createTranslator('unknown-provider');
       expect(translator.name).toBe('mock');
+    });
+
+    it('should create IdentityTranslator when DeepSeek API key is missing', () => {
+      delete process.env.DEEPSEEK_API_KEY;
+      const translator = createTranslator('deepseek');
+      expect(translator.name).toBe('identity');
+    });
+
+    it('should create DeepSeekTranslator when API key is present', () => {
+      process.env.DEEPSEEK_API_KEY = 'test-key';
+      process.env.DEEPSEEK_MODEL = 'deepseek-chat';
+      const translator = createTranslator('deepseek');
+      expect(translator.name).toBe('deepseek');
     });
   });
 

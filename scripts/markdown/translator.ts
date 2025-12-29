@@ -5,6 +5,8 @@
  * Supports multiple translation providers with a mock implementation for testing.
  */
 
+import { DeepSeekTranslator } from './deepseek-translator.js';
+
 export interface TranslationNode {
   nodeId: string;
   text: string;
@@ -22,6 +24,10 @@ export interface TranslationResult {
     provider: string;
     model?: string;
     timestamp: string;
+    batches?: number;
+    successBatches?: number;
+    failedBatches?: number;
+    cacheHits?: number;
   };
 }
 
@@ -89,7 +95,15 @@ export function createTranslator(provider: string = 'mock'): Translator {
     case 'identity':
     case 'none':
       return new IdentityTranslator();
-    // Future: Add OpenAI, DeepSeek, Claude, etc.
+    case 'deepseek': {
+      // Check if API key is available
+      if (!process.env.DEEPSEEK_API_KEY) {
+        console.warn('DEEPSEEK_API_KEY not configured, falling back to identity translator');
+        return new IdentityTranslator();
+      }
+      return new DeepSeekTranslator();
+    }
+    // Future: Add OpenAI, Claude, etc.
     // case 'openai':
     //   return new OpenAITranslator();
     default:
