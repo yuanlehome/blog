@@ -35,6 +35,11 @@ on:
           - identity
           - deepseek
         default: identity
+      cookie:
+        description: 'Optional Cookie header for authenticated requests (manual use only, not logged)'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -76,6 +81,10 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
+      - name: Mask cookie value
+        if: inputs.cookie != ''
+        run: echo "::add-mask::${{ inputs.cookie }}"
+
       - name: Import content
         env:
           URL: ${{ inputs.url }}
@@ -85,6 +94,7 @@ jobs:
           MARKDOWN_TRANSLATE_ENABLED: ${{ inputs.markdown_translate_enabled && '1' || '0' }}
           MARKDOWN_TRANSLATE_PROVIDER: ${{ inputs.markdown_translate_provider }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          IMPORT_COOKIE: ${{ inputs.cookie }}
         run: |
           ARGS=()
           ARGS+=("--url" "$URL")
@@ -104,6 +114,7 @@ jobs:
           echo "Running: npm run import:content -- ${ARGS[*]}"
           echo "Translation enabled: $MARKDOWN_TRANSLATE_ENABLED"
           echo "Translation provider: $MARKDOWN_TRANSLATE_PROVIDER"
+          echo "Cookie injection enabled: $([[ -n "$IMPORT_COOKIE" ]] && echo "true" || echo "false")"
           npm run import:content -- "${ARGS[@]}"
 
       - name: Check for changes
