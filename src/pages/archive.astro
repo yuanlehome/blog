@@ -3,12 +3,10 @@ import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { getPublishedPosts, groupByYearMonth } from '../utils/posts';
+import { buildPostUrl } from '../lib/slug';
 
 const posts = await getPublishedPosts();
 const groups = groupByYearMonth(posts);
-const BASE = import.meta.env.BASE_URL.endsWith('/')
-  ? import.meta.env.BASE_URL
-  : `${import.meta.env.BASE_URL}/`;
 ---
 
 <Layout title="Archive | Yuanle Liu‘s Blog">
@@ -26,7 +24,7 @@ const BASE = import.meta.env.BASE_URL.endsWith('/')
             <ul class="space-y-3">
               {group.posts.map((post) => (
                 <li class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <a href={`${BASE}${post.slug}/`} class="font-medium hover:text-blue-600">
+                  <a href={buildPostUrl(post.slug)} class="font-medium hover:text-blue-600">
                     {post.data.title}
                   </a>
                   <div class="flex items-center gap-3 text-sm text-gray-500">

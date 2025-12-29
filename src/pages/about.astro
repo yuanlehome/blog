@@ -3,11 +3,10 @@ import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import aboutData from '../data/about.yml';
+import { normalizeBase } from '../lib/slug';
 
 const { name, bio, socialLinks, whatIDo, techStack, journey } = aboutData;
-const BASE = import.meta.env.BASE_URL.endsWith('/')
-  ? import.meta.env.BASE_URL
-  : import.meta.env.BASE_URL + '/';
+const BASE = normalizeBase(import.meta.env.BASE_URL);
 ---
 
 <Layout title={`About ${name} - Yuanle Liu‘s Blog`}>

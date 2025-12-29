@@ -2,15 +2,13 @@
 import { getReadingTime } from '../utils/readingTime';
 import { resolveAssetUrl } from '../utils/assetUrl';
 import { formatDate } from '../utils/dates';
+import { buildPostUrl } from '../lib/slug';
 import type { CollectionEntry } from 'astro:content';
 
 interface Props {
   posts: CollectionEntry<'blog'>[];
 }
 
-const BASE = import.meta.env.BASE_URL.endsWith('/')
-  ? import.meta.env.BASE_URL
-  : import.meta.env.BASE_URL + '/';
 const { posts } = Astro.props;
 const enriched = posts.map((post) => ({
   ...post,
@@ -24,7 +22,7 @@ const enriched = posts.map((post) => ({
     enriched.map((post) => (
       <li class="list-none">
         <a
-          href={`${BASE}${post.slug}/`}
+          href={buildPostUrl(post.slug)}
           class="group relative block overflow-hidden rounded-2xl border border-gray-200/80 bg-white/80 px-5 py-5 shadow-[0_10px_30px_rgb(15_23_42/0.04)] transition duration-200 ease-out hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_14px_36px_rgb(59_130_246/0.12)] active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 motion-reduce:transform-none motion-reduce:shadow-none dark:border-gray-800/80 dark:bg-gray-900/70 dark:shadow-[0_16px_38px_rgb(0_0_0/0.45)] dark:hover:border-blue-500/35 dark:hover:shadow-[0_18px_40px_rgb(59_130_246/0.18)] dark:focus-visible:ring-offset-gray-900"
         >
           <article

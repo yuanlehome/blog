@@ -4,15 +4,14 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import PostList from '../components/PostList.astro';
 import { getPublishedPosts } from '../utils/posts';
+import { normalizeBase } from '../lib/slug';
 
 const posts = await getPublishedPosts();
 const PAGE_SIZE = 5;
 const currentPage = 1;
 const totalPages = Math.max(1, Math.ceil(posts.length / PAGE_SIZE));
 const pagePosts = posts.slice(0, PAGE_SIZE);
-const BASE = import.meta.env.BASE_URL.endsWith('/')
-  ? import.meta.env.BASE_URL
-  : `${import.meta.env.BASE_URL}/`;
+const BASE = normalizeBase(import.meta.env.BASE_URL);
 ---
 
 <Layout title="Yuanle Liu‘s Blog">

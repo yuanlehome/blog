@@ -11,7 +11,7 @@ export default defineConfig({
       exclude: ['scripts/content-import.ts', 'scripts/delete-article.ts', 'src/config/env.ts'],
       thresholds: {
         lines: 85,
-        functions:85,
+        functions: 85,
         branches: 85,
         statements: 85,
       },
