@@ -27,6 +27,7 @@ CI 系统确保代码质量与部署流程的自动化：
 **职责**：质量门禁，确保代码和内容符合标准
 
 **触发条件**：
+
 - PR 指向 main 分支
 - Push 到 main 分支
 
@@ -56,6 +57,7 @@ CI 系统确保代码质量与部署流程的自动化：
 **职责**：检查仓库内链接和外部链接的可用性
 
 **触发条件**：
+
 - PR 指向 main
 - Push 到 main
 - 定时：每周一 03:00 UTC
@@ -73,10 +75,12 @@ CI 系统确保代码质量与部署流程的自动化：
 **职责**：从 Notion 数据库同步已发布页面到博客
 
 **触发条件**：
+
 - 定时：每日 00:00 UTC
 - 手动触发（`workflow_dispatch`）
 
 **执行流程**：
+
 1. 检出代码
 2. 安装依赖和 Playwright
 3. 运行 `npm run notion:sync`（调用 `scripts/notion-sync.ts`）
@@ -84,6 +88,7 @@ CI 系统确保代码质量与部署流程的自动化：
 5. 如有变更，自动创建 PR（分支名：`notion-sync/<timestamp>`）
 
 **权限**：
+
 - `contents: write`（创建分支、提交代码）
 - `pull-requests: write`（创建 PR）
 
@@ -100,18 +105,21 @@ CI 系统确保代码质量与部署流程的自动化：
 **触发条件**：手动触发（`workflow_dispatch`）
 
 **输入参数**：
+
 - `url`（必填）：要导入的文章 URL
 - `allow_overwrite`（可选，默认 false）：是否覆盖已存在的文章
 - `dry_run`（可选，默认 false）：预览模式，不实际写入文件
 - `use_first_image_as_cover`（可选，默认 true）：将正文首图作为封面
 
 **执行流程**：
+
 1. 检出代码
 2. 安装依赖和 Playwright
 3. 运行 `npm run import:content`（调用 `scripts/content-import.ts`）
 4. 如有变更且非 dry-run，自动创建 PR（分支名：`import-content/<slug>-<timestamp>`）
 
 **权限**：
+
 - `contents: write`
 - `pull-requests: write`
 
@@ -128,17 +136,20 @@ CI 系统确保代码质量与部署流程的自动化：
 **触发条件**：手动触发（`workflow_dispatch`）
 
 **输入参数**：
+
 - `target`（必填）：文章的 slug 或文件路径
 - `delete_images`（可选，默认 false）：是否同时删除关联图片
 - `dry_run`（可选，默认 false）：预览模式
 
 **执行流程**：
+
 1. 检出代码
 2. 安装依赖
 3. 运行 `npm run delete:article`（调用 `scripts/delete-article.ts`）
 4. 如有变更且非 dry-run，自动创建 PR（分支名：`delete-article/<target>-<timestamp>`）
 
 **权限**：
+
 - `contents: write`
 - `pull-requests: write`
 
@@ -153,10 +164,12 @@ CI 系统确保代码质量与部署流程的自动化：
 **职责**：构建静态站点并发布到 GitHub Pages
 
 **触发条件**：
+
 - Push 到 main 分支
 - 手动触发（`workflow_dispatch`）
 
 **执行流程**：
+
 1. 检出代码
 2. 安装依赖
 3. 运行 `npm run build`
@@ -164,6 +177,7 @@ CI 系统确保代码质量与部署流程的自动化：
 5. 部署到 GitHub Pages
 
 **权限**：
+
 - `contents: read`
 - `pages: write`
 - `id-token: write`
@@ -177,6 +191,7 @@ CI 系统确保代码质量与部署流程的自动化：
 **触发条件**：`deploy.yml` 成功完成后（`workflow_run`）
 
 **执行流程**：
+
 1. 等待 GitHub Pages 部署完成（最多 5 分钟）
 2. 访问首页、文章页、RSS、Sitemap
 3. 验证响应状态和内容正确性
@@ -190,19 +205,21 @@ CI 系统确保代码质量与部署流程的自动化：
 **职责**：为 PR 生成预览站点，并在 PR 中添加预览链接评论
 
 **触发条件**：
+
 - PR 打开或同步（新的 push）
 - PR 关闭（清理预览）
 
 **执行流程**：
+
 - **PR 打开/同步时**：
   1. 构建站点
   2. 部署到外部预览仓库
   3. 在 PR 中评论预览链接
-  
 - **PR 关闭时**：
   1. 清理预览分支
 
 **权限**：
+
 - `contents: write`（写入预览仓库）
 - `pull-requests: write`（添加评论）
 

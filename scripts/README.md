@@ -158,12 +158,12 @@ npm run notion:sync
 
 根据源码 `scripts/content-import.ts` 第 679-700 行：
 
-| 参数名称                      | 源码位置                | 类型    | 默认值  | 说明                                               |
-| ----------------------------- | ----------------------- | ------- | ------- | -------------------------------------------------- |
-| `--url`                       | 行 680-687              | string  | 无      | 文章 URL（必填）。支持 `--url=<value>` 或 `--url <value>` |
-| `--allow-overwrite`           | 行 689-690              | boolean | `false` | 是否允许覆盖已存在文章                             |
-| `--dry-run`                   | 行 692                  | boolean | `false` | 预览模式，不写入文件                               |
-| `--use-first-image-as-cover`  | 行 694-695              | boolean | `false` | 将正文首图作为封面（如果没有封面）                 |
+| 参数名称                     | 源码位置   | 类型    | 默认值  | 说明                                                      |
+| ---------------------------- | ---------- | ------- | ------- | --------------------------------------------------------- |
+| `--url`                      | 行 680-687 | string  | 无      | 文章 URL（必填）。支持 `--url=<value>` 或 `--url <value>` |
+| `--allow-overwrite`          | 行 689-690 | boolean | `false` | 是否允许覆盖已存在文章                                    |
+| `--dry-run`                  | 行 692     | boolean | `false` | 预览模式，不写入文件                                      |
+| `--use-first-image-as-cover` | 行 694-695 | boolean | `false` | 将正文首图作为封面（如果没有封面）                        |
 
 **注意**：源码中 `use-first-image-as-cover` 默认值为 `false`，但在实际使用中通常启用。
 
@@ -202,23 +202,28 @@ npm run import:content -- --url="<URL>" --use-first-image-as-cover
 #### 平台特性
 
 **微信（WeChat）**：
+
 - 处理图片占位符（防止下载失败）
 - 重试机制（最多 5 次，指数退避）
 - 浏览器回退下载（对付顽固图片）
 - 占位符检测（通过文件大小和图片尺寸）
 
 **知乎（Zhihu）**：
+
 - 提取作者和发布日期
 - 处理知乎特有的 DOM 结构
 
 **Medium**：
+
 - 类似知乎，提取平台特定元数据
 
 **其他平台**：
+
 - 通用 HTML 提取逻辑
 - 自动检测标题、作者、日期
 
 ⚠️ **重要**：
+
 - 导入的文章应在原平台编辑，或使用 `--allow-overwrite` 本地编辑后覆盖
 - 重新导入会覆盖本地修改（除非不使用 `--allow-overwrite`）
 
@@ -270,7 +275,7 @@ npx tsx scripts/process-md-files.ts src/content/blog/notion/
 2. 对每个 Markdown 文件：
    - 分离 frontmatter、代码块、文本内容
    - 清理不可见 Unicode 字符
-   - 修正行内数学公式（去除 `$ ` 和 ` $` 中的空格）
+   - 修正行内数学公式（去除 `$` 前后的空格）
    - 将多行行内数学公式提升为块级数学公式（`$$...$$`）
    - 重新组装文件内容
    - 写回原文件
@@ -278,10 +283,12 @@ npx tsx scripts/process-md-files.ts src/content/blog/notion/
 #### 处理规则
 
 **不可见字符规范化**：
+
 - U+2060（WORD JOINER）→ 空字符串
 - U+FEFF（ZERO WIDTH NO-BREAK SPACE）→ 空字符串
 
 **数学公式修正**：
+
 - `$ x $` → `$x$`
 - `$  x  $` → `$x$`
 - 多行的 `$ ... $` → `$$ ... $$`（块级公式）
@@ -332,11 +339,11 @@ npx tsx scripts/process-md-files.ts src/content/blog/notion/
 
 根据源码 `scripts/delete-article.ts` 第 155-184 行：
 
-| 参数名称          | 源码位置     | 类型    | 默认值  | 说明                                             |
-| ----------------- | ------------ | ------- | ------- | ------------------------------------------------ |
-| `--target`        | 行 157-165   | string  | 无      | 文章的 slug 或相对路径（必填）                   |
-| `--delete-images` | 行 166-167   | boolean | `false` | 是否同时删除关联图片目录                         |
-| `--dry-run`       | 行 168-169   | boolean | `false` | 预览模式，不实际删除文件                         |
+| 参数名称          | 源码位置   | 类型    | 默认值  | 说明                           |
+| ----------------- | ---------- | ------- | ------- | ------------------------------ |
+| `--target`        | 行 157-165 | string  | 无      | 文章的 slug 或相对路径（必填） |
+| `--delete-images` | 行 166-167 | boolean | `false` | 是否同时删除关联图片目录       |
+| `--dry-run`       | 行 168-169 | boolean | `false` | 预览模式，不实际删除文件       |
 
 #### 使用方法
 
@@ -376,6 +383,7 @@ npm run delete:article -- --target=my-article-slug --delete-images --dry-run
 - **dry-run 模式**：预览将要删除的文件，不实际执行
 
 ⚠️ **重要**：
+
 - 删除操作不可逆，建议先使用 `--dry-run` 预览
 - 图片目录匹配基于 slug 和 cover 路径，可能不完全准确
 
@@ -406,30 +414,27 @@ Scripts 需要共享一些通用的文件操作和字符串处理逻辑，但这
 
 ```typescript
 // 目录操作
-export function ensureDir(dir: string): void
+export function ensureDir(dir: string): void;
 
 // 文件处理
-export function processFile(
-  filePath: string,
-  processFn: (text: string) => string
-): void
+export function processFile(filePath: string, processFn: (text: string) => string): void;
 
 export function processDirectory(
   dirPath: string,
   filterFn: (filename: string) => boolean,
-  processFn: (text: string) => string
-): void
+  processFn: (text: string) => string,
+): void;
 
 // 错误处理
-export function runMain(mainFn: () => Promise<void>): void
+export function runMain(mainFn: () => Promise<void>): void;
 
 // Markdown 处理
-export function processMdFiles(text: string): string
-export function normalizeInvisibleCharacters(text: string): string
+export function processMdFiles(text: string): string;
+export function normalizeInvisibleCharacters(text: string): string;
 export function splitCodeFences(text: string): {
-  frontmatter: string
-  segments: Array<{ type: 'code' | 'text'; content: string }>
-}
+  frontmatter: string;
+  segments: Array<{ type: 'code' | 'text'; content: string }>;
+};
 ```
 
 ### 3.3 `utils.ts` 不放什么
@@ -465,12 +470,12 @@ export function splitCodeFences(text: string): {
 
 ### 4.1 明确的边界规则
 
-| 方向                      | 是否允许 | 说明                                          |
-| ------------------------- | -------- | --------------------------------------------- |
-| Scripts import Runtime    | ✅ 部分  | 只能 import `src/config/paths.ts` 和 `src/lib/slug/` |
-| Runtime import Scripts    | ❌ 禁止  | Runtime 不得依赖 scripts                      |
-| Scripts import utils.ts   | ✅ 允许  | Scripts 的共享工具层                          |
-| Runtime import utils.ts   | ❌ 禁止  | `utils.ts` 仅供 scripts 使用                  |
+| 方向                    | 是否允许 | 说明                                                 |
+| ----------------------- | -------- | ---------------------------------------------------- |
+| Scripts import Runtime  | ✅ 部分  | 只能 import `src/config/paths.ts` 和 `src/lib/slug/` |
+| Runtime import Scripts  | ❌ 禁止  | Runtime 不得依赖 scripts                             |
+| Scripts import utils.ts | ✅ 允许  | Scripts 的共享工具层                                 |
+| Runtime import utils.ts | ❌ 禁止  | `utils.ts` 仅供 scripts 使用                         |
 
 ### 4.2 共享模块的选择
 
@@ -510,6 +515,7 @@ export function splitCodeFences(text: string): {
 1. **在 `scripts/` 目录创建新文件**（如 `scripts/my-script.ts`）
 
 2. **导入必要的模块**：
+
    ```typescript
    import { ensureDir } from './utils';
    import { BLOG_CONTENT_DIR, PUBLIC_IMAGES_DIR } from '../src/config/paths';
@@ -517,6 +523,7 @@ export function splitCodeFences(text: string): {
    ```
 
 3. **实现主函数**：
+
    ```typescript
    async function main() {
      // 脚本逻辑
@@ -524,21 +531,26 @@ export function splitCodeFences(text: string): {
    ```
 
 4. **添加命令行参数解析**（如需要）：
+
    ```typescript
    function parseArgs() {
-     const target = process.argv.find(arg => arg.startsWith('--target='))?.slice('--target='.length);
+     const target = process.argv
+       .find((arg) => arg.startsWith('--target='))
+       ?.slice('--target='.length);
      // ...
      return { target };
    }
    ```
 
 5. **使用 `runMain` 包装**（可选，统一错误处理）：
+
    ```typescript
    import { runMain } from './utils';
    runMain(main);
    ```
 
 6. **在 `package.json` 添加 npm script**：
+
    ```json
    {
      "scripts": {
@@ -581,6 +593,7 @@ export function splitCodeFences(text: string): {
 **A**：Notion sync 将 Notion 视为单一数据源，每次同步会重写 `src/content/blog/notion/` 中的所有文件。
 
 **解决方案**：
+
 - 在 Notion 中编辑内容，不要本地编辑
 - 如果需要本地编辑，将文章移出 `notion/` 目录
 
@@ -599,12 +612,14 @@ export function splitCodeFences(text: string): {
 ### Q4：删除文章后能否恢复？
 
 **A**：删除操作不可逆，建议：
+
 - 先使用 `--dry-run` 预览
 - 确保有 Git 提交记录，可以通过 Git 回滚
 
 ### Q5：Scripts 可以在本地运行吗？
 
 **A**：可以。Scripts 设计为本地可运行：
+
 - 配置 `.env.local` 中的环境变量
 - 运行 `npm run <script-name>`
 

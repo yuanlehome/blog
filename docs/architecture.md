@@ -3,8 +3,7 @@
 本文档专注于 **仓库架构与设计规范**。
 
 > **关于 Scripts 的使用说明**：请参见 [scripts/README.md](../scripts/README.md)  
-> **关于 CI / Workflow**：请参见 [ci-workflow.md](./ci-workflow.md)
-
+> **关于 CI / Workflow**：请参见 [ci-workflow.md](./ci-workflow.md)  
 > **设计原则**：代码是唯一的真相来源。本文档反映当前仓库结构，并基于实际存在的代码解释设计决策。
 
 ---
@@ -249,6 +248,7 @@ Scripts 层负责 **内容获取与准备**。Scripts 在 **Astro 构建之外**
 **职责**：将已发布的 Notion 页面同步到 Markdown 文件
 
 **概念流程**：
+
 1. 连接 Notion API
 2. 查询已发布页面
 3. 下载内容和图片
@@ -262,6 +262,7 @@ Scripts 层负责 **内容获取与准备**。Scripts 在 **Astro 构建之外**
 **职责**：从外部 URL（微信、知乎、Medium）导入文章
 
 **概念流程**：
+
 1. 接受 URL
 2. 使用 Playwright 抓取内容
 3. 下载图片
@@ -275,6 +276,7 @@ Scripts 层负责 **内容获取与准备**。Scripts 在 **Astro 构建之外**
 **职责**：修复 Markdown 文件中的常见格式问题
 
 **概念流程**：
+
 1. 处理数学公式空格
 2. 规范化不可见字符
 3. 原地更新文件
@@ -286,6 +288,7 @@ Scripts 层负责 **内容获取与准备**。Scripts 在 **Astro 构建之外**
 **职责**：删除文章及其关联图片
 
 **概念流程**：
+
 1. 查找文章
 2. 删除文章文件
 3. 可选删除图片目录
@@ -298,12 +301,12 @@ Scripts 层负责 **内容获取与准备**。Scripts 在 **Astro 构建之外**
 
 ### 4.1 依赖关系表
 
-| 从 → 到               | 是否允许 | 说明                                          |
-| --------------------- | -------- | --------------------------------------------- |
-| Scripts → Runtime     | ✅ 部分  | 只能导入 `src/config/paths.ts` 和 `src/lib/slug/` |
-| Runtime → Scripts     | ❌ 禁止  | Runtime 不得依赖 scripts                      |
-| Scripts → utils.ts    | ✅ 允许  | Scripts 的共享工具层                          |
-| Runtime → utils.ts    | ❌ 禁止  | `utils.ts` 仅供 scripts 使用                  |
+| 从 → 到            | 是否允许 | 说明                                              |
+| ------------------ | -------- | ------------------------------------------------- |
+| Scripts → Runtime  | ✅ 部分  | 只能导入 `src/config/paths.ts` 和 `src/lib/slug/` |
+| Runtime → Scripts  | ❌ 禁止  | Runtime 不得依赖 scripts                          |
+| Scripts → utils.ts | ✅ 允许  | Scripts 的共享工具层                              |
+| Runtime → utils.ts | ❌ 禁止  | `utils.ts` 仅供 scripts 使用                      |
 
 ### 4.2 共享模块的选择
 
