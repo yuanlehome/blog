@@ -10,6 +10,13 @@ type Options = {
   dryRun: boolean;
 };
 
+export const DELETE_ARTICLE_HELP = [
+  '用法: npm run delete:article -- --target=<slug|path> [--delete-images] [--dry-run]',
+  '参数: --target 必填；--delete-images 删除关联图片；--dry-run 仅打印操作',
+  '环境变量: TARGET, DELETE_IMAGES, DRY_RUN',
+  '提示: --help 或 -h 仅输出此说明',
+].join('\n');
+
 const REPO_ROOT = ROOT_DIR;
 const BLOG_ROOT = BLOG_CONTENT_DIR;
 const PUBLIC_ROOT = PUBLIC_DIR;
@@ -121,6 +128,10 @@ async function resolveArticle(target: string): Promise<{ articlePath: string; sl
 
 function parseOptions(): Options {
   const args = process.argv.slice(2);
+  if (args.some((arg) => arg === '--help' || arg === '-h')) {
+    console.log(DELETE_ARTICLE_HELP);
+    process.exit(0);
+  }
   let target: string | undefined;
   let deleteImages: boolean | undefined;
   let dryRun: boolean | undefined;

@@ -3,6 +3,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { processMdFiles, processFile, processDirectory } from './utils.js';
 
+export const PROCESS_MD_FILES_HELP = [
+  '用法: npx tsx scripts/process-md-files.ts <file-or-directory>',
+  '说明: 修正常见数学/不可见字符，原地改写 Markdown',
+  '提示: --help 或 -h 显示本说明',
+].join('\n');
+
 export function runProcessMdFiles(targetPath: string) {
   const fullPath = path.resolve(targetPath);
 
@@ -26,8 +32,12 @@ export function runCli(argv = process.argv) {
   if (!argv[1] || path.resolve(argv[1]) !== modulePath) return;
 
   const targetPath = argv[2];
+  if (argv.includes('--help') || argv.includes('-h')) {
+    console.log(PROCESS_MD_FILES_HELP);
+    process.exit(0);
+  }
   if (!targetPath) {
-    console.error('Usage: npx tsx scripts/process-md-files.ts <file-or-directory-path>');
+    console.error(PROCESS_MD_FILES_HELP);
     process.exit(1);
   }
 

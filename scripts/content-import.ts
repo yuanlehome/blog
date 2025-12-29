@@ -139,25 +139,36 @@ type ImportArgs = {
   useFirstImageAsCover: boolean;
 };
 
-async function parseArgs(): Promise<ImportArgs> {
+export const CONTENT_IMPORT_HELP = [
+  '用法: npm run import:content -- --url=<URL> [--allow-overwrite] [--dry-run] [--use-first-image-as-cover]',
+  '环境变量: URL、ALLOW_OVERWRITE、DRY_RUN、USE_FIRST_IMAGE_AS_COVER',
+  '示例: npm run import:content -- --url="https://mp.weixin.qq.com/s/xxxx" --use-first-image-as-cover',
+  '提示: --help 或 -h 仅输出此说明',
+].join('\n');
+
+async function parseArgs(argv = process.argv.slice(2)): Promise<ImportArgs> {
+  if (argv.some((arg) => arg === '--help' || arg === '-h')) {
+    console.log(CONTENT_IMPORT_HELP);
+    process.exit(0);
+  }
+
   const argUrl =
-    process.argv.find((arg) => arg.startsWith('--url='))?.slice('--url='.length) ??
+    argv.find((arg) => arg.startsWith('--url='))?.slice('--url='.length) ??
     (() => {
-      const i = process.argv.indexOf('--url');
-      return i >= 0 ? process.argv[i + 1] : undefined;
+      const i = argv.indexOf('--url');
+      return i >= 0 ? argv[i + 1] : undefined;
     })() ??
     process.env.URL ??
     process.env.url ??
-    process.argv[2];
+    argv[0];
 
   const allowOverwrite =
-    process.argv.includes('--allow-overwrite') || process.env.ALLOW_OVERWRITE === 'true';
+    argv.includes('--allow-overwrite') || process.env.ALLOW_OVERWRITE === 'true';
 
-  const dryRun = process.argv.includes('--dry-run') || process.env.DRY_RUN === 'true';
+  const dryRun = argv.includes('--dry-run') || process.env.DRY_RUN === 'true';
 
   const useFirstImageAsCover =
-    process.argv.includes('--use-first-image-as-cover') ||
-    process.env.USE_FIRST_IMAGE_AS_COVER === 'true';
+    argv.includes('--use-first-image-as-cover') || process.env.USE_FIRST_IMAGE_AS_COVER === 'true';
   let url = argUrl;
 
   if (!url && !process.stdin.isTTY) {

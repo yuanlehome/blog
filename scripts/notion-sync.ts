@@ -12,6 +12,18 @@ import { NOTION_CONTENT_DIR, NOTION_PUBLIC_IMG_DIR, ensureDir } from '../src/con
 
 dotenv.config({ path: '.env.local' });
 
+export const NOTION_SYNC_HELP = [
+  '用法: npm run notion:sync',
+  '说明: 同步 Notion 已发布页面为 Markdown，并下载图片',
+  '环境变量: NOTION_TOKEN, NOTION_DATABASE_ID (必填)',
+  '提示: --help 或 -h 查看本说明',
+].join('\n');
+
+if (process.argv.slice(2).some((arg) => arg === '--help' || arg === '-h')) {
+  console.log(NOTION_SYNC_HELP);
+  process.exit(0);
+}
+
 const NOTION_TOKEN = process.env.NOTION_TOKEN;
 const DATABASE_ID = process.env.NOTION_DATABASE_ID;
 
