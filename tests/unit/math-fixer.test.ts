@@ -260,10 +260,10 @@ $$
     // Should fix multiple issues
     expect(result.changed).toBe(true);
     expect(result.issues.length).toBeGreaterThan(0);
-    
+
     // Should remove stray $$
     expect(result.fixed).not.toContain('$$');
-    
+
     // The issues should include multiple fixes
     expect(result.issues.some((issue) => issue.includes('$$'))).toBe(true);
   });

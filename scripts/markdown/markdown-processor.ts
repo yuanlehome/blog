@@ -20,7 +20,7 @@ import matter from 'gray-matter';
 import { detectLanguage, shouldTranslate } from './language-detector.js';
 import { type Translator, type TranslationNode, getConfiguredTranslator } from './translator.js';
 import { detectCodeLanguage, isGitHubActionsWorkflow } from './code-fence-fixer.js';
-import { fixMathBlock, degradeToTexBlock, type MathFixResult } from './math-fixer.js';
+import { fixMathBlock } from './math-fixer.js';
 
 export interface ProcessingOptions {
   slug?: string;

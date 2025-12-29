@@ -248,7 +248,6 @@ function fixBrokenLatexCommands(content: string): string {
 
   while ((match = commandPattern.exec(content)) !== null) {
     const cmdStart = match.index;
-    const cmdName = match[1];
     const firstBraceStart = match.index + match[0].length - 1;
 
     // Find the end of first brace
@@ -287,7 +286,6 @@ function fixBrokenLatexCommands(content: string): string {
       }
 
       // Insert closing brace
-      const original = content.slice(cmdStart, closePos);
       const fixed = content.slice(cmdStart, closePos) + '}';
       fixes.push({ start: cmdStart, end: closePos, replacement: fixed });
     }
@@ -340,7 +338,11 @@ function findMatchingBrace(text: string, openPos: number): number {
 /**
  * Balance brackets and braces with high-confidence heuristics
  */
-function balanceBrackets(content: string): { fixed: string; changed: boolean; confidence: 'high' | 'low' } {
+function balanceBrackets(content: string): {
+  fixed: string;
+  changed: boolean;
+  confidence: 'high' | 'low';
+} {
   const result = {
     fixed: content,
     changed: false,
