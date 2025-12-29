@@ -110,4 +110,69 @@ All files are simple re-exports from `src/lib`:
 
 ## Migration Progress
 
-(To be filled in as we progress through phases)
+### Phase 2: Remove `src/utils/` Directory ✅ COMPLETED
+
+**Date**: 2024-12-29
+
+**Changes Made**:
+1. Updated all imports in Astro config (astro.config.mjs)
+2. Updated all imports in Astro files (9 files):
+   - Pages: index.astro, [...slug].astro, page/[page].astro, archive.astro
+   - Components: FloatingActionStack.astro, PostList.astro, MobileToc.astro, TocTree.astro, TableOfContents.astro
+3. Updated all imports in test files (7 files)
+4. Deleted `src/utils/` directory (14 files removed)
+
+**Migration Examples**:
+```typescript
+// Before
+import { getPublishedPosts } from '../utils/posts';
+import { resolveAssetUrl } from '../utils/assetUrl';
+import { buildTocForest } from '../utils/tocTree';
+
+// After
+import { getPublishedPosts } from '../lib/content/posts';
+import { resolveAssetUrl } from '../lib/site/assetUrl';
+import { buildTocForest } from '../lib/content/tocTree';
+```
+
+**Test Results**:
+- ✅ npm run check: PASSED (0 errors)
+- ✅ npm run lint: PASSED
+- ✅ npm run test: PASSED (120/120 tests)
+
+### Phase 3: Create `scripts/utils.ts` ✅ COMPLETED
+
+**Date**: 2024-12-29
+
+**Changes Made**:
+1. Created `scripts/utils.ts` with:
+   - Directory & File I/O utilities (ensureDir, processFile, processDirectory)
+   - Error handling wrapper (runMain)
+   - Math fixing utilities (migrated from scripts/lib/shared/math-fix.ts)
+2. Updated `scripts/fix-math.ts` to import from `./utils`
+3. Deleted `scripts/lib/` directory (1 file removed)
+4. Created `scripts/README.md` documenting the new structure
+
+**Utilities Provided by `scripts/utils.ts`**:
+- `ensureDir(dir)`: Ensure directory exists
+- `processFile(filePath, processFn)`: Process single file
+- `processDirectory(dirPath, filterFn, processFn)`: Recursively process files
+- `runMain(mainFn)`: Async error handling wrapper
+- `fixMath(text)`: Fix math delimiters in markdown
+- `normalizeInvisibleCharacters(text)`: Normalize invisible Unicode
+- `splitCodeFences(text)`: Split markdown into segments
+
+**Test Results**:
+- ✅ npm run check: PASSED (0 errors)
+- ✅ npm run lint: PASSED
+- ✅ npm run test: PASSED (120/120 tests, 96.3% coverage)
+
+### Phase 4: Scripts Already Using Proper Structure ✅
+
+**Analysis**:
+- `scripts/notion-sync.ts`: Already imports from `../src/config/paths` and `../src/lib/slug` ✅
+- `scripts/content-import.ts`: Already imports from `../src/config/paths` and `../src/lib/slug` ✅
+- `scripts/fix-math.ts`: Now imports from `./utils` ✅
+- `scripts/delete-article.ts`: No shared utilities needed ✅
+
+**No additional refactoring needed** - scripts were already well-structured!

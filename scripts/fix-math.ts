@@ -1,29 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { fixMath, normalizeInvisibleCharacters, splitCodeFences } from './lib/shared/math-fix.js';
-
-function processFile(filePath: string) {
-  const content = fs.readFileSync(filePath, 'utf-8');
-  const fixed = fixMath(content);
-  if (fixed !== content) {
-    fs.writeFileSync(filePath, fixed, 'utf-8');
-    console.log(`✅ Fixed math in ${filePath}`);
-  }
-}
-
-function processDirectory(dirPath: string) {
-  const files = fs.readdirSync(dirPath);
-  for (const file of files) {
-    const p = path.join(dirPath, file);
-    const stat = fs.statSync(p);
-    if (stat.isDirectory()) {
-      processDirectory(p);
-    } else if (file.endsWith('.md')) {
-      processFile(p);
-    }
-  }
-}
+import { fixMath, processFile, processDirectory } from './utils.js';
 
 export function runFixMath(targetPath: string) {
   const fullPath = path.resolve(targetPath);
@@ -34,14 +12,14 @@ export function runFixMath(targetPath: string) {
 
   const stat = fs.statSync(fullPath);
   if (stat.isDirectory()) {
-    processDirectory(fullPath);
+    processDirectory(fullPath, (file) => file.endsWith('.md'), fixMath);
   } else {
-    processFile(fullPath);
+    processFile(fullPath, fixMath);
   }
 }
 
 // Re-export for backward compatibility
-export { normalizeInvisibleCharacters, splitCodeFences, fixMath };
+export { normalizeInvisibleCharacters, splitCodeFences, fixMath } from './utils.js';
 
 export function runCli(argv = process.argv) {
   const modulePath = fileURLToPath(import.meta.url);

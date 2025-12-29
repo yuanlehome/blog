@@ -1,13 +1,86 @@
 /**
- * Math Fix Module - Pure functions for fixing math delimiters in markdown
+ * Scripts Utility Module
  *
- * This module provides pure functions to:
- * 1. Normalize invisible characters from Notion exports
- * 2. Split markdown into segments (frontmatter, code fences, text)
- * 3. Fix math tokens in text segments
- * 4. Promote multi-line inline math to block math
- * 5. Trim inline math whitespace
+ * Shared utilities for scripts in this directory.
+ * These utilities are ONLY for scripts and should NOT be imported by runtime code.
+ *
+ * Utilities include:
+ * - File I/O helpers
+ * - Directory management
+ * - Process execution wrapper
+ * - Math delimiter fixing (from scripts/lib/shared/math-fix.ts)
  */
+
+import fs from 'fs';
+import path from 'path';
+
+// =============================================================================
+// Directory & File I/O Utilities
+// =============================================================================
+
+/**
+ * Ensure a directory exists, creating it recursively if needed
+ */
+export function ensureDir(dir: string): void {
+  if (!dir) return;
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+}
+
+/**
+ * Process a single file with a callback
+ */
+export function processFile(filePath: string, processFn: (content: string) => string): void {
+  const content = fs.readFileSync(filePath, 'utf-8');
+  const processed = processFn(content);
+  if (processed !== content) {
+    fs.writeFileSync(filePath, processed, 'utf-8');
+    console.log(`✅ Processed ${filePath}`);
+  }
+}
+
+/**
+ * Recursively process all files matching a filter in a directory
+ */
+export function processDirectory(
+  dirPath: string,
+  filterFn: (filename: string) => boolean,
+  processFn: (content: string) => string,
+): void {
+  const files = fs.readdirSync(dirPath);
+  for (const file of files) {
+    const fullPath = path.join(dirPath, file);
+    const stat = fs.statSync(fullPath);
+    if (stat.isDirectory()) {
+      processDirectory(fullPath, filterFn, processFn);
+    } else if (filterFn(file)) {
+      processFile(fullPath, processFn);
+    }
+  }
+}
+
+// =============================================================================
+// Process Error Handling
+// =============================================================================
+
+/**
+ * Run an async main function with error handling
+ * Catches errors and exits with appropriate code
+ */
+export async function runMain(mainFn: () => Promise<void>): Promise<void> {
+  try {
+    await mainFn();
+  } catch (error) {
+    console.error('Error:', error);
+    process.exit(1);
+  }
+}
+
+// =============================================================================
+// Math Delimiter Fixing Utilities
+// (Extracted from scripts/lib/shared/math-fix.ts)
+// =============================================================================
 
 const INVISIBLE_REPLACEMENTS: Record<string, string> = {
   // Spaces and special widths
@@ -36,6 +109,9 @@ const INVISIBLE_REPLACEMENTS: Record<string, string> = {
 type Segment = { type: 'text' | 'code' | 'frontmatter'; content: string };
 type InlineSegment = { type: 'text' | 'code'; content: string };
 
+/**
+ * Normalize invisible characters from Notion exports
+ */
 export function normalizeInvisibleCharacters(text: string): string {
   let normalized = text;
 
@@ -64,6 +140,9 @@ function splitFrontmatter(text: string): {
   };
 }
 
+/**
+ * Split markdown into segments (frontmatter, code fences, text)
+ */
 export function splitCodeFences(text: string): Segment[] {
   const segments: Segment[] = [];
   const { frontmatter, body } = splitFrontmatter(text);
