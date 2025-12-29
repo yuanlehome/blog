@@ -115,6 +115,7 @@ All files are simple re-exports from `src/lib`:
 **Date**: 2024-12-29
 
 **Changes Made**:
+
 1. Updated all imports in Astro config (astro.config.mjs)
 2. Updated all imports in Astro files (9 files):
    - Pages: index.astro, [...slug].astro, page/[page].astro, archive.astro
@@ -123,6 +124,7 @@ All files are simple re-exports from `src/lib`:
 4. Deleted `src/utils/` directory (14 files removed)
 
 **Migration Examples**:
+
 ```typescript
 // Before
 import { getPublishedPosts } from '../utils/posts';
@@ -136,6 +138,7 @@ import { buildTocForest } from '../lib/content/tocTree';
 ```
 
 **Test Results**:
+
 - ✅ npm run check: PASSED (0 errors)
 - ✅ npm run lint: PASSED
 - ✅ npm run test: PASSED (120/120 tests)
@@ -145,6 +148,7 @@ import { buildTocForest } from '../lib/content/tocTree';
 **Date**: 2024-12-29
 
 **Changes Made**:
+
 1. Created `scripts/utils.ts` with:
    - Directory & File I/O utilities (ensureDir, processFile, processDirectory)
    - Error handling wrapper (runMain)
@@ -154,6 +158,7 @@ import { buildTocForest } from '../lib/content/tocTree';
 4. Created `scripts/README.md` documenting the new structure
 
 **Utilities Provided by `scripts/utils.ts`**:
+
 - `ensureDir(dir)`: Ensure directory exists
 - `processFile(filePath, processFn)`: Process single file
 - `processDirectory(dirPath, filterFn, processFn)`: Recursively process files
@@ -163,6 +168,7 @@ import { buildTocForest } from '../lib/content/tocTree';
 - `splitCodeFences(text)`: Split markdown into segments
 
 **Test Results**:
+
 - ✅ npm run check: PASSED (0 errors)
 - ✅ npm run lint: PASSED
 - ✅ npm run test: PASSED (120/120 tests, 96.3% coverage)
@@ -170,9 +176,84 @@ import { buildTocForest } from '../lib/content/tocTree';
 ### Phase 4: Scripts Already Using Proper Structure ✅
 
 **Analysis**:
+
 - `scripts/notion-sync.ts`: Already imports from `../src/config/paths` and `../src/lib/slug` ✅
 - `scripts/content-import.ts`: Already imports from `../src/config/paths` and `../src/lib/slug` ✅
 - `scripts/fix-math.ts`: Now imports from `./utils` ✅
 - `scripts/delete-article.ts`: No shared utilities needed ✅
 
 **No additional refactoring needed** - scripts were already well-structured!
+
+## Final Summary
+
+### Files Changed
+- **35 files changed**: 443 insertions(+), 88 deletions(-)
+
+### Files Deleted
+**`src/utils/` directory (14 files)**:
+- assetUrl.ts, code-blocks.ts, dates.ts, floatingActionStack.ts
+- posts.ts, readingTime.ts, slugger.ts, tocTree.ts
+- rehypeExternalLinks.ts, rehypeHeadingLinks.ts, rehypePrettyCode.ts
+- remarkCodeMeta.ts, remarkNotionCompat.ts, remarkPrefixImages.ts
+
+**`scripts/lib/` directory (1 file)**:
+- shared/math-fix.ts
+
+### Files Created
+- `scripts/utils.ts` (328 lines)
+- `scripts/README.md` (139 lines)
+- `docs/refactor-log.md` (this file)
+
+### Files Modified
+- astro.config.mjs (6 import paths)
+- 4 Astro pages, 6 Astro components, 1 Astro layout
+- 6 test files, 1 script file
+
+### Migration Examples
+
+#### Example 1: Simple Import Update
+```typescript
+// Before
+import { getPublishedPosts } from '../utils/posts';
+// After
+import { getPublishedPosts } from '../lib/content/posts';
+```
+
+#### Example 2: Script Utilities
+```typescript
+// Before
+import { fixMath } from './lib/shared/math-fix.js';
+// After
+import { fixMath, processFile, processDirectory } from './utils.js';
+```
+
+### Test Results - All Gates Passing ✅
+
+#### Before Refactor
+- ✅ npm run check: 0 errors, 5 hints
+- ✅ npm run lint: All formatted
+- ✅ npm run test: 120/120 tests, 97.7% coverage
+
+#### After Refactor
+- ✅ npm run check: 0 errors, 5 hints
+- ✅ npm run lint: All formatted
+- ✅ npm run test: 120/120 tests, 96.3% coverage
+- ✅ npm run build: 20 pages generated
+
+### Behavior Compatibility ✅
+
+**All paths remain unchanged**:
+- Notion content: `src/content/blog/notion/`
+- Notion images: `public/images/notion/`
+- Platform imports: `src/content/blog/<platform>/`
+- Platform images: `public/images/<platform>/<slug>/`
+
+### Conclusion
+
+✅ **Refactor completed successfully!**
+
+- Cleaner structure: Removed redundant `src/utils/` re-export layer
+- Better organization: `src/lib/` has clear subdirectories by purpose
+- Consolidated scripts: Single `scripts/utils.ts` for shared utilities
+- No behavior changes: All tests passing, build successful
+- Well documented: README files and refactor log completed

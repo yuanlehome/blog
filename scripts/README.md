@@ -5,14 +5,17 @@ This directory contains various utility scripts for content management and maint
 ## Available Scripts
 
 ### `notion-sync.ts`
+
 Syncs content from Notion database to the blog.
 
 **Usage:**
+
 ```bash
 npm run notion:sync
 ```
 
 **What it does:**
+
 - Fetches published pages from Notion database
 - Downloads images and saves them locally
 - Converts Notion content to Markdown
@@ -20,47 +23,57 @@ npm run notion:sync
 - Performs incremental sync (only updates changed content)
 
 **Environment variables required:**
+
 - `NOTION_TOKEN`: Notion API token
 - `NOTION_DATABASE_ID`: Notion database ID
 
 ### `content-import.ts`
+
 Imports articles from external platforms (WeChat, Zhihu, Medium, etc.).
 
 **Usage:**
+
 ```bash
 npm run import:content -- --url=<URL>
 ```
 
 **Options:**
+
 - `--url=<URL>`: URL of the article to import (required)
 - `--allow-overwrite`: Overwrite existing files
 - `--dry-run`: Preview without writing files
 - `--use-first-image-as-cover`: Use the first image as the cover
 
 **Supported platforms:**
+
 - WeChat (mp.weixin.qq.com)
 - Zhihu (zhihu.com)
 - Medium (medium.com)
 - Generic HTML articles (fallback)
 
 ### `fix-math.ts`
+
 Fixes math delimiters in Markdown files.
 
 **Usage:**
+
 ```bash
 npm run fix-math <file-or-directory>
 ```
 
 **What it does:**
+
 - Normalizes invisible characters from Notion exports
 - Fixes inline math delimiters ($...$)
 - Promotes multi-line inline math to block math ($$...$$)
 - Trims whitespace from math expressions
 
 ### `delete-article.ts`
+
 Deletes an article and its associated images.
 
 **Usage:**
+
 ```bash
 npm run delete:article
 ```
@@ -72,14 +85,17 @@ npm run delete:article
 The `scripts/utils.ts` module provides shared utilities for all scripts:
 
 ### Directory & File I/O
+
 - `ensureDir(dir)`: Ensure a directory exists
 - `processFile(filePath, processFn)`: Process a single file
 - `processDirectory(dirPath, filterFn, processFn)`: Recursively process files in a directory
 
 ### Error Handling
+
 - `runMain(mainFn)`: Run an async function with error handling and proper exit codes
 
 ### Math Delimiter Fixing
+
 - `fixMath(text)`: Fix math delimiters in markdown
 - `normalizeInvisibleCharacters(text)`: Normalize invisible Unicode characters
 - `splitCodeFences(text)`: Split markdown into segments (frontmatter, code, text)
@@ -97,6 +113,7 @@ The `scripts/utils.ts` module provides shared utilities for all scripts:
 ### Path Configuration
 
 Scripts import path configuration from `src/config/paths.ts`:
+
 - `NOTION_CONTENT_DIR`: Where Notion articles are saved
 - `NOTION_PUBLIC_IMG_DIR`: Where Notion images are saved
 - `BLOG_CONTENT_DIR`: Blog content root
