@@ -171,11 +171,7 @@ const LANGUAGE_PATTERNS: LanguagePattern[] = [
     language: 'yaml',
     priority: 10,
     patterns: {
-      keywords: [
-        /^name:\s*.+$/m,
-        /^on:\s*$/m,
-        /^\s{2,}(runs?-on|steps|uses|with|env|if):/m,
-      ],
+      keywords: [/^name:\s*.+$/m, /^on:\s*$/m, /^\s{2,}(runs?-on|steps|uses|with|env|if):/m],
       structurePatterns: [
         /^\w+:\s*$/m, // Top-level keys
         /^\s{2,}-\s+\w+:/m, // List items with keys

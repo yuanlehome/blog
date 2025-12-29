@@ -9,6 +9,7 @@ import type { BlockObjectResponse } from '@notionhq/client/build/src/api-endpoin
 import crypto from 'crypto';
 import { slugFromTitle, ensureUniqueSlug } from '../src/lib/slug';
 import { NOTION_CONTENT_DIR, NOTION_PUBLIC_IMG_DIR, ensureDir } from '../src/config/paths';
+import { processMarkdownForImport } from './markdown/index.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -359,7 +360,38 @@ export async function sync() {
       notion: { id: pageId },
     };
 
-    const fileContent = matter.stringify(mdString.parent || '', frontmatter);
+    let fileContent = matter.stringify(mdString.parent || '', frontmatter);
+
+    // Apply markdown enhancements (translation, code fence fix, etc.)
+    try {
+      const processed = await processMarkdownForImport(
+        { markdown: fileContent, slug, source: 'notion' },
+        {
+          enableTranslation: true,
+          enableCodeFenceFix: true,
+          enableImageCaptionFix: true,
+          enableMarkdownCleanup: true,
+        },
+      );
+
+      fileContent = processed.markdown;
+
+      // Log diagnostics
+      if (processed.diagnostics.changed) {
+        console.log(`  Enhanced ${slug}:`);
+        if (processed.diagnostics.translated) {
+          console.log(`    - Translated from ${processed.diagnostics.detectedLanguage}`);
+        }
+        if (processed.diagnostics.codeFencesFixed > 0) {
+          console.log(`    - Fixed ${processed.diagnostics.codeFencesFixed} code fences`);
+        }
+        if (processed.diagnostics.imageCaptionsFixed > 0) {
+          console.log(`    - Fixed ${processed.diagnostics.imageCaptionsFixed} image captions`);
+        }
+      }
+    } catch (error) {
+      console.warn(`Failed to enhance markdown for ${slug}, using original:`, error);
+    }
 
     const filePath = path.join(NOTION_CONTENT_DIR, `${slug}.md`);
     fs.writeFileSync(filePath, fileContent);

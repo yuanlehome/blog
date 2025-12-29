@@ -105,10 +105,7 @@ echo "World"
 \`\`\`
 `;
 
-      const result = await processMarkdownForImport(
-        { markdown },
-        { enableTranslation: false },
-      );
+      const result = await processMarkdownForImport({ markdown }, { enableTranslation: false });
 
       expect(result.diagnostics.codeFencesFixed).toBe(2);
       expect(result.markdown).toContain('```python');
@@ -122,10 +119,7 @@ console.log("test");
 \`\`\`
 `;
 
-      const result = await processMarkdownForImport(
-        { markdown },
-        { enableTranslation: false },
-      );
+      const result = await processMarkdownForImport({ markdown }, { enableTranslation: false });
 
       expect(result.diagnostics.codeFencesFixed).toBe(0);
       expect(result.markdown).toContain('```javascript');
@@ -134,10 +128,7 @@ console.log("test");
     it('should compress multiple empty lines', async () => {
       const markdown = `# Title\n\n\n\n\n\nText here`;
 
-      const result = await processMarkdownForImport(
-        { markdown },
-        { enableTranslation: false },
-      );
+      const result = await processMarkdownForImport({ markdown }, { enableTranslation: false });
 
       // The normalizer should compress 3+ newlines
       if (result.diagnostics.emptyLinesCompressed > 0) {
@@ -409,10 +400,7 @@ More content.
 This is English content.
 `;
 
-      const result = await processMarkdownForImport(
-        { markdown },
-        { enableTranslation: false },
-      );
+      const result = await processMarkdownForImport({ markdown }, { enableTranslation: false });
 
       expect(result.diagnostics.translated).toBe(false);
       expect(result.markdown).not.toContain('[ZH]');
@@ -425,10 +413,7 @@ print("test")
 \`\`\`
 `;
 
-      const result = await processMarkdownForImport(
-        { markdown },
-        { enableCodeFenceFix: false },
-      );
+      const result = await processMarkdownForImport({ markdown }, { enableCodeFenceFix: false });
 
       expect(result.diagnostics.codeFencesFixed).toBe(0);
     });
@@ -440,10 +425,7 @@ print("test")
 Caption text.
 `;
 
-      const result = await processMarkdownForImport(
-        { markdown },
-        { enableImageCaptionFix: false },
-      );
+      const result = await processMarkdownForImport({ markdown }, { enableImageCaptionFix: false });
 
       expect(result.diagnostics.imageCaptionsFixed).toBe(0);
     });
@@ -451,10 +433,7 @@ Caption text.
     it('should skip markdown cleanup when disabled', async () => {
       const markdown = `# Title\n\n\n\n\nText`;
 
-      const result = await processMarkdownForImport(
-        { markdown },
-        { enableMarkdownCleanup: false },
-      );
+      const result = await processMarkdownForImport({ markdown }, { enableMarkdownCleanup: false });
 
       expect(result.diagnostics.emptyLinesCompressed).toBe(0);
     });
@@ -462,10 +441,7 @@ Caption text.
     it('should handle empty markdown', async () => {
       const markdown = '';
 
-      const result = await processMarkdownForImport(
-        { markdown },
-        { enableTranslation: false },
-      );
+      const result = await processMarkdownForImport({ markdown }, { enableTranslation: false });
 
       expect(result.markdown).toBeTruthy();
       expect(result.diagnostics.translated).toBe(false);
@@ -477,10 +453,7 @@ title: Test
 ---
 `;
 
-      const result = await processMarkdownForImport(
-        { markdown },
-        { enableTranslation: false },
-      );
+      const result = await processMarkdownForImport({ markdown }, { enableTranslation: false });
 
       expect(result.markdown).toContain('title: Test');
     });
@@ -494,7 +467,7 @@ English content.
 
       const result = await processMarkdownForImport(
         { markdown },
-        { translator: null, enableTranslation: true },
+        { translator: undefined, enableTranslation: true },
       );
 
       expect(result.diagnostics.translated).toBe(false);

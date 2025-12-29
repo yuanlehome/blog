@@ -13,15 +13,12 @@ import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
 import remarkGfm from 'remark-gfm';
 import { visit } from 'unist-util-visit';
-import type { Root, Code, Paragraph, Image, Heading, Text, HTML } from 'mdast';
+import type { Root, Code, Paragraph, Image } from 'mdast';
 import matter from 'gray-matter';
 
 import { detectLanguage, shouldTranslate } from './language-detector.js';
 import { type Translator, type TranslationNode, getConfiguredTranslator } from './translator.js';
-import {
-  detectCodeLanguage,
-  isGitHubActionsWorkflow,
-} from './code-fence-fixer.js';
+import { detectCodeLanguage, isGitHubActionsWorkflow } from './code-fence-fixer.js';
 
 export interface ProcessingOptions {
   slug?: string;
@@ -62,7 +59,7 @@ function extractTranslatableNodes(tree: Root): TranslationNode[] {
   const nodes: TranslationNode[] = [];
   let nodeIndex = 0;
 
-  visit(tree, (node: any, index: number | undefined, parent: any) => {
+  visit(tree, (node: any, _index: number | undefined, parent: any) => {
     // Skip code nodes
     if (node.type === 'code' || node.type === 'inlineCode') {
       return;
@@ -114,10 +111,7 @@ function extractTextFromNode(node: any): string {
 /**
  * Apply translation patches to AST
  */
-function applyTranslationPatches(
-  tree: Root,
-  patches: Record<string, string>,
-): void {
+function applyTranslationPatches(tree: Root, patches: Record<string, string>): void {
   visit(tree, (node: any) => {
     if ((node as any)._nodeId && patches[(node as any)._nodeId]) {
       const translatedText = patches[(node as any)._nodeId];
@@ -160,7 +154,7 @@ function fixImageCaptions(tree: Root): number {
   const nodesToReplace: Array<{
     parent: any;
     index: number;
-    newNode: HTML;
+    newNode: any;
   }> = [];
 
   visit(tree, (node: any, index: number | undefined, parent: any) => {
@@ -170,15 +164,10 @@ function fixImageCaptions(tree: Root): number {
       node.children[0].type === 'image'
     ) {
       const image = node.children[0] as Image;
-      const nextSibling =
-        parent && typeof index === 'number' && parent.children[index + 1];
+      const nextSibling = parent && typeof index === 'number' && parent.children[index + 1];
 
       // Check if next sibling is a potential caption
-      if (
-        nextSibling &&
-        nextSibling.type === 'paragraph' &&
-        isCaptionParagraph(nextSibling)
-      ) {
+      if (nextSibling && nextSibling.type === 'paragraph' && isCaptionParagraph(nextSibling)) {
         const caption = extractTextFromNode(nextSibling);
         const figureHtml = createFigureHtml(image, caption);
 
@@ -188,7 +177,7 @@ function fixImageCaptions(tree: Root): number {
           newNode: {
             type: 'html',
             value: figureHtml,
-          } as HTML,
+          },
         });
 
         // Mark next sibling for removal
@@ -208,7 +197,7 @@ function fixImageCaptions(tree: Root): number {
           newNode: {
             type: 'html',
             value: figureHtml,
-          } as HTML,
+          },
         });
         fixedCount++;
       }
@@ -323,9 +312,7 @@ export async function processMarkdownForImport(
   }
 
   // Parse markdown to AST
-  const processor = unified()
-    .use(remarkParse)
-    .use(remarkGfm);
+  const processor = unified().use(remarkParse).use(remarkGfm);
 
   const tree = processor.parse(processedMarkdown) as Root;
 

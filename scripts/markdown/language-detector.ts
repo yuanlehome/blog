@@ -63,10 +63,7 @@ function extractTextContent(markdown: string): string {
  * @param threshold - Minimum English ratio to consider content as English (default: 0.6)
  * @returns Language detection result
  */
-export function detectLanguage(
-  markdown: string,
-  threshold = 0.6,
-): LanguageDetectionResult {
+export function detectLanguage(markdown: string, threshold = 0.6): LanguageDetectionResult {
   const textContent = extractTextContent(markdown);
 
   let englishCount = 0;

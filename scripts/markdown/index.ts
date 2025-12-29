@@ -40,7 +40,4 @@ export {
   type TranslationResult,
 } from './translator.js';
 
-export {
-  detectCodeLanguage,
-  isGitHubActionsWorkflow,
-} from './code-fence-fixer.js';
+export { detectCodeLanguage, isGitHubActionsWorkflow } from './code-fence-fixer.js';
