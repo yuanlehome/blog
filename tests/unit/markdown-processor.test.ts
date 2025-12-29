@@ -281,16 +281,16 @@ Figure 1: NVIDIA Hopper H100 GPU Model
 
       expect(result.diagnostics.translated).toBe(true);
       expect(result.diagnostics.imageCaptionsFixed).toBeGreaterThan(0);
-      
+
       // Image URL must be preserved exactly
       expect(result.markdown).toContain('https://example.com/images/gpu-model.png');
-      
+
       // Alt text should be translated
       expect(result.markdown).toContain('[ZH]');
-      
+
       // Caption should be translated and in italic
       expect(result.markdown).toMatch(/\*.*\[ZH\].*\*/);
-      
+
       // Should NOT contain HTML figure tags
       expect(result.markdown).not.toContain('<figure>');
       expect(result.markdown).not.toContain('<figcaption>');

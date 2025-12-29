@@ -79,6 +79,13 @@ CI 系统确保代码质量与部署流程的自动化：
 - 定时：每日 00:00 UTC
 - 手动触发（`workflow_dispatch`）
 
+**输入参数（仅手动触发时可用）**：
+
+- `markdown_translate_enabled`（可选，默认 false）：启用 Markdown 翻译
+- `markdown_translate_provider`（可选，默认 identity）：翻译提供商
+  - `identity`：不翻译，保持原文
+  - `deepseek`：使用 DeepSeek API 进行翻译（需配置 `DEEPSEEK_API_KEY` Secret）
+
 **执行流程**：
 
 1. 检出代码
@@ -93,6 +100,14 @@ CI 系统确保代码质量与部署流程的自动化：
 - `pull-requests: write`（创建 PR）
 
 **并发控制**：不允许并发执行，新触发会等待旧任务完成
+
+**Secrets 要求**：
+
+- `NOTION_TOKEN`（必需）：Notion API 集成 token
+- `NOTION_DATABASE_ID`（必需）：Notion 数据库 ID
+- `DEEPSEEK_API_KEY`（可选）：仅当 `markdown_translate_provider` 为 `deepseek` 时需要
+
+> **注意**：定时任务（schedule）触发时，翻译功能默认关闭。如需启用翻译，请使用手动触发。
 
 > **Scripts 参数详情**：参见 [scripts/README.md](../scripts/README.md#notion-syncts)
 
@@ -110,6 +125,10 @@ CI 系统确保代码质量与部署流程的自动化：
 - `allow_overwrite`（可选，默认 false）：是否覆盖已存在的文章
 - `dry_run`（可选，默认 false）：预览模式，不实际写入文件
 - `use_first_image_as_cover`（可选，默认 true）：将正文首图作为封面
+- `markdown_translate_enabled`（可选，默认 false）：启用 Markdown 翻译
+- `markdown_translate_provider`（可选，默认 identity）：翻译提供商
+  - `identity`：不翻译，保持原文
+  - `deepseek`：使用 DeepSeek API 进行翻译（需配置 `DEEPSEEK_API_KEY` Secret）
 
 **执行流程**：
 
@@ -124,6 +143,10 @@ CI 系统确保代码质量与部署流程的自动化：
 - `pull-requests: write`
 
 **并发控制**：不允许并发执行
+
+**Secrets 要求**：
+
+- `DEEPSEEK_API_KEY`（可选）：仅当 `markdown_translate_provider` 为 `deepseek` 时需要
 
 > **Scripts 参数详情**：参见 [scripts/README.md](../scripts/README.md#content-importts)
 

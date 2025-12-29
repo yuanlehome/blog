@@ -22,6 +22,19 @@ on:
         required: false
         type: boolean
         default: true
+      markdown_translate_enabled:
+        description: 'Enable markdown translation'
+        required: false
+        type: boolean
+        default: false
+      markdown_translate_provider:
+        description: 'Translation provider to use'
+        required: false
+        type: choice
+        options:
+          - identity
+          - deepseek
+        default: identity
 
 permissions:
   contents: write
@@ -69,6 +82,9 @@ jobs:
           ALLOW_OVERWRITE: ${{ inputs.allow_overwrite && 'true' || 'false' }}
           DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
           USE_FIRST_IMAGE_AS_COVER: ${{ inputs.use_first_image_as_cover && 'true' || 'false' }}
+          MARKDOWN_TRANSLATE_ENABLED: ${{ inputs.markdown_translate_enabled && '1' || '0' }}
+          MARKDOWN_TRANSLATE_PROVIDER: ${{ inputs.markdown_translate_provider }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
           ARGS=()
           ARGS+=("--url" "$URL")
@@ -86,6 +102,8 @@ jobs:
           fi
 
           echo "Running: npm run import:content -- ${ARGS[*]}"
+          echo "Translation enabled: $MARKDOWN_TRANSLATE_ENABLED"
+          echo "Translation provider: $MARKDOWN_TRANSLATE_PROVIDER"
           npm run import:content -- "${ARGS[@]}"
 
       - name: Check for changes

@@ -172,7 +172,7 @@ function fixCodeFences(tree: Root): number {
 
 /**
  * Fix image captions by converting to Markdown-compatible format
- * 
+ *
  * Strategy: Keep Markdown image syntax and add caption as italic text below.
  * This avoids HTML figure tags which may not render correctly in Astro.
  */
@@ -196,7 +196,7 @@ function fixImageCaptions(tree: Root): number {
       // Check if next sibling is a potential caption
       if (nextSibling && nextSibling.type === 'paragraph' && isCaptionParagraph(nextSibling)) {
         const caption = extractTextFromNode(nextSibling);
-        
+
         // Convert the caption paragraph to italic emphasis
         const captionNode = {
           type: 'paragraph',
@@ -232,7 +232,7 @@ function fixImageCaptions(tree: Root): number {
 
 /**
  * Check if a paragraph looks like a caption
- * 
+ *
  * Captions typically:
  * - Start with "Figure", "Fig.", "Table", "Image", etc.
  * - Start with a number followed by colon (e.g., "1: Description")
@@ -259,13 +259,13 @@ function isCaptionParagraph(node: Paragraph): boolean {
 
   // Check for common caption patterns
   const captionPatterns = [
-    /^Figure\s+\d+/i,         // "Figure 1", "Figure 2:", etc.
-    /^Fig\.\s*\d+/i,           // "Fig. 1", "Fig.2:", etc.
-    /^Table\s+\d+/i,           // "Table 1", "Table 2:", etc.
-    /^Image\s+\d+/i,           // "Image 1", etc.
-    /^图\s*\d+/,               // Chinese "图1", "图 1", etc.
-    /^表\s*\d+/,               // Chinese "表1", "表 1", etc.
-    /^\d+[:.：]\s*/,          // Starts with number and colon "1: Description"
+    /^Figure\s+\d+/i, // "Figure 1", "Figure 2:", etc.
+    /^Fig\.\s*\d+/i, // "Fig. 1", "Fig.2:", etc.
+    /^Table\s+\d+/i, // "Table 1", "Table 2:", etc.
+    /^Image\s+\d+/i, // "Image 1", etc.
+    /^图\s*\d+/, // Chinese "图1", "图 1", etc.
+    /^表\s*\d+/, // Chinese "表1", "表 1", etc.
+    /^\d+[:.：]\s*/, // Starts with number and colon "1: Description"
   ];
 
   return captionPatterns.some((pattern) => pattern.test(text.trim()));
