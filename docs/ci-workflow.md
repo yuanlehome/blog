@@ -165,20 +165,6 @@ CI 系统确保代码质量与部署流程的自动化：
 - `markdown_translate_provider`（可选，默认 identity）：翻译提供商
   - `identity`：不翻译，保持原文
   - `deepseek`：使用 DeepSeek API 进行翻译（需配置 `DEEPSEEK_API_KEY` Secret）
-- `cookie`（可选，默认为空）：通用 Cookie 字符串，用于登录态/反爬场景
-  - **作用范围**：自动注入到所有 HTTP 请求头（包括浏览器上下文和图片下载）
-  - **安全机制**：
-    - Cookie 值会被自动 mask，不会出现在日志中
-    - 仅记录是否启用 Cookie 注入（true/false）
-    - 不会写入任何产物文件或 Markdown frontmatter
-  - **使用场景**：
-    - 绕过需要登录态的内容抓取（如知乎专栏的部分受限文章）
-    - 减少反爬验证码出现频率
-    - 适用于所有站点（zhihu/wechat/medium/others）
-  - **使用建议**：
-    - 仅在手动触发时使用
-    - 不要在公共环境或 fork PR 中使用
-    - Cookie 来自你自己的浏览器登录态
 
 **执行流程**：
 
