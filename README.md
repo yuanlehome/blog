@@ -177,8 +177,8 @@ npm run import:content -- --url="https://medium.com/@author/article-slug"
 **Optional Flags:**
 
 - `--allow-overwrite`: Allow overwriting existing article with same slug
-- `--preview`: Show extracted content without saving
-- `--cover-first-image`: Use first image as cover if no cover found
+- `--dry-run`: Show extracted content without saving
+- `--use-first-image-as-cover`: Use first image as cover if no cover found
 
 **What Happens:**
 
