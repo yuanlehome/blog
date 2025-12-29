@@ -45,12 +45,10 @@ test.describe('Blog smoke journey', () => {
       const copyButton = codeBlock.locator('button.code-block__copy');
       await expect(copyButton).toBeVisible();
       await copyButton.click();
-      
+
       // Wait for the button state to change to 'copied' or 'error'
-      await expect
-        .poll(async () => copyButton.getAttribute('data-state'))
-        .toBe('copied');
-      
+      await expect.poll(async () => copyButton.getAttribute('data-state')).toBe('copied');
+
       const clipboard = await page.evaluate(() => navigator.clipboard.readText());
       expect(clipboard).toBe(rawCode || '');
     } else {

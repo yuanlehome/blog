@@ -129,14 +129,57 @@ npm run notion:sync
 
 #### 功能
 
-从外部 URL（微信、知乎、Medium 等）导入文章，转换为 MDX 文件并下载所有图片。
+从外部 URL（知乎专栏、微信公众号、Medium 等）导入文章，转换为 MDX 文件并下载所有图片。使用可扩展的 **Adapter 架构**支持多平台。
 
 #### 使用场景
 
-- 导入微信公众号文章
 - 导入知乎专栏文章
+- 导入微信公众号文章
 - 导入 Medium 文章
 - 导入其他平台的 HTML 文章
+
+#### 支持的平台（Adapters）
+
+通过可扩展的 adapter 架构，`content-import` 支持以下平台：
+
+1. **Zhihu (知乎专栏)** - `zhuanlan.zhihu.com/p/*`
+   - 自动提取作者和发布日期
+   - 支持数学公式（LaTeX）
+   - 多次重试机制（应对反爬虫）
+   - 被拦截检测（登录页/验证码）
+   - URL 参数清理（去除追踪参数）
+
+2. **WeChat (微信公众号)** - `mp.weixin.qq.com/s/*`
+   - 处理懒加载图片（data-src 等）
+   - 图片占位符检测与过滤
+   - 重试机制（最多 5 次）
+   - Playwright 浏览器回退下载
+
+3. **Medium** - `*.medium.com/*`
+   - 提取作者和发布时间
+   - 保留平台特定元数据
+
+4. **Others (通用)** - 任何其他 URL
+   - 使用 Readability 算法提取正文
+   - 自动检测标题、作者、日期
+   - 作为兜底策略
+
+#### Adapter 架构说明
+
+所有平台适配器实现统一接口：
+
+```typescript
+interface Adapter {
+  id: 'zhihu' | 'medium' | 'wechat' | 'others';
+  name: string;
+  canHandle(url: string): boolean;  // URL 匹配规则
+  fetchArticle(input): Promise<Article>;  // 统一抓取接口
+}
+```
+
+**优先级**：Zhihu → Medium → WeChat → Others（兜底）
+
+**扩展性**：新增平台只需实现 `Adapter` 接口并注册到 registry。
 
 #### 输入
 
@@ -148,7 +191,7 @@ npm run notion:sync
 
 - `--allow-overwrite`：允许覆盖已存在的同 slug 文章（默认：不覆盖，会报错）
 - `--dry-run`：预览模式，不实际写入文件，仅输出将要执行的操作
-- `--use-first-image-as-cover`：如果文章没有封面，使用正文第一张图片作为封面（默认：启用）
+- `--use-first-image-as-cover`：如果文章没有封面，使用正文第一张图片作为封面（默认：`false`）
 
 **环境变量**（可替代命令行参数）：
 
@@ -168,31 +211,24 @@ npm run notion:sync
 
 #### 输出目录
 
-- **MDX 文件**：`src/content/blog/<platform>/<slug>.mdx`
-  - `<platform>` 根据 URL 自动识别：`wechat`、`zhihu`、`medium`、`others`
-- **图片文件**：`public/images/<platform>/<slug>/<imageId>.<ext>`
-
-#### 参数详解（100% 与源码一致）
-
-根据源码 `scripts/content-import.ts` 第 679-700 行：
-
-| 参数名称                     | 源码位置   | 类型    | 默认值  | 说明                                                      |
-| ---------------------------- | ---------- | ------- | ------- | --------------------------------------------------------- |
-| `--url`                      | 行 680-687 | string  | 无      | 文章 URL（必填）。支持 `--url=<value>` 或 `--url <value>` |
-| `--allow-overwrite`          | 行 689-690 | boolean | `false` | 是否允许覆盖已存在文章                                    |
-| `--dry-run`                  | 行 692     | boolean | `false` | 预览模式，不写入文件                                      |
-| `--use-first-image-as-cover` | 行 694-695 | boolean | `false` | 将正文首图作为封面（如果没有封面）                        |
-
-**注意**：源码中 `use-first-image-as-cover` 默认值为 `false`，但在实际使用中通常启用。
+- **Markdown 文件**：`src/content/blog/<adapter-id>/<slug>.md`
+  - `<adapter-id>` 根据 URL 自动识别：`zhihu`、`wechat`、`medium`、`others`
+- **图片文件**：`public/images/<adapter-id>/<slug>/<imageId>.<ext>`
 
 #### 使用方法
 
 ```bash
-# 基本用法：导入微信文章
+# 导入知乎专栏文章（推荐使用示例）
+npm run import:content -- --url="https://zhuanlan.zhihu.com/p/668888063"
+
+# 导入微信公众号文章
 npm run import:content -- --url="https://mp.weixin.qq.com/s/Pe5rITX7srkWOoVHTtT4yw"
 
-# 导入知乎文章
-npm run import:content -- --url="https://zhuanlan.zhihu.com/p/123456789"
+# 导入 Medium 文章
+npm run import:content -- --url="https://medium.com/@user/article-title"
+
+# 导入任意网站文章（通用）
+npm run import:content -- --url="https://example.com/article"
 
 # 覆盖已存在的文章
 npm run import:content -- --url="<URL>" --allow-overwrite
@@ -206,44 +242,138 @@ npm run import:content -- --url="<URL>" --use-first-image-as-cover
 
 #### 执行流程
 
-1. 根据 URL 识别平台（微信、知乎、Medium、其他）
-2. 启动 Playwright 无头浏览器访问 URL
-3. 提取文章元数据（标题、作者、发布时间）
-4. 提取文章 HTML 内容
-5. 下载所有图片到 `public/images/<platform>/<slug>/`
-6. 将 HTML 转换为 Markdown（使用 rehype/remark 管道）
-7. 生成 frontmatter（标题、日期、作者、封面等）
-8. 通过 markdown pipeline 自动处理（翻译、代码语言检测、数学公式修正等）
-9. 写入 MDX 文件到 `src/content/blog/<platform>/<slug>.mdx`
-10. 运行 `npm run lint` 格式化
+1. **URL 解析**：根据 URL 自动选择最佳 adapter
+2. **浏览器启动**：Playwright 无头浏览器访问目标 URL
+3. **内容提取**：adapter 执行平台特定的提取逻辑
+4. **HTML→Markdown**：统一转换为 Markdown（保留结构）
+5. **图片下载**：下载并本地化所有图片
+6. **后处理**：通过 markdown pipeline 增强
+   - 语言检测与翻译（可选）
+   - 代码块语言推断
+   - 图片 caption 规范化（斜体文本）
+   - 数学公式修正
+   - 格式清理
+7. **文件生成**：写入 `src/content/blog/<adapter-id>/<slug>.md`
+8. **格式化**：自动运行 `npm run lint`
 
-#### 平台特性
+#### 平台特性详解
 
-**微信（WeChat）**：
+##### 知乎专栏（Zhihu）
 
-- 处理图片占位符（防止下载失败）
+**URL 模式**：`https://zhuanlan.zhihu.com/p/<article-id>`
+
+**关键特性**：
+- 多 selector 容错提取（`.Post-RichText`, `.RichText`, `article` 等）
+- URL 参数清理（去除 `utm_*`, `share_code` 等追踪参数）
+- 反爬虫应对：
+  - 登录页检测
+  - 验证码检测
+  - 自动重试（最多 3 次，指数退避）
+- 数学公式支持：
+  - `<span class="ztext-math">` → `$...$` 或 `$$...$$`
+  - LaTeX 公式保持不变
+- 图片处理：
+  - 提取真实 URL（data-original/data-actualsrc/srcset）
+  - 禁止生成 HTML `<figure>` 标签
+  - Caption 使用 Markdown 斜体文本（`*图1：...*`）
+
+**验收样例**：`https://zhuanlan.zhihu.com/p/668888063`
+
+##### 微信公众号（WeChat）
+
+**URL 模式**：`https://mp.weixin.qq.com/s/*`
+
+**关键特性**：
+- 懒加载图片处理（优先级：data-src → data-original → data-backup-src → src）
+- 占位符检测：
+  - 文件大小阈值（< 60KB）
+  - 图片尺寸阈值（< 200x150px）
+  - Sharp 图片元数据验证
 - 重试机制（最多 5 次，指数退避）
-- 浏览器回退下载（对付顽固图片）
-- 占位符检测（通过文件大小和图片尺寸）
+- Playwright 浏览器回退下载（应对防盗链）
+- 并发限制（最多 2 个并发请求）
+- 随机延迟（150-400ms）
 
-**知乎（Zhihu）**：
+##### Medium
 
-- 提取作者和发布日期
-- 处理知乎特有的 DOM 结构
+**URL 模式**：`*.medium.com/*`
 
-**Medium**：
+**关键特性**：
+- 等待 `article` 元素加载
+- 提取作者元数据（meta[name="author"]）
+- 提取发布时间（meta[property="article:published_time"]）
 
-- 类似知乎，提取平台特定元数据
+##### 其他平台（Others）
 
-**其他平台**：
+**URL 模式**：任意 URL（兜底）
 
-- 通用 HTML 提取逻辑
-- 自动检测标题、作者、日期
+**关键特性**：
+- Readability 算法提取正文
+- 自动检测主内容区域
+- 去除噪声元素（导航、页脚、评论、广告）
+- 智能提取 `title`, `author`, `published`, `updated`
+
+#### 图片 Caption 策略
+
+**重要**：所有 adapter 统一使用 **Markdown 原生格式** 表达图片 caption，不生成 HTML `<figure>` 标签。
+
+**原因**：HTML figure 标签可能导致 Astro 渲染崩溃，影响页面可用性。
+
+**格式**：
+
+```markdown
+![图片描述](image-url)
+
+*图1：这是图片说明文字*
+```
+
+**实现**：
+- 在 `markdown-processor.ts` 的 `fixImageCaptions` 函数中统一处理
+- 检测图片后紧跟的短文本（≤ 120 字符）
+- 自动转换为 `emphasis` 节点（Markdown 斜体）
+
+#### 常见问题
+
+**Q1：为什么知乎文章导入失败？**
+
+A：可能原因：
+- 知乎反爬虫拦截（需要重试）
+- 文章需要登录查看（无法导入）
+- DOM 结构变化（联系维护者更新 selector）
+
+**Q2：微信图片下载失败怎么办？**
+
+A：自动启用 Playwright 浏览器回退下载，无需手动干预。如仍失败，可能是：
+- 防盗链策略更新
+- 图片已被删除
+- 网络问题
+
+**Q3：如何添加新平台支持？**
+
+A：实现 `Adapter` 接口并注册：
+
+```typescript
+// scripts/import/adapters/my-platform.ts
+export const myPlatformAdapter: Adapter = {
+  id: 'my-platform',
+  name: 'My Platform',
+  canHandle: (url) => url.includes('myplatform.com'),
+  fetchArticle: async (input) => {
+    // 平台特定抓取逻辑
+    return { title, markdown, canonicalUrl, source: 'my-platform', ... };
+  }
+};
+
+// scripts/import/adapters/index.ts
+import { myPlatformAdapter } from './my-platform.js';
+adapterRegistry.register(myPlatformAdapter);
+```
 
 ⚠️ **重要**：
 
 - 导入的文章应在原平台编辑，或使用 `--allow-overwrite` 本地编辑后覆盖
 - 重新导入会覆盖本地修改（除非不使用 `--allow-overwrite`）
+- 所有 adapter 必须输出 Markdown 格式，不要输出 HTML figure 标签
 
 ---
 

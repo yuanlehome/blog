@@ -19,6 +19,7 @@ import readline from 'readline';
 import { ARTIFACTS_DIR, BLOG_CONTENT_DIR, PUBLIC_IMAGES_DIR } from '../src/config/paths';
 import { slugFromTitle } from '../src/lib/slug';
 import { processMarkdownForImport } from './markdown/index.js';
+import { resolveAdapter } from './import/adapters/index.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -38,12 +39,6 @@ type ExtractedArticle = {
   html: string;
   baseUrl?: string;
   sourceTitle?: string;
-};
-
-type Provider = {
-  name: string;
-  match: (url: string) => boolean;
-  extract: (page: Page, url: string) => Promise<ExtractedArticle>;
 };
 
 const CONTENT_ROOT = BLOG_CONTENT_DIR;
@@ -1158,420 +1153,83 @@ async function withBrowser<T>(fn: (context: BrowserContext) => Promise<T>) {
   }
 }
 
-/**
- * Wait for content with three-phase strategy:
- * 1. Wait for selector to be attached to DOM
- * 2. Wait for content to have meaningful text
- */
-async function waitForContent(
-  page: Page,
-  selectors: string[],
-  options: { minTextLength?: number; timeout?: number } = {},
-): Promise<void> {
-  const { minTextLength = MIN_CONTENT_LENGTH, timeout = CONTENT_WAIT_TIMEOUT } = options;
-  const startTime = Date.now();
-
-  for (const selector of selectors) {
-    try {
-      // Phase 1: Wait for element to be attached (not necessarily visible)
-      await page.waitForSelector(selector, { state: 'attached', timeout: 5000 });
-
-      // Phase 2: Wait for element to have meaningful content
-      await page.waitForFunction(
-        ({ sel, minLen }) => {
-          const el = document.querySelector(sel);
-          if (!el) return false;
-          const text = el.textContent?.trim() || '';
-          return text.length >= minLen;
-        },
-        { sel: selector, minLen: minTextLength },
-        { timeout: Math.max(5000, timeout - (Date.now() - startTime)) },
-      );
-
-      // Success!
-      return;
-    } catch (error) {
-      // Try next selector
-      continue;
-    }
-  }
-
-  // All selectors failed
-  throw new Error(
-    `Zhihu DOM structure changed: None of the expected content selectors found: ${selectors.join(', ')}`,
-  );
-}
-
-/**
- * Enhanced Zhihu extraction with retry logic and comprehensive error handling
- */
-async function extractZhihuWithRetry(
-  page: Page,
-  url: string,
-  maxRetries = MAX_RETRIES,
-): Promise<ExtractedArticle> {
-  // Sanitize URL first
-  const sanitizedUrl = sanitizeZhihuUrl(url);
-  console.log(`Sanitized URL: ${sanitizedUrl}`);
-
-  const logs: { type: string; text: string; timestamp: number }[] = [];
-
-  // Setup logging listeners
-  page.on('console', (msg) => {
-    logs.push({ type: 'console', text: msg.text(), timestamp: Date.now() });
-  });
-  page.on('pageerror', (error) => {
-    logs.push({ type: 'error', text: error.message, timestamp: Date.now() });
-  });
-  page.on('response', (response) => {
-    if (isFromDomain(response.url(), 'zhihu.com')) {
-      logs.push({
-        type: 'response',
-        text: `${response.status()} ${response.url()}`,
-        timestamp: Date.now(),
-      });
-    }
-  });
-
-  let lastError: Error | null = null;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`Attempt ${attempt}/${maxRetries} to extract from ${sanitizedUrl}`);
-
-      // Phase 1: Navigate with domcontentloaded
-      await page.goto(sanitizedUrl, {
-        waitUntil: 'domcontentloaded',
-        timeout: 60000,
-      });
-
-      // Small delay to let JS initialize
-      await page.waitForTimeout(JS_INITIALIZATION_DELAY);
-
-      // Check for blocked page
-      const blockReason = await detectBlockedPage(page);
-      if (blockReason) {
-        throw new Error(blockReason);
-      }
-
-      // Phase 2 & 3: Wait for content with robust selectors
-      const contentSelectors = [
-        '.Post-RichText',
-        '.RichText',
-        'article',
-        '.ztext',
-        '[data-za-detail-view-element_name="Article"]',
-        '.Post-Main .RichContent',
-      ];
-
-      await waitForContent(page, contentSelectors, {
-        minTextLength: MIN_CONTENT_LENGTH,
-        timeout: CONTENT_WAIT_TIMEOUT,
-      });
-
-      // Extract content
-      const result = await page.evaluate(() => {
-        const pickText = (selectors: string[]) => {
-          for (const sel of selectors) {
-            const el = document.querySelector(sel);
-            const text = el?.textContent?.trim();
-            if (text) return text;
-          }
-          return '';
-        };
-
-        const pickMeta = (selectors: string[]) => {
-          for (const sel of selectors) {
-            const meta = document.querySelector(sel) as HTMLMetaElement | null;
-            const content = meta?.getAttribute('content')?.trim();
-            if (content) return content;
-          }
-          return '';
-        };
-
-        const contentSelectors = [
-          '.Post-RichText',
-          '.RichText',
-          'article',
-          '.ztext',
-          '[data-za-detail-view-element_name="Article"]',
-          '.Post-Main .RichContent',
-        ];
-        let html = '';
-        for (const sel of contentSelectors) {
-          const el = document.querySelector(sel);
-          if (el) {
-            html = (el as HTMLElement).innerHTML;
-            break;
-          }
-        }
-
-        return {
-          title:
-            pickText(['h1.Post-Title', 'h1.RichText-Title', '.Post-Title', 'h1']) ||
-            document.title ||
-            'Zhihu Article',
-          author:
-            pickMeta(['meta[name="author"]']) ||
-            pickText(['.AuthorInfo-name', '.ContentItem-author .UserLink-link', '.UserLink-link']),
-          published: pickMeta([
-            'meta[itemprop="datePublished"]',
-            'meta[property="article:published_time"]',
-            'meta[name="publish_date"]',
-          ]),
-          html,
-        };
-      });
-
-      if (!result.html?.trim()) {
-        throw new Error('Zhihu DOM structure changed: Failed to extract article content');
-      }
-
-      console.log(`Successfully extracted article: ${result.title}`);
-      return { ...result, baseUrl: sanitizedUrl };
-    } catch (error) {
-      lastError = error as Error;
-      console.error(`Attempt ${attempt} failed:`, error);
-
-      // Save artifacts on last attempt
-      if (attempt === maxRetries) {
-        console.error('All retry attempts exhausted. Saving debug artifacts...');
-        await saveDebugArtifacts(page, sanitizedUrl, lastError, logs);
-      } else {
-        // Exponential backoff: wait before retry
-        const backoffMs = Math.min(BASE_BACKOFF_MS * Math.pow(2, attempt - 1), MAX_BACKOFF_MS);
-        console.log(`Waiting ${backoffMs}ms before retry...`);
-        await page.waitForTimeout(backoffMs);
-      }
-    }
-  }
-
-  // All retries failed
-  throw lastError || new Error('Failed to extract Zhihu article after all retries');
-}
-
-const providers: Provider[] = [
-  {
-    name: 'zhihu',
-    match: (url) => isFromDomain(url, 'zhihu.com'),
-    extract: async (page, url) => {
-      return extractZhihuWithRetry(page, url);
-    },
-  },
-  {
-    name: 'medium',
-    match: (url) => isFromDomain(url, 'medium.com'),
-    extract: async (page, url) => {
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 120000 });
-      await page.waitForSelector('article', { timeout: 30000 });
-
-      const origin = new URL(url).origin;
-      const result = await page.evaluate(() => {
-        const pickMeta = (selectors: string[]) => {
-          for (const sel of selectors) {
-            const meta = document.querySelector(sel) as HTMLMetaElement | null;
-            const content = meta?.getAttribute('content')?.trim();
-            if (content) return content;
-          }
-          return '';
-        };
-
-        const article = document.querySelector('article');
-        return {
-          title:
-            document.querySelector('h1')?.textContent?.trim() || document.title || 'Medium Article',
-          author:
-            pickMeta(['meta[name="author"]']) ||
-            document.querySelector('a[rel="author"]')?.textContent?.trim() ||
-            '',
-          published: pickMeta([
-            'meta[property="article:published_time"]',
-            'meta[name="publish_date"]',
-            'meta[name="date"]',
-          ]),
-          html: (article as HTMLElement | null)?.innerHTML || '',
-        };
-      });
-
-      if (!result.html?.trim()) {
-        throw new Error('Failed to extract article content.');
-      }
-
-      return { ...result, baseUrl: origin };
-    },
-  },
-  {
-    name: 'wechat',
-    match: (url) => isFromDomain(url, 'mp.weixin.qq.com'),
-    extract: async (page, url) => {
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 120000 });
-      await page.waitForSelector('#js_content, .rich_media_content', { timeout: 30000 });
-
-      // Fix lazy-loaded images: replace data:image/svg+xml placeholders with actual URLs
-      // This ensures real image URLs (https://mmbiz.qpic.cn/...) are captured in the HTML
-      await page.evaluate(() => {
-        const root =
-          document.querySelector('#js_content') || document.querySelector('.rich_media_content');
-        if (root) {
-          const images = root.querySelectorAll('img');
-          for (const img of images) {
-            // Priority order for WeChat lazy-loaded images
-            const realUrl =
-              img.getAttribute('data-src') ||
-              img.getAttribute('data-original') ||
-              img.getAttribute('data-backup-src') ||
-              img.getAttribute('data-actualsrc') ||
-              img.getAttribute('data-actual-url');
-
-            // Replace placeholder with actual URL if found
-            if (realUrl && /^https?:\/\//i.test(realUrl)) {
-              img.setAttribute('src', realUrl);
-              // Clean up lazy-load attributes to avoid confusion
-              img.removeAttribute('data-src');
-              img.removeAttribute('data-original');
-              img.removeAttribute('data-backup-src');
-            }
-          }
-        }
-      });
-
-      const result = await page.evaluate(() => {
-        const content =
-          (document.querySelector('#js_content') as HTMLElement | null) ||
-          (document.querySelector('.rich_media_content') as HTMLElement | null);
-        return {
-          title:
-            document.querySelector('#activity-name')?.textContent?.trim() ||
-            document.querySelector('h1')?.textContent?.trim() ||
-            document.title ||
-            'WeChat Article',
-          author:
-            document.querySelector('#js_name')?.textContent?.trim() ||
-            document.querySelector('.profile_nickname')?.textContent?.trim() ||
-            '',
-          published: document.querySelector('#publish_time')?.textContent?.trim() || '',
-          html: content?.innerHTML || '',
-        };
-      });
-
-      if (!result.html?.trim()) {
-        throw new Error('Failed to extract article content.');
-      }
-
-      return { ...result, baseUrl: 'https://mp.weixin.qq.com' };
-    },
-  },
-  {
-    name: 'others',
-    match: () => true,
-    extract: async (page, url) => {
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 120000 });
-      const content = await page.content();
-      const article = extractArticleFromHtml(content, url);
-
-      if (!article.html?.trim()) {
-        throw new Error('Failed to extract article content.');
-      }
-
-      return {
-        title: article.title,
-        author: article.author,
-        published: article.published,
-        updated: article.updated,
-        html: article.html,
-        baseUrl: article.baseUrl || new URL(url).origin,
-        sourceTitle: article.sourceTitle,
-      };
-    },
-  },
-];
-
-async function fetchArticle(provider: Provider, url: string) {
-  return withBrowser(async (context) => {
-    const page = await context.newPage();
-    return provider.extract(page, url);
-  });
-}
-
 async function main() {
   const options = await parseArgs();
   const targetUrl = options.url;
-  const provider = providers.find((p) => p.match(targetUrl));
 
-  if (!provider) {
-    throw new Error('No provider matched the given URL.');
+  // Resolve adapter for URL
+  const adapter = resolveAdapter(targetUrl);
+
+  if (!adapter) {
+    throw new Error(`No adapter matched the given URL: ${targetUrl}`);
   }
 
-  const contentDir = path.join(CONTENT_ROOT, provider.name);
-  const imageRoot = path.join(IMAGE_ROOT, provider.name);
+  console.log(`Using adapter: ${adapter.name} (${adapter.id})`);
+
+  const contentDir = path.join(CONTENT_ROOT, adapter.id);
+  const imageRoot = path.join(IMAGE_ROOT, adapter.id);
   fs.mkdirSync(contentDir, { recursive: true });
   fs.mkdirSync(imageRoot, { recursive: true });
 
-  const { title, author, published, updated, html, baseUrl, sourceTitle } = await fetchArticle(
-    provider,
-    targetUrl,
-  );
-
   // Generate slug from title or URL path as fallback
   const urlPath = new URL(targetUrl).pathname.split('/').filter(Boolean).pop() || '';
+  const tempSlug = `${adapter.id}-${urlPath || Date.now()}`;
+
+  // Fetch article using adapter
+  const article = await withBrowser(async (context) => {
+    const page = await context.newPage();
+    return adapter.fetchArticle({
+      url: targetUrl,
+      page,
+      options: {
+        slug: tempSlug,
+        imageRoot,
+        publicBasePath: `/images/${adapter.id}/${tempSlug}`,
+        downloadImage: options.dryRun ? async () => null : undefined,
+      },
+    });
+  });
+
+  // Generate final slug from article title
   const slug = slugFromTitle({
-    title,
-    fallbackId: urlPath || `${provider.name}-${Date.now()}`,
+    title: article.title,
+    fallbackId: urlPath || `${adapter.id}-${Date.now()}`,
   });
 
-  const { markdown, images } = await htmlToMdx(html, {
-    slug,
-    provider: provider.name,
-    baseUrl: baseUrl || targetUrl,
-    imageRoot,
-    articleUrl: targetUrl, // Pass article URL for Playwright fallback
-    publicBasePath: `/images/${provider.name}/${slug}`,
-    downloadImage: options.dryRun ? async () => null : undefined,
-  });
-
-  // Safety check: Ensure no WeChat lazy-load placeholders in final markdown
-  // This prevents publishing articles with broken image placeholders
-  if (provider.name === 'wechat' && /data:image\/svg\+xml/i.test(markdown)) {
-    throw new Error(
-      'WeChat image placeholder detected (data:image/svg+xml) in generated markdown. ' +
-        'Image extraction failed - real image URLs were not properly captured from lazy-loaded attributes.',
-    );
-  }
-
-  const publishedDate = published ? new Date(published) : new Date();
+  const publishedDate = article.publishedAt ? new Date(article.publishedAt) : new Date();
   const safeDate = Number.isNaN(publishedDate.valueOf()) ? new Date() : publishedDate;
-  const parsedUpdated = updated ? new Date(updated) : null;
+  const parsedUpdated = article.updatedAt ? new Date(article.updatedAt) : null;
   const safeUpdatedDate =
     parsedUpdated && !Number.isNaN(parsedUpdated.valueOf()) ? parsedUpdated : null;
 
   const frontmatter: Record<string, any> = {
-    title: title || 'Imported Article',
+    title: article.title || 'Imported Article',
     slug: slug,
     date: safeDate.toISOString().split('T')[0],
-    tags: [],
+    tags: article.tags || [],
     status: 'published',
-    source_url: targetUrl,
-    source_author: author || sourceTitle || provider.name,
+    source_url: article.canonicalUrl,
+    source_author: article.author || new URL(targetUrl).hostname,
     imported_at: new Date().toISOString(),
     source: {
-      title: sourceTitle || new URL(targetUrl).hostname,
-      url: targetUrl,
+      title: new URL(targetUrl).hostname,
+      url: article.canonicalUrl,
     },
     ...(safeUpdatedDate ? { updated: safeUpdatedDate.toISOString().split('T')[0] } : {}),
   };
 
   console.log(`The --use-first-image-as-cover option is ${options.useFirstImageAsCover}.`);
-  if (options.useFirstImageAsCover && images[0]) {
-    frontmatter.cover = images[0];
+  if (options.useFirstImageAsCover && article.images && article.images[0]?.localPath) {
+    frontmatter.cover = article.images[0].localPath;
   }
 
-  let fileContent = matter.stringify(markdown, frontmatter);
+  let fileContent = matter.stringify(article.markdown, frontmatter);
 
   // Apply markdown enhancements (translation, code fence fix, etc.)
   if (!options.dryRun) {
     try {
       const processed = await processMarkdownForImport(
-        { markdown: fileContent, slug, source: provider.name },
+        { markdown: fileContent, slug, source: adapter.id },
         {
           enableTranslation: true,
           enableCodeFenceFix: true,
