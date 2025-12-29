@@ -423,15 +423,93 @@ npm run delete:article -- --target=my-article-slug --delete-images --dry-run
 - `MARKDOWN_TRANSLATE_PROVIDER`：翻译提供商
   - `mock`：测试用翻译器（默认）
   - `identity`/`none`：不翻译，保持原文
-  - 未来支持：`openai`、`deepseek`、`claude` 等
+  - `deepseek`：使用 DeepSeek 真实翻译（需配置 API key）
 
 **配置示例**：
 
 ```bash
-# .env.local
+# .env.local - 测试环境
 MARKDOWN_TRANSLATE_ENABLED=1
 MARKDOWN_TRANSLATE_PROVIDER=mock
+
+# .env.local - 生产环境（使用 DeepSeek）
+MARKDOWN_TRANSLATE_ENABLED=1
+MARKDOWN_TRANSLATE_PROVIDER=deepseek
+DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxx
 ```
+
+#### DeepSeek 翻译提供商
+
+**功能特性**：
+
+- 使用 DeepSeek 最先进模型进行高质量翻译
+- AST + JSON patch 策略，严格保护代码和 URL
+- 自动分批处理长文档
+- 并发控制和超时保护
+- 失败自动降级（保留原文）
+- 可选的文件缓存（避免重复翻译）
+
+**环境变量配置**：
+
+| 变量名                        | 必需 | 默认值                      | 说明                               |
+| ----------------------------- | ---- | --------------------------- | ---------------------------------- |
+| `DEEPSEEK_API_KEY`            | 是   | 无                          | DeepSeek API 密钥                  |
+| `DEEPSEEK_MODEL`              | 否   | `deepseek-chat`             | DeepSeek 模型名称                  |
+| `DEEPSEEK_BASE_URL`           | 否   | `https://api.deepseek.com`  | DeepSeek API 基础 URL              |
+| `DEEPSEEK_REQUEST_TIMEOUT_MS` | 否   | `60000`                     | 请求超时时间（毫秒）               |
+| `DEEPSEEK_MAX_BATCH_CHARS`    | 否   | `6000`                      | 单批次最大字符数                   |
+| `DEEPSEEK_MAX_CONCURRENCY`    | 否   | `2`                         | 最大并发请求数                     |
+| `DEEPSEEK_CACHE_ENABLED`      | 否   | `1`                         | 是否启用缓存（`1` 启用，`0` 禁用） |
+| `DEEPSEEK_CACHE_DIR`          | 否   | `.cache/markdown-translate` | 缓存目录路径                       |
+
+**使用方法**：
+
+```bash
+# 1. 配置环境变量（.env.local）
+MARKDOWN_TRANSLATE_ENABLED=1
+MARKDOWN_TRANSLATE_PROVIDER=deepseek
+DEEPSEEK_API_KEY=sk-your-api-key-here
+DEEPSEEK_MODEL=deepseek-chat
+
+# 2. 导入或同步内容（自动使用 DeepSeek 翻译）
+npm run notion:sync
+# 或
+npm run import:content -- --url="https://example.com/article"
+
+# 3. 查看翻译诊断信息（输出示例）
+Enhanced my-article:
+  - Translated from en (provider: deepseek, model: deepseek-chat)
+  - Batches: 3, Success: 3, Failed: 0, Cache hits: 0
+  - Fixed 2 code fences
+  - Fixed 1 image captions
+```
+
+**翻译策略**：
+
+DeepSeek 翻译器遵循严格的翻译规则：
+
+1. **严格 JSON 输出**：要求模型返回 `{"patches": {"node-id": "译文", ...}}` 格式
+2. **保护代码和特殊内容**：
+   - 不翻译代码块、行内代码
+   - 不翻译 URL、路径、变量名、函数名
+   - 保留 frontmatter 不变
+3. **技术术语处理**：首次出现使用"中文（English）"，后续只用中文
+4. **失败降级**：任何批次失败都回退为原文，不影响其他部分
+5. **缓存优化**：相同内容不重复翻译，节省 API 费用
+
+**安全性**：
+
+- API key 不会在日志中打印
+- 日志只包含 provider、model、批次数、失败原因（不含文章内容）
+- 缓存文件存储在本地 `.cache/` 目录（已加入 `.gitignore`）
+
+**注意事项**：
+
+- **CI/测试环境**：默认不使用 DeepSeek（避免产生 API 费用），使用 `mock` 翻译器
+- **本地开发**：需手动配置 `DEEPSEEK_API_KEY` 才能使用
+- **网络依赖**：DeepSeek 翻译需要互联网连接，若请求失败会自动降级
+- **成本控制**：启用缓存（默认启用）可避免重复翻译相同内容
+- **模型选择**：`deepseek-chat` 为推荐模型，成本和质量平衡较好
 
 #### 功能详解
 

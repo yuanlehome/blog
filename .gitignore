@@ -23,6 +23,9 @@ pnpm-debug.log*
 # trae cache
 .trae
 
+# translation cache
+.cache/
+
 # macOS
 .DS_Store
 
