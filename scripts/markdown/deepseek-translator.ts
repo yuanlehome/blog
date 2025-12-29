@@ -160,6 +160,7 @@ export class DeepSeekTranslator implements Translator {
     };
 
     // Ensure cache directory exists if caching is enabled
+    // This is done early to catch filesystem issues before making API calls
     if (this.config.cacheEnabled && this.config.cacheDir) {
       this.ensureCacheDir();
     }
@@ -462,7 +463,7 @@ Remember: Output only valid JSON, no markdown or explanations.`;
       for (const nodeId of expectedNodeIds) {
         if (!(nodeId in parsed.patches)) {
           console.warn(`DeepSeek response missing node: ${nodeId}`);
-          // Add original text as fallback
+          // Add empty string since we don't have access to original text here
           parsed.patches[nodeId] = '';
         }
 
@@ -530,8 +531,13 @@ Remember: Output only valid JSON, no markdown or explanations.`;
       const cachePath = path.join(this.config.cacheDir, `${cacheKey}.json`);
       fs.writeFileSync(cachePath, JSON.stringify(patches, null, 2), 'utf-8');
     } catch (error) {
-      // Silent fail - caching is optional
-      console.warn('Failed to cache translation:', error instanceof Error ? error.message : error);
+      // Fail silently - caching is optional, log for debugging only
+      if (process.env.DEBUG) {
+        console.warn(
+          'Failed to cache translation:',
+          error instanceof Error ? error.message : error,
+        );
+      }
     }
   }
 
