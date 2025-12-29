@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getReadingTime } from '../../src/utils/readingTime';
+import { getReadingTime } from '../../src/lib/content/readingTime';
 
 describe('reading time', () => {
   it('counts mixed language tokens and strips html', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { resolveAssetUrl } from '../../src/utils/assetUrl';
+import { resolveAssetUrl } from '../../src/lib/site/assetUrl';
 
 describe('resolveAssetUrl', () => {
   const originalEnv = import.meta.env.BASE_URL;

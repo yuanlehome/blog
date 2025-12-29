@@ -2,7 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
-import { getPublishedPosts, groupByYearMonth } from '../utils/posts';
+import { getPublishedPosts, groupByYearMonth } from '../lib/content/posts';
 import { buildPostUrl } from '../lib/slug';
 
 const posts = await getPublishedPosts();
