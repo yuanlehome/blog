@@ -659,6 +659,13 @@ async function downloadImageViaHttp(
 ): Promise<{ buffer: Buffer; contentType: string } | null> {
   const maxRetries = config.maxRetries || MAX_RETRIES;
 
+  // Read cookie from environment and inject into headers if present
+  const importCookie = process.env.IMPORT_COOKIE || '';
+  const requestHeaders = { ...config.headers };
+  if (importCookie.trim().length > 0) {
+    requestHeaders['Cookie'] = importCookie;
+  }
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       // Rate limiting for WeChat
@@ -667,7 +674,7 @@ async function downloadImageViaHttp(
       }
 
       const res = await fetch(url, {
-        headers: config.headers,
+        headers: requestHeaders,
         signal: AbortSignal.timeout(30000), // 30s timeout
       });
 
@@ -1136,14 +1143,31 @@ export async function htmlToMdx(
 
 async function withBrowser<T>(fn: (context: BrowserContext) => Promise<T>) {
   const browser = await chromium.launch({ headless: true });
+
+  // Read cookie from environment
+  const importCookie = process.env.IMPORT_COOKIE || '';
+  const hasCookie = importCookie.trim().length > 0;
+
+  // Log cookie injection status without exposing value
+  if (hasCookie) {
+    console.log('Cookie injection enabled for HTTP requests');
+  }
+
+  // Prepare extra headers with cookie if available
+  const extraHeaders: Record<string, string> = {
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+  };
+
+  if (hasCookie) {
+    extraHeaders['Cookie'] = importCookie;
+  }
+
   const context = await browser.newContext({
     userAgent:
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     locale: 'zh-CN',
     viewport: { width: 1920, height: 1080 },
-    extraHTTPHeaders: {
-      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-    },
+    extraHTTPHeaders: extraHeaders,
   });
   try {
     return await fn(context);

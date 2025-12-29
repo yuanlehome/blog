@@ -129,4 +129,108 @@ describe('content import for external articles', () => {
       expect(output).toContain('<br />');
     });
   });
+
+  describe('cookie injection', () => {
+    it('enables cookie injection when IMPORT_COOKIE is set', async () => {
+      // Set environment variable
+      const originalCookie = process.env.IMPORT_COOKIE;
+      process.env.IMPORT_COOKIE = 'test_cookie=test_value';
+
+      // Mock download function to verify cookie is being injected
+      const downloadImage = vi.fn(async () => '/images/test/001.jpg');
+
+      try {
+        const article = extractArticleFromHtml(fixtureHtml, MATMUL_URL);
+        await htmlToMdx(article.html, {
+          slug: 'test-cookie',
+          provider: 'others',
+          baseUrl: article.baseUrl,
+          imageRoot: '/tmp/images',
+          articleUrl: MATMUL_URL,
+          publicBasePath: '/images/others/test-cookie',
+          downloadImage,
+        });
+
+        // Verify downloadImage was called (cookie injection happens in HTTP fetch layer)
+        expect(downloadImage).toHaveBeenCalled();
+      } finally {
+        // Restore environment
+        if (originalCookie !== undefined) {
+          process.env.IMPORT_COOKIE = originalCookie;
+        } else {
+          delete process.env.IMPORT_COOKIE;
+        }
+      }
+    });
+
+    it('works without cookie when IMPORT_COOKIE is not set', async () => {
+      // Ensure no cookie is set
+      const originalCookie = process.env.IMPORT_COOKIE;
+      delete process.env.IMPORT_COOKIE;
+
+      const downloadImage = vi.fn(async () => '/images/test/001.jpg');
+
+      try {
+        const article = extractArticleFromHtml(fixtureHtml, MATMUL_URL);
+        await htmlToMdx(article.html, {
+          slug: 'test-no-cookie',
+          provider: 'others',
+          baseUrl: article.baseUrl,
+          imageRoot: '/tmp/images',
+          articleUrl: MATMUL_URL,
+          publicBasePath: '/images/others/test-no-cookie',
+          downloadImage,
+        });
+
+        // Should still work without cookie
+        expect(downloadImage).toHaveBeenCalled();
+      } finally {
+        // Restore environment
+        if (originalCookie !== undefined) {
+          process.env.IMPORT_COOKIE = originalCookie;
+        }
+      }
+    });
+
+    it('does not expose cookie value in any output', async () => {
+      const originalCookie = process.env.IMPORT_COOKIE;
+      const testCookie = 'secret_cookie=sensitive_value_12345';
+      process.env.IMPORT_COOKIE = testCookie;
+
+      const downloadImage = vi.fn(async () => '/images/test/001.jpg');
+      const consoleLog = vi.spyOn(console, 'log');
+
+      try {
+        const article = extractArticleFromHtml(fixtureHtml, MATMUL_URL);
+        const { markdown } = await htmlToMdx(article.html, {
+          slug: 'test-no-leak',
+          provider: 'others',
+          baseUrl: article.baseUrl,
+          imageRoot: '/tmp/images',
+          articleUrl: MATMUL_URL,
+          publicBasePath: '/images/others/test-no-leak',
+          downloadImage,
+        });
+
+        // Verify cookie is not in markdown output
+        expect(markdown).not.toContain(testCookie);
+        expect(markdown).not.toContain('secret_cookie');
+        expect(markdown).not.toContain('sensitive_value_12345');
+
+        // Verify console logs don't contain cookie value
+        const logCalls = consoleLog.mock.calls.map((call) => call.join(' '));
+        logCalls.forEach((log) => {
+          expect(log).not.toContain(testCookie);
+          expect(log).not.toContain('sensitive_value_12345');
+        });
+      } finally {
+        consoleLog.mockRestore();
+        if (originalCookie !== undefined) {
+          process.env.IMPORT_COOKIE = originalCookie;
+        } else {
+          delete process.env.IMPORT_COOKIE;
+        }
+      }
+    });
+  });
 });

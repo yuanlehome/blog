@@ -172,8 +172,8 @@ npm run notion:sync
 interface Adapter {
   id: 'zhihu' | 'medium' | 'wechat' | 'others';
   name: string;
-  canHandle(url: string): boolean;  // URL 匹配规则
-  fetchArticle(input): Promise<Article>;  // 统一抓取接口
+  canHandle(url: string): boolean; // URL 匹配规则
+  fetchArticle(input): Promise<Article>; // 统一抓取接口
 }
 ```
 
@@ -205,6 +205,19 @@ interface Adapter {
 - `MARKDOWN_TRANSLATE_ENABLED`：启用 Markdown 翻译（`1` 启用，`0` 禁用，默认 `0`）
 - `MARKDOWN_TRANSLATE_PROVIDER`：翻译提供商（`identity` 不翻译，`deepseek` 使用 DeepSeek，默认 `identity`）
 - `DEEPSEEK_API_KEY`：DeepSeek API 密钥（仅当 provider 为 `deepseek` 时需要）
+
+**环境变量（可选，用于登录态/反爬场景）**：
+
+- `IMPORT_COOKIE`：通用 Cookie 字符串，用于注入 HTTP 请求头（默认为空）
+  - **作用范围**：自动注入到所有站点抓取的 HTTP 请求（包括浏览器上下文和图片下载）
+  - **安全说明**：
+    - Cookie 值不会被打印到日志或写入产物文件
+    - 仅记录是否启用 Cookie 注入（true/false）
+    - 建议仅在手动触发 workflow 时使用，不要在公共环境暴露
+  - **使用场景**：
+    - 绕过需要登录态的内容抓取（如知乎专栏的部分受限文章）
+    - 减少反爬验证码出现频率
+    - 适用于所有站点（zhihu/wechat/medium/others）
 
 > 💡 **Workflow 使用提示**：在 GitHub Actions 手动触发 `import-content.yml` 时，可通过界面选择是否启用翻译及翻译提供商。
 > 这些设置会被映射为上述环境变量。参见 [docs/ci-workflow.md](../docs/ci-workflow.md)。
@@ -263,6 +276,7 @@ npm run import:content -- --url="<URL>" --use-first-image-as-cover
 **URL 模式**：`https://zhuanlan.zhihu.com/p/<article-id>`
 
 **关键特性**：
+
 - 多 selector 容错提取（`.Post-RichText`, `.RichText`, `article` 等）
 - URL 参数清理（去除 `utm_*`, `share_code` 等追踪参数）
 - 反爬虫应对：
@@ -284,6 +298,7 @@ npm run import:content -- --url="<URL>" --use-first-image-as-cover
 **URL 模式**：`https://mp.weixin.qq.com/s/*`
 
 **关键特性**：
+
 - 懒加载图片处理（优先级：data-src → data-original → data-backup-src → src）
 - 占位符检测：
   - 文件大小阈值（< 60KB）
@@ -299,6 +314,7 @@ npm run import:content -- --url="<URL>" --use-first-image-as-cover
 **URL 模式**：`*.medium.com/*`
 
 **关键特性**：
+
 - 等待 `article` 元素加载
 - 提取作者元数据（meta[name="author"]）
 - 提取发布时间（meta[property="article:published_time"]）
@@ -308,6 +324,7 @@ npm run import:content -- --url="<URL>" --use-first-image-as-cover
 **URL 模式**：任意 URL（兜底）
 
 **关键特性**：
+
 - Readability 算法提取正文
 - 自动检测主内容区域
 - 去除噪声元素（导航、页脚、评论、广告）
@@ -324,10 +341,11 @@ npm run import:content -- --url="<URL>" --use-first-image-as-cover
 ```markdown
 ![图片描述](image-url)
 
-*图1：这是图片说明文字*
+_图1：这是图片说明文字_
 ```
 
 **实现**：
+
 - 在 `markdown-processor.ts` 的 `fixImageCaptions` 函数中统一处理
 - 检测图片后紧跟的短文本（≤ 120 字符）
 - 自动转换为 `emphasis` 节点（Markdown 斜体）
@@ -337,6 +355,7 @@ npm run import:content -- --url="<URL>" --use-first-image-as-cover
 **Q1：为什么知乎文章导入失败？**
 
 A：可能原因：
+
 - 知乎反爬虫拦截（需要重试）
 - 文章需要登录查看（无法导入）
 - DOM 结构变化（联系维护者更新 selector）
@@ -344,6 +363,7 @@ A：可能原因：
 **Q2：微信图片下载失败怎么办？**
 
 A：自动启用 Playwright 浏览器回退下载，无需手动干预。如仍失败，可能是：
+
 - 防盗链策略更新
 - 图片已被删除
 - 网络问题
