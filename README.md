@@ -52,7 +52,7 @@ blog/
 │       └── others/       # Downloaded images from other platforms
 ├── docs/
 │   ├── architecture.md   # Architecture and design decisions
-│   └── ci-workflow-map.md # CI/CD workflow documentation
+│   └── ci-workflow.md # CI/CD workflow documentation
 └── tests/
     ├── unit/             # Unit tests (Vitest)
     ├── integration/      # Integration tests
@@ -364,7 +364,7 @@ These are enforced by `.github/workflows/validation.yml`.
 ## 📚 Documentation
 
 - **[Architecture Guide](docs/architecture.md)**: Detailed explanation of layer boundaries, module responsibilities, and design decisions
-- **[CI Workflow Map](docs/ci-workflow-map.md)**: Overview of GitHub Actions workflows and their relationships
+- **[CI Workflow Map](docs/ci-workflow.md)**: Overview of GitHub Actions workflows and their relationships
 
 **Read `docs/architecture.md` if you want to:**
 
@@ -372,116 +372,6 @@ These are enforced by `.github/workflows/validation.yml`.
 - Learn why there's no `src/utils/` or `scripts/lib/`
 - See how scripts and runtime stay isolated
 - Understand slug generation and content sync flows
-
----
-
-## ❓ Frequently Asked Questions
-
-### Why is there no `src/utils/` directory?
-
-**Short answer**: To prevent it from becoming a dumping ground for miscellaneous functions.
-
-**Long answer**: Each function now lives in a **domain-specific module** (`src/lib/slug/`, `src/lib/content/`, etc.) with a clear responsibility. This makes dependencies explicit and prevents circular imports. If a function doesn't fit an existing domain, it either:
-
-1. Indicates a new domain should be created, or
-2. Belongs in `src/config/` (if it's configuration-related)
-
-See [Architecture Guide § 2.3](docs/architecture.md#23-why-no-srcutils) for full rationale.
-
----
-
-### Why is there only `scripts/utils.ts` and no `scripts/lib/`?
-
-**Short answer**: Scripts are entry points, not a reusable library. A single utility file prevents over-engineering.
-
-**Long answer**: Each script (`notion-sync.ts`, `content-import.ts`, etc.) is a standalone CLI tool. They share a few simple utilities (file I/O, string processing) which live in `scripts/utils.ts`. Creating `scripts/lib/` would invite premature abstraction. See [Architecture Guide § 3.2](docs/architecture.md#32-scriptsutilsts---the-shared-utility-layer) for design rationale.
-
----
-
-### Can scripts import from `src/lib/`?
-
-**Yes, but only specific modules**:
-
-- ✅ **`src/config/paths`**: Shared paths (content dirs, image dirs, etc.)
-- ✅ **`src/lib/slug/`**: Slug generation and conflict detection
-- ❌ **`src/lib/content/`**: Content querying (runtime only)
-- ❌ **`src/lib/markdown/`**: Markdown plugins (runtime only)
-
-**Why selective sharing?** Scripts need path configuration and slug consistency, but should not depend on runtime-specific logic. This keeps the dependency graph simple and prevents coupling.
-
----
-
-### How are slug conflicts resolved?
-
-**Detection**: `src/lib/slug/ensureUniqueSlug()` checks for existing files with the same slug across all content sources.
-
-**Resolution**:
-
-- **Notion sync**: Logs a warning, keeps original file, skips syncing the conflicting page
-- **Content import**: Rejects import unless `--overwrite` is provided
-- **Local files**: Developer's responsibility to ensure unique filenames
-
-**Best practice**: Use descriptive, unique titles. The slug generation algorithm includes the full title, not just the first few words.
-
----
-
-### Should I manually edit files in `src/content/blog/notion/`?
-
-**No.** Files in `src/content/blog/notion/` are **generated artifacts** from Notion. Manual edits will be **overwritten** on the next `npm run notion:sync`.
-
-**Where to edit:**
-
-- **Notion content**: Edit in Notion, then re-sync
-- **Imported content**: Edit in original platform, then re-import (or edit locally if you're okay with losing original source)
-- **Local content**: Edit directly in `src/content/blog/` (not in subdirectories)
-
----
-
-### What happens if I run `npm run notion:sync` multiple times?
-
-**It's safe.** The script is **idempotent**:
-
-- Fetches all Published pages from Notion
-- Overwrites existing files in `src/content/blog/notion/`
-- Does **not** touch `wechat/`, `others/`, or root-level content
-- Downloads missing images (skips existing ones based on URL hash)
-
-**Use case**: Run regularly to keep blog in sync with Notion updates.
-
----
-
-### Why does `npm run import:content` require `--overwrite`?
-
-**Safety.** Importing creates a new article. If an article with the same slug already exists (from any source), we:
-
-1. Detect the conflict
-2. Abort import with an error message
-3. Require explicit `--overwrite` flag to proceed
-
-**Rationale**: Prevents accidental overwrites of existing content. You should consciously decide whether to replace an article.
-
----
-
-### How do I add a new content source (e.g., Dev.to)?
-
-**Steps:**
-
-1. **Create a new script or extend `content-import.ts`**:
-   - Add Dev.to URL pattern matcher
-   - Add Dev.to HTML extraction logic
-   - Follow existing pattern (see WeChat or Zhihu extractors)
-
-2. **Use standardized output**:
-   - Write to `src/content/blog/devto/<slug>.mdx`
-   - Download images to `public/images/devto/<slug>/`
-   - Use `slugFromTitle()` from `src/lib/slug/`
-   - Call `process-md-files.ts` for formatting
-
-3. **Update documentation**:
-   - Add Dev.to to README content sources list
-   - Document usage in "Content Workflows" section
-
-**Key principle**: New sources should follow the same pattern (external source → script → Markdown artifact → Astro build). No special runtime handling needed.
 
 ---
 
@@ -498,7 +388,7 @@ This repository uses GitHub Actions for continuous integration and deployment:
 - **`link-check.yml`**: Checks for broken links
 - **`pr-preview.yml`**: Deploys PR preview to GitHub Pages
 
-See [CI Workflow Map](docs/ci-workflow-map.md) for detailed workflow relationships and permissions.
+See [CI Workflow Map](docs/ci-workflow.md) for detailed workflow relationships and permissions.
 
 ---
 
