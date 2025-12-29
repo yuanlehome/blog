@@ -51,14 +51,14 @@ npm run import:content -- --url=<URL>
 - Medium (medium.com)
 - Generic HTML articles (fallback)
 
-### `fix-math.ts`
+### `process-md-files.ts`
 
 Fixes math delimiters in Markdown files.
 
 **Usage:**
 
 ```bash
-npm run fix-math <file-or-directory>
+npm run process-md-files <file-or-directory>
 ```
 
 **What it does:**
@@ -96,7 +96,7 @@ The `scripts/utils.ts` module provides shared utilities for all scripts:
 
 ### Math Delimiter Fixing
 
-- `fixMath(text)`: Fix math delimiters in markdown
+- `processMdFiles(text)`: Fix math delimiters in markdown
 - `normalizeInvisibleCharacters(text)`: Normalize invisible Unicode characters
 - `splitCodeFences(text)`: Split markdown into segments (frontmatter, code, text)
 

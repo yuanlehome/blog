@@ -21,11 +21,11 @@
 
 ## 三、Scripts 清单（核心）
 
-| Script                      | 用途                                         | 主要输入                                                                                                    | 主要输出                                                |
-| --------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `scripts/notion-sync.ts`    | 拉取 Notion 页面、下载封面/图片并转 Markdown | 环境变量：`NOTION_TOKEN`、`NOTION_DATABASE_ID`                                                              | `src/content/blog/notion/`、`public/images/notion/`     |
-| `scripts/content-import.ts` | 从 URL 抓取文章并本地化资源                  | `--url`（必填）；`--allow-overwrite`、`--dry-run`、`--use-first-image-as-cover`（可选，亦支持同名环境变量） | `src/content/blog/<source>/`、`public/images/<source>/` |
-| `scripts/fix-math.ts`       | 修正常见数学公式格式                         | Markdown 路径（文件或目录）                                                                                 | 原地更新的 Markdown                                     |
+| Script                        | 用途                                         | 主要输入                                                                                                    | 主要输出                                                |
+| ----------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `scripts/notion-sync.ts`      | 拉取 Notion 页面、下载封面/图片并转 Markdown | 环境变量：`NOTION_TOKEN`、`NOTION_DATABASE_ID`                                                              | `src/content/blog/notion/`、`public/images/notion/`     |
+| `scripts/content-import.ts`   | 从 URL 抓取文章并本地化资源                  | `--url`（必填）；`--allow-overwrite`、`--dry-run`、`--use-first-image-as-cover`（可选，亦支持同名环境变量） | `src/content/blog/<source>/`、`public/images/<source>/` |
+| `scripts/process-md-files.ts` | 修正常见数学公式格式                         | Markdown 路径（文件或目录）                                                                                 | 原地更新的 Markdown                                     |
 
 ## 四、执行与依赖关系图
 

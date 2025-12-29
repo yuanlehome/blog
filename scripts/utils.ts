@@ -251,7 +251,7 @@ function countBackticks(text: string, start: number): number {
  * @param originalText - Markdown content to process
  * @returns Fixed markdown content
  */
-export function fixMath(originalText: string): string {
+export function processMdFiles(originalText: string): string {
   const text = normalizeInvisibleCharacters(originalText);
   const segments = splitCodeFences(text);
 

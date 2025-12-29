@@ -2,21 +2,21 @@ import { describe, expect, it, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import {
-  fixMath,
+  processMdFiles,
   normalizeInvisibleCharacters,
   runCli,
-  runFixMath,
+  runProcessMdFiles,
   splitCodeFences,
-} from '../../scripts/fix-math';
+} from '../../scripts/process-md-files.ts';
 
 const fixturesDir = path.join(process.cwd(), 'tests/fixtures/posts');
-const fixMathPath = path.resolve(process.cwd(), 'scripts/fix-math.ts');
+const processMdFilesPath = path.resolve(process.cwd(), 'scripts/process-md-files.ts');
 
-describe('fix-math script', () => {
+describe('process-md-files script', () => {
   it('normalizes inline and block math tokens', () => {
     const fixturePath = path.join(fixturesDir, 'fixture-alpha.md');
     const content = fs.readFileSync(fixturePath, 'utf-8');
-    const fixed = fixMath(content);
+    const fixed = processMdFiles(content);
 
     expect(fixed).toContain('$a + b = c$');
     expect(fixed).toMatch(/\n?\$\$/); // block promotion retained
@@ -29,7 +29,7 @@ describe('fix-math script', () => {
     fs.mkdirSync(nestedDir, { recursive: true });
     fs.copyFileSync(path.join(fixturesDir, 'fixture-beta.md'), tmpFile);
 
-    runFixMath(tmpDir);
+    runProcessMdFiles(tmpDir);
 
     const output = fs.readFileSync(tmpFile, 'utf-8');
     expect(output).toContain('$\\nabla \\times \\vec{F} = \\mu_0\\vec{J}$');
@@ -39,7 +39,7 @@ describe('fix-math script', () => {
 
   it('normalizes invisible characters and trims inline math spacing', () => {
     const input = 'A\u00a0B $ x $ and \\$kept$';
-    const fixed = fixMath(input);
+    const fixed = processMdFiles(input);
 
     expect(normalizeInvisibleCharacters(input)).toContain('A B');
     expect(fixed).toContain('$x$');
@@ -58,7 +58,7 @@ describe('fix-math script', () => {
 
   it('handles inline code, promotions, and unclosed math blocks', () => {
     const input = 'Text ```$kept$``` $ spaced $ $line\nwith newline$ $$unclosed';
-    const fixed = fixMath(input);
+    const fixed = processMdFiles(input);
 
     expect(fixed).toContain('```$kept$```');
     expect(fixed).toContain('$spaced$');
@@ -67,7 +67,7 @@ describe('fix-math script', () => {
   });
 
   it('throws when path is missing', () => {
-    expect(() => runFixMath('/non-existent-path/file.md')).toThrow();
+    expect(() => runProcessMdFiles('/non-existent-path/file.md')).toThrow();
   });
 
   it('writes files when called directly with a file path', () => {
@@ -75,7 +75,7 @@ describe('fix-math script', () => {
     fs.writeFileSync(tmpFile, 'Number $ spaced $ here');
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    runFixMath(tmpFile);
+    runProcessMdFiles(tmpFile);
 
     const updated = fs.readFileSync(tmpFile, 'utf-8');
     expect(updated).toContain('$spaced$');
@@ -86,7 +86,7 @@ describe('fix-math script', () => {
 
   it('handles unclosed frontmatter and escaped inline dollars', () => {
     const text = '---\ntitle: test\ncontent without end $a \\$ b$';
-    const fixed = fixMath(text);
+    const fixed = processMdFiles(text);
 
     expect(fixed).toContain('$a \\$ b$');
   });
@@ -103,7 +103,7 @@ describe('fix-math script', () => {
       throw new Error('exit');
     }) as any;
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const argv = [process.argv[0], fixMathPath];
+    const argv = [process.argv[0], processMdFilesPath];
 
     expect(() => runCli(argv)).toThrow('exit');
 
@@ -111,12 +111,12 @@ describe('fix-math script', () => {
     errorSpy.mockRestore();
   });
 
-  it('cli runner surfaces errors from runFixMath', () => {
+  it('cli runner surfaces errors from runProcessMdFiles', () => {
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
       throw new Error('exit');
     }) as any;
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const argv = [process.argv[0], fixMathPath, '/missing.md'];
+    const argv = [process.argv[0], processMdFilesPath, '/missing.md'];
 
     expect(() => runCli(argv)).toThrow('exit');
 

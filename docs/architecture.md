@@ -32,7 +32,7 @@
   - `npm run import:content` → `scripts/content-import.ts`（外部文章抓取、图片下载、MDX 生成）。
   - `npm run notion:sync` → `scripts/notion-sync.ts`（Notion 同步、封面迁移、slug 冲突处理）。
   - `npm run delete:article` → `scripts/delete-article.ts`（文章与资源清理）。
-  - `scripts/fix-math.ts` 为辅助格式化，可被上述命令复用。
+  - `scripts/process-md-files.ts` 为辅助格式化，可被上述命令复用。
 - 参数解析：兼容 `--flag=value` 与 `--flag value`，并读取对应的环境变量兜底。
 
 ## 工作流概览

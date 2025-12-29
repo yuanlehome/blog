@@ -57,7 +57,7 @@
 
    - 会将页面转换为 Markdown，输出到 `src/content/blog/notion/`。
    - 自动下载页面中的图片与封面到 `public/images/notion/`，并为引用生成本地路径。
-   - 自动运行 `scripts/fix-math.ts` 修正常见数学公式格式（如去除 `$ x $` 中的空格，将多行行内公式提升为块级）。
+   - 自动运行 `scripts/process-md-files.ts` 修正常见数学公式格式（如去除 `$ x $` 中的空格，将多行行内公式提升为块级）。
 
 2. **从 URL 导入**：支持从知乎、微信公众号、Medium 等平台导入文章，支持覆盖、预览、封面自动取首图等可选参数：
 
@@ -107,7 +107,7 @@
 如需单独处理指定文件，可直接运行：
 
 ```bash
-npx tsx scripts/fix-math.ts src/content/blog/notion/<file>.md
+npx tsx scripts/process-md-files.ts src/content/blog/notion/<file>.md
 ```
 
 ## 🧭 项目结构
@@ -119,9 +119,9 @@ npx tsx scripts/fix-math.ts src/content/blog/notion/<file>.md
 │   ├── wechat/               # 微信公众号文章图片
 │   └── zhihu/                # 知乎文章图片（如有）
 ├── scripts/
-│   ├── notion-sync.ts        # Notion → Markdown 转换与图片下载（会串联 fix-math 与 lint）
-│   ├── content-import.ts     # 从 URL 导入文章（支持微信、知乎、Medium，串联 fix-math 与 lint）
-│   └── fix-math.ts           # 数学公式修正
+│   ├── notion-sync.ts        # Notion → Markdown 转换与图片下载（会串联 process-md-files 与 lint）
+│   ├── content-import.ts     # 从 URL 导入文章（支持微信、知乎、Medium，串联 process-md-files 与 lint）
+│   └── process-md-files.ts           # 数学公式修正
 ├── src/
 │   ├── content/blog/local/   # 手写 Markdown（可选自行创建）
 │   ├── content/blog/notion/  # Notion 同步生成的 Markdown（自动写入）
