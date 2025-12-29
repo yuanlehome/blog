@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { CollectionEntry } from 'astro:content';
-import { findPrevNext, findRelated, groupByYearMonth } from '../../src/utils/posts';
+import { findPrevNext, findRelated, groupByYearMonth } from '../../src/lib/content/posts';
 
 vi.mock('astro:content', () => ({
   getCollection: vi.fn(),
@@ -35,7 +35,7 @@ describe('posts utils', () => {
     const { getCollection } = await import('astro:content');
     (getCollection as any).mockResolvedValue(posts);
 
-    const { getPublishedPosts } = await import('../../src/utils/posts');
+    const { getPublishedPosts } = await import('../../src/lib/content/posts');
     const result = await getPublishedPosts();
 
     expect(getCollection).toHaveBeenCalledOnce();

@@ -4,7 +4,7 @@ import {
   BUTTON_CLASSNAMES,
   STACK_CLASSNAMES,
   buildActions,
-} from '../../src/utils/floatingActionStack';
+} from '../../src/lib/ui/floatingActionStack';
 
 describe('FloatingActionStack layout', () => {
   it('stacks mobile actions vertically with consistent spacing', () => {

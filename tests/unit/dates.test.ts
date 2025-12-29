@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CollectionEntry } from 'astro:content';
-import { getDisplayDates } from '../../src/utils/dates';
+import { getDisplayDates } from '../../src/lib/content/dates';
 
 type BlogData = CollectionEntry<'blog'>['data'];
 

@@ -5,12 +5,12 @@ import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import yaml from '@rollup/plugin-yaml';
-import remarkPrefixImages from './src/utils/remarkPrefixImages';
-import remarkNotionCompat from './src/utils/remarkNotionCompat';
-import remarkCodeMeta from './src/utils/remarkCodeMeta';
-import rehypePrettyCode from './src/utils/rehypePrettyCode';
-import rehypeHeadingLinks from './src/utils/rehypeHeadingLinks';
-import rehypeExternalLinks from './src/utils/rehypeExternalLinks';
+import remarkPrefixImages from './src/lib/markdown/remarkPrefixImages';
+import remarkNotionCompat from './src/lib/markdown/remarkNotionCompat';
+import remarkCodeMeta from './src/lib/markdown/remarkCodeMeta';
+import rehypePrettyCode from './src/lib/markdown/rehypePrettyCode';
+import rehypeHeadingLinks from './src/lib/markdown/rehypeHeadingLinks';
+import rehypeExternalLinks from './src/lib/markdown/rehypeExternalLinks';
 
 const siteBase = process.env.SITE_BASE ?? (process.env.NODE_ENV === 'production' ? '/blog' : '/');
 const siteUrl = process.env.SITE_URL ?? 'https://yuanlehome.github.io/blog/';

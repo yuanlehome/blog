@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createHeadingSlugger } from '../../src/utils/slugger';
-import { buildTocForest, flattenForest, type Heading } from '../../src/utils/tocTree';
+import { createHeadingSlugger } from '../../src/lib/content/slugger';
+import { buildTocForest, flattenForest, type Heading } from '../../src/lib/content/tocTree';
 
 describe('slugger and toc utilities', () => {
   it('creates unique, stable slugs', () => {

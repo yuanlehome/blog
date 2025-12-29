@@ -2,17 +2,17 @@
 import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
-import { getReadingTime } from '../utils/readingTime';
-import { resolveAssetUrl } from '../utils/assetUrl';
+import { getReadingTime } from '../lib/content/readingTime';
+import { resolveAssetUrl } from '../lib/site/assetUrl';
 import TableOfContents from '../components/TableOfContents.astro';
 import MobileToc from '../components/MobileToc.astro';
 import PrevNext from '../components/PrevNext.astro';
 import RelatedPosts from '../components/RelatedPosts.astro';
-import { findPrevNext, findRelated, getPublishedPosts } from '../utils/posts';
+import { findPrevNext, findRelated, getPublishedPosts } from '../lib/content/posts';
 import Giscus from '../components/Giscus.astro';
 import ReadingProgress from '../components/ReadingProgress.astro';
 import FloatingActionStack from '../components/FloatingActionStack.astro';
-import { getDisplayDates } from '../utils/dates';
+import { getDisplayDates } from '../lib/content/dates';
 
 export async function getStaticPaths() {
   const posts = await getPublishedPosts();
