@@ -328,6 +328,46 @@ npm run build
 npm run test:e2e   # Critical for URL validation
 ```
 
+#### Implementation Notes (Step 3)
+
+**Status**: ✅ Functions already exist in `src/lib/slug/index.ts`
+
+- `normalizeBase(base: string)` - line 203-206
+- `buildPostUrl(slug: string, base?: string)` - line 223-233
+
+**Implementation approach**:
+
+1. Import `buildPostUrl` from `src/lib/slug` into Astro files
+2. Remove duplicate BASE_URL normalization code
+3. Replace `${BASE}${post.slug}/` with `buildPostUrl(post.slug)`
+4. For non-post URLs (like /about, /archive), keep BASE usage or use `normalizeBase()` if needed
+
+**Files to modify** (9 files with BASE_URL.endsWith):
+
+- `src/layouts/Layout.astro`
+- `src/components/PostList.astro`
+- `src/components/Header.astro`
+- `src/components/PrevNext.astro`
+- `src/components/RelatedPosts.astro`
+- `src/pages/about.astro`
+- `src/pages/archive.astro`
+- `src/pages/index.astro`
+- `src/pages/page/[page].astro`
+
+**Checklist**:
+
+- [x] Import `buildPostUrl` into Astro files
+- [x] Replace post URL construction with `buildPostUrl(post.slug)`
+- [x] Remove duplicate BASE normalization where no longer needed
+- [x] Run `npm run check` - ✅ PASS
+- [x] Run `npm run lint` - ✅ PASS
+- [x] Run `npm run test` - ✅ PASS (120 tests, 97.7% coverage)
+- [x] Run `npm run build` - ✅ PASS
+- [x] Run `npm run test:e2e` - ✅ PASS (6 tests)
+- [x] Commit: `refactor(step3): centralize BASE_URL handling`
+
+---
+
 ---
 
 ### Step 4: Refactor Scripts into CLI + Logic Layers
