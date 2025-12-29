@@ -6,7 +6,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { DeepSeekTranslator } from '../../scripts/markdown/deepseek-translator';
 import type { TranslationNode } from '../../scripts/markdown/translator';
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 
 // Mock fetch globally
 const originalFetch = global.fetch;
@@ -132,7 +131,8 @@ describe('DeepSeekTranslator', () => {
         const userContent = body.messages[1].content;
 
         // Extract node IDs from prompt
-        const nodeIds = userContent.match(/"(node\d+)":/g)?.map((m: string) => m.slice(1, -2)) || [];
+        const nodeIds =
+          userContent.match(/"(node\d+)":/g)?.map((m: string) => m.slice(1, -2)) || [];
 
         const patches: Record<string, string> = {};
         nodeIds.forEach((id: string) => {
@@ -172,7 +172,8 @@ describe('DeepSeekTranslator', () => {
         const body = JSON.parse(options.body);
         const userContent = body.messages[1].content;
 
-        const nodeIds = userContent.match(/"(node\d+)":/g)?.map((m: string) => m.slice(1, -2)) || [];
+        const nodeIds =
+          userContent.match(/"(node\d+)":/g)?.map((m: string) => m.slice(1, -2)) || [];
 
         const patches: Record<string, string> = {};
         nodeIds.forEach((id: string) => {
@@ -319,45 +320,41 @@ describe('DeepSeekTranslator', () => {
   });
 
   describe('Timeout and Network Errors', () => {
-    it(
-      'should handle timeout with fallback',
-      async () => {
-        const nodes: TranslationNode[] = [{ nodeId: 'node1', text: 'Hello' }];
+    it('should handle timeout with fallback', async () => {
+      const nodes: TranslationNode[] = [{ nodeId: 'node1', text: 'Hello' }];
 
-        global.fetch = vi.fn(async (url: string, options: any) => {
-          // Simulate a long-running request that gets aborted
-          return new Promise((resolve, reject) => {
-            const timeoutId = setTimeout(() => {
-              resolve(
-                new Response(
-                  JSON.stringify({
-                    choices: [{ message: { content: '{"patches": {"node1": "你好"}}' } }],
-                  }),
-                  { status: 200 },
-                ),
-              );
-            }, 10000); // Much longer than timeout
+      global.fetch = vi.fn(async (url: string, options: any) => {
+        // Simulate a long-running request that gets aborted
+        return new Promise((resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            resolve(
+              new Response(
+                JSON.stringify({
+                  choices: [{ message: { content: '{"patches": {"node1": "你好"}}' } }],
+                }),
+                { status: 200 },
+              ),
+            );
+          }, 10000); // Much longer than timeout
 
-            if (options.signal) {
-              options.signal.addEventListener('abort', () => {
-                clearTimeout(timeoutId);
-                const abortError = new Error('The operation was aborted');
-                abortError.name = 'AbortError';
-                reject(abortError);
-              });
-            }
-          });
-        }) as any;
+          if (options.signal) {
+            options.signal.addEventListener('abort', () => {
+              clearTimeout(timeoutId);
+              const abortError = new Error('The operation was aborted');
+              abortError.name = 'AbortError';
+              reject(abortError);
+            });
+          }
+        });
+      }) as any;
 
-        const result = await translator.translate(nodes);
+      const result = await translator.translate(nodes);
 
-        // Should fallback to original text
-        expect(result.patches).toHaveLength(1);
-        expect(result.patches[0].translatedText).toBe('Hello');
-        expect(result.metadata?.failedBatches).toBe(1);
-      },
-      10000,
-    ); // Increase test timeout
+      // Should fallback to original text
+      expect(result.patches).toHaveLength(1);
+      expect(result.patches[0].translatedText).toBe('Hello');
+      expect(result.metadata?.failedBatches).toBe(1);
+    }, 10000); // Increase test timeout
 
     it('should handle HTTP error with fallback', async () => {
       const nodes: TranslationNode[] = [{ nodeId: 'node1', text: 'Hello' }];
@@ -559,7 +556,8 @@ describe('DeepSeekTranslator', () => {
         callCount++;
         const body = JSON.parse(options.body);
         const userContent = body.messages[1].content;
-        const nodeIds = userContent.match(/"(node\d+)":/g)?.map((m: string) => m.slice(1, -2)) || [];
+        const nodeIds =
+          userContent.match(/"(node\d+)":/g)?.map((m: string) => m.slice(1, -2)) || [];
 
         // Fail first batch, succeed others
         if (callCount === 1) {

@@ -11,7 +11,12 @@
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { Translator, TranslationNode, TranslationResult, TranslationPatch } from './translator.js';
+import type {
+  Translator,
+  TranslationNode,
+  TranslationResult,
+  TranslationPatch,
+} from './translator.js';
 
 /**
  * DeepSeek API configuration
@@ -300,7 +305,10 @@ export class DeepSeekTranslator implements Translator {
       this.diagnostics.failedBatches++;
       return { success: false, patches: [], nodeIds };
     } catch (error) {
-      console.warn(`DeepSeek translation batch failed:`, error instanceof Error ? error.message : error);
+      console.warn(
+        `DeepSeek translation batch failed:`,
+        error instanceof Error ? error.message : error,
+      );
       this.diagnostics.failedBatches++;
       return { success: false, patches: [], nodeIds };
     } finally {
@@ -340,7 +348,7 @@ export class DeepSeekTranslator implements Translator {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.config.apiKey}`,
+          Authorization: `Bearer ${this.config.apiKey}`,
         },
         body: JSON.stringify(requestPayload),
         signal: controller.signal,
@@ -476,7 +484,11 @@ Remember: Output only valid JSON, no markdown or explanations.`;
    */
   private getCacheKey(nodes: TranslationNode[]): string {
     const content = nodes.map((n) => `${n.nodeId}:${n.text}`).join('|');
-    const hash = crypto.createHash('sha256').update(content).update(this.config.model).digest('hex');
+    const hash = crypto
+      .createHash('sha256')
+      .update(content)
+      .update(this.config.model)
+      .digest('hex');
     return hash;
   }
 
@@ -532,7 +544,10 @@ Remember: Output only valid JSON, no markdown or explanations.`;
         fs.mkdirSync(this.config.cacheDir, { recursive: true });
       }
     } catch (error) {
-      console.warn('Failed to create cache directory:', error instanceof Error ? error.message : error);
+      console.warn(
+        'Failed to create cache directory:',
+        error instanceof Error ? error.message : error,
+      );
       this.config.cacheEnabled = false;
     }
   }

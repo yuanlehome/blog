@@ -451,16 +451,16 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxx
 
 **环境变量配置**：
 
-| 变量名                           | 必需 | 默认值                      | 说明                                               |
-| -------------------------------- | ---- | --------------------------- | -------------------------------------------------- |
-| `DEEPSEEK_API_KEY`               | 是   | 无                          | DeepSeek API 密钥                                  |
-| `DEEPSEEK_MODEL`                 | 否   | `deepseek-chat`             | DeepSeek 模型名称                                  |
-| `DEEPSEEK_BASE_URL`              | 否   | `https://api.deepseek.com`  | DeepSeek API 基础 URL                              |
-| `DEEPSEEK_REQUEST_TIMEOUT_MS`    | 否   | `60000`                     | 请求超时时间（毫秒）                               |
-| `DEEPSEEK_MAX_BATCH_CHARS`       | 否   | `6000`                      | 单批次最大字符数                                   |
-| `DEEPSEEK_MAX_CONCURRENCY`       | 否   | `2`                         | 最大并发请求数                                     |
-| `DEEPSEEK_CACHE_ENABLED`         | 否   | `1`                         | 是否启用缓存（`1` 启用，`0` 禁用）                 |
-| `DEEPSEEK_CACHE_DIR`             | 否   | `.cache/markdown-translate` | 缓存目录路径                                       |
+| 变量名                        | 必需 | 默认值                      | 说明                               |
+| ----------------------------- | ---- | --------------------------- | ---------------------------------- |
+| `DEEPSEEK_API_KEY`            | 是   | 无                          | DeepSeek API 密钥                  |
+| `DEEPSEEK_MODEL`              | 否   | `deepseek-chat`             | DeepSeek 模型名称                  |
+| `DEEPSEEK_BASE_URL`           | 否   | `https://api.deepseek.com`  | DeepSeek API 基础 URL              |
+| `DEEPSEEK_REQUEST_TIMEOUT_MS` | 否   | `60000`                     | 请求超时时间（毫秒）               |
+| `DEEPSEEK_MAX_BATCH_CHARS`    | 否   | `6000`                      | 单批次最大字符数                   |
+| `DEEPSEEK_MAX_CONCURRENCY`    | 否   | `2`                         | 最大并发请求数                     |
+| `DEEPSEEK_CACHE_ENABLED`      | 否   | `1`                         | 是否启用缓存（`1` 启用，`0` 禁用） |
+| `DEEPSEEK_CACHE_DIR`          | 否   | `.cache/markdown-translate` | 缓存目录路径                       |
 
 **使用方法**：
 
