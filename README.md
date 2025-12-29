@@ -176,7 +176,7 @@ npm run import:content -- --url="https://medium.com/@author/article-slug"
 
 **Optional Flags:**
 
-- `--overwrite`: Allow overwriting existing article with same slug
+- `--allow-overwrite`: Allow overwriting existing article with same slug
 - `--preview`: Show extracted content without saving
 - `--cover-first-image`: Use first image as cover if no cover found
 
@@ -201,7 +201,7 @@ npm run import:content -- --url="https://medium.com/@author/article-slug"
 - **Zhihu**: Extracts author and publish date from page metadata
 - **Medium**: Similar extraction with platform-specific DOM selectors
 
-⚠️ **Important**: Imported articles should be edited in their original platform or locally (if overwritten with `--overwrite`). Re-importing overwrites local changes unless `--overwrite` is omitted.
+⚠️ **Important**: Imported articles should be edited in their original platform or locally (if overwritten with `--allow-overwrite`). Re-importing overwrites local changes unless `--allow-overwrite` is omitted.
 
 ---
 
