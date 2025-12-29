@@ -561,5 +561,171 @@ English content.
 
       expect(result.diagnostics.translated).toBe(false);
     });
+
+    it('should fix broken math blocks with stray $$ delimiters', async () => {
+      const markdown = `
+# Article
+
+Some text before.
+
+$$
+x = y $$ z = w
+$$
+
+Some text after.
+`;
+
+      const result = await processMarkdownForImport(
+        { markdown },
+        { enableTranslation: false, enableMathFix: true },
+      );
+
+      expect(result.diagnostics.mathBlocksFixed).toBeGreaterThan(0);
+      // Should remove the stray $$ inside the block
+      expect(result.markdown).not.toMatch(/\$\$[^$]*\$\$[^$]*\$\$/);
+    });
+
+    it('should fix the problem example from issue', async () => {
+      const markdown = `
+# Article
+
+$$
+\\sum_{l\\in[0,L+1)}\\exp(s_l-m_{[0,L+1)}) = \\colorbox{red}{
+$$
+
+\\displaystyle\\exp(m_{[0,L)}-m_{[0,L+1)})$}\\colorbox{orange}{$\\displaystyle\\sum_{l\\in[0,L)}\\exp(s_l-m_{[0,L)})$} + \\colorbox{lime}{$\\displaystyle\\exp(s_L-m_{[0,L+1)})$}
+$$
+
+More content.
+`;
+
+      const result = await processMarkdownForImport(
+        { markdown },
+        { enableTranslation: false, enableMathFix: true },
+      );
+
+      expect(result.diagnostics.mathBlocksFixed).toBeGreaterThan(0);
+      expect(result.diagnostics.changed).toBe(true);
+    });
+
+    it('should degrade pseudo-math blocks to code', async () => {
+      const markdown = `
+# Article
+
+$$
+这是一段普通的中文文字，不包含任何数学符号或者LaTeX命令，只是普通文本而已。
+这只是被错误地包裹在数学块中的普通段落而已，这里有很多文字但是没有数学内容。
+应该被检测出来并降级处理为代码块，因为这根本不是数学公式，而是纯文本内容，包含大量的中文字符但是没有任何数学命令或符号。
+$$
+
+More content.
+`;
+
+      const result = await processMarkdownForImport(
+        { markdown },
+        { enableTranslation: false, enableMathFix: true },
+      );
+
+      expect(result.diagnostics.mathBlocksDegraded).toBeGreaterThan(0);
+      // Should convert to tex code block
+      expect(result.markdown).toContain('```tex');
+    });
+
+    it('should not modify valid math blocks', async () => {
+      const markdown = `
+# Article
+
+$$
+\\frac{a}{b} + \\sqrt{c}
+$$
+
+$$
+\\sum_{i=1}^{n} x_i = \\int_{0}^{\\infty} f(x) dx
+$$
+`;
+
+      const result = await processMarkdownForImport(
+        { markdown },
+        { enableTranslation: false, enableMathFix: true },
+      );
+
+      // Should not fix valid math
+      expect(result.diagnostics.mathBlocksFixed).toBe(0);
+      expect(result.diagnostics.mathBlocksDegraded).toBe(0);
+    });
+
+    it('should skip math fix when disabled', async () => {
+      const markdown = `
+$$
+x = y $$ z = w
+$$
+`;
+
+      const result = await processMarkdownForImport(
+        { markdown },
+        { enableTranslation: false, enableMathFix: false },
+      );
+
+      expect(result.diagnostics.mathBlocksFixed).toBe(0);
+    });
+
+    it('should not fix math in code blocks', async () => {
+      const markdown = `
+\`\`\`python
+# This is code, not math
+text = "x = y $$ z = w"
+\`\`\`
+
+$$
+x = y $$ z = w
+$$
+`;
+
+      const result = await processMarkdownForImport(
+        { markdown },
+        { enableTranslation: false, enableMathFix: true },
+      );
+
+      // Should only fix the actual math block, not code
+      expect(result.diagnostics.mathBlocksFixed).toBe(1);
+      // Code block should be preserved
+      expect(result.markdown).toContain('```python');
+      expect(result.markdown).toContain('text = "x = y $$ z = w"');
+    });
+
+    it('should apply all fixes including math fix', async () => {
+      const markdown = `
+# English Article
+
+
+
+This is content.
+
+\`\`\`
+print("test")
+\`\`\`
+
+$$
+x = $y$ $$ z = $w$
+$$
+`;
+
+      const translator = new MockTranslator();
+      const result = await processMarkdownForImport(
+        { markdown },
+        {
+          translator,
+          enableTranslation: true,
+          enableCodeFenceFix: true,
+          enableMarkdownCleanup: true,
+          enableMathFix: true,
+        },
+      );
+
+      expect(result.diagnostics.changed).toBe(true);
+      expect(result.diagnostics.translated).toBe(true);
+      expect(result.diagnostics.codeFencesFixed).toBeGreaterThan(0);
+      expect(result.diagnostics.mathBlocksFixed).toBeGreaterThan(0);
+    });
   });
 });

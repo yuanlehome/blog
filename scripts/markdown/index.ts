@@ -43,3 +43,5 @@ export {
 export { DeepSeekTranslator } from './deepseek-translator.js';
 
 export { detectCodeLanguage, isGitHubActionsWorkflow } from './code-fence-fixer.js';
+
+export { fixMathBlock, degradeToTexBlock, type MathFixResult } from './math-fixer.js';
