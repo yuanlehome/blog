@@ -36,40 +36,6 @@ const LANGUAGE_PATTERNS: LanguagePattern[] = [
       ],
     },
   },
-  // JavaScript
-  {
-    language: 'javascript',
-    priority: 9,
-    patterns: {
-      shebang: [/^#!\s*\/.*node/i],
-      keywords: [
-        /\bfunction\s+\w+\s*\(/,
-        /\bconst\s+\w+\s*=/,
-        /\blet\s+\w+\s*=/,
-        /\bvar\s+\w+\s*=/,
-        /\b(async|await|Promise)\b/,
-        /=>\s*{/,
-        /console\.log/,
-        /require\s*\(/,
-      ],
-    },
-  },
-  // TypeScript
-  {
-    language: 'typescript',
-    priority: 10,
-    patterns: {
-      keywords: [
-        /:\s*(string|number|boolean|any|void|unknown|never)\b/,
-        /\binterface\s+\w+/,
-        /\btype\s+\w+\s*=/,
-        /\benum\s+\w+/,
-        /<\w+>/,
-        /\bReadonly</,
-        /\bPartial</,
-      ],
-    },
-  },
   // Bash/Shell
   {
     language: 'bash',
@@ -83,40 +49,6 @@ const LANGUAGE_PATTERNS: LanguagePattern[] = [
         /\bthen\b/,
         /\bfi\b/,
         /\bdo\b.*\bdone\b/,
-      ],
-    },
-  },
-  // Go
-  {
-    language: 'go',
-    priority: 9,
-    patterns: {
-      keywords: [
-        /^package\s+\w+/m,
-        /\bfunc\s+\w+\s*\(/,
-        /\bfunc\s+\(\w+\s+\*?\w+\)\s+\w+/,
-        /\b(defer|goroutine|chan|select)\b/,
-        /\btype\s+\w+\s+struct/,
-        /\binterface\s*{/,
-        /fmt\.\w+/,
-      ],
-    },
-  },
-  // Rust
-  {
-    language: 'rust',
-    priority: 9,
-    patterns: {
-      keywords: [
-        /\bfn\s+\w+\s*\(/,
-        /\blet\s+mut\b/,
-        /\b(impl|trait|pub|mod|use)\b/,
-        /\bstruct\s+\w+/,
-        /\benum\s+\w+/,
-        /::\w+/,
-        /&mut\b/,
-        /\bSome\(|None\b/,
-        /\bOk\(|Err\(/,
       ],
     },
   },
@@ -147,22 +79,6 @@ const LANGUAGE_PATTERNS: LanguagePattern[] = [
         /\bscanf\s*\(/,
         /\bmalloc\s*\(/,
         /\bfree\s*\(/,
-      ],
-    },
-  },
-  // Java
-  {
-    language: 'java',
-    priority: 8,
-    patterns: {
-      keywords: [
-        /\bpublic\s+(class|interface|enum)\s+\w+/,
-        /\bprivate\s+\w+\s+\w+/,
-        /\bSystem\.out\.print/,
-        /\bpublic\s+static\s+void\s+main/,
-        /\b(extends|implements|abstract|final)\b/,
-        /\bnew\s+\w+\s*\(/,
-        /\@\w+/,
       ],
     },
   },
@@ -206,42 +122,6 @@ const LANGUAGE_PATTERNS: LanguagePattern[] = [
         /^EXPOSE\s+/m,
         /^CMD\s+/m,
         /^ENTRYPOINT\s+/m,
-      ],
-    },
-  },
-  // SQL
-  {
-    language: 'sql',
-    priority: 8,
-    patterns: {
-      keywords: [
-        /\b(SELECT|FROM|WHERE|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|TABLE|DATABASE)\b/i,
-        /\bJOIN\b/i,
-        /\bGROUP BY\b/i,
-        /\bORDER BY\b/i,
-      ],
-    },
-  },
-  // HTML
-  {
-    language: 'html',
-    priority: 7,
-    patterns: {
-      structurePatterns: [
-        /<(!DOCTYPE|html|head|body|div|span|a|p|h[1-6]|ul|ol|li|table|tr|td)/i,
-        /<\/\w+>/,
-      ],
-    },
-  },
-  // CSS
-  {
-    language: 'css',
-    priority: 7,
-    patterns: {
-      keywords: [
-        /[.#]?\w+\s*\{/,
-        /:\s*[^;]+;/,
-        /\b(color|background|font|margin|padding|border|display|position)\s*:/,
       ],
     },
   },

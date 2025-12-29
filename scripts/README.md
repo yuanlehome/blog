@@ -465,19 +465,11 @@ DeepSeek 翻译器遵循严格的翻译规则：
 - **Shebang 检测**：Python、Bash、Node.js
 - **关键字检测**：
   - `python`：def, class, import, from...import
-  - `javascript`：function, const, let, var, console.log
-  - `typescript`：interface, type, enum, 类型注解
   - `bash`：echo, cd, if [[, ${}
-  - `go`：package, func, defer, chan
-  - `rust`：fn, let mut, impl, trait
   - `cpp`：#include, std::, namespace
-  - `java`：public class, System.out
   - `dockerfile`：FROM, RUN, COPY, CMD
-  - `sql`：SELECT, FROM, WHERE, JOIN
   - `yaml`：结构化 key-value（包括 GitHub Actions）
   - `json`：JSON 结构
-  - `html`：HTML 标签
-  - `css`：CSS 选择器和属性
 
 ##### D. 图片 caption 处理
 

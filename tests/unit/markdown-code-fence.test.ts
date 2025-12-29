@@ -39,47 +39,6 @@ fi`;
       expect(detectCodeLanguage(code)).toBe('bash');
     });
 
-    it('should detect JavaScript from keywords', () => {
-      const code = `function hello() {
-  const name = "World";
-  console.log(\`Hello \${name}\`);
-  return name;
-}`;
-      expect(detectCodeLanguage(code)).toBe('javascript');
-    });
-
-    it('should detect TypeScript from type annotations', () => {
-      const code = `interface User {
-  name: string;
-  age: number;
-}
-
-function greet(user: User): void {
-  console.log(\`Hello \${user.name}\`);
-}`;
-      expect(detectCodeLanguage(code)).toBe('typescript');
-    });
-
-    it('should detect Go from package declaration', () => {
-      const code = `package main
-
-import "fmt"
-
-func main() {
-    fmt.Println("Hello World")
-}`;
-      expect(detectCodeLanguage(code)).toBe('go');
-    });
-
-    it('should detect Rust from keywords', () => {
-      const code = `fn main() {
-    let mut x = 5;
-    println!("x = {}", x);
-    x = Some(10);
-}`;
-      expect(detectCodeLanguage(code)).toBe('rust');
-    });
-
     it('should detect C++ from includes and namespace', () => {
       const code = `#include <iostream>
 using namespace std;
@@ -90,15 +49,6 @@ int main() {
     return 0;
 }`;
       expect(detectCodeLanguage(code)).toBe('cpp');
-    });
-
-    it('should detect Java from class declaration', () => {
-      const code = `public class HelloWorld {
-    public static void main(String[] args) {
-        System.out.println("Hello World");
-    }
-}`;
-      expect(detectCodeLanguage(code)).toBe('java');
     });
 
     it('should detect YAML from structure', () => {
@@ -128,28 +78,6 @@ COPY package.json .
 RUN npm install
 CMD ["npm", "start"]`;
       expect(detectCodeLanguage(code)).toBe('dockerfile');
-    });
-
-    it('should detect SQL from keywords', () => {
-      const code = `SELECT users.name, orders.total
-FROM users
-JOIN orders ON users.id = orders.user_id
-WHERE orders.total > 100
-ORDER BY orders.total DESC;`;
-      expect(detectCodeLanguage(code)).toBe('sql');
-    });
-
-    it('should detect HTML from tags', () => {
-      const code = `<!DOCTYPE html>
-<html>
-<head>
-  <title>Page</title>
-</head>
-<body>
-  <h1>Hello</h1>
-</body>
-</html>`;
-      expect(detectCodeLanguage(code)).toBe('html');
     });
 
     it('should return text for unrecognizable code', () => {
