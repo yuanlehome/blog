@@ -243,6 +243,8 @@ npm run import:content -- --url="https://medium.com/@author/article-slug"
 
 All scripts are defined in `package.json` and run via `npm run <script>`.
 
+> **完整的 Scripts 使用说明**：所有脚本的详细功能、参数、使用场景，请参见 **[scripts/README.md](scripts/README.md)**
+
 | Script                | Command                                   | Description                                               |
 | --------------------- | ----------------------------------------- | --------------------------------------------------------- |
 | **Development**       |
@@ -265,27 +267,23 @@ All scripts are defined in `package.json` and run via `npm run <script>`.
 | `test:e2e`            | Build and run Playwright tests            | End-to-end browser tests                                  |
 | `test:ci`             | All quality checks + build                | Full CI validation pipeline                               |
 
-### Example Usage
+### Quick Examples
 
 ```bash
-# Sync Notion content (rewrites notion/ directory)
+# Sync Notion content
 npm run notion:sync
 
-# Import WeChat article (with overwrite protection)
-npm run import:content -- --url="https://mp.weixin.qq.com/s/abc123"
-
-# Import and overwrite existing article
-npm run import:content -- --url="https://mp.weixin.qq.com/s/abc123" --overwrite
+# Import article from URL
+npm run import:content -- --url="<article-url>"
 
 # Delete article by slug
-npm run delete:article -- --target=my-article-slug
+npm run delete:article -- --target=<article-slug>
 
-# Delete article by path (including images)
-npm run delete:article -- --target=src/content/blog/wechat/my-article.mdx --delete-images
-
-# Run all quality checks before committing
+# Run all quality checks
 npm run check && npm run lint && npm run test
 ```
+
+**详细参数与用法**：参见 [scripts/README.md](scripts/README.md)
 
 ---
 
@@ -363,15 +361,16 @@ These are enforced by `.github/workflows/validation.yml`.
 
 ## 📚 Documentation
 
-- **[Architecture Guide](docs/architecture.md)**: Detailed explanation of layer boundaries, module responsibilities, and design decisions
-- **[CI Workflow Map](docs/ci-workflow.md)**: Overview of GitHub Actions workflows and their relationships
+- **[架构文档 (Architecture Guide)](docs/architecture.md)**: 仓库架构、模块职责、设计规范的详细说明
+- **[CI / Workflow 文档](docs/ci-workflow.md)**: GitHub Actions 工作流的完整说明与触发关系
+- **[Scripts 使用说明](scripts/README.md)**: 所有脚本的功能、参数、使用场景的权威文档
 
-**Read `docs/architecture.md` if you want to:**
+**推荐阅读顺序**：
 
-- Understand why `src/lib/` is organized by domain
-- Learn why there's no `src/utils/` or `scripts/lib/`
-- See how scripts and runtime stay isolated
-- Understand slug generation and content sync flows
+1. **新用户**：先看本 README，了解项目概况和快速开始
+2. **开发者**：阅读 [`docs/architecture.md`](docs/architecture.md) 理解架构设计与开发规范
+3. **内容管理者**：阅读 [`scripts/README.md`](scripts/README.md) 学习如何使用脚本同步和导入内容
+4. **CI 维护者**：阅读 [`docs/ci-workflow.md`](docs/ci-workflow.md) 了解工作流配置与触发逻辑
 
 ---
 
