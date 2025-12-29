@@ -4,6 +4,20 @@ on:
   schedule:
     - cron: '0 0 * * *' # Daily at midnight UTC
   workflow_dispatch: # Manual trigger
+    inputs:
+      markdown_translate_enabled:
+        description: 'Enable markdown translation'
+        required: false
+        type: boolean
+        default: false
+      markdown_translate_provider:
+        description: 'Translation provider to use'
+        required: false
+        type: choice
+        options:
+          - identity
+          - deepseek
+        default: identity
 
 permissions:
   contents: write
@@ -34,7 +48,13 @@ jobs:
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
-        run: npm run notion:sync
+          MARKDOWN_TRANSLATE_ENABLED: ${{ github.event.inputs.markdown_translate_enabled == 'true' && '1' || '0' }}
+          MARKDOWN_TRANSLATE_PROVIDER: ${{ github.event.inputs.markdown_translate_provider || 'identity' }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          echo "Translation enabled: $MARKDOWN_TRANSLATE_ENABLED"
+          echo "Translation provider: $MARKDOWN_TRANSLATE_PROVIDER"
+          npm run notion:sync
 
       - name: Check for changes
         id: changes

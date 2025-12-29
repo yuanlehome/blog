@@ -18,7 +18,43 @@ CI 系统确保代码质量与部署流程的自动化：
 
 ---
 
-## 二、Workflow 清单
+## 二、CI 安全策略与 PR 运行说明
+
+### 2.1 自动运行的 CI（无需 Secrets）
+
+以下 workflow 在 PR 上**自动运行**，无需手动审批：
+
+- **`validation.yml`**：质量门禁（类型检查、lint、测试、构建、E2E）
+- **`link-check.yml`**：链接检查
+
+这些 workflow 只使用 `permissions: contents: read`，不需要任何 secrets，因此可以安全地在来自 fork 的 PR 上自动运行。
+
+### 2.2 需要手动触发的 Workflow（使用 Secrets）
+
+以下 workflow 需要 secrets（如 `NOTION_TOKEN`、`DEEPSEEK_API_KEY`），因此**只能手动触发**（`workflow_dispatch`），不会在 PR 上自动运行：
+
+- **`import-content.yml`**：导入外部文章（可选使用 `DEEPSEEK_API_KEY`）
+- **`sync-notion.yml`**：同步 Notion 内容（需要 `NOTION_TOKEN`、可选 `DEEPSEEK_API_KEY`）
+- **`delete-article.yml`**：删除文章
+
+**GitHub 安全策略**：来自 fork 的 PR 无法访问仓库 secrets，这是 GitHub 的安全限制，无法完全消除。但对于同仓库分支的 PR（如由 `import-content.yml` 和 `sync-notion.yml` 自动创建的 PR），CI 会自动运行。
+
+### 2.3 最小风险方案
+
+✅ **已实现**：
+
+- 所有质量检查 workflow（`validation.yml`）不使用 secrets，可在所有 PR 上自动运行
+- 需要 secrets 的 workflow 仅限 `workflow_dispatch` 手动触发
+- 自动创建的 PR（来自同仓库分支）会自动触发 `validation.yml`
+
+❌ **无法避免**：
+
+- 来自 fork 的 PR 无法访问 secrets（这是 GitHub 安全策略，无法绕过）
+- 但这不影响正常开发流程，因为 fork PR 仍会运行 `validation.yml` 质量检查
+
+---
+
+## 三、Workflow 清单
 
 ### 2.1 校验类 Workflow
 
@@ -79,6 +115,13 @@ CI 系统确保代码质量与部署流程的自动化：
 - 定时：每日 00:00 UTC
 - 手动触发（`workflow_dispatch`）
 
+**输入参数（仅手动触发时可用）**：
+
+- `markdown_translate_enabled`（可选，默认 false）：启用 Markdown 翻译
+- `markdown_translate_provider`（可选，默认 identity）：翻译提供商
+  - `identity`：不翻译，保持原文
+  - `deepseek`：使用 DeepSeek API 进行翻译（需配置 `DEEPSEEK_API_KEY` Secret）
+
 **执行流程**：
 
 1. 检出代码
@@ -93,6 +136,14 @@ CI 系统确保代码质量与部署流程的自动化：
 - `pull-requests: write`（创建 PR）
 
 **并发控制**：不允许并发执行，新触发会等待旧任务完成
+
+**Secrets 要求**：
+
+- `NOTION_TOKEN`（必需）：Notion API 集成 token
+- `NOTION_DATABASE_ID`（必需）：Notion 数据库 ID
+- `DEEPSEEK_API_KEY`（可选）：仅当 `markdown_translate_provider` 为 `deepseek` 时需要
+
+> **注意**：定时任务（schedule）触发时，翻译功能默认关闭。如需启用翻译，请使用手动触发。
 
 > **Scripts 参数详情**：参见 [scripts/README.md](../scripts/README.md#notion-syncts)
 
@@ -110,6 +161,10 @@ CI 系统确保代码质量与部署流程的自动化：
 - `allow_overwrite`（可选，默认 false）：是否覆盖已存在的文章
 - `dry_run`（可选，默认 false）：预览模式，不实际写入文件
 - `use_first_image_as_cover`（可选，默认 true）：将正文首图作为封面
+- `markdown_translate_enabled`（可选，默认 false）：启用 Markdown 翻译
+- `markdown_translate_provider`（可选，默认 identity）：翻译提供商
+  - `identity`：不翻译，保持原文
+  - `deepseek`：使用 DeepSeek API 进行翻译（需配置 `DEEPSEEK_API_KEY` Secret）
 
 **执行流程**：
 
@@ -124,6 +179,10 @@ CI 系统确保代码质量与部署流程的自动化：
 - `pull-requests: write`
 
 **并发控制**：不允许并发执行
+
+**Secrets 要求**：
+
+- `DEEPSEEK_API_KEY`（可选）：仅当 `markdown_translate_provider` 为 `deepseek` 时需要
 
 > **Scripts 参数详情**：参见 [scripts/README.md](../scripts/README.md#content-importts)
 

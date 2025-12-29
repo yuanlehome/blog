@@ -66,12 +66,21 @@ Scripts 是 **内容获取与预处理工具**，运行在 Astro 构建之外，
 
 #### 输入
 
-**环境变量（必需）**：
+**环境变量（必需）**:
 
 - `NOTION_TOKEN`：Notion API 集成 token
   - 获取方式：在 [Notion Integrations](https://www.notion.so/my-integrations) 创建集成
 - `NOTION_DATABASE_ID`：Notion 数据库 ID
   - 获取方式：数据库 URL 中的 32 字符串（`notion.so/` 后面）
+
+**环境变量（可选，用于翻译）**：
+
+- `MARKDOWN_TRANSLATE_ENABLED`：启用 Markdown 翻译（`1` 启用，`0` 禁用，默认 `0`）
+- `MARKDOWN_TRANSLATE_PROVIDER`：翻译提供商（`identity` 不翻译，`deepseek` 使用 DeepSeek，默认 `identity`）
+- `DEEPSEEK_API_KEY`：DeepSeek API 密钥（仅当 provider 为 `deepseek` 时需要）
+
+> 💡 **Workflow 使用提示**：在 GitHub Actions 手动触发 `sync-notion.yml` 时，可通过界面选择是否启用翻译及翻译提供商。
+> 这些设置会被映射为上述环境变量。参见 [docs/ci-workflow.md](../docs/ci-workflow.md)。
 
 **Notion 数据库要求**：
 
@@ -147,6 +156,15 @@ npm run notion:sync
 - `ALLOW_OVERWRITE`：`true` / `false`
 - `DRY_RUN`：`true` / `false`
 - `USE_FIRST_IMAGE_AS_COVER`：`true` / `false`
+
+**环境变量（可选，用于翻译）**：
+
+- `MARKDOWN_TRANSLATE_ENABLED`：启用 Markdown 翻译（`1` 启用，`0` 禁用，默认 `0`）
+- `MARKDOWN_TRANSLATE_PROVIDER`：翻译提供商（`identity` 不翻译，`deepseek` 使用 DeepSeek，默认 `identity`）
+- `DEEPSEEK_API_KEY`：DeepSeek API 密钥（仅当 provider 为 `deepseek` 时需要）
+
+> 💡 **Workflow 使用提示**：在 GitHub Actions 手动触发 `import-content.yml` 时，可通过界面选择是否启用翻译及翻译提供商。
+> 这些设置会被映射为上述环境变量。参见 [docs/ci-workflow.md](../docs/ci-workflow.md)。
 
 #### 输出目录
 
