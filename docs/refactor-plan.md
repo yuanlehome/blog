@@ -416,6 +416,7 @@ npm run test:e2e  # Full integration test
 #### Implementation Notes (Step 4)
 
 **Analysis of Current State**:
+
 - `content-import.ts`: 1590 lines - Very large CLI + logic mix
 - `notion-sync.ts`: 382 lines - Moderate CLI + logic mix
 - `fix-math.ts`: 364 lines - Already has good structure with `fixMath()` function
@@ -423,29 +424,34 @@ npm run test:e2e  # Full integration test
 **Implementation Strategy** (Three-phase approach to minimize risk):
 
 **Phase 4.1**: Extract `fix-math.ts` (Lowest risk)
+
 - `fix-math.ts` already has a pure `fixMath()` function (lines ~30-300)
 - Move pure function to `scripts/lib/shared/math-fix.ts`
 - Keep CLI wrapper in `scripts/fix-math.ts` as thin layer
 - This is the template for other refactors
 
 **Phase 4.2**: Refactor `notion-sync.ts` (Medium risk)
+
 - Extract image download logic to `scripts/lib/notion/download.ts`
 - Extract markdown transform to `scripts/lib/notion/transform.ts`
 - Extract core sync logic to `scripts/lib/notion/sync.ts`
 - Keep `scripts/notion-sync.ts` as CLI wrapper with argument parsing
 
 **Phase 4.3**: Refactor `content-import.ts` (Highest risk - 1590 lines)
+
 - Extract provider definitions to `scripts/lib/import/providers.ts`
 - Extract content extraction logic to `scripts/lib/import/extract.ts`
 - Extract HTML to MDX conversion to `scripts/lib/import/convert.ts`
 - Keep `scripts/content-import.ts` as CLI wrapper
 
 **Checklist**:
-- [ ] **Phase 4.1**: Extract fix-math
-  - [ ] Create `scripts/lib/shared/math-fix.ts` with pure function
-  - [ ] Update `scripts/fix-math.ts` to import and use it
-  - [ ] Add unit tests for `math-fix.ts`
-  - [ ] Run gate checks
+
+- [x] **Phase 4.1**: Extract fix-math
+  - [x] Create `scripts/lib/shared/math-fix.ts` with pure function
+  - [x] Update `scripts/fix-math.ts` to import and use it
+  - [x] Re-export functions for backward compatibility
+  - [x] Existing tests pass (integration/fix-math.test.ts)
+  - [x] Run gate checks - ✅ ALL PASS
 - [ ] **Phase 4.2**: Refactor notion-sync
   - [ ] Create `scripts/lib/notion/` structure
   - [ ] Extract and test each module

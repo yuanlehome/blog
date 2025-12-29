@@ -95,12 +95,14 @@ Based on `docs/refactor-plan.md`, the following steps need to be completed:
 #### Implementation Notes
 
 **Scope Completed**:
+
 - ✅ Imported `buildPostUrl` and `normalizeBase` from `src/lib/slug` into 9 Astro files
 - ✅ Replaced all `${BASE}${post.slug}/` patterns with `buildPostUrl(post.slug)`
 - ✅ Replaced all duplicate BASE_URL normalization with `normalizeBase(import.meta.env.BASE_URL)`
 - ✅ No duplication of BASE_URL handling logic remains
 
 **Files Modified**:
+
 1. `src/components/PostList.astro` - Use `buildPostUrl()`
 2. `src/components/RelatedPosts.astro` - Use `buildPostUrl()`
 3. `src/components/PrevNext.astro` - Use `buildPostUrl()`
@@ -112,6 +114,7 @@ Based on `docs/refactor-plan.md`, the following steps need to be completed:
 9. `src/layouts/Layout.astro` - Use `normalizeBase()`
 
 **Gate Checks**:
+
 - ✅ `npm run check` - 0 errors, 5 hints (deprecation warnings)
 - ✅ `npm run lint` - All clean
 - ✅ `npm run test` - 120 tests passed, 97.7% coverage
