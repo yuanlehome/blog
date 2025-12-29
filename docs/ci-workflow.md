@@ -18,7 +18,41 @@ CI 系统确保代码质量与部署流程的自动化：
 
 ---
 
-## 二、Workflow 清单
+## 二、CI 安全策略与 PR 运行说明
+
+### 2.1 自动运行的 CI（无需 Secrets）
+
+以下 workflow 在 PR 上**自动运行**，无需手动审批：
+
+- **`validation.yml`**：质量门禁（类型检查、lint、测试、构建、E2E）
+- **`link-check.yml`**：链接检查
+
+这些 workflow 只使用 `permissions: contents: read`，不需要任何 secrets，因此可以安全地在来自 fork 的 PR 上自动运行。
+
+### 2.2 需要手动触发的 Workflow（使用 Secrets）
+
+以下 workflow 需要 secrets（如 `NOTION_TOKEN`、`DEEPSEEK_API_KEY`），因此**只能手动触发**（`workflow_dispatch`），不会在 PR 上自动运行：
+
+- **`import-content.yml`**：导入外部文章（可选使用 `DEEPSEEK_API_KEY`）
+- **`sync-notion.yml`**：同步 Notion 内容（需要 `NOTION_TOKEN`、可选 `DEEPSEEK_API_KEY`）
+- **`delete-article.yml`**：删除文章
+
+**GitHub 安全策略**：来自 fork 的 PR 无法访问仓库 secrets，这是 GitHub 的安全限制，无法完全消除。但对于同仓库分支的 PR（如由 `import-content.yml` 和 `sync-notion.yml` 自动创建的 PR），CI 会自动运行。
+
+### 2.3 最小风险方案
+
+✅ **已实现**：
+- 所有质量检查 workflow（`validation.yml`）不使用 secrets，可在所有 PR 上自动运行
+- 需要 secrets 的 workflow 仅限 `workflow_dispatch` 手动触发
+- 自动创建的 PR（来自同仓库分支）会自动触发 `validation.yml`
+
+❌ **无法避免**：
+- 来自 fork 的 PR 无法访问 secrets（这是 GitHub 安全策略，无法绕过）
+- 但这不影响正常开发流程，因为 fork PR 仍会运行 `validation.yml` 质量检查
+
+---
+
+## 三、Workflow 清单
 
 ### 2.1 校验类 Workflow
 
