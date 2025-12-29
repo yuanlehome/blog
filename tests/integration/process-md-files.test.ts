@@ -4,15 +4,13 @@ import path from 'path';
 import {
   processMdFiles,
   normalizeInvisibleCharacters,
-  runCli,
-  runProcessMdFiles,
   splitCodeFences,
-} from '../../scripts/process-md-files.ts';
+} from '../../scripts/utils.ts';
+import { processMarkdownForImport } from '../../scripts/markdown/index.js';
 
 const fixturesDir = path.join(process.cwd(), 'tests/fixtures/posts');
-const processMdFilesPath = path.resolve(process.cwd(), 'scripts/process-md-files.ts');
 
-describe('process-md-files script', () => {
+describe('math delimiter fixing (from process-md-files)', () => {
   it('normalizes inline and block math tokens', () => {
     const fixturePath = path.join(fixturesDir, 'fixture-alpha.md');
     const content = fs.readFileSync(fixturePath, 'utf-8');
@@ -20,21 +18,6 @@ describe('process-md-files script', () => {
 
     expect(fixed).toContain('$a + b = c$');
     expect(fixed).toMatch(/\n?\$\$/); // block promotion retained
-  });
-
-  it('can process directories recursively', () => {
-    const tmpDir = fs.mkdtempSync(path.join(process.cwd(), 'tmp-math-'));
-    const nestedDir = path.join(tmpDir, 'nested');
-    const tmpFile = path.join(nestedDir, 'sample.md');
-    fs.mkdirSync(nestedDir, { recursive: true });
-    fs.copyFileSync(path.join(fixturesDir, 'fixture-beta.md'), tmpFile);
-
-    runProcessMdFiles(tmpDir);
-
-    const output = fs.readFileSync(tmpFile, 'utf-8');
-    expect(output).toContain('$\\nabla \\times \\vec{F} = \\mu_0\\vec{J}$');
-
-    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it('normalizes invisible characters and trims inline math spacing', () => {
@@ -66,24 +49,6 @@ describe('process-md-files script', () => {
     expect(fixed).toContain('$$unclosed');
   });
 
-  it('throws when path is missing', () => {
-    expect(() => runProcessMdFiles('/non-existent-path/file.md')).toThrow();
-  });
-
-  it('writes files when called directly with a file path', () => {
-    const tmpFile = path.join(process.cwd(), 'tmp-math-file.md');
-    fs.writeFileSync(tmpFile, 'Number $ spaced $ here');
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-    runProcessMdFiles(tmpFile);
-
-    const updated = fs.readFileSync(tmpFile, 'utf-8');
-    expect(updated).toContain('$spaced$');
-
-    fs.rmSync(tmpFile, { force: true });
-    logSpy.mockRestore();
-  });
-
   it('handles unclosed frontmatter and escaped inline dollars', () => {
     const text = '---\ntitle: test\ncontent without end $a \\$ b$';
     const fixed = processMdFiles(text);
@@ -97,30 +62,43 @@ describe('process-md-files script', () => {
 
     expect(segments.some((s) => s.type === 'code' && s.content.includes('~~~'))).toBe(true);
   });
+});
 
-  it('cli runner shows usage when target is missing', () => {
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-      throw new Error('exit');
-    }) as any;
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const argv = [process.argv[0], processMdFilesPath];
+describe('markdown processor integration', () => {
+  it('processes markdown with math delimiter fix enabled', async () => {
+    const input = 'Some text $ x $ here';
+    const result = await processMarkdownForImport(
+      { markdown: input },
+      {
+        enableMathDelimiterFix: true,
+        enableTranslation: false,
+        enableCodeFenceFix: false,
+        enableImageCaptionFix: false,
+        enableMarkdownCleanup: false,
+      },
+    );
 
-    expect(() => runCli(argv)).toThrow('exit');
-
-    exitSpy.mockRestore();
-    errorSpy.mockRestore();
+    expect(result.markdown).toContain('$x$');
+    expect(result.diagnostics.mathDelimitersFixed).toBeGreaterThan(0);
   });
 
-  it('cli runner surfaces errors from runProcessMdFiles', () => {
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-      throw new Error('exit');
-    }) as any;
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const argv = [process.argv[0], processMdFilesPath, '/missing.md'];
+  it('processes files through markdown processor', async () => {
+    const tmpFile = path.join(process.cwd(), 'tmp-math-test.md');
+    const input = '---\ntitle: test\n---\n\nNumber $ spaced $ here';
+    fs.writeFileSync(tmpFile, input);
 
-    expect(() => runCli(argv)).toThrow('exit');
+    const content = fs.readFileSync(tmpFile, 'utf-8');
+    const result = await processMarkdownForImport(
+      { markdown: content },
+      { enableMathDelimiterFix: true },
+    );
 
-    exitSpy.mockRestore();
-    errorSpy.mockRestore();
+    fs.writeFileSync(tmpFile, result.markdown);
+    const updated = fs.readFileSync(tmpFile, 'utf-8');
+    
+    expect(updated).toContain('$spaced$');
+    expect(result.diagnostics.mathDelimitersFixed).toBeGreaterThan(0);
+
+    fs.rmSync(tmpFile, { force: true });
   });
 });

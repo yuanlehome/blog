@@ -102,9 +102,9 @@ npm run notion:sync
    - 生成 slug（基于标题，检测冲突）
    - 下载封面图和正文中的所有图片
    - 使用 `notion-to-md` 转换为 Markdown
+   - 通过 markdown pipeline 自动处理（翻译、代码语言检测、数学公式修正等）
    - 写入 `src/content/blog/notion/<slug>.md`
-3. 调用 `process-md-files.ts` 修正数学公式格式
-4. 运行 `npm run lint` 格式化生成的文件
+3. 运行 `npm run lint` 格式化生成的文件
 
 #### 幂等性
 
@@ -195,8 +195,8 @@ npm run import:content -- --url="<URL>" --use-first-image-as-cover
 5. 下载所有图片到 `public/images/<platform>/<slug>/`
 6. 将 HTML 转换为 Markdown（使用 rehype/remark 管道）
 7. 生成 frontmatter（标题、日期、作者、封面等）
-8. 写入 MDX 文件到 `src/content/blog/<platform>/<slug>.mdx`
-9. 调用 `process-md-files.ts` 修正格式
+8. 通过 markdown pipeline 自动处理（翻译、代码语言检测、数学公式修正等）
+9. 写入 MDX 文件到 `src/content/blog/<platform>/<slug>.mdx`
 10. 运行 `npm run lint` 格式化
 
 #### 平台特性
@@ -229,75 +229,7 @@ npm run import:content -- --url="<URL>" --use-first-image-as-cover
 
 ---
 
-### 2.3 `process-md-files.ts`
-
-#### 功能
-
-修正 Markdown 文件中的常见格式问题，主要针对数学公式格式。
-
-#### 使用场景
-
-- 修正从 Notion 导出的数学公式空格问题（`$ x $` → `$x$`）
-- 清理不可见 Unicode 字符
-- 作为其他脚本的后处理步骤（自动调用）
-
-#### 输入
-
-- 文件路径或目录路径
-
-#### 输出目录
-
-- 原地修改文件（in-place update）
-
-#### 参数
-
-```bash
-npx tsx scripts/process-md-files.ts <file-or-directory-path>
-```
-
-- `<file-or-directory-path>`：要处理的文件或目录的绝对/相对路径
-
-#### 使用方法
-
-```bash
-# 处理单个文件
-npx tsx scripts/process-md-files.ts src/content/blog/notion/my-article.md
-
-# 处理整个目录（递归）
-npx tsx scripts/process-md-files.ts src/content/blog/notion/
-
-# 通常不需要手动运行，由 notion-sync 和 import:content 自动调用
-```
-
-#### 执行流程
-
-1. 识别输入是文件还是目录
-2. 对每个 Markdown 文件：
-   - 分离 frontmatter、代码块、文本内容
-   - 清理不可见 Unicode 字符
-   - 修正行内数学公式（去除 `$` 前后的空格）
-   - 将多行行内数学公式提升为块级数学公式（`$$...$$`）
-   - 重新组装文件内容
-   - 写回原文件
-
-#### 处理规则
-
-**不可见字符规范化**：
-
-- U+2060（WORD JOINER）→ 空字符串
-- U+FEFF（ZERO WIDTH NO-BREAK SPACE）→ 空字符串
-
-**数学公式修正**：
-
-- `$ x $` → `$x$`
-- `$  x  $` → `$x$`
-- 多行的 `$ ... $` → `$$ ... $$`（块级公式）
-
-⚠️ **重要**：不处理代码块内的内容，只处理普通文本。
-
----
-
-### 2.4 `delete-article.ts`
+### 2.3 `delete-article.ts`
 
 #### 功能
 
@@ -614,6 +546,7 @@ const result = await processMarkdownForImport(
     enableCodeFenceFix: true, // 修复代码块
     enableImageCaptionFix: true, // 修复图片 caption
     enableMarkdownCleanup: true, // 清理格式
+    enableMathDelimiterFix: true, // 修复数学公式（如 `$ x $` → `$x$`）
   },
 );
 
