@@ -2,6 +2,7 @@ import { chromium, type BrowserContext, type Page } from '@playwright/test';
 import fs from 'fs';
 import matter from 'gray-matter';
 import path from 'path';
+import dotenv from 'dotenv';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import remarkStringify from 'remark-stringify';
@@ -18,6 +19,8 @@ import readline from 'readline';
 import { ARTIFACTS_DIR, BLOG_CONTENT_DIR, PUBLIC_IMAGES_DIR } from '../src/config/paths';
 import { slugFromTitle } from '../src/lib/slug';
 import { processMarkdownForImport } from './markdown/index.js';
+
+dotenv.config({ path: '.env.local' });
 
 type HastElement = {
   type?: string;
