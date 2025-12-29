@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import { shortHash } from '../../scripts/slug';
+import { shortHash } from '../../src/lib/slug';
 
 const queryMock = vi.fn();
 const blocksListMock = vi.fn();

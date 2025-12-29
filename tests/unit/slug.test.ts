@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveSlug, ensureUniqueSlug, normalizeSlug } from '../../scripts/slug';
+import { slugFromTitle as deriveSlug, ensureUniqueSlug, normalizeSlug } from '../../src/lib/slug';
 
 describe('slug utilities', () => {
   it('derives slug from explicit value, title, or fallback', () => {

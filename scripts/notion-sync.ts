@@ -7,7 +7,7 @@ import path from 'path';
 import matter from 'gray-matter';
 import type { BlockObjectResponse } from '@notionhq/client/build/src/api-endpoints';
 import crypto from 'crypto';
-import { deriveSlug, ensureUniqueSlug } from './slug';
+import { slugFromTitle, ensureUniqueSlug } from '../src/lib/slug';
 import { NOTION_CONTENT_DIR, NOTION_PUBLIC_IMG_DIR, ensureDir } from '../src/config/paths';
 
 dotenv.config({ path: '.env.local' });
@@ -294,7 +294,7 @@ export async function sync() {
 
     const propSlug =
       props.slug?.rich_text?.[0]?.plain_text || props.Slug?.rich_text?.[0]?.plain_text || null;
-    const baseSlug = deriveSlug({ explicitSlug: propSlug, title, fallbackId: pageId });
+    const baseSlug = slugFromTitle({ explicitSlug: propSlug, title, fallbackId: pageId });
     let slug = ensureUniqueSlug(baseSlug, pageId, usedSlugs);
     if (slug !== baseSlug) {
       console.log(`Slug conflict detected for ${pageId}: using ${slug} (base ${baseSlug})`);
