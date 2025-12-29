@@ -62,7 +62,11 @@ cp .env.local.example .env.local
 NOTION_TOKEN=secret_your_token_here
 NOTION_DATABASE_ID=your_database_id_here
 ```
-在 Notion 创建集成并将数据库授权给该集成。
+Notion 配置流程（需同步内容时）：
+- 在 https://www.notion.so/my-integrations 创建集成，获得 `NOTION_TOKEN`
+- 打开文章数据库，复制 URL 中的 32 位字符串作为 `NOTION_DATABASE_ID`
+- 在数据库右上角 `...` → **Connect to** 选择刚创建的集成，授予访问权限
+- 确认页面状态字段支持 Published（select 或 status 均可）
 
 3) 本地开发
 ```bash
