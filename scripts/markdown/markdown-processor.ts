@@ -98,6 +98,17 @@ function extractTranslatableNodes(tree: Root): TranslationNode[] {
         (node as any)._nodeId = nodeId;
       }
     }
+
+    // Extract image alt text for translation
+    if (node.type === 'image' && node.alt && node.alt.trim()) {
+      const nodeId = generateNodeId(node, nodeIndex++);
+      nodes.push({
+        nodeId,
+        text: node.alt,
+        context: 'image-alt',
+      });
+      (node as any)._altNodeId = nodeId;
+    }
   });
 
   return nodes;
@@ -131,6 +142,11 @@ function applyTranslationPatches(tree: Root, patches: Record<string, string>): v
         node.children = [{ type: 'text', value: translatedText }];
       }
     }
+
+    // Apply translation to image alt text
+    if (node.type === 'image' && (node as any)._altNodeId && patches[(node as any)._altNodeId]) {
+      node.alt = patches[(node as any)._altNodeId];
+    }
   });
 }
 
@@ -155,11 +171,14 @@ function fixCodeFences(tree: Root): number {
 }
 
 /**
- * Fix image captions by converting to HTML figure elements
+ * Fix image captions by converting to Markdown-compatible format
+ * 
+ * Strategy: Keep Markdown image syntax and add caption as italic text below.
+ * This avoids HTML figure tags which may not render correctly in Astro.
  */
 function fixImageCaptions(tree: Root): number {
   let fixedCount = 0;
-  const nodesToReplace: Array<{
+  const nodesToInsert: Array<{
     parent: any;
     index: number;
     newNode: any;
@@ -177,48 +196,35 @@ function fixImageCaptions(tree: Root): number {
       // Check if next sibling is a potential caption
       if (nextSibling && nextSibling.type === 'paragraph' && isCaptionParagraph(nextSibling)) {
         const caption = extractTextFromNode(nextSibling);
-        const figureHtml = createFigureHtml(image, caption);
+        
+        // Convert the caption paragraph to italic emphasis
+        const captionNode = {
+          type: 'paragraph',
+          children: [
+            {
+              type: 'emphasis',
+              children: [{ type: 'text', value: caption }],
+            },
+          ],
+        };
 
-        nodesToReplace.push({
-          parent,
-          index: index!,
-          newNode: {
-            type: 'html',
-            value: figureHtml,
-          },
-        });
-
-        // Mark next sibling for removal
-        nodesToReplace.push({
+        // Replace the next sibling with italic caption
+        nodesToInsert.push({
           parent,
           index: index! + 1,
-          newNode: null as any,
+          newNode: captionNode,
         });
 
         fixedCount++;
-      } else if (image.alt) {
-        // Convert standalone image with alt text to figure
-        const figureHtml = createFigureHtml(image, image.alt);
-        nodesToReplace.push({
-          parent,
-          index: index!,
-          newNode: {
-            type: 'html',
-            value: figureHtml,
-          },
-        });
-        fixedCount++;
       }
+      // Note: We no longer create figures for standalone images with alt text
+      // Alt text is already preserved in the image syntax
     }
   });
 
-  // Apply replacements (in reverse order to maintain indices)
-  nodesToReplace.reverse().forEach(({ parent, index, newNode }) => {
-    if (newNode) {
-      parent.children[index] = newNode;
-    } else {
-      parent.children.splice(index, 1);
-    }
+  // Apply replacements
+  nodesToInsert.reverse().forEach(({ parent, index, newNode }) => {
+    parent.children[index] = newNode;
   });
 
   return fixedCount;
@@ -226,6 +232,12 @@ function fixImageCaptions(tree: Root): number {
 
 /**
  * Check if a paragraph looks like a caption
+ * 
+ * Captions typically:
+ * - Start with "Figure", "Fig.", "Table", "Image", etc.
+ * - Start with a number followed by colon (e.g., "1: Description")
+ * - Are relatively short (max 120 chars)
+ * - Don't look like regular prose
  */
 function isCaptionParagraph(node: Paragraph): boolean {
   const text = extractTextFromNode(node);
@@ -241,11 +253,28 @@ function isCaptionParagraph(node: Paragraph): boolean {
   }
 
   // Should have some content
-  return text.trim().length > 0;
+  if (text.trim().length === 0) {
+    return false;
+  }
+
+  // Check for common caption patterns
+  const captionPatterns = [
+    /^Figure\s+\d+/i,         // "Figure 1", "Figure 2:", etc.
+    /^Fig\.\s*\d+/i,           // "Fig. 1", "Fig.2:", etc.
+    /^Table\s+\d+/i,           // "Table 1", "Table 2:", etc.
+    /^Image\s+\d+/i,           // "Image 1", etc.
+    /^图\s*\d+/,               // Chinese "图1", "图 1", etc.
+    /^表\s*\d+/,               // Chinese "表1", "表 1", etc.
+    /^\d+[:.：]\s*/,          // Starts with number and colon "1: Description"
+  ];
+
+  return captionPatterns.some((pattern) => pattern.test(text.trim()));
 }
 
 /**
- * Create HTML figure element with image and caption
+ * (Deprecated: No longer used, kept for reference)
+ * Previously created HTML figure element with image and caption
+ * Now we use Markdown-native syntax instead
  */
 function createFigureHtml(image: Image, caption?: string): string {
   const img = `<img src="${image.url}" alt="${image.alt || ''}" />`;
@@ -641,6 +670,25 @@ export async function processMarkdownForImport(
 
   const tree = processor.parse(processedMarkdown) as Root;
 
+  // Fix code fences BEFORE translation (so they are properly marked as non-translatable)
+  if (enableCodeFenceFix) {
+    const fixed = fixCodeFences(tree);
+    diagnostics.codeFencesFixed = fixed;
+    if (fixed > 0) {
+      diagnostics.changed = true;
+    }
+  }
+
+  // Fix image captions BEFORE translation (convert to markdown-native italic format)
+  // This ensures captions are properly structured before translation extracts text
+  if (enableImageCaptionFix) {
+    const fixed = fixImageCaptions(tree);
+    diagnostics.imageCaptionsFixed = fixed;
+    if (fixed > 0) {
+      diagnostics.changed = true;
+    }
+  }
+
   // Apply translation if needed
   if (needsTranslation && translator) {
     try {
@@ -675,24 +723,6 @@ export async function processMarkdownForImport(
       }
     } catch (error) {
       console.warn('Translation failed, continuing with other fixes:', error);
-    }
-  }
-
-  // Fix code fences
-  if (enableCodeFenceFix) {
-    const fixed = fixCodeFences(tree);
-    diagnostics.codeFencesFixed = fixed;
-    if (fixed > 0) {
-      diagnostics.changed = true;
-    }
-  }
-
-  // Fix image captions
-  if (enableImageCaptionFix) {
-    const fixed = fixImageCaptions(tree);
-    diagnostics.imageCaptionsFixed = fixed;
-    if (fixed > 0) {
-      diagnostics.changed = true;
     }
   }
 

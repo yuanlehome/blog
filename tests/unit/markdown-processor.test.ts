@@ -161,11 +161,11 @@ console.log("test");
       expect(result.markdown).not.toMatch(/\n{3,}/);
     });
 
-    it('should convert images with captions to figures', async () => {
+    it('should convert images with captions to Markdown format with italic caption', async () => {
       const markdown = `
 ![Image Alt](https://example.com/image.jpg)
 
-This is a caption for the image.
+Figure 1: This is a caption for the image.
 `;
 
       const result = await processMarkdownForImport(
@@ -174,8 +174,13 @@ This is a caption for the image.
       );
 
       expect(result.diagnostics.imageCaptionsFixed).toBeGreaterThan(0);
-      expect(result.markdown).toContain('<figure>');
-      expect(result.markdown).toContain('<figcaption>');
+      // Should keep image as Markdown syntax
+      expect(result.markdown).toContain('![Image Alt](https://example.com/image.jpg)');
+      // Caption should be in italic
+      expect(result.markdown).toContain('*Figure 1: This is a caption for the image.*');
+      // Should NOT contain HTML figure tags
+      expect(result.markdown).not.toContain('<figure>');
+      expect(result.markdown).not.toContain('<figcaption>');
     });
 
     it('should not treat long paragraphs as captions', async () => {
@@ -190,9 +195,10 @@ This is a very long paragraph that should not be treated as a caption because it
         { enableTranslation: false, enableImageCaptionFix: true },
       );
 
-      // Should create figure with alt text, but long paragraph stays separate
-      expect(result.markdown).toContain('<figure>');
-      expect(result.markdown).toContain('Image Alt');
+      // Should NOT create italic caption for long paragraph
+      expect(result.diagnostics.imageCaptionsFixed).toBe(0);
+      // Image should remain as Markdown
+      expect(result.markdown).toContain('![Image Alt](https://example.com/image.jpg)');
       // The long paragraph should remain as regular content
       expect(result.markdown).toContain('This is a very long paragraph');
     });
@@ -213,6 +219,7 @@ Content here.
 
       // Heading should not be treated as caption
       expect(result.markdown).toContain('## Next Section');
+      expect(result.diagnostics.imageCaptionsFixed).toBe(0);
     });
 
     it('should handle image with alt text but no caption', async () => {
@@ -227,8 +234,10 @@ Regular paragraph follows.
         { enableTranslation: false, enableImageCaptionFix: true },
       );
 
-      expect(result.diagnostics.imageCaptionsFixed).toBeGreaterThan(0);
-      expect(result.markdown).toContain('<figure>');
+      // Should NOT fix images without proper captions
+      expect(result.diagnostics.imageCaptionsFixed).toBe(0);
+      // Image should remain as Markdown
+      expect(result.markdown).toContain('![Image Alt Text](https://example.com/image.jpg)');
     });
 
     it('should translate English content with mock translator', async () => {
@@ -251,6 +260,63 @@ It should be translated to Chinese.
       expect(result.diagnostics.translated).toBe(true);
       expect(result.diagnostics.detectedLanguage).toBe('en');
       expect(result.markdown).toContain('[ZH]');
+    });
+
+    it('should translate image captions but preserve URLs', async () => {
+      const markdown = `
+![Figure 1: NVIDIA GPU Model](https://example.com/images/gpu-model.png)
+
+Figure 1: NVIDIA Hopper H100 GPU Model
+`;
+
+      const translator = new MockTranslator();
+      const result = await processMarkdownForImport(
+        { markdown },
+        {
+          translator,
+          enableTranslation: true,
+          enableImageCaptionFix: true,
+        },
+      );
+
+      expect(result.diagnostics.translated).toBe(true);
+      expect(result.diagnostics.imageCaptionsFixed).toBeGreaterThan(0);
+      
+      // Image URL must be preserved exactly
+      expect(result.markdown).toContain('https://example.com/images/gpu-model.png');
+      
+      // Alt text should be translated
+      expect(result.markdown).toContain('[ZH]');
+      
+      // Caption should be translated and in italic
+      expect(result.markdown).toMatch(/\*.*\[ZH\].*\*/);
+      
+      // Should NOT contain HTML figure tags
+      expect(result.markdown).not.toContain('<figure>');
+      expect(result.markdown).not.toContain('<figcaption>');
+    });
+
+    it('should not modify image URLs during translation', async () => {
+      const markdown = `
+![Alt text](/images/local/test.png)
+
+Some caption text.
+`;
+
+      const translator = new MockTranslator();
+      const result = await processMarkdownForImport(
+        { markdown },
+        {
+          translator,
+          enableTranslation: true,
+          enableImageCaptionFix: true,
+        },
+      );
+
+      // URL with leading slash must be preserved
+      expect(result.markdown).toContain('/images/local/test.png');
+      // URL should not be modified or translated
+      expect(result.markdown).not.toContain('[ZH] /images');
     });
 
     it('should not translate Chinese content', async () => {
