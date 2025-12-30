@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import matter from 'gray-matter';
 import { BLOG_CONTENT_DIR, PUBLIC_DIR, PUBLIC_IMAGES_DIR, ROOT_DIR } from '../src/config/paths';
+import { createScriptLogger, now, duration } from './logger-helpers.js';
 
 type Options = {
   target: string;
@@ -250,64 +251,125 @@ async function findImageDirsBySlug(slug: string): Promise<string[]> {
 }
 
 async function main() {
+  const scriptStart = now();
   const options = parseOptions();
-  console.log(`Starting delete-article with target="${options.target}"`);
-  const { articlePath, slug } = await resolveArticle(options.target);
-  const relativeArticle = path.relative(REPO_ROOT, articlePath);
-  console.log(`Resolved article: ${relativeArticle}`);
+  const logger = createScriptLogger('delete-article', { target: options.target });
+  
+  logger.info('Starting article deletion', {
+    target: options.target,
+    deleteImages: options.deleteImages,
+    dryRun: options.dryRun,
+  });
 
-  const coverPath = await extractCoverPath(articlePath);
-  if (coverPath) {
-    console.log(`Detected cover in public/: ${path.relative(REPO_ROOT, coverPath)}`);
-  }
-
-  await removeFile(articlePath, options.dryRun);
-
-  if (options.deleteImages) {
-    console.log('Delete images: enabled');
-
-    // Find all matching image directories
-    const imageDirs = await findImageDirsBySlug(slug);
-
-    if (imageDirs.length === 0) {
-      console.log(`No image directories found for slug: ${slug}`);
-    } else {
-      // Safety check: prevent deletion of too many directories
-      if (imageDirs.length > MAX_IMAGE_DIRS_MATCH) {
-        throw new Error(
-          `Too many image directories matched (${imageDirs.length} > ${MAX_IMAGE_DIRS_MATCH}). ` +
-            `This may indicate an overly broad match pattern. ` +
-            `Matched directories:\n${imageDirs.map((d) => path.relative(REPO_ROOT, d)).join('\n')}`,
-        );
-      }
-
-      console.log(`Matched image dirs (${imageDirs.length}):`);
-      for (const dir of imageDirs) {
-        console.log(`  - ${path.relative(REPO_ROOT, dir)}`);
-      }
-
-      // Delete matched directories
-      for (const dir of imageDirs) {
-        await removeDirectory(dir, options.dryRun);
-      }
+  try {
+    const resolveSpan = logger.time('resolve-article');
+    let articlePath: string;
+    let slug: string;
+    try {
+      const result = await resolveArticle(options.target);
+      articlePath = result.articlePath;
+      slug = result.slug;
+      const relativeArticle = path.relative(REPO_ROOT, articlePath);
+      resolveSpan.end({ status: 'ok', fields: { articlePath: relativeArticle, slug } });
+      logger.info('Resolved article', { articlePath: relativeArticle, slug });
+    } catch (error) {
+      resolveSpan.end({ status: 'fail' });
+      throw error;
     }
 
-    // Delete cover file if it exists
+    const coverPath = await extractCoverPath(articlePath);
     if (coverPath) {
-      if (await fileExists(coverPath)) {
-        await removeFile(coverPath, options.dryRun);
-      } else {
-        console.log(`Cover file not found, skipping: ${path.relative(REPO_ROOT, coverPath)}`);
-      }
+      logger.debug('Detected cover in public/', { coverPath: path.relative(REPO_ROOT, coverPath) });
     }
-  } else {
-    console.log('Delete images: disabled');
-  }
 
-  if (options.dryRun) {
-    console.log('Dry-run complete. No files were deleted.');
-  } else {
-    console.log('Deletion completed successfully.');
+    const deleteSpan = logger.time('delete-files');
+    let deletedFiles = 0;
+    let deletedDirs = 0;
+
+    try {
+      await removeFile(articlePath, options.dryRun);
+      deletedFiles++;
+
+      if (options.deleteImages) {
+        // Find all matching image directories
+        const imageDirs = await findImageDirsBySlug(slug);
+
+        if (imageDirs.length === 0) {
+          logger.info('No image directories found for slug', { slug });
+        } else {
+          // Safety check: prevent deletion of too many directories
+          if (imageDirs.length > MAX_IMAGE_DIRS_MATCH) {
+            throw new Error(
+              `Too many image directories matched (${imageDirs.length} > ${MAX_IMAGE_DIRS_MATCH}). ` +
+                `This may indicate an overly broad match pattern. ` +
+                `Matched directories:\n${imageDirs.map((d) => path.relative(REPO_ROOT, d)).join('\n')}`,
+            );
+          }
+
+          logger.info('Matched image directories', {
+            count: imageDirs.length,
+            directories: imageDirs.map((d) => path.relative(REPO_ROOT, d)),
+          });
+
+          // Delete matched directories
+          for (const dir of imageDirs) {
+            await removeDirectory(dir, options.dryRun);
+            deletedDirs++;
+          }
+        }
+
+        // Delete cover file if it exists
+        if (coverPath) {
+          if (await fileExists(coverPath)) {
+            await removeFile(coverPath, options.dryRun);
+            deletedFiles++;
+          } else {
+            logger.debug('Cover file not found, skipping', {
+              coverPath: path.relative(REPO_ROOT, coverPath),
+            });
+          }
+        }
+      } else {
+        logger.info('Delete images disabled');
+      }
+
+      deleteSpan.end({
+        status: 'ok',
+        fields: { deletedFiles, deletedDirs },
+      });
+    } catch (error) {
+      deleteSpan.end({ status: 'fail' });
+      throw error;
+    }
+
+    if (options.dryRun) {
+      logger.info('Dry-run complete, no files were deleted');
+      logger.summary({
+        status: 'ok',
+        durationMs: duration(scriptStart),
+        dryRun: true,
+        slug,
+        deletedFiles: 0,
+        deletedDirs: 0,
+      });
+    } else {
+      logger.info('Deletion completed successfully');
+      logger.summary({
+        status: 'ok',
+        durationMs: duration(scriptStart),
+        slug,
+        deletedFiles,
+        deletedDirs,
+      });
+    }
+  } catch (error) {
+    logger.error('Delete article failed', { error });
+    logger.summary({
+      status: 'fail',
+      durationMs: duration(scriptStart),
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
   }
 }
 

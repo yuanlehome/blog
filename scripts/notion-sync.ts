@@ -10,6 +10,8 @@ import crypto from 'crypto';
 import { slugFromTitle, ensureUniqueSlug } from '../src/lib/slug';
 import { NOTION_CONTENT_DIR, NOTION_PUBLIC_IMG_DIR, ensureDir } from '../src/config/paths';
 import { processMarkdownForImport } from './markdown/index.js';
+import { createScriptLogger, now, duration } from './logger-helpers.js';
+import type { Logger } from './logger/types.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -244,173 +246,218 @@ function isFullPage(page: any): page is PageObjectResponse {
 }
 
 export async function sync() {
-  console.log('Starting Notion Sync...');
-
-  const existingPosts = await getExistingPosts();
-  const usedSlugs = new Map<string, string>();
-  for (const [slug, meta] of existingPosts.bySlug.entries()) {
-    usedSlugs.set(slug, meta.notionId ?? `existing-${slug}`);
-  }
-
-  // Fetch all pages (filter in memory to avoid schema mismatch errors)
-  const response = await notion.databases.query({
-    database_id: DATABASE_ID!,
+  const scriptStart = now();
+  const logger = createScriptLogger('notion-sync', {});
+  
+  logger.info('Starting Notion sync', {
+    databaseId: DATABASE_ID ? DATABASE_ID.substring(0, 8) + '...' : 'none',
   });
 
-  const pages = response.results.filter((page): page is PageObjectResponse => {
-    if (!isFullPage(page)) return false;
-
-    // Try to find a property that looks like "Status" or "status"
-    const props = page.properties as any;
-    const statusProp = props.Status || props.status;
-
-    // If no status property exists, assume published (or log warning)
-    if (!statusProp) return true;
-
-    // Handle Select or Status type
-    if (statusProp.type === 'select') {
-      return statusProp.select?.name === 'Published';
-    }
-    if (statusProp.type === 'status') {
-      return statusProp.status?.name === 'Published';
-    }
-    return false;
-  });
-
-  console.log(`Found ${pages.length} published pages.`);
-
-  for (const page of pages) {
-    // isFullPage check is redundant due to filter but good for safety if logic changes
-    if (!isFullPage(page)) continue;
-
-    const pageId = page.id;
-    const lastEditedTime = page.last_edited_time;
-    const props = page.properties as any;
-
-    console.log(`Processing ${pageId}...`);
-
-    // Extract Frontmatter fields
-    const titleProp = props.Name || props.title || props.Title;
-    const title = titleProp?.title?.[0]?.plain_text || 'Untitled';
-
-    const propSlug =
-      props.slug?.rich_text?.[0]?.plain_text || props.Slug?.rich_text?.[0]?.plain_text || null;
-    const baseSlug = slugFromTitle({ explicitSlug: propSlug, title, fallbackId: pageId });
-    let slug = ensureUniqueSlug(baseSlug, pageId, usedSlugs);
-    if (slug !== baseSlug) {
-      console.log(`Slug conflict detected for ${pageId}: using ${slug} (base ${baseSlug})`);
+  try {
+    const existingPosts = await getExistingPosts();
+    const usedSlugs = new Map<string, string>();
+    for (const [slug, meta] of existingPosts.bySlug.entries()) {
+      usedSlugs.set(slug, meta.notionId ?? `existing-${slug}`);
     }
 
-    const previousMeta = existingPosts.byNotionId.get(pageId);
-    const previousSlug = previousMeta?.slug;
-    if (previousSlug && previousSlug !== slug) {
-      console.log(`Slug changed for ${pageId}: ${previousSlug} -> ${slug}`);
-      migrateImageDir(previousSlug, slug);
-    }
-    migrateImageDir(pageId, slug);
-
-    currentPageSlug = slug; // Set context for image transformer
-
-    const existingBySlug = existingPosts.bySlug.get(slug);
-    if (existingBySlug && existingBySlug.lastEdited === lastEditedTime) {
-      console.log(`Skipping ${slug} (up to date).`);
-      continue;
-    }
-
-    const date = props.date?.date?.start || new Date().toISOString().split('T')[0];
-    const tags = props.tags?.multi_select?.map((t: any) => t.name) || [];
-
-    let cover = '';
-    const pageCoverUrl =
-      page.cover && page.cover.type === 'external'
-        ? page.cover.external.url
-        : page.cover && page.cover.type === 'file'
-          ? page.cover.file.url
-          : null;
-    const propertyCoverUrl = extractCoverUrl(props);
-
-    const preferredCover = pageCoverUrl || propertyCoverUrl;
-    if (preferredCover) {
-      const localCover = await downloadImage(preferredCover, slug, 'cover');
-      if (localCover) cover = localCover;
-    }
-    if (!cover) {
-      const firstImage = await findFirstImageBlock(pageId);
-      if (firstImage) {
-        const fallbackCover = await downloadImage(firstImage.url, slug, firstImage.blockId);
-        if (fallbackCover) cover = fallbackCover;
-      }
-    }
-
-    // Convert Body to MD
-    const mdblocks = await n2m.pageToMarkdown(pageId);
-    const mdString = await n2m.toMarkdownString(mdblocks);
-
-    // Construct Frontmatter
-    const frontmatter = {
-      title,
-      slug,
-      date,
-      tags,
-      status: 'published',
-      cover,
-      lastEditedTime, // Important for incremental sync
-      updated: lastEditedTime,
-      source: 'notion',
-      notion: { id: pageId },
-    };
-
-    let fileContent = matter.stringify(mdString.parent || '', frontmatter);
-
-    // Apply markdown enhancements (translation, code fence fix, etc.)
+    // Fetch all pages (filter in memory to avoid schema mismatch errors)
+    const fetchSpan = logger.time('fetch-pages');
+    let response;
     try {
-      const processed = await processMarkdownForImport(
-        { markdown: fileContent, slug, source: 'notion' },
-        {
-          enableTranslation: true,
-          enableCodeFenceFix: true,
-          enableImageCaptionFix: true,
-          enableMarkdownCleanup: true,
-          enableMathDelimiterFix: true,
-        },
-      );
-
-      fileContent = processed.markdown;
-
-      // Log diagnostics
-      if (processed.diagnostics.changed) {
-        console.log(`  Enhanced ${slug}:`);
-        if (processed.diagnostics.translated) {
-          console.log(`    - Translated from ${processed.diagnostics.detectedLanguage}`);
-        }
-        if (processed.diagnostics.codeFencesFixed > 0) {
-          console.log(`    - Fixed ${processed.diagnostics.codeFencesFixed} code fences`);
-        }
-        if (processed.diagnostics.imageCaptionsFixed > 0) {
-          console.log(`    - Fixed ${processed.diagnostics.imageCaptionsFixed} image captions`);
-        }
-        if (processed.diagnostics.mathDelimitersFixed > 0) {
-          console.log(`    - Fixed ${processed.diagnostics.mathDelimitersFixed} math delimiters`);
-        }
-      }
+      response = await notion.databases.query({
+        database_id: DATABASE_ID!,
+      });
+      fetchSpan.end({ status: 'ok', fields: { totalPages: response.results.length } });
     } catch (error) {
-      console.warn(`Failed to enhance markdown for ${slug}, using original:`, error);
+      fetchSpan.end({ status: 'fail' });
+      throw error;
     }
 
-    const filePath = path.join(NOTION_CONTENT_DIR, `${slug}.md`);
-    fs.writeFileSync(filePath, fileContent);
-    console.log(`Saved ${slug}.md`);
+    const pages = response.results.filter((page): page is PageObjectResponse => {
+      if (!isFullPage(page)) return false;
 
-    if (previousSlug && previousSlug !== slug) {
-      const oldPath = path.join(NOTION_CONTENT_DIR, `${previousSlug}.md`);
-      if (fs.existsSync(oldPath) && oldPath !== filePath) {
-        fs.rmSync(oldPath);
-        console.log(`Removed old file for renamed slug: ${previousSlug}.md`);
+      // Try to find a property that looks like "Status" or "status"
+      const props = page.properties as any;
+      const statusProp = props.Status || props.status;
+
+      // If no status property exists, assume published (or log warning)
+      if (!statusProp) return true;
+
+      // Handle Select or Status type
+      if (statusProp.type === 'select') {
+        return statusProp.select?.name === 'Published';
+      }
+      if (statusProp.type === 'status') {
+        return statusProp.status?.name === 'Published';
+      }
+      return false;
+    });
+
+    logger.info('Found published pages', { count: pages.length });
+
+    let processedCount = 0;
+    let skippedCount = 0;
+    let errorCount = 0;
+
+    for (const page of pages) {
+      // isFullPage check is redundant due to filter but good for safety if logic changes
+      if (!isFullPage(page)) continue;
+
+      const pageId = page.id;
+      const lastEditedTime = page.last_edited_time;
+      const props = page.properties as any;
+
+      const processSpan = logger.time('process-page');
+
+      try {
+        // Extract Frontmatter fields
+        const titleProp = props.Name || props.title || props.Title;
+        const title = titleProp?.title?.[0]?.plain_text || 'Untitled';
+
+        const propSlug =
+          props.slug?.rich_text?.[0]?.plain_text || props.Slug?.rich_text?.[0]?.plain_text || null;
+        const baseSlug = slugFromTitle({ explicitSlug: propSlug, title, fallbackId: pageId });
+        let slug = ensureUniqueSlug(baseSlug, pageId, usedSlugs);
+        if (slug !== baseSlug) {
+          logger.debug('Slug conflict resolved', { pageId, baseSlug, resolvedSlug: slug });
+        }
+
+        const previousMeta = existingPosts.byNotionId.get(pageId);
+        const previousSlug = previousMeta?.slug;
+        if (previousSlug && previousSlug !== slug) {
+          logger.info('Slug changed, migrating images', { pageId, previousSlug, newSlug: slug });
+          migrateImageDir(previousSlug, slug);
+        }
+        migrateImageDir(pageId, slug);
+
+        currentPageSlug = slug; // Set context for image transformer
+
+        const existingBySlug = existingPosts.bySlug.get(slug);
+        if (existingBySlug && existingBySlug.lastEdited === lastEditedTime) {
+          logger.debug('Skipping unchanged page', { slug, pageId });
+          processSpan.end({ status: 'skipped', fields: { slug } });
+          skippedCount++;
+          continue;
+        }
+
+        const date = props.date?.date?.start || new Date().toISOString().split('T')[0];
+        const tags = props.tags?.multi_select?.map((t: any) => t.name) || [];
+
+        let cover = '';
+        const pageCoverUrl =
+          page.cover && page.cover.type === 'external'
+            ? page.cover.external.url
+            : page.cover && page.cover.type === 'file'
+              ? page.cover.file.url
+              : null;
+        const propertyCoverUrl = extractCoverUrl(props);
+
+        const preferredCover = pageCoverUrl || propertyCoverUrl;
+        if (preferredCover) {
+          const localCover = await downloadImage(preferredCover, slug, 'cover');
+          if (localCover) cover = localCover;
+        }
+        if (!cover) {
+          const firstImage = await findFirstImageBlock(pageId);
+          if (firstImage) {
+            const fallbackCover = await downloadImage(firstImage.url, slug, firstImage.blockId);
+            if (fallbackCover) cover = fallbackCover;
+          }
+        }
+
+        // Convert Body to MD
+        const mdblocks = await n2m.pageToMarkdown(pageId);
+        const mdString = await n2m.toMarkdownString(mdblocks);
+
+        // Construct Frontmatter
+        const frontmatter = {
+          title,
+          slug,
+          date,
+          tags,
+          status: 'published',
+          cover,
+          lastEditedTime, // Important for incremental sync
+          updated: lastEditedTime,
+          source: 'notion',
+          notion: { id: pageId },
+        };
+
+        let fileContent = matter.stringify(mdString.parent || '', frontmatter);
+
+        // Apply markdown enhancements (translation, code fence fix, etc.)
+        try {
+          const processed = await processMarkdownForImport(
+            { markdown: fileContent, slug, source: 'notion' },
+            {
+              enableTranslation: true,
+              enableCodeFenceFix: true,
+              enableImageCaptionFix: true,
+              enableMarkdownCleanup: true,
+              enableMathDelimiterFix: true,
+            },
+          );
+
+          fileContent = processed.markdown;
+
+          // Log diagnostics
+          if (processed.diagnostics.changed) {
+            logger.info('Enhanced markdown', {
+              slug,
+              translated: processed.diagnostics.translated,
+              detectedLanguage: processed.diagnostics.detectedLanguage,
+              codeFencesFixed: processed.diagnostics.codeFencesFixed,
+              imageCaptionsFixed: processed.diagnostics.imageCaptionsFixed,
+              mathDelimitersFixed: processed.diagnostics.mathDelimitersFixed,
+            });
+          }
+        } catch (error) {
+          logger.warn('Failed to enhance markdown, using original', {
+            slug,
+            error: String(error),
+          });
+        }
+
+        const filePath = path.join(NOTION_CONTENT_DIR, `${slug}.md`);
+        fs.writeFileSync(filePath, fileContent);
+        logger.debug('Saved markdown file', { slug, filePath });
+
+        if (previousSlug && previousSlug !== slug) {
+          const oldPath = path.join(NOTION_CONTENT_DIR, `${previousSlug}.md`);
+          if (fs.existsSync(oldPath) && oldPath !== filePath) {
+            fs.rmSync(oldPath);
+            logger.debug('Removed old file for renamed slug', { previousSlug, oldPath });
+          }
+        }
+
+        processSpan.end({ status: 'ok', fields: { slug, pageId } });
+        processedCount++;
+      } catch (error) {
+        processSpan.end({ status: 'fail' });
+        logger.error('Failed to process page', { pageId, error });
+        errorCount++;
       }
     }
-  }
 
-  console.log('Sync complete.');
+    logger.summary({
+      status: errorCount > 0 ? 'partial' : 'ok',
+      durationMs: duration(scriptStart),
+      totalPages: pages.length,
+      processed: processedCount,
+      skipped: skippedCount,
+      errors: errorCount,
+    });
+
+    logger.info('Sync complete');
+  } catch (error) {
+    logger.error('Notion sync failed', { error });
+    logger.summary({
+      status: 'fail',
+      durationMs: duration(scriptStart),
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
 }
 
 if (process.env.NODE_ENV !== 'test') {

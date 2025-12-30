@@ -20,6 +20,8 @@ import { ARTIFACTS_DIR, BLOG_CONTENT_DIR, PUBLIC_IMAGES_DIR } from '../src/confi
 import { slugFromTitle } from '../src/lib/slug';
 import { processMarkdownForImport } from './markdown/index.js';
 import { resolveAdapter } from './import/adapters/index.js';
+import { createScriptLogger, now, duration } from './logger-helpers.js';
+import type { Logger } from './logger/types.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -1154,130 +1156,192 @@ async function withBrowser<T>(fn: (context: BrowserContext) => Promise<T>) {
 }
 
 async function main() {
+  const scriptStart = now();
   const options = await parseArgs();
   const targetUrl = options.url;
 
-  // Resolve adapter for URL
-  const adapter = resolveAdapter(targetUrl);
-
-  if (!adapter) {
-    throw new Error(`No adapter matched the given URL: ${targetUrl}`);
-  }
-
-  console.log(`Using adapter: ${adapter.name} (${adapter.id})`);
-
-  const contentDir = path.join(CONTENT_ROOT, adapter.id);
-  const imageRoot = path.join(IMAGE_ROOT, adapter.id);
-  fs.mkdirSync(contentDir, { recursive: true });
-  fs.mkdirSync(imageRoot, { recursive: true });
-
-  // Generate slug from title or URL path as fallback
-  const urlPath = new URL(targetUrl).pathname.split('/').filter(Boolean).pop() || '';
-  const tempSlug = `${adapter.id}-${urlPath || Date.now()}`;
-
-  // Fetch article using adapter
-  const article = await withBrowser(async (context) => {
-    const page = await context.newPage();
-    return adapter.fetchArticle({
-      url: targetUrl,
-      page,
-      options: {
-        slug: tempSlug,
-        imageRoot,
-        publicBasePath: `/images/${adapter.id}/${tempSlug}`,
-        downloadImage: options.dryRun ? async () => null : undefined,
-      },
-    });
+  // Create logger with sanitized URL (remove sensitive query params)
+  const sanitizedUrl = sanitizeZhihuUrl(targetUrl);
+  const logger = createScriptLogger('content-import', { url: sanitizedUrl });
+  
+  logger.info('Starting content import', {
+    dryRun: options.dryRun,
+    allowOverwrite: options.allowOverwrite,
+    useFirstImageAsCover: options.useFirstImageAsCover,
   });
 
-  // Generate final slug from article title
-  const slug = slugFromTitle({
-    title: article.title,
-    fallbackId: urlPath || `${adapter.id}-${Date.now()}`,
-  });
+  try {
+    // Resolve adapter for URL
+    const resolveSpan = logger.time('resolve-adapter');
+    const adapter = resolveAdapter(targetUrl);
 
-  const publishedDate = article.publishedAt ? new Date(article.publishedAt) : new Date();
-  const safeDate = Number.isNaN(publishedDate.valueOf()) ? new Date() : publishedDate;
-  const parsedUpdated = article.updatedAt ? new Date(article.updatedAt) : null;
-  const safeUpdatedDate =
-    parsedUpdated && !Number.isNaN(parsedUpdated.valueOf()) ? parsedUpdated : null;
-
-  const frontmatter: Record<string, any> = {
-    title: article.title || 'Imported Article',
-    slug: slug,
-    date: safeDate.toISOString().split('T')[0],
-    tags: article.tags || [],
-    status: 'published',
-    source_url: article.canonicalUrl,
-    source_author: article.author || new URL(targetUrl).hostname,
-    imported_at: new Date().toISOString(),
-    source: {
-      title: new URL(targetUrl).hostname,
-      url: article.canonicalUrl,
-    },
-    ...(safeUpdatedDate ? { updated: safeUpdatedDate.toISOString().split('T')[0] } : {}),
-  };
-
-  console.log(`The --use-first-image-as-cover option is ${options.useFirstImageAsCover}.`);
-  if (options.useFirstImageAsCover && article.images && article.images[0]?.localPath) {
-    frontmatter.cover = article.images[0].localPath;
-  }
-
-  let fileContent = matter.stringify(article.markdown, frontmatter);
-
-  // Apply markdown enhancements (translation, code fence fix, etc.)
-  if (!options.dryRun) {
-    try {
-      const processed = await processMarkdownForImport(
-        { markdown: fileContent, slug, source: adapter.id },
-        {
-          enableTranslation: true,
-          enableCodeFenceFix: true,
-          enableImageCaptionFix: true,
-          enableMarkdownCleanup: true,
-          enableMathDelimiterFix: true,
-        },
-      );
-
-      fileContent = processed.markdown;
-
-      // Log diagnostics
-      if (processed.diagnostics.changed) {
-        console.log(`Enhanced ${slug}:`);
-        if (processed.diagnostics.translated) {
-          console.log(`  - Translated from ${processed.diagnostics.detectedLanguage}`);
-        }
-        if (processed.diagnostics.codeFencesFixed > 0) {
-          console.log(`  - Fixed ${processed.diagnostics.codeFencesFixed} code fences`);
-        }
-        if (processed.diagnostics.imageCaptionsFixed > 0) {
-          console.log(`  - Fixed ${processed.diagnostics.imageCaptionsFixed} image captions`);
-        }
-        if (processed.diagnostics.mathDelimitersFixed > 0) {
-          console.log(`  - Fixed ${processed.diagnostics.mathDelimitersFixed} math delimiters`);
-        }
-      }
-    } catch (error) {
-      console.warn(`Failed to enhance markdown for ${slug}, using original:`, error);
+    if (!adapter) {
+      resolveSpan.end({ status: 'fail' });
+      throw new Error(`No adapter matched the given URL: ${targetUrl}`);
     }
+    resolveSpan.end({ status: 'ok', fields: { adapterId: adapter.id, adapterName: adapter.name } });
+
+    logger.info('Using adapter', { adapterId: adapter.id, adapterName: adapter.name });
+
+    const contentDir = path.join(CONTENT_ROOT, adapter.id);
+    const imageRoot = path.join(IMAGE_ROOT, adapter.id);
+    fs.mkdirSync(contentDir, { recursive: true });
+    fs.mkdirSync(imageRoot, { recursive: true });
+
+    // Generate slug from title or URL path as fallback
+    const urlPath = new URL(targetUrl).pathname.split('/').filter(Boolean).pop() || '';
+    const tempSlug = `${adapter.id}-${urlPath || Date.now()}`;
+
+    // Fetch article using adapter
+    const fetchSpan = logger.time('fetch-article');
+    let article;
+    try {
+      article = await withBrowser(async (context) => {
+        const page = await context.newPage();
+        return adapter.fetchArticle({
+          url: targetUrl,
+          page,
+          options: {
+            slug: tempSlug,
+            imageRoot,
+            publicBasePath: `/images/${adapter.id}/${tempSlug}`,
+            downloadImage: options.dryRun ? async () => null : undefined,
+          },
+        });
+      });
+      fetchSpan.end({
+        status: 'ok',
+        fields: {
+          titleLength: article.title?.length || 0,
+          markdownLength: article.markdown?.length || 0,
+          imageCount: article.images?.length || 0,
+        },
+      });
+    } catch (error) {
+      fetchSpan.end({ status: 'fail' });
+      throw error;
+    }
+
+    // Generate final slug from article title
+    const slug = slugFromTitle({
+      title: article.title,
+      fallbackId: urlPath || `${adapter.id}-${Date.now()}`,
+    });
+
+    logger.info('Generated slug', { slug, title: article.title });
+
+    const publishedDate = article.publishedAt ? new Date(article.publishedAt) : new Date();
+    const safeDate = Number.isNaN(publishedDate.valueOf()) ? new Date() : publishedDate;
+    const parsedUpdated = article.updatedAt ? new Date(article.updatedAt) : null;
+    const safeUpdatedDate =
+      parsedUpdated && !Number.isNaN(parsedUpdated.valueOf()) ? parsedUpdated : null;
+
+    const frontmatter: Record<string, any> = {
+      title: article.title || 'Imported Article',
+      slug: slug,
+      date: safeDate.toISOString().split('T')[0],
+      tags: article.tags || [],
+      status: 'published',
+      source_url: article.canonicalUrl,
+      source_author: article.author || new URL(targetUrl).hostname,
+      imported_at: new Date().toISOString(),
+      source: {
+        title: new URL(targetUrl).hostname,
+        url: article.canonicalUrl,
+      },
+      ...(safeUpdatedDate ? { updated: safeUpdatedDate.toISOString().split('T')[0] } : {}),
+    };
+
+    if (options.useFirstImageAsCover && article.images && article.images[0]?.localPath) {
+      frontmatter.cover = article.images[0].localPath;
+    }
+
+    let fileContent = matter.stringify(article.markdown, frontmatter);
+
+    // Apply markdown enhancements (translation, code fence fix, etc.)
+    if (!options.dryRun) {
+      const processSpan = logger.time('process-markdown');
+      try {
+        const processed = await processMarkdownForImport(
+          { markdown: fileContent, slug, source: adapter.id },
+          {
+            enableTranslation: true,
+            enableCodeFenceFix: true,
+            enableImageCaptionFix: true,
+            enableMarkdownCleanup: true,
+            enableMathDelimiterFix: true,
+          },
+        );
+
+        fileContent = processed.markdown;
+
+        // Log diagnostics
+        if (processed.diagnostics.changed) {
+          logger.info('Enhanced markdown', {
+            translated: processed.diagnostics.translated,
+            detectedLanguage: processed.diagnostics.detectedLanguage,
+            codeFencesFixed: processed.diagnostics.codeFencesFixed,
+            imageCaptionsFixed: processed.diagnostics.imageCaptionsFixed,
+            mathDelimitersFixed: processed.diagnostics.mathDelimitersFixed,
+          });
+        }
+        processSpan.end({ status: 'ok', fields: { changed: processed.diagnostics.changed } });
+      } catch (error) {
+        processSpan.end({ status: 'fail' });
+        logger.warn('Failed to enhance markdown, using original', { error: String(error) });
+      }
+    }
+
+    const filepath = path.join(contentDir, `${slug}.md`);
+
+    if (fs.existsSync(filepath) && !options.allowOverwrite) {
+      logger.warn('File already exists, use --allow-overwrite to overwrite', { filepath });
+      logger.summary({
+        status: 'skipped',
+        durationMs: duration(scriptStart),
+        reason: 'file_exists',
+      });
+      return;
+    }
+
+    if (options.dryRun) {
+      logger.info('Dry run mode, preview only', { contentLength: fileContent.length });
+      logger.summary({
+        status: 'ok',
+        durationMs: duration(scriptStart),
+        dryRun: true,
+      });
+      return;
+    }
+
+    // Write file
+    const writeSpan = logger.time('write-file');
+    try {
+      fs.writeFileSync(filepath, fileContent);
+      writeSpan.end({ status: 'ok', fields: { filepath } });
+      logger.info('Saved article', { filepath, slug });
+    } catch (error) {
+      writeSpan.end({ status: 'fail' });
+      throw error;
+    }
+
+    logger.summary({
+      status: 'ok',
+      durationMs: duration(scriptStart),
+      slug,
+      adapterId: adapter.id,
+      imageCount: article.images?.length || 0,
+      markdownLength: fileContent.length,
+    });
+  } catch (error) {
+    logger.error('Content import failed', { error });
+    logger.summary({
+      status: 'fail',
+      durationMs: duration(scriptStart),
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
   }
-
-  const filepath = path.join(contentDir, `${slug}.md`);
-
-  if (fs.existsSync(filepath) && !options.allowOverwrite) {
-    console.log(`File already exists at ${filepath}. Use --allow-overwrite to overwrite.`);
-    return;
-  }
-
-  if (options.dryRun) {
-    console.log('Dry run mode enabled. Preview frontmatter + markdown:\n');
-    console.log(fileContent);
-    return;
-  }
-
-  fs.writeFileSync(filepath, fileContent);
-
-  console.log(`Saved article to ${filepath}`);
 }
 
 // Avoid running the CLI when the module is imported (e.g., in tests or tsx -e invocations).
