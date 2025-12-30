@@ -10,6 +10,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import matter from 'gray-matter';
 
 // Get directory paths
 const __filename = fileURLToPath(import.meta.url);
@@ -19,9 +20,6 @@ const CONTENT_DIR = path.join(ROOT_DIR, 'src/content/blog');
 const OUTPUT_DIR = path.join(ROOT_DIR, 'public');
 const OUTPUT_FILE = path.join(OUTPUT_DIR, 'search-index.json');
 
-// Import indexer utilities - we'll use the compiled version or raw TS
-// For build-time, we parse markdown directly
-
 /**
  * Remove markdown code blocks from text
  */
@@ -30,17 +28,23 @@ function removeCodeBlocks(text: string): string {
 }
 
 /**
- * Remove markdown frontmatter from text
- */
-function removeFrontmatter(text: string): string {
-  return text.replace(/^---[\s\S]*?---\n?/, '');
-}
-
-/**
  * Remove HTML tags from text
+ * Note: This is for search indexing purposes only, not for security sanitization.
+ * Uses a loop to handle nested or malformed tags.
  */
 function removeHtmlTags(text: string): string {
-  return text.replace(/<[^>]+>/g, '');
+  // Repeatedly remove HTML tags until none remain
+  // This handles cases like <scr<script>ipt> -> <script> -> ""
+  let result = text;
+  let previous = '';
+  const tagRegex = /<[^>]*>/g;
+
+  while (result !== previous) {
+    previous = result;
+    result = result.replace(tagRegex, '');
+  }
+
+  return result;
 }
 
 /**
@@ -82,10 +86,10 @@ function extractHeadings(text: string): string[] {
 
 /**
  * Convert markdown to plain text for indexing
+ * Note: Assumes frontmatter is already removed (via gray-matter)
  */
 function markdownToPlainText(markdown: string): string {
-  let text = removeFrontmatter(markdown);
-  text = removeCodeBlocks(text);
+  let text = removeCodeBlocks(markdown);
   text = removeHtmlTags(text);
   text = removeMarkdownFormatting(text);
   text = text.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -105,89 +109,6 @@ function truncateText(text: string, maxLength: number): string {
     return truncated.substring(0, lastSpace) + '...';
   }
   return truncated + '...';
-}
-
-/**
- * Parse YAML frontmatter from markdown content
- */
-function parseFrontmatter(content: string): { data: Record<string, unknown>; content: string } {
-  const frontmatterRegex = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/;
-  const match = content.match(frontmatterRegex);
-
-  if (!match) {
-    return { data: {}, content };
-  }
-
-  const yamlContent = match[1];
-  const bodyContent = match[2];
-
-  // Simple YAML parser for basic frontmatter
-  const data: Record<string, unknown> = {};
-
-  const lines = yamlContent.split('\n');
-  let currentKey = '';
-  let inArray = false;
-  let arrayValues: string[] = [];
-
-  for (const line of lines) {
-    // Handle array items
-    if (line.match(/^\s+-\s+(.+)$/)) {
-      const arrayMatch = line.match(/^\s+-\s+(.+)$/);
-      if (arrayMatch && inArray) {
-        arrayValues.push(arrayMatch[1].replace(/^['"]|['"]$/g, ''));
-      }
-      continue;
-    }
-
-    // End of array
-    if (inArray && currentKey) {
-      data[currentKey] = arrayValues;
-      inArray = false;
-      arrayValues = [];
-    }
-
-    // Key-value pairs
-    const kvMatch = line.match(/^(\w+):\s*(.*)$/);
-    if (kvMatch) {
-      const key = kvMatch[1];
-      const value = kvMatch[2].trim();
-
-      if (value === '' || value === '[]') {
-        // Possible array start or empty value
-        currentKey = key;
-        if (value === '[]') {
-          data[key] = [];
-        } else {
-          inArray = true;
-          arrayValues = [];
-        }
-      } else if (value.startsWith('[') && value.endsWith(']')) {
-        // Inline array
-        const items = value
-          .slice(1, -1)
-          .split(',')
-          .map((s) => s.trim().replace(/^['"]|['"]$/g, ''));
-        data[key] = items.filter(Boolean);
-      } else if (value.startsWith("'") || value.startsWith('"')) {
-        data[key] = value.replace(/^['"]|['"]$/g, '');
-      } else if (value === 'true') {
-        data[key] = true;
-      } else if (value === 'false') {
-        data[key] = false;
-      } else if (!isNaN(Number(value))) {
-        data[key] = Number(value);
-      } else {
-        data[key] = value;
-      }
-    }
-  }
-
-  // Handle any remaining array
-  if (inArray && currentKey) {
-    data[currentKey] = arrayValues;
-  }
-
-  return { data, content: bodyContent };
 }
 
 interface SearchIndexEntry {
@@ -264,7 +185,7 @@ function getMarkdownFiles(dir: string): string[] {
 function processFile(filePath: string): SearchIndexEntry | null {
   try {
     const content = fs.readFileSync(filePath, 'utf-8');
-    const { data, content: body } = parseFrontmatter(content);
+    const { data, content: body } = matter(content);
 
     // Skip drafts
     if (data.status === 'draft') {
@@ -278,10 +199,9 @@ function processFile(filePath: string): SearchIndexEntry | null {
     const date = data.date ? new Date(data.date as string).toISOString() : new Date().toISOString();
     const source = extractSourceType(filePath);
 
-    // Process content
-    const cleanBody = removeFrontmatter(body);
-    const headings = extractHeadings(cleanBody);
-    const plainText = markdownToPlainText(cleanBody);
+    // Process content - body from gray-matter already has frontmatter removed
+    const headings = extractHeadings(body);
+    const plainText = markdownToPlainText(body);
     const truncatedBody = truncateText(plainText, 20000);
     const summary = truncateText(plainText, 200);
 

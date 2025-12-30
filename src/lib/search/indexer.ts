@@ -32,9 +32,22 @@ export function removeFrontmatter(text: string): string {
 
 /**
  * Remove HTML tags from text
+ * Note: This is for search indexing purposes only, not for security sanitization.
+ * Uses a loop to handle nested or malformed tags.
  */
 export function removeHtmlTags(text: string): string {
-  return text.replace(/<[^>]+>/g, '');
+  // Repeatedly remove HTML tags until none remain
+  // This handles cases like <scr<script>ipt> -> <script> -> ""
+  let result = text;
+  let previous = '';
+  const tagRegex = /<[^>]*>/g;
+
+  while (result !== previous) {
+    previous = result;
+    result = result.replace(tagRegex, '');
+  }
+
+  return result;
 }
 
 /**

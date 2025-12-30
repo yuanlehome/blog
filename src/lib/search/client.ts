@@ -80,20 +80,27 @@ export class SearchClient {
           break;
 
         case 'results': {
-          const search = this.pendingSearches.get(this.searchId - 1);
+          // Resolve the most recent pending search
+          // For concurrent searches, only the latest one matters
+          const latestId = this.searchId - 1;
+          const search = this.pendingSearches.get(latestId);
           if (search) {
             search.resolve(payload as SearchResponse);
-            this.pendingSearches.delete(this.searchId - 1);
           }
+          // Clear all pending searches (cancel older ones)
+          this.pendingSearches.clear();
           break;
         }
 
         case 'error': {
-          const search = this.pendingSearches.get(this.searchId - 1);
+          // Reject the most recent pending search
+          const latestId = this.searchId - 1;
+          const search = this.pendingSearches.get(latestId);
           if (search) {
             search.reject(new Error(payload as string));
-            this.pendingSearches.delete(this.searchId - 1);
           }
+          // Clear all pending searches
+          this.pendingSearches.clear();
           break;
         }
       }

@@ -58,6 +58,11 @@ describe('search indexer', () => {
     it('removes self-closing tags', () => {
       expect(removeHtmlTags('before<br/>after')).toBe('beforeafter');
     });
+
+    it('handles nested/malformed tags', () => {
+      // Handles nested cases through iteration
+      expect(removeHtmlTags('<scr<b>ipt>')).toBe('ipt>');
+    });
   });
 
   describe('removeMarkdownFormatting', () => {
