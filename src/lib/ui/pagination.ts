@@ -79,7 +79,7 @@ export function getPaginationPages(options: PaginationOptions): PaginationItem[]
   // Always show first page
   pages.push(1);
 
-  // Add ellipsis if there's a gap after first page
+  // Add ellipsis if there's a gap after first page (at least one missing page)
   if (windowStart > 2) {
     pages.push('ellipsis');
   }
@@ -91,7 +91,7 @@ export function getPaginationPages(options: PaginationOptions): PaginationItem[]
     }
   }
 
-  // Add ellipsis if there's a gap before last page
+  // Add ellipsis if there's a gap before last page (at least one missing page)
   if (windowEnd < totalPages - 1) {
     pages.push('ellipsis');
   }
