@@ -92,6 +92,14 @@ export const componentsConfigSchema = z.object({
       relaxed: z.number().min(0.5).max(2).default(1.25),
     })
     .default({}),
+  headerMascot: z
+    .object({
+      enabled: z.boolean().default(true),
+      speed: z.number().min(0.1).max(5).default(1.0),
+      interactive: z.boolean().default(true),
+      hideOnMobile: z.boolean().default(true),
+    })
+    .default({}),
 });
 
 export type ComponentsConfig = z.infer<typeof componentsConfigSchema>;
@@ -154,6 +162,12 @@ export const defaultComponentsConfig: ComponentsConfig = {
     compact: 0.75,
     comfortable: 1.0,
     relaxed: 1.25,
+  },
+  headerMascot: {
+    enabled: true,
+    speed: 1.0,
+    interactive: true,
+    hideOnMobile: true,
   },
 };
 

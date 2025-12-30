@@ -72,3 +72,15 @@ spacingMultiplier:
   compact: 0.75
   comfortable: 1.0
   relaxed: 1.25
+
+# Header Mascot Configuration
+# A walking stick figure character in the header
+headerMascot:
+  # Enable or disable the mascot
+  enabled: true
+  # Animation speed multiplier (0.5 = slower, 2.0 = faster)
+  speed: 1.0
+  # Enable interactive features (hover/click)
+  interactive: true
+  # Hide mascot on mobile devices (recommended)
+  hideOnMobile: true

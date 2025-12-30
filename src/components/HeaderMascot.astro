@@ -1,0 +1,236 @@
+---
+/**
+ * HeaderMascot - A walking stick figure character in the header
+ *
+ * Features:
+ * - CSS-based walking animation
+ * - Hover/click interactions
+ * - Dark mode support
+ * - Respects prefers-reduced-motion
+ * - Non-blocking (doesn't interfere with navigation)
+ * - Mobile-responsive (can be hidden on small screens)
+ */
+import { getComponentsConfig } from '../config/loaders';
+
+const componentsConfig = getComponentsConfig();
+const mascotConfig = componentsConfig.headerMascot;
+
+// Don't render if disabled
+if (!mascotConfig.enabled) {
+  return null;
+}
+
+const speed = mascotConfig.speed;
+const interactive = mascotConfig.interactive;
+const hideOnMobile = mascotConfig.hideOnMobile;
+
+// Calculate animation duration based on speed (inverse relationship)
+const walkDuration = Math.round(20 / speed);
+---
+
+<div
+  class="header-mascot"
+  class:list={[hideOnMobile && 'hidden md:block']}
+  aria-hidden="true"
+  data-mascot
+>
+  <svg
+    class="mascot-svg"
+    width="40"
+    height="60"
+    viewBox="0 0 40 60"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <!-- Head -->
+    <circle cx="20" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"></circle>
+
+    <!-- Body -->
+    <line x1="20" y1="20" x2="20" y2="35" stroke="currentColor" stroke-width="2"></line>
+
+    <!-- Arms group -->
+    <g class="mascot-arms">
+      <!-- Left arm -->
+      <line class="arm-left" x1="20" y1="25" x2="10" y2="30" stroke="currentColor" stroke-width="2"
+      ></line>
+      <!-- Right arm -->
+      <line class="arm-right" x1="20" y1="25" x2="30" y2="30" stroke="currentColor" stroke-width="2"
+      ></line>
+    </g>
+
+    <!-- Legs group -->
+    <g class="mascot-legs">
+      <!-- Left leg -->
+      <line class="leg-left" x1="20" y1="35" x2="12" y2="50" stroke="currentColor" stroke-width="2"
+      ></line>
+      <!-- Right leg -->
+      <line class="leg-right" x1="20" y1="35" x2="28" y2="50" stroke="currentColor" stroke-width="2"
+      ></line>
+    </g>
+  </svg>
+</div>
+
+<style define:vars={{ walkDuration: `${walkDuration}s` }}>
+  .header-mascot {
+    position: absolute;
+    top: 50%;
+    left: 10%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    z-index: 5;
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+  }
+
+  .mascot-svg {
+    color: var(--color-text, #111827);
+    animation: walk var(--walkDuration) linear infinite;
+  }
+
+  /* Dark mode support */
+  :global(.dark) .mascot-svg {
+    color: var(--color-text-dark, #e5e7eb);
+  }
+
+  /* Walking animation - horizontal movement and direction change */
+  @keyframes walk {
+    0% {
+      transform: translateX(0) scaleX(1);
+    }
+    45% {
+      transform: translateX(80vw) scaleX(1);
+    }
+    50% {
+      transform: translateX(80vw) scaleX(-1);
+    }
+    95% {
+      transform: translateX(0) scaleX(-1);
+    }
+    100% {
+      transform: translateX(0) scaleX(1);
+    }
+  }
+
+  /* Leg walking animation */
+  @keyframes leg-walk {
+    0%,
+    100% {
+      transform: rotate(0deg);
+      transform-origin: top;
+    }
+    25% {
+      transform: rotate(20deg);
+      transform-origin: top;
+    }
+    75% {
+      transform: rotate(-20deg);
+      transform-origin: top;
+    }
+  }
+
+  .leg-left {
+    animation: leg-walk calc(var(--walkDuration) / 10) ease-in-out infinite;
+  }
+
+  .leg-right {
+    animation: leg-walk calc(var(--walkDuration) / 10) ease-in-out infinite;
+    animation-delay: calc(var(--walkDuration) / 20);
+  }
+
+  /* Arm swinging animation */
+  @keyframes arm-swing {
+    0%,
+    100% {
+      transform: rotate(0deg);
+      transform-origin: top;
+    }
+    50% {
+      transform: rotate(15deg);
+      transform-origin: top;
+    }
+  }
+
+  .arm-left {
+    animation: arm-swing calc(var(--walkDuration) / 10) ease-in-out infinite;
+  }
+
+  .arm-right {
+    animation: arm-swing calc(var(--walkDuration) / 10) ease-in-out infinite;
+    animation-delay: calc(var(--walkDuration) / 20);
+  }
+
+  /* Hover interaction - pause and wave */
+  .header-mascot:hover .mascot-svg {
+    animation-play-state: paused;
+  }
+
+  .header-mascot:hover .mascot-arms {
+    animation: wave 0.6s ease-in-out 2;
+  }
+
+  @keyframes wave {
+    0%,
+    100% {
+      transform: rotate(0deg);
+      transform-origin: center;
+    }
+    50% {
+      transform: rotate(-25deg);
+      transform-origin: center;
+    }
+  }
+
+  /* Click interaction - jump */
+  .mascot-svg.jumping {
+    animation: jump 0.6s ease-in-out;
+  }
+
+  @keyframes jump {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-20px);
+    }
+  }
+
+  /* Respect reduced motion preference */
+  @media (prefers-reduced-motion: reduce) {
+    .mascot-svg,
+    .leg-left,
+    .leg-right,
+    .arm-left,
+    .arm-right,
+    .mascot-arms {
+      animation: none !important;
+    }
+
+    .header-mascot {
+      opacity: 0.4;
+    }
+  }
+</style>
+
+<script>
+  // Add click interaction if enabled
+  const mascot = document.querySelector('[data-mascot]') as HTMLElement | null;
+  const mascotSvg = mascot?.querySelector('.mascot-svg') as SVGElement | null;
+
+  if (mascot && mascotSvg) {
+    mascot.style.pointerEvents = 'auto';
+    mascot.style.cursor = 'pointer';
+
+    mascot.addEventListener('click', () => {
+      mascotSvg.classList.add('jumping');
+      setTimeout(() => {
+        mascotSvg.classList.remove('jumping');
+      }, 600);
+    });
+  }
+
+  // Update on theme change
+  window.addEventListener('themechange', () => {
+    // Theme variables are handled by CSS, no JS action needed
+  });
+</script>
