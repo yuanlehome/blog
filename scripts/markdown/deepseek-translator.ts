@@ -90,7 +90,11 @@ interface TranslationDiagnostics {
  * Expected JSON structure from DeepSeek
  */
 interface DeepSeekPatchResponse {
-  patches: Record<string, string>;
+  patches: Record<
+    string,
+    | { kind: 'text'; text: string }
+    | { kind: 'math'; latex: string; confidence: 'high' | 'low' }
+  >;
 }
 
 /**
@@ -321,14 +325,22 @@ export class DeepSeekTranslator implements Translator {
    * Translate a batch of nodes via DeepSeek API
    */
   private async translateBatch(nodes: TranslationNode[]): Promise<TranslationPatch[]> {
-    // Build prompt
-    const nodeMap: Record<string, string> = {};
+    // Build prompt - separate text and math nodes
+    const nodeInfo: Record<
+      string,
+      { kind: 'text'; text: string } | { kind: 'math'; latex: string }
+    > = {};
+    
     nodes.forEach((node) => {
-      nodeMap[node.nodeId] = node.text;
+      if (node.kind === 'text') {
+        nodeInfo[node.nodeId] = { kind: 'text', text: node.text };
+      } else {
+        nodeInfo[node.nodeId] = { kind: 'math', latex: node.latex };
+      }
     });
 
     const systemPrompt = this.buildSystemPrompt();
-    const userPrompt = this.buildUserPrompt(nodeMap);
+    const userPrompt = this.buildUserPrompt(nodeInfo);
 
     const requestPayload: DeepSeekRequest = {
       model: this.config.model,
@@ -370,15 +382,24 @@ export class DeepSeekTranslator implements Translator {
       }
 
       // Parse JSON
-      const parsed = this.parseAndValidateResponse(content, Object.keys(nodeMap));
+      const parsed = this.parseAndValidateResponse(content, nodeInfo);
       if (!parsed) {
         throw new Error('Invalid response format from DeepSeek');
       }
 
       // Convert to patches
       const patches: TranslationPatch[] = [];
-      for (const [nodeId, translatedText] of Object.entries(parsed.patches)) {
-        patches.push({ nodeId, translatedText });
+      for (const [nodeId, patchData] of Object.entries(parsed.patches)) {
+        if (patchData.kind === 'text') {
+          patches.push({ kind: 'text', nodeId, text: patchData.text });
+        } else {
+          patches.push({
+            kind: 'math',
+            nodeId,
+            latex: patchData.latex,
+            confidence: patchData.confidence,
+          });
+        }
       }
 
       return patches;
@@ -395,37 +416,76 @@ export class DeepSeekTranslator implements Translator {
    * Build system prompt for DeepSeek
    */
   private buildSystemPrompt(): string {
-    return `You are a professional technical translator. Your task is to translate English technical content to Chinese.
+    return `You are a professional technical translator and LaTeX math fixer. You will receive two types of nodes:
 
-CRITICAL RULES:
-1. Output MUST be valid JSON with this exact structure: {"patches": {"node-id": "translated text", ...}}
+1. TEXT NODES (kind: "text"): Translate English technical content to Chinese
+2. MATH NODES (kind: "math"): Fix LaTeX syntax for block math
+
+CRITICAL RULES FOR OUTPUT:
+1. Output MUST be valid JSON with this exact structure:
+   {
+     "patches": {
+       "node-id": {"kind": "text", "text": "translated text"},
+       "node-id": {"kind": "math", "latex": "fixed latex", "confidence": "high"}
+     }
+   }
 2. Do NOT output markdown, explanations, or extra fields
 3. The "patches" object MUST contain ALL node IDs from the input
-4. Preserve technical terms: First occurrence as "中文（English）", then just "中文"
-5. Do NOT translate: code, variable names, function names, URLs, file paths
-6. Keep semantic meaning identical - no expansion or reduction
-7. Preserve original punctuation style, adjust spaces only in natural language
-8. If a node cannot be translated, return the original text unchanged
+4. Each patch MUST have the same "kind" as the input node
+
+TEXT TRANSLATION RULES:
+- Preserve technical terms: First occurrence as "中文（English）", then just "中文"
+- Do NOT translate: code, variable names, function names, URLs, file paths
+- Keep semantic meaning identical - no expansion or reduction
+- Preserve original punctuation style, adjust spaces only in natural language
+- If cannot translate, return original text unchanged
+
+MATH FIXING RULES (CRITICAL):
+- Fix ONLY LaTeX syntax, do NOT change mathematical meaning
+- STRICTLY FORBIDDEN: Output any $ or $$ delimiters (block math already wrapped externally)
+- STRICTLY FORBIDDEN: Output \\[ or \\] delimiters
+- Remove ALL stray $ and $$ inside the math block
+- Fix this EXACT bad sample pattern:
+  \\displaystyle\\exp(m_{[0,L)}-m_{[0,L+1)})$}\\colorbox{orange}{$\\displaystyle\\sum_{l\\in[0,L)}\\exp(s_l-m_{[0,L)})$} + \\colorbox{lime}{$\\displaystyle\\exp(s_L-m_{[0,L+1)})$}$
+  Should become (NO $ symbols):
+  \\displaystyle\\exp(m_{[0,L)}-m_{[0,L+1)})}\\colorbox{orange}{\\displaystyle\\sum_{l\\in[0,L)}\\exp(s_l-m_{[0,L)})} + \\colorbox{lime}{\\displaystyle\\exp(s_L-m_{[0,L+1)})}
+- Fix broken \\colorbox{color}{content} commands: ensure both braces are balanced
+- Fix \\displaystyle placement
+- Balance brackets: {}, [], ()
+- Remove isolated $$ that split the block
+- If math is valid, set confidence: "high"
+- If cannot fix safely, return original latex with confidence: "low"
 
 If you cannot produce valid JSON, output the minimal valid structure: {"patches": {}}`;
   }
 
   /**
-   * Build user prompt with nodes to translate
+   * Build user prompt with nodes to translate/fix
    */
-  private buildUserPrompt(nodeMap: Record<string, string>): string {
-    const nodeList = Object.entries(nodeMap)
-      .map(([id, text]) => `"${id}": "${this.escapeJsonString(text)}"`)
+  private buildUserPrompt(
+    nodeInfo: Record<
+      string,
+      { kind: 'text'; text: string } | { kind: 'math'; latex: string }
+    >,
+  ): string {
+    const nodeList = Object.entries(nodeInfo)
+      .map(([id, data]) => {
+        if (data.kind === 'text') {
+          return `"${id}": {"kind": "text", "text": "${this.escapeJsonString(data.text)}"}`;
+        } else {
+          return `"${id}": {"kind": "math", "latex": "${this.escapeJsonString(data.latex)}"}`;
+        }
+      })
       .join(',\n  ');
 
-    return `Translate the following nodes to Chinese. Return JSON with {"patches": {...}} structure.
+    return `Process the following nodes. For text nodes, translate to Chinese. For math nodes, fix LaTeX syntax.
 
 Input nodes:
 {
   ${nodeList}
 }
 
-Remember: Output only valid JSON, no markdown or explanations.`;
+Remember: Output only valid JSON with the exact structure shown in system prompt. No markdown or explanations.`;
   }
 
   /**
@@ -445,7 +505,10 @@ Remember: Output only valid JSON, no markdown or explanations.`;
    */
   private parseAndValidateResponse(
     content: string,
-    expectedNodeIds: string[],
+    expectedNodes: Record<
+      string,
+      { kind: 'text'; text: string } | { kind: 'math'; latex: string }
+    >,
   ): DeepSeekPatchResponse | null {
     try {
       const parsed = JSON.parse(content) as DeepSeekPatchResponse;
@@ -459,17 +522,62 @@ Remember: Output only valid JSON, no markdown or explanations.`;
         return null;
       }
 
-      // Check all expected node IDs are present
-      for (const nodeId of expectedNodeIds) {
+      // Check all expected node IDs are present with correct kind
+      for (const [nodeId, inputData] of Object.entries(expectedNodes)) {
         if (!(nodeId in parsed.patches)) {
           console.warn(`DeepSeek response missing node: ${nodeId}`);
-          // Add empty string since we don't have access to original text here
-          parsed.patches[nodeId] = '';
+          // Add fallback based on input kind
+          if (inputData.kind === 'text') {
+            parsed.patches[nodeId] = { kind: 'text', text: inputData.text };
+          } else {
+            parsed.patches[nodeId] = { kind: 'math', latex: inputData.latex, confidence: 'low' };
+          }
         }
 
-        // Validate value is string
-        if (typeof parsed.patches[nodeId] !== 'string') {
-          parsed.patches[nodeId] = String(parsed.patches[nodeId] || '');
+        const patchData = parsed.patches[nodeId];
+        
+        // Validate patch structure
+        if (typeof patchData !== 'object' || !patchData.kind) {
+          console.warn(`Invalid patch structure for node: ${nodeId}`);
+          // Fallback
+          if (inputData.kind === 'text') {
+            parsed.patches[nodeId] = { kind: 'text', text: inputData.text };
+          } else {
+            parsed.patches[nodeId] = { kind: 'math', latex: inputData.latex, confidence: 'low' };
+          }
+          continue;
+        }
+
+        // Validate kind matches
+        if (patchData.kind !== inputData.kind) {
+          console.warn(`Kind mismatch for node ${nodeId}: expected ${inputData.kind}, got ${patchData.kind}`);
+          // Fallback to original
+          if (inputData.kind === 'text') {
+            parsed.patches[nodeId] = { kind: 'text', text: inputData.text };
+          } else {
+            parsed.patches[nodeId] = { kind: 'math', latex: inputData.latex, confidence: 'low' };
+          }
+          continue;
+        }
+
+        // Validate text patch
+        if (patchData.kind === 'text') {
+          if (typeof patchData.text !== 'string') {
+            patchData.text = String(patchData.text || inputData.text);
+          }
+        }
+        
+        // Validate math patch
+        if (patchData.kind === 'math') {
+          if (typeof patchData.latex !== 'string') {
+            patchData.latex = String(patchData.latex || inputData.latex);
+          }
+          if (!patchData.confidence) {
+            patchData.confidence = 'low';
+          }
+          if (patchData.confidence !== 'high' && patchData.confidence !== 'low') {
+            patchData.confidence = 'low';
+          }
         }
       }
 

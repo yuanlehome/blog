@@ -7,16 +7,53 @@
 
 import { DeepSeekTranslator } from './deepseek-translator.js';
 
-export interface TranslationNode {
+/**
+ * Input node for translation (text content)
+ */
+export interface TextTranslationNode {
+  kind: 'text';
   nodeId: string;
   text: string;
   context?: string; // Optional context for better translation
 }
 
-export interface TranslationPatch {
+/**
+ * Input node for math fixing (LaTeX content)
+ */
+export interface MathTranslationNode {
+  kind: 'math';
   nodeId: string;
-  translatedText: string;
+  latex: string; // Raw LaTeX content (without $$ delimiters)
 }
+
+/**
+ * Union type for all translation nodes
+ */
+export type TranslationNode = TextTranslationNode | MathTranslationNode;
+
+/**
+ * Output patch for translated text
+ */
+export interface TextTranslationPatch {
+  kind: 'text';
+  nodeId: string;
+  text: string;
+}
+
+/**
+ * Output patch for fixed math
+ */
+export interface MathTranslationPatch {
+  kind: 'math';
+  nodeId: string;
+  latex: string; // Fixed LaTeX (no $$, no $, valid syntax)
+  confidence: 'high' | 'low';
+}
+
+/**
+ * Union type for all translation patches
+ */
+export type TranslationPatch = TextTranslationPatch | MathTranslationPatch;
 
 export interface TranslationResult {
   patches: TranslationPatch[];
@@ -41,16 +78,31 @@ export interface Translator {
 
 /**
  * Mock translator for testing
- * Prepends "[ZH] " to each text to simulate translation
+ * - For text nodes: Prepends "[ZH] " to simulate translation
+ * - For math nodes: Removes all $ and $$ delimiters to simulate fixing
  */
 export class MockTranslator implements Translator {
   name = 'mock';
 
   async translate(nodes: TranslationNode[]): Promise<TranslationResult> {
-    const patches: TranslationPatch[] = nodes.map((node) => ({
-      nodeId: node.nodeId,
-      translatedText: `[ZH] ${node.text}`,
-    }));
+    const patches: TranslationPatch[] = nodes.map((node) => {
+      if (node.kind === 'text') {
+        return {
+          kind: 'text',
+          nodeId: node.nodeId,
+          text: `[ZH] ${node.text}`,
+        };
+      } else {
+        // Math node - remove all $ delimiters
+        const fixed = node.latex.replace(/\$+/g, '');
+        return {
+          kind: 'math',
+          nodeId: node.nodeId,
+          latex: fixed,
+          confidence: 'high',
+        };
+      }
+    });
 
     return {
       patches,
@@ -63,17 +115,29 @@ export class MockTranslator implements Translator {
 }
 
 /**
- * Identity translator - returns original text unchanged
+ * Identity translator - returns original content unchanged
  * Useful for disabling translation while keeping the pipeline intact
  */
 export class IdentityTranslator implements Translator {
   name = 'identity';
 
   async translate(nodes: TranslationNode[]): Promise<TranslationResult> {
-    const patches: TranslationPatch[] = nodes.map((node) => ({
-      nodeId: node.nodeId,
-      translatedText: node.text,
-    }));
+    const patches: TranslationPatch[] = nodes.map((node) => {
+      if (node.kind === 'text') {
+        return {
+          kind: 'text',
+          nodeId: node.nodeId,
+          text: node.text,
+        };
+      } else {
+        return {
+          kind: 'math',
+          nodeId: node.nodeId,
+          latex: node.latex,
+          confidence: 'high',
+        };
+      }
+    });
 
     return {
       patches,
