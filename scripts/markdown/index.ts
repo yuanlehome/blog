@@ -36,12 +36,14 @@ export {
   IdentityTranslator,
   type Translator,
   type TranslationNode,
+  type TextTranslationNode,
+  type MathTranslationNode,
   type TranslationPatch,
+  type TextTranslationPatch,
+  type MathTranslationPatch,
   type TranslationResult,
 } from './translator.js';
 
 export { DeepSeekTranslator } from './deepseek-translator.js';
 
 export { detectCodeLanguage, isGitHubActionsWorkflow } from './code-fence-fixer.js';
-
-export { fixMathBlock, degradeToTexBlock, type MathFixResult } from './math-fixer.js';

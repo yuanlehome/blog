@@ -18,9 +18,13 @@ import type { Root, Code, Paragraph, Image } from 'mdast';
 import matter from 'gray-matter';
 
 import { detectLanguage, shouldTranslate } from './language-detector.js';
-import { type Translator, type TranslationNode, getConfiguredTranslator } from './translator.js';
+import {
+  type Translator,
+  type TranslationNode,
+  type TranslationPatch,
+  getConfiguredTranslator,
+} from './translator.js';
 import { detectCodeLanguage, isGitHubActionsWorkflow } from './code-fence-fixer.js';
-import { fixMathBlock } from './math-fixer.js';
 
 export interface ProcessingOptions {
   slug?: string;
@@ -31,7 +35,6 @@ export interface ProcessingOptions {
   enableImageCaptionFix?: boolean;
   enableMarkdownCleanup?: boolean;
   enableMathDelimiterFix?: boolean;
-  enableMathFix?: boolean;
 }
 
 export interface ProcessingDiagnostics {
@@ -42,9 +45,9 @@ export interface ProcessingDiagnostics {
   imageCaptionsFixed: number;
   emptyLinesCompressed: number;
   mathDelimitersFixed: number;
-  mathBlocksFixed: number;
-  mathBlocksDegraded: number;
-  mathFixFailedCount: number;
+  mathPatched: number; // Math blocks fixed via translator
+  mathFallbackToCodeFence: number; // Math blocks degraded to code
+  invalidMathPatchReasons: string[]; // Reasons for fallback
   frontmatterUpdated: boolean;
   translationProvider?: string;
   translationModel?: string;
@@ -68,6 +71,7 @@ function generateNodeId(node: any, index: number): string {
 
 /**
  * Extract translatable nodes from AST
+ * Includes both text nodes and math nodes
  */
 function extractTranslatableNodes(tree: Root): TranslationNode[] {
   const nodes: TranslationNode[] = [];
@@ -79,10 +83,24 @@ function extractTranslatableNodes(tree: Root): TranslationNode[] {
       return;
     }
 
+    // Extract block math nodes (remark-math)
+    if (node.type === 'math' && node.value) {
+      const nodeId = generateNodeId(node, nodeIndex++);
+      nodes.push({
+        kind: 'math',
+        nodeId,
+        latex: node.value, // Raw LaTeX without $$ delimiters
+      });
+      // Store nodeId on node for later patching
+      (node as any)._nodeId = nodeId;
+      return; // Don't process children of math nodes
+    }
+
     // Extract text from text nodes
     if (node.type === 'text' && node.value && node.value.trim()) {
       const nodeId = generateNodeId(node, nodeIndex++);
       nodes.push({
+        kind: 'text',
         nodeId,
         text: node.value,
         context: parent?.type,
@@ -97,6 +115,7 @@ function extractTranslatableNodes(tree: Root): TranslationNode[] {
       if (text.trim()) {
         const nodeId = generateNodeId(node, nodeIndex++);
         nodes.push({
+          kind: 'text',
           nodeId,
           text,
           context: 'heading',
@@ -109,6 +128,7 @@ function extractTranslatableNodes(tree: Root): TranslationNode[] {
     if (node.type === 'image' && node.alt && node.alt.trim()) {
       const nodeId = generateNodeId(node, nodeIndex++);
       nodes.push({
+        kind: 'text',
         nodeId,
         text: node.alt,
         context: 'image-alt',
@@ -134,86 +154,150 @@ function extractTextFromNode(node: any): string {
 }
 
 /**
- * Apply translation patches to AST
+ * Validate a fixed math block
+ * Returns true if valid, false if should fallback to code block
  */
-function applyTranslationPatches(tree: Root, patches: Record<string, string>): void {
-  visit(tree, (node: any) => {
-    if ((node as any)._nodeId && patches[(node as any)._nodeId]) {
-      const translatedText = patches[(node as any)._nodeId];
+function validateMathPatch(latex: string): { valid: boolean; reason?: string } {
+  // Check 1: No $ or $$ delimiters allowed
+  if (latex.includes('$$')) {
+    return { valid: false, reason: 'Contains $$ delimiter' };
+  }
+  if (latex.includes('$')) {
+    return { valid: false, reason: 'Contains $ delimiter' };
+  }
 
-      if (node.type === 'text') {
-        node.value = translatedText;
-      } else if (node.type === 'heading' && node.children) {
-        // Replace heading text while preserving structure
-        node.children = [{ type: 'text', value: translatedText }];
+  // Check 2: No \[ or \] delimiters
+  if (latex.includes('\\[') || latex.includes('\\]')) {
+    return { valid: false, reason: 'Contains \\[ or \\] delimiter' };
+  }
+
+  // Check 3: No HTML tags
+  if (/<[^>]+>/.test(latex)) {
+    return { valid: false, reason: 'Contains HTML tags' };
+  }
+
+  // Check 4: Basic bracket balance
+  const brackets = { '{': 0, '[': 0, '(': 0 };
+  for (let i = 0; i < latex.length; i++) {
+    const char = latex[i];
+    // Skip escaped characters
+    if (i > 0 && latex[i - 1] === '\\') continue;
+
+    if (char === '{') brackets['{']++;
+    else if (char === '}') brackets['{']--;
+    else if (char === '[') brackets['[']++;
+    else if (char === ']') brackets['[']--;
+    else if (char === '(') brackets['(']++;
+    else if (char === ')') brackets['(']--;
+  }
+
+  if (brackets['{'] !== 0) {
+    return { valid: false, reason: `Unbalanced braces: ${brackets['{']}` };
+  }
+  if (brackets['['] !== 0) {
+    return { valid: false, reason: `Unbalanced square brackets: ${brackets['[']}` };
+  }
+  if (brackets['('] !== 0) {
+    return { valid: false, reason: `Unbalanced parentheses: ${brackets['(']}` };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Apply translation patches to AST
+ * Handles both text and math patches with validation and fallback
+ */
+function applyTranslationPatches(
+  tree: Root,
+  patches: TranslationPatch[],
+): {
+  mathPatched: number;
+  mathFallbackToCodeFence: number;
+  invalidMathPatchReasons: string[];
+} {
+  const stats = {
+    mathPatched: 0,
+    mathFallbackToCodeFence: 0,
+    invalidMathPatchReasons: [] as string[],
+  };
+
+  // Create a map for quick lookup
+  const patchMap = new Map<string, TranslationPatch>();
+  for (const patch of patches) {
+    patchMap.set(patch.nodeId, patch);
+  }
+
+  // Track nodes to replace (for math fallback)
+  const nodesToReplace: Array<{ parent: any; index: number; newNode: any }> = [];
+
+  visit(tree, (node: any, index: number | undefined, parent: any) => {
+    const nodeId = (node as any)._nodeId;
+    const altNodeId = (node as any)._altNodeId;
+
+    // Apply text patches
+    if (nodeId && patchMap.has(nodeId)) {
+      const patch = patchMap.get(nodeId)!;
+
+      if (patch.kind === 'text') {
+        if (node.type === 'text') {
+          node.value = patch.text;
+        } else if (node.type === 'heading' && node.children) {
+          // Replace heading text while preserving structure
+          node.children = [{ type: 'text', value: patch.text }];
+        }
+      } else if (patch.kind === 'math' && node.type === 'math') {
+        // Validate math patch
+        const validation = validateMathPatch(patch.latex);
+
+        if (validation.valid && patch.confidence === 'high') {
+          // Apply the fix
+          node.value = patch.latex;
+          stats.mathPatched++;
+        } else {
+          // Fallback: convert to code block
+          const reason = validation.reason || `Low confidence (${patch.confidence})`;
+          stats.invalidMathPatchReasons.push(reason);
+          stats.mathFallbackToCodeFence++;
+
+          // Create code block with original latex
+          const codeNode = {
+            type: 'code',
+            lang: 'tex',
+            value: node.value.trim(), // Use original value
+          };
+
+          const noteNode = {
+            type: 'paragraph',
+            children: [
+              {
+                type: 'emphasis',
+                children: [
+                  {
+                    type: 'text',
+                    value: `Note: Math block could not be automatically fixed (${reason}). Showing as code.`,
+                  },
+                ],
+              },
+            ],
+          };
+
+          if (parent && typeof index === 'number') {
+            nodesToReplace.push({
+              parent,
+              index,
+              newNode: [codeNode, noteNode],
+            });
+          }
+        }
       }
     }
 
     // Apply translation to image alt text
-    if (node.type === 'image' && (node as any)._altNodeId && patches[(node as any)._altNodeId]) {
-      node.alt = patches[(node as any)._altNodeId];
-    }
-  });
-}
-
-/**
- * Fix math nodes in the AST
- * Applies math fixing logic to block math nodes
- */
-function fixMathNodes(tree: Root): { fixCount: number; degradedCount: number } {
-  let fixCount = 0;
-  let degradedCount = 0;
-  const nodesToReplace: Array<{ parent: any; index: number; newNode: any }> = [];
-
-  visit(tree, (node: any, index: number | undefined, parent: any) => {
-    // Only fix block math nodes (type: 'math')
-    if (node.type === 'math' && node.value) {
-      const result = fixMathBlock(node.value);
-
-      if (result.changed) {
-        fixCount++;
-      }
-
-      // If confidence is low or pseudo-math detected, degrade to code block
-      if (
-        result.confidence === 'low' ||
-        result.issues.some((issue) => issue.includes('pseudo-math'))
-      ) {
-        degradedCount++;
-        const issuesText = result.issues.join(', ');
-
-        // Replace math node with code block
-        const codeNode = {
-          type: 'code',
-          lang: 'tex',
-          value: result.fixed.trim(),
-        };
-
-        const noteNode = {
-          type: 'paragraph',
-          children: [
-            {
-              type: 'emphasis',
-              children: [
-                {
-                  type: 'text',
-                  value: `Note: Math block could not be automatically fixed (${issuesText}). Showing as code.`,
-                },
-              ],
-            },
-          ],
-        };
-
-        if (parent && typeof index === 'number') {
-          nodesToReplace.push({
-            parent,
-            index,
-            newNode: [codeNode, noteNode],
-          });
-        }
-      } else if (result.changed) {
-        // Update the node value with fixed content
-        node.value = result.fixed;
+    if (node.type === 'image' && altNodeId && patchMap.has(altNodeId)) {
+      const patch = patchMap.get(altNodeId)!;
+      if (patch.kind === 'text') {
+        node.alt = patch.text;
       }
     }
   });
@@ -223,7 +307,7 @@ function fixMathNodes(tree: Root): { fixCount: number; degradedCount: number } {
     parent.children.splice(index, 1, ...newNode);
   });
 
-  return { fixCount, degradedCount };
+  return stats;
 }
 
 /**
@@ -696,7 +780,6 @@ export async function processMarkdownForImport(
     enableImageCaptionFix = true,
     enableMarkdownCleanup = true,
     enableMathDelimiterFix = true,
-    enableMathFix = true,
   } = options;
 
   const diagnostics: ProcessingDiagnostics = {
@@ -706,9 +789,9 @@ export async function processMarkdownForImport(
     imageCaptionsFixed: 0,
     emptyLinesCompressed: 0,
     mathDelimitersFixed: 0,
-    mathBlocksFixed: 0,
-    mathBlocksDegraded: 0,
-    mathFixFailedCount: 0,
+    mathPatched: 0,
+    mathFallbackToCodeFence: 0,
+    invalidMathPatchReasons: [],
     frontmatterUpdated: false,
   };
 
@@ -756,28 +839,18 @@ export async function processMarkdownForImport(
     }
   }
 
-  // Fix math nodes BEFORE translation (so they are properly fixed before translation)
-  if (enableMathFix) {
-    const { fixCount, degradedCount } = fixMathNodes(tree);
-    diagnostics.mathBlocksFixed = fixCount;
-    diagnostics.mathBlocksDegraded = degradedCount;
-    if (fixCount > 0 || degradedCount > 0) {
-      diagnostics.changed = true;
-    }
-  }
-
-  // Apply translation if needed
+  // Apply translation AND math fixing if needed (combined in one LLM call)
   if (needsTranslation && translator) {
     try {
       const translatableNodes = extractTranslatableNodes(tree);
       if (translatableNodes.length > 0) {
         const translationResult = await translator.translate(translatableNodes);
-        const patchMap: Record<string, string> = {};
-        translationResult.patches.forEach((patch) => {
-          patchMap[patch.nodeId] = patch.translatedText;
-        });
 
-        applyTranslationPatches(tree, patchMap);
+        const applyStats = applyTranslationPatches(tree, translationResult.patches);
+        diagnostics.mathPatched = applyStats.mathPatched;
+        diagnostics.mathFallbackToCodeFence = applyStats.mathFallbackToCodeFence;
+        diagnostics.invalidMathPatchReasons = applyStats.invalidMathPatchReasons;
+
         diagnostics.translated = true;
         diagnostics.changed = true;
 

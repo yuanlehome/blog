@@ -58,7 +58,7 @@ describe('DeepSeekTranslator', () => {
       delete process.env.DEEPSEEK_API_KEY;
       const noKeyTranslator = new DeepSeekTranslator();
 
-      const nodes: TranslationNode[] = [{ nodeId: 'node1', text: 'Hello' }];
+      const nodes: TranslationNode[] = [{ kind: 'text', nodeId: 'node1', text: 'Hello' }];
 
       await expect(noKeyTranslator.translate(nodes)).rejects.toThrow(
         'DEEPSEEK_API_KEY is not configured',
@@ -83,8 +83,8 @@ describe('DeepSeekTranslator', () => {
   describe('Batching', () => {
     it('should create single batch for small content', async () => {
       const nodes: TranslationNode[] = [
-        { nodeId: 'node1', text: 'Hello' },
-        { nodeId: 'node2', text: 'World' },
+        { kind: 'text', nodeId: 'node1', text: 'Hello' },
+        { kind: 'text', nodeId: 'node2', text: 'World' },
       ];
 
       let fetchCallCount = 0;
@@ -97,8 +97,8 @@ describe('DeepSeekTranslator', () => {
                 message: {
                   content: JSON.stringify({
                     patches: {
-                      node1: '你好',
-                      node2: '世界',
+                      node1: { kind: 'text', text: '你好' },
+                      node2: { kind: 'text', text: '世界' },
                     },
                   }),
                 },
@@ -119,9 +119,9 @@ describe('DeepSeekTranslator', () => {
     it('should split into multiple batches when exceeding max chars', async () => {
       // Max batch chars is 100, so these nodes should create multiple batches
       const nodes: TranslationNode[] = [
-        { nodeId: 'node1', text: 'A'.repeat(60) },
-        { nodeId: 'node2', text: 'B'.repeat(60) },
-        { nodeId: 'node3', text: 'C'.repeat(60) },
+        { kind: 'text', nodeId: 'node1', text: 'A'.repeat(60) },
+        { kind: 'text', nodeId: 'node2', text: 'B'.repeat(60) },
+        { kind: 'text', nodeId: 'node3', text: 'C'.repeat(60) },
       ];
 
       let fetchCallCount = 0;
@@ -134,9 +134,9 @@ describe('DeepSeekTranslator', () => {
         const nodeIds =
           userContent.match(/"(node\d+)":/g)?.map((m: string) => m.slice(1, -2)) || [];
 
-        const patches: Record<string, string> = {};
+        const patches: Record<string, { kind: 'text'; text: string }> = {};
         nodeIds.forEach((id: string) => {
-          patches[id] = `Translated ${id}`;
+          patches[id] = { kind: 'text', text: `Translated ${id}` };
         });
 
         return new Response(
@@ -162,8 +162,8 @@ describe('DeepSeekTranslator', () => {
 
     it('should handle single oversized node in dedicated batch', async () => {
       const nodes: TranslationNode[] = [
-        { nodeId: 'node1', text: 'A'.repeat(150) }, // Exceeds max batch chars
-        { nodeId: 'node2', text: 'Small' },
+        { kind: 'text', nodeId: 'node1', text: 'A'.repeat(150) }, // Exceeds max batch chars
+        { kind: 'text', nodeId: 'node2', text: 'Small' },
       ];
 
       let fetchCallCount = 0;
@@ -175,9 +175,9 @@ describe('DeepSeekTranslator', () => {
         const nodeIds =
           userContent.match(/"(node\d+)":/g)?.map((m: string) => m.slice(1, -2)) || [];
 
-        const patches: Record<string, string> = {};
+        const patches: Record<string, { kind: 'text'; text: string }> = {};
         nodeIds.forEach((id: string) => {
-          patches[id] = `Translated ${id}`;
+          patches[id] = { kind: 'text', text: `Translated ${id}` };
         });
 
         return new Response(
@@ -203,7 +203,7 @@ describe('DeepSeekTranslator', () => {
 
   describe('JSON Schema Validation', () => {
     it('should handle valid JSON response', async () => {
-      const nodes: TranslationNode[] = [{ nodeId: 'node1', text: 'Hello' }];
+      const nodes: TranslationNode[] = [{ kind: 'text', nodeId: 'node1', text: 'Hello' }];
 
       global.fetch = vi.fn(async () => {
         return new Response(
@@ -213,7 +213,7 @@ describe('DeepSeekTranslator', () => {
                 message: {
                   content: JSON.stringify({
                     patches: {
-                      node1: '你好',
+                      node1: { kind: 'text', text: '你好' },
                     },
                   }),
                 },
@@ -227,13 +227,13 @@ describe('DeepSeekTranslator', () => {
       const result = await translator.translate(nodes);
 
       expect(result.patches).toHaveLength(1);
-      expect(result.patches[0].translatedText).toBe('你好');
+      expect((result.patches[0] as any).text).toBe('你好');
       expect(result.metadata?.successBatches).toBe(1);
       expect(result.metadata?.failedBatches).toBe(0);
     });
 
     it('should handle non-JSON response with fallback', async () => {
-      const nodes: TranslationNode[] = [{ nodeId: 'node1', text: 'Hello' }];
+      const nodes: TranslationNode[] = [{ kind: 'text', nodeId: 'node1', text: 'Hello' }];
 
       global.fetch = vi.fn(async () => {
         return new Response(
@@ -254,12 +254,12 @@ describe('DeepSeekTranslator', () => {
 
       // Should fallback to original text
       expect(result.patches).toHaveLength(1);
-      expect(result.patches[0].translatedText).toBe('Hello');
+      expect((result.patches[0] as any).text).toBe('Hello');
       expect(result.metadata?.failedBatches).toBe(1);
     });
 
     it('should handle response missing patches field', async () => {
-      const nodes: TranslationNode[] = [{ nodeId: 'node1', text: 'Hello' }];
+      const nodes: TranslationNode[] = [{ kind: 'text', nodeId: 'node1', text: 'Hello' }];
 
       global.fetch = vi.fn(async () => {
         return new Response(
@@ -280,14 +280,14 @@ describe('DeepSeekTranslator', () => {
 
       // Should fallback to original text
       expect(result.patches).toHaveLength(1);
-      expect(result.patches[0].translatedText).toBe('Hello');
+      expect((result.patches[0] as any).text).toBe('Hello');
       expect(result.metadata?.failedBatches).toBe(1);
     });
 
     it('should handle response missing node IDs', async () => {
       const nodes: TranslationNode[] = [
-        { nodeId: 'node1', text: 'Hello' },
-        { nodeId: 'node2', text: 'World' },
+        { kind: 'text', nodeId: 'node1', text: 'Hello' },
+        { kind: 'text', nodeId: 'node2', text: 'World' },
       ];
 
       global.fetch = vi.fn(async () => {
@@ -298,7 +298,7 @@ describe('DeepSeekTranslator', () => {
                 message: {
                   content: JSON.stringify({
                     patches: {
-                      node1: '你好',
+                      node1: { kind: 'text', text: '你好' },
                       // Missing node2
                     },
                   }),
@@ -312,16 +312,18 @@ describe('DeepSeekTranslator', () => {
 
       const result = await translator.translate(nodes);
 
-      // Should add empty string for missing node
+      // Should add fallback for missing node
       expect(result.patches).toHaveLength(2);
-      expect(result.patches.find((p) => p.nodeId === 'node1')?.translatedText).toBe('你好');
-      expect(result.patches.find((p) => p.nodeId === 'node2')?.translatedText).toBe('');
+      const patch1 = result.patches.find((p) => p.nodeId === 'node1') as any;
+      const patch2 = result.patches.find((p) => p.nodeId === 'node2') as any;
+      expect(patch1?.text).toBe('你好');
+      expect(patch2?.text).toBe('World'); // Falls back to original
     });
   });
 
   describe('Timeout and Network Errors', () => {
     it('should handle timeout with fallback', async () => {
-      const nodes: TranslationNode[] = [{ nodeId: 'node1', text: 'Hello' }];
+      const nodes: TranslationNode[] = [{ kind: 'text', nodeId: 'node1', text: 'Hello' }];
 
       global.fetch = vi.fn(async (url: string, options: any) => {
         // Simulate a long-running request that gets aborted
@@ -352,12 +354,12 @@ describe('DeepSeekTranslator', () => {
 
       // Should fallback to original text
       expect(result.patches).toHaveLength(1);
-      expect(result.patches[0].translatedText).toBe('Hello');
+      expect((result.patches[0] as any).text).toBe('Hello');
       expect(result.metadata?.failedBatches).toBe(1);
     }, 10000); // Increase test timeout
 
     it('should handle HTTP error with fallback', async () => {
-      const nodes: TranslationNode[] = [{ nodeId: 'node1', text: 'Hello' }];
+      const nodes: TranslationNode[] = [{ kind: 'text', nodeId: 'node1', text: 'Hello' }];
 
       global.fetch = vi.fn(async () => {
         return new Response('Internal Server Error', { status: 500 });
@@ -367,12 +369,12 @@ describe('DeepSeekTranslator', () => {
 
       // Should fallback to original text
       expect(result.patches).toHaveLength(1);
-      expect(result.patches[0].translatedText).toBe('Hello');
+      expect((result.patches[0] as any).text).toBe('Hello');
       expect(result.metadata?.failedBatches).toBe(1);
     });
 
     it('should handle network error with fallback', async () => {
-      const nodes: TranslationNode[] = [{ nodeId: 'node1', text: 'Hello' }];
+      const nodes: TranslationNode[] = [{ kind: 'text', nodeId: 'node1', text: 'Hello' }];
 
       global.fetch = vi.fn(async () => {
         throw new Error('Network error');
@@ -382,14 +384,14 @@ describe('DeepSeekTranslator', () => {
 
       // Should fallback to original text
       expect(result.patches).toHaveLength(1);
-      expect(result.patches[0].translatedText).toBe('Hello');
+      expect((result.patches[0] as any).text).toBe('Hello');
       expect(result.metadata?.failedBatches).toBe(1);
     });
   });
 
   describe('Caching', () => {
     it('should cache successful translations', async () => {
-      const nodes: TranslationNode[] = [{ nodeId: 'node1', text: 'Hello World' }];
+      const nodes: TranslationNode[] = [{ kind: 'text', nodeId: 'node1', text: 'Hello World' }];
 
       let fetchCallCount = 0;
       global.fetch = vi.fn(async () => {
@@ -400,7 +402,7 @@ describe('DeepSeekTranslator', () => {
               {
                 message: {
                   content: JSON.stringify({
-                    patches: { node1: '你好世界' },
+                    patches: { node1: { kind: 'text', text: '你好世界' } },
                   }),
                 },
               },
@@ -419,14 +421,14 @@ describe('DeepSeekTranslator', () => {
       const result2 = await translator.translate(nodes);
       expect(fetchCallCount).toBe(1); // No additional fetch
       expect(result2.metadata?.cacheHits).toBe(1);
-      expect(result2.patches[0].translatedText).toBe('你好世界');
+      expect((result2.patches[0] as any).text).toBe('你好世界');
     });
 
     it('should not cache when caching is disabled', async () => {
       process.env.DEEPSEEK_CACHE_ENABLED = '0';
       const noCacheTranslator = new DeepSeekTranslator();
 
-      const nodes: TranslationNode[] = [{ nodeId: 'node1', text: 'Hello' }];
+      const nodes: TranslationNode[] = [{ kind: 'text', nodeId: 'node1', text: 'Hello' }];
 
       let fetchCallCount = 0;
       global.fetch = vi.fn(async () => {
@@ -437,7 +439,7 @@ describe('DeepSeekTranslator', () => {
               {
                 message: {
                   content: JSON.stringify({
-                    patches: { node1: '你好' },
+                    patches: { node1: { kind: 'text', text: '你好' } },
                   }),
                 },
               },
@@ -455,8 +457,8 @@ describe('DeepSeekTranslator', () => {
     });
 
     it('should use different cache keys for different content', async () => {
-      const nodes1: TranslationNode[] = [{ nodeId: 'node1', text: 'Hello' }];
-      const nodes2: TranslationNode[] = [{ nodeId: 'node1', text: 'World' }];
+      const nodes1: TranslationNode[] = [{ kind: 'text', nodeId: 'node1', text: 'Hello' }];
+      const nodes2: TranslationNode[] = [{ kind: 'text', nodeId: 'node1', text: 'World' }];
 
       let fetchCallCount = 0;
       global.fetch = vi.fn(async (url: string, options: any) => {
@@ -470,7 +472,9 @@ describe('DeepSeekTranslator', () => {
               {
                 message: {
                   content: JSON.stringify({
-                    patches: { node1: `Translated: ${userContent.slice(0, 20)}...` },
+                    patches: {
+                      node1: { kind: 'text', text: `Translated: ${userContent.slice(0, 20)}...` },
+                    },
                   }),
                 },
               },
@@ -492,6 +496,7 @@ describe('DeepSeekTranslator', () => {
     it('should respect max concurrency limit', async () => {
       // Create many batches
       const nodes: TranslationNode[] = Array.from({ length: 10 }, (_, i) => ({
+        kind: 'text',
         nodeId: `node${i}`,
         text: 'A'.repeat(60), // Each creates its own batch
       }));
@@ -512,7 +517,7 @@ describe('DeepSeekTranslator', () => {
               {
                 message: {
                   content: JSON.stringify({
-                    patches: { node0: 'Translated' },
+                    patches: { node0: { kind: 'text', text: 'Translated' } },
                   }),
                 },
               },
@@ -546,9 +551,9 @@ describe('DeepSeekTranslator', () => {
   describe('Partial Batch Failure', () => {
     it('should handle partial batch failures gracefully', async () => {
       const nodes: TranslationNode[] = [
-        { nodeId: 'node1', text: 'A'.repeat(60) },
-        { nodeId: 'node2', text: 'B'.repeat(60) },
-        { nodeId: 'node3', text: 'C'.repeat(60) },
+        { kind: 'text', nodeId: 'node1', text: 'A'.repeat(60) },
+        { kind: 'text', nodeId: 'node2', text: 'B'.repeat(60) },
+        { kind: 'text', nodeId: 'node3', text: 'C'.repeat(60) },
       ];
 
       let callCount = 0;
@@ -564,9 +569,9 @@ describe('DeepSeekTranslator', () => {
           throw new Error('First batch failed');
         }
 
-        const patches: Record<string, string> = {};
+        const patches: Record<string, { kind: 'text'; text: string }> = {};
         nodeIds.forEach((id: string) => {
-          patches[id] = `Translated ${id}`;
+          patches[id] = { kind: 'text', text: `Translated ${id}` };
         });
 
         return new Response(
