@@ -21,7 +21,7 @@ fontFamily:
     - '"Segoe UI Emoji"'
     - '"Segoe UI Symbol"'
     - '"Noto Color Emoji"'
-  
+
   # Serif font stack (optional, for article content)
   serif:
     - 'ui-serif'
@@ -30,7 +30,7 @@ fontFamily:
     - '"Times New Roman"'
     - 'Times'
     - 'serif'
-  
+
   # Monospace font stack (code blocks, inline code)
   mono:
     - '"Fira Code"'
@@ -49,25 +49,25 @@ fontFamily:
 fontSize:
   # Extra small text (captions, labels)
   xs: '0.75rem' # 12px
-  
+
   # Small text (metadata, secondary info)
   sm: '0.875rem' # 14px
-  
+
   # Base body text
   base: '1rem' # 16px
-  
+
   # Large text (lead paragraphs)
   lg: '1.125rem' # 18px
-  
+
   # Extra large (section headings)
   xl: '1.25rem' # 20px
-  
+
   # 2X large (page titles)
   '2xl': '1.5rem' # 24px
-  
+
   # 3X large (hero titles)
   '3xl': '1.875rem' # 30px
-  
+
   # 4X large (display titles)
   '4xl': '2.25rem' # 36px
 
@@ -77,16 +77,16 @@ fontSize:
 lineHeight:
   # Tight (headings)
   tight: 1.25
-  
+
   # Snug (subheadings)
   snug: 1.375
-  
+
   # Normal (body text)
   normal: 1.5
-  
+
   # Relaxed (article content)
   relaxed: 1.625
-  
+
   # Loose (code blocks)
   loose: 1.75
 
@@ -105,13 +105,13 @@ fontWeight:
 prose:
   # Maximum width for prose content
   maxWidth: '65ch'
-  
+
   # Use serif font for article body
   useSerif: false
-  
+
   # Paragraph spacing
   paragraphSpacing: '1.25em'
-  
+
   # Heading spacing
   headingSpacing:
     before: '1.5em'

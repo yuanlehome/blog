@@ -14,11 +14,13 @@ import componentsConfigData from '../yaml/components.yml';
 /**
  * CSS unit validation for radius and spacing
  */
-const cssUnitSchema = z.string().refine(
-  (val) =>
-    /^\d+(\.\d+)?(rem|px|em)$/.test(val) || val === '0' || val === 'none' || val === '9999px',
-  { message: 'Invalid CSS unit. Use rem, px, em, or special values like "0", "none", "9999px".' },
-);
+const cssUnitSchema = z
+  .string()
+  .refine(
+    (val) =>
+      /^\d+(\.\d+)?(rem|px|em)$/.test(val) || val === '0' || val === 'none' || val === '9999px',
+    { message: 'Invalid CSS unit. Use rem, px, em, or special values like "0", "none", "9999px".' },
+  );
 
 /**
  * Box shadow validation
@@ -56,9 +58,7 @@ export const componentsConfigSchema = z.object({
       default: shadowSchema.default(
         '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
       ),
-      md: shadowSchema.default(
-        '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-      ),
+      md: shadowSchema.default('0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)'),
       lg: shadowSchema.default(
         '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
       ),

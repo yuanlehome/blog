@@ -38,7 +38,8 @@ export function generateColorVars(colors: ThemeConfig['colors'], prefix = ''): s
   }
 
   if (colors.border) {
-    if (colors.border.default) vars.push(`--color-border-default${prefix}: ${colors.border.default};`);
+    if (colors.border.default)
+      vars.push(`--color-border-default${prefix}: ${colors.border.default};`);
     if (colors.border.subtle) vars.push(`--color-border-subtle${prefix}: ${colors.border.subtle};`);
   }
 
@@ -54,7 +55,8 @@ export function generateColorVars(colors: ThemeConfig['colors'], prefix = ''): s
     if (colors.code.foreground)
       vars.push(`--color-code-foreground${prefix}: ${colors.code.foreground};`);
     if (colors.code.border) vars.push(`--color-code-border${prefix}: ${colors.code.border};`);
-    if (colors.code.scrollbar) vars.push(`--color-code-scrollbar${prefix}: ${colors.code.scrollbar};`);
+    if (colors.code.scrollbar)
+      vars.push(`--color-code-scrollbar${prefix}: ${colors.code.scrollbar};`);
   }
 
   return vars.join('\n  ');

@@ -7,7 +7,7 @@
 container:
   # Maximum content width
   width: '72rem' # 1152px (4xl)
-  
+
   # Horizontal padding by breakpoint
   paddingX:
     mobile: '1rem' # 16px
@@ -26,16 +26,16 @@ layoutMode: 'rightSidebar' # Options: "centered", "rightSidebar", "leftSidebar"
 sidebar:
   # Enable sidebar (applies when layoutMode includes sidebar)
   enabled: true
-  
+
   # Sidebar position
   position: 'right' # Options: "left", "right"
-  
+
   # Sidebar width
   width: '18rem' # 288px
-  
+
   # Sticky behavior
   sticky: true
-  
+
   # Gap between content and sidebar
   gap: '3rem' # 48px
 
@@ -45,16 +45,16 @@ sidebar:
 toc:
   # Enable table of contents
   enabled: true
-  
+
   # TOC position relative to content
   position: 'sidebar' # Options: "sidebar", "inline", "hidden"
-  
+
   # Mobile behavior
   mobileBehavior: 'drawer' # Options: "drawer", "inline", "hidden"
-  
+
   # Default open state (for drawer mode)
   defaultOpen: false
-  
+
   # Sticky offset from top (in pixels)
   stickyOffset: 96
 
@@ -64,12 +64,12 @@ toc:
 alignment:
   # Header alignment
   headerAlign: 'left' # Options: "left", "center"
-  
+
   # Footer alignment
   footerAlign: 'center' # Options: "left", "center"
-  
+
   # Post metadata alignment
   postMetaAlign: 'left' # Options: "left", "center"
-  
+
   # Article content alignment
   contentAlign: 'left' # Options: "left", "center"

@@ -14,10 +14,11 @@ import layoutConfigData from '../yaml/layout.yml';
 /**
  * CSS unit validation (rem, px, %, vh, vw)
  */
-const cssUnitSchema = z.string().refine(
-  (val) => /^\d+(\.\d+)?(rem|px|%|vh|vw|em|ch)$/.test(val),
-  { message: 'Invalid CSS unit. Use rem, px, %, vh, vw, em, or ch with a numeric value.' },
-);
+const cssUnitSchema = z
+  .string()
+  .refine((val) => /^\d+(\.\d+)?(rem|px|%|vh|vw|em|ch)$/.test(val), {
+    message: 'Invalid CSS unit. Use rem, px, %, vh, vw, em, or ch with a numeric value.',
+  });
 
 /**
  * Layout configuration schema

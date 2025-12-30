@@ -14,10 +14,11 @@ import typographyConfigData from '../yaml/typography.yml';
 /**
  * CSS unit validation for font sizes
  */
-const fontSizeSchema = z.string().refine(
-  (val) => /^\d+(\.\d+)?(rem|px|em)$/.test(val),
-  { message: 'Invalid font size. Use rem, px, or em with a numeric value.' },
-);
+const fontSizeSchema = z
+  .string()
+  .refine((val) => /^\d+(\.\d+)?(rem|px|em)$/.test(val), {
+    message: 'Invalid font size. Use rem, px, or em with a numeric value.',
+  });
 
 /**
  * Typography configuration schema
@@ -25,41 +26,40 @@ const fontSizeSchema = z.string().refine(
 export const typographyConfigSchema = z.object({
   fontFamily: z
     .object({
-      sans: z.array(z.string()).default([
-        'ui-sans-serif',
-        'system-ui',
-        '-apple-system',
-        'BlinkMacSystemFont',
-        '"Segoe UI"',
-        'Roboto',
-        '"Helvetica Neue"',
-        'Arial',
-        '"Noto Sans"',
-        'sans-serif',
-        '"Apple Color Emoji"',
-        '"Segoe UI Emoji"',
-        '"Segoe UI Symbol"',
-        '"Noto Color Emoji"',
-      ]),
-      serif: z.array(z.string()).default([
-        'ui-serif',
-        'Georgia',
-        'Cambria',
-        '"Times New Roman"',
-        'Times',
-        'serif',
-      ]),
-      mono: z.array(z.string()).default([
-        '"Fira Code"',
-        '"SF Mono"',
-        'SFMono-Regular',
-        'Menlo',
-        'Monaco',
-        'Consolas',
-        '"Liberation Mono"',
-        '"Courier New"',
-        'monospace',
-      ]),
+      sans: z
+        .array(z.string())
+        .default([
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          'Roboto',
+          '"Helvetica Neue"',
+          'Arial',
+          '"Noto Sans"',
+          'sans-serif',
+          '"Apple Color Emoji"',
+          '"Segoe UI Emoji"',
+          '"Segoe UI Symbol"',
+          '"Noto Color Emoji"',
+        ]),
+      serif: z
+        .array(z.string())
+        .default(['ui-serif', 'Georgia', 'Cambria', '"Times New Roman"', 'Times', 'serif']),
+      mono: z
+        .array(z.string())
+        .default([
+          '"Fira Code"',
+          '"SF Mono"',
+          'SFMono-Regular',
+          'Menlo',
+          'Monaco',
+          'Consolas',
+          '"Liberation Mono"',
+          '"Courier New"',
+          'monospace',
+        ]),
     })
     .default({}),
   fontSize: z
