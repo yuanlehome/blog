@@ -38,6 +38,6 @@ alignment:
   # Header alignment
   headerAlign: 'left' # Options: "left", "center"
   # Footer alignment
-  footerAlign: 'left' # Options: "left", "center"
+  footerAlign: 'center' # Options: "left", "center"
   # Post metadata alignment
   postMetaAlign: 'left' # Options: "left", "center"

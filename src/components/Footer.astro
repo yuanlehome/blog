@@ -1,12 +1,17 @@
 ---
-import { getSiteConfig } from '../config/loaders';
+import { getSiteConfig, getLayoutConfig } from '../config/loaders';
+import { alignToTextClass } from '../lib/ui/alignment';
 
 const siteConfig = getSiteConfig();
+const layoutConfig = getLayoutConfig();
 const today = new Date();
+
+// Get footer alignment from config
+const footerAlignClass = alignToTextClass(layoutConfig.alignment.footerAlign);
 ---
 
 <footer class="py-8 mt-auto border-t border-gray-200 dark:border-gray-800">
-  <div class="container mx-auto px-4 text-center text-gray-500 max-w-4xl">
+  <div class={`container mx-auto px-4 ${footerAlignClass} text-gray-500 max-w-4xl`}>
     &copy; {today.getFullYear()}
     {siteConfig.siteName}. {siteConfig.copyrightText}
   </div>
