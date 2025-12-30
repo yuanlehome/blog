@@ -25,6 +25,8 @@ import {
   getConfiguredTranslator,
 } from './translator.js';
 import { detectCodeLanguage, isGitHubActionsWorkflow } from './code-fence-fixer.js';
+import type { Logger } from '../logger/types.js';
+import { createLogger } from '../logger/index.js';
 
 export interface ProcessingOptions {
   slug?: string;
@@ -35,6 +37,7 @@ export interface ProcessingOptions {
   enableImageCaptionFix?: boolean;
   enableMarkdownCleanup?: boolean;
   enableMathDelimiterFix?: boolean;
+  logger?: Logger;
 }
 
 export interface ProcessingDiagnostics {
@@ -780,7 +783,16 @@ export async function processMarkdownForImport(
     enableImageCaptionFix = true,
     enableMarkdownCleanup = true,
     enableMathDelimiterFix = true,
+    logger: parentLogger,
   } = options;
+
+  // Create child logger with context
+  const logger =
+    parentLogger?.child({
+      module: 'markdown',
+      slug: input.slug,
+      source: input.source,
+    }) ?? createLogger({ silent: true });
 
   const diagnostics: ProcessingDiagnostics = {
     changed: false,
@@ -795,125 +807,204 @@ export async function processMarkdownForImport(
     frontmatterUpdated: false,
   };
 
-  // Parse frontmatter
-  const { data: frontmatter, content: markdownBody } = matter(input.markdown);
+  const processingSpan = logger.span({ name: 'markdown-processing', fields: {} });
+  processingSpan.start();
 
-  // Detect language
-  const langDetection = detectLanguage(markdownBody);
-  diagnostics.detectedLanguage = langDetection.language;
+  try {
+    // Parse frontmatter
+    const { data: frontmatter, content: markdownBody } = matter(input.markdown);
 
-  let processedMarkdown = markdownBody;
-  let needsTranslation = false;
+    // Detect language
+    const langDetection = detectLanguage(markdownBody);
+    diagnostics.detectedLanguage = langDetection.language;
+    logger.info('Language detected', {
+      step: 'language-detection',
+      language: langDetection.language,
+      confidence: langDetection.confidence,
+    });
 
-  // Check if translation is needed
-  if (
-    enableTranslation &&
-    translator &&
-    shouldTranslate(markdownBody) &&
-    langDetection.language === 'en'
-  ) {
-    needsTranslation = true;
-  }
+    let processedMarkdown = markdownBody;
+    let needsTranslation = false;
 
-  // Parse markdown to AST (with remark-math to parse math nodes)
-  const processor = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
-
-  const tree = processor.parse(processedMarkdown) as Root;
-
-  // Fix code fences BEFORE translation (so they are properly marked as non-translatable)
-  if (enableCodeFenceFix) {
-    const fixed = fixCodeFences(tree);
-    diagnostics.codeFencesFixed = fixed;
-    if (fixed > 0) {
-      diagnostics.changed = true;
+    // Check if translation is needed
+    if (
+      enableTranslation &&
+      translator &&
+      shouldTranslate(markdownBody) &&
+      langDetection.language === 'en'
+    ) {
+      needsTranslation = true;
+      logger.info('Translation needed', {
+        step: 'translation-check',
+        needsTranslation: true,
+      });
     }
-  }
 
-  // Fix image captions BEFORE translation (convert to markdown-native italic format)
-  // This ensures captions are properly structured before translation extracts text
-  if (enableImageCaptionFix) {
-    const fixed = fixImageCaptions(tree);
-    diagnostics.imageCaptionsFixed = fixed;
-    if (fixed > 0) {
-      diagnostics.changed = true;
-    }
-  }
+    // Parse markdown to AST (with remark-math to parse math nodes)
+    const processor = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
 
-  // Apply translation AND math fixing if needed (combined in one LLM call)
-  if (needsTranslation && translator) {
-    try {
-      const translatableNodes = extractTranslatableNodes(tree);
-      if (translatableNodes.length > 0) {
-        const translationResult = await translator.translate(translatableNodes);
+    const tree = processor.parse(processedMarkdown) as Root;
 
-        const applyStats = applyTranslationPatches(tree, translationResult.patches);
-        diagnostics.mathPatched = applyStats.mathPatched;
-        diagnostics.mathFallbackToCodeFence = applyStats.mathFallbackToCodeFence;
-        diagnostics.invalidMathPatchReasons = applyStats.invalidMathPatchReasons;
-
-        diagnostics.translated = true;
+    // Fix code fences BEFORE translation (so they are properly marked as non-translatable)
+    if (enableCodeFenceFix) {
+      const codeFenceSpan = logger.span({
+        name: 'code-fence-fix',
+        fields: { step: 'codeFenceFix' },
+      });
+      codeFenceSpan.start();
+      const fixed = fixCodeFences(tree);
+      diagnostics.codeFencesFixed = fixed;
+      if (fixed > 0) {
         diagnostics.changed = true;
-
-        // Add translation metadata to diagnostics
-        if (translationResult.metadata) {
-          diagnostics.translationProvider = translationResult.metadata.provider;
-          diagnostics.translationModel = translationResult.metadata.model;
-          diagnostics.translationBatches = translationResult.metadata.batches;
-          diagnostics.translationSuccessBatches = translationResult.metadata.successBatches;
-          diagnostics.translationFailedBatches = translationResult.metadata.failedBatches;
-          diagnostics.translationCacheHits = translationResult.metadata.cacheHits;
-        }
-
-        // Update frontmatter
-        if (!frontmatter.lang || frontmatter.lang === 'en') {
-          frontmatter.lang = 'zh';
-          frontmatter.translatedFrom = 'en';
-          diagnostics.frontmatterUpdated = true;
-        }
       }
-    } catch (error) {
-      console.warn('Translation failed, continuing with other fixes:', error);
+      codeFenceSpan.end({ status: 'ok', fields: { fixedCount: fixed } });
     }
-  }
 
-  // Convert AST back to markdown (with remark-math to serialize math nodes)
-  const stringifyProcessor = unified()
-    .use(remarkStringify, {
-      bullet: '-',
-      fence: '`',
-      fences: true,
-      incrementListMarker: false,
-    })
-    .use(remarkGfm)
-    .use(remarkMath);
-
-  processedMarkdown = stringifyProcessor.stringify(tree);
-
-  // Fix math delimiters (must be done after AST conversion)
-  if (enableMathDelimiterFix) {
-    const { content, changes } = fixMathDelimiters(processedMarkdown);
-    processedMarkdown = content;
-    diagnostics.mathDelimitersFixed = changes;
-    if (changes > 0) {
-      diagnostics.changed = true;
+    // Fix image captions BEFORE translation (convert to markdown-native italic format)
+    // This ensures captions are properly structured before translation extracts text
+    if (enableImageCaptionFix) {
+      const captionSpan = logger.span({
+        name: 'image-caption-fix',
+        fields: { step: 'captionFix' },
+      });
+      captionSpan.start();
+      const fixed = fixImageCaptions(tree);
+      diagnostics.imageCaptionsFixed = fixed;
+      if (fixed > 0) {
+        diagnostics.changed = true;
+      }
+      captionSpan.end({ status: 'ok', fields: { fixedCount: fixed } });
     }
-  }
 
-  // Normalize markdown formatting
-  if (enableMarkdownCleanup) {
-    const { content, changes } = normalizeMarkdown(processedMarkdown);
-    processedMarkdown = content;
-    diagnostics.emptyLinesCompressed = changes;
-    if (changes > 0) {
-      diagnostics.changed = true;
+    // Apply translation AND math fixing if needed (combined in one LLM call)
+    if (needsTranslation && translator) {
+      const translationSpan = logger.span({ name: 'translation', fields: { step: 'translate' } });
+      translationSpan.start();
+      try {
+        const translatableNodes = extractTranslatableNodes(tree);
+        logger.debug('Extracted translatable nodes', {
+          step: 'translate',
+          nodesCount: translatableNodes.length,
+        });
+
+        if (translatableNodes.length > 0) {
+          const translationResult = await translator.translate(translatableNodes, {
+            logger: logger.child({ step: 'translate', provider: translator.name }),
+          });
+
+          const applyStats = applyTranslationPatches(tree, translationResult.patches);
+          diagnostics.mathPatched = applyStats.mathPatched;
+          diagnostics.mathFallbackToCodeFence = applyStats.mathFallbackToCodeFence;
+          diagnostics.invalidMathPatchReasons = applyStats.invalidMathPatchReasons;
+
+          diagnostics.translated = true;
+          diagnostics.changed = true;
+
+          // Add translation metadata to diagnostics
+          if (translationResult.metadata) {
+            diagnostics.translationProvider = translationResult.metadata.provider;
+            diagnostics.translationModel = translationResult.metadata.model;
+            diagnostics.translationBatches = translationResult.metadata.batches;
+            diagnostics.translationSuccessBatches = translationResult.metadata.successBatches;
+            diagnostics.translationFailedBatches = translationResult.metadata.failedBatches;
+            diagnostics.translationCacheHits = translationResult.metadata.cacheHits;
+          }
+
+          // Update frontmatter
+          if (!frontmatter.lang || frontmatter.lang === 'en') {
+            frontmatter.lang = 'zh';
+            frontmatter.translatedFrom = 'en';
+            diagnostics.frontmatterUpdated = true;
+          }
+
+          translationSpan.end({
+            status: 'ok',
+            fields: {
+              nodesTranslated: translatableNodes.length,
+              mathPatched: diagnostics.mathPatched,
+              mathFallbackToCodeFence: diagnostics.mathFallbackToCodeFence,
+              batches: diagnostics.translationBatches,
+            },
+          });
+        } else {
+          translationSpan.end({ status: 'ok', fields: { nodesTranslated: 0 } });
+        }
+      } catch (error) {
+        logger.warn('Translation failed, continuing with other fixes', {
+          step: 'translate',
+          error: error instanceof Error ? error.message : String(error),
+          fallbackUsed: true,
+        });
+        translationSpan.end({ status: 'fail', fields: { reason: 'translation-error' } });
+      }
     }
+
+    // Convert AST back to markdown (with remark-math to serialize math nodes)
+    const stringifyProcessor = unified()
+      .use(remarkStringify, {
+        bullet: '-',
+        fence: '`',
+        fences: true,
+        incrementListMarker: false,
+      })
+      .use(remarkGfm)
+      .use(remarkMath);
+
+    processedMarkdown = stringifyProcessor.stringify(tree);
+
+    // Fix math delimiters (must be done after AST conversion)
+    if (enableMathDelimiterFix) {
+      const mathDelimiterSpan = logger.span({
+        name: 'math-delimiter-fix',
+        fields: { step: 'mathDelimiterFix' },
+      });
+      mathDelimiterSpan.start();
+      const { content, changes } = fixMathDelimiters(processedMarkdown);
+      processedMarkdown = content;
+      diagnostics.mathDelimitersFixed = changes;
+      if (changes > 0) {
+        diagnostics.changed = true;
+      }
+      mathDelimiterSpan.end({ status: 'ok', fields: { fixedCount: changes } });
+    }
+
+    // Normalize markdown formatting
+    if (enableMarkdownCleanup) {
+      const cleanupSpan = logger.span({ name: 'markdown-cleanup', fields: { step: 'cleanup' } });
+      cleanupSpan.start();
+      const { content, changes } = normalizeMarkdown(processedMarkdown);
+      processedMarkdown = content;
+      diagnostics.emptyLinesCompressed = changes;
+      if (changes > 0) {
+        diagnostics.changed = true;
+      }
+      cleanupSpan.end({ status: 'ok', fields: { changesCount: changes } });
+    }
+
+    // Reconstruct final markdown with frontmatter
+    const finalMarkdown = matter.stringify(processedMarkdown, frontmatter);
+
+    processingSpan.end({ status: 'ok', fields: { changed: diagnostics.changed } });
+
+    logger.summary({
+      status: 'ok',
+      changed: diagnostics.changed,
+      translated: diagnostics.translated,
+      codeFencesFixed: diagnostics.codeFencesFixed,
+      imageCaptionsFixed: diagnostics.imageCaptionsFixed,
+      mathPatched: diagnostics.mathPatched,
+      mathFallbackToCodeFence: diagnostics.mathFallbackToCodeFence,
+    });
+
+    return {
+      markdown: finalMarkdown,
+      diagnostics,
+    };
+  } catch (error) {
+    processingSpan.end({ status: 'fail' });
+    logger.error(error instanceof Error ? error : new Error(String(error)), {
+      step: 'processing-error',
+    });
+    throw error;
   }
-
-  // Reconstruct final markdown with frontmatter
-  const finalMarkdown = matter.stringify(processedMarkdown, frontmatter);
-
-  return {
-    markdown: finalMarkdown,
-    diagnostics,
-  };
 }

@@ -9,6 +9,8 @@ import { zhihuAdapter } from '../../scripts/import/adapters/zhihu.js';
 import { wechatAdapter } from '../../scripts/import/adapters/wechat.js';
 import { mediumAdapter } from '../../scripts/import/adapters/medium.js';
 import { othersAdapter } from '../../scripts/import/adapters/others.js';
+import { createLogger } from '../../scripts/logger/index.js';
+import type { LogFields } from '../../scripts/logger/types.js';
 
 // Mock page object
 function createMockPage() {
@@ -262,6 +264,190 @@ describe('Others Adapter', () => {
 
       expect(result.title).toBeTruthy();
       expect(result.source).toBe('others');
+    });
+  });
+});
+
+describe('Adapters with Logger', () => {
+  describe('Zhihu Adapter', () => {
+    it('should log extraction attempts and results', async () => {
+      const mockPage = createMockPage();
+      const mockDownloadImage = vi.fn().mockResolvedValue('/images/test.jpg');
+
+      mockPage.evaluate.mockResolvedValue({
+        title: 'Zhihu Article with Logging',
+        author: 'Test Author',
+        published: '2024-01-01',
+        html: '<p>Test content</p>',
+      });
+
+      const logCalls: Array<{ level: string; message: string; fields?: LogFields }> = [];
+      const spanCalls: Array<{ name: string; status?: string; fields?: LogFields }> = [];
+
+      const mockLogger = createLogger({ silent: true });
+
+      // Wrap child to track all calls
+      const originalChild = mockLogger.child.bind(mockLogger);
+      mockLogger.child = (fields: LogFields) => {
+        const childLogger = originalChild(fields);
+        const originalInfo = childLogger.info.bind(childLogger);
+        childLogger.info = (message: string, infoFields?: LogFields) => {
+          logCalls.push({ level: 'info', message, fields: { ...fields, ...infoFields } });
+          return originalInfo(message, infoFields);
+        };
+        const originalSpan = childLogger.span.bind(childLogger);
+        childLogger.span = (opts) => {
+          const span = originalSpan(opts);
+          spanCalls.push({ name: opts.name, fields: { ...fields, ...opts.fields } });
+          const originalEnd = span.end.bind(span);
+          span.end = (endOpts) => {
+            spanCalls.push({
+              name: opts.name,
+              status: endOpts?.status,
+              fields: { ...fields, ...opts.fields, ...endOpts?.fields },
+            });
+            return originalEnd(endOpts);
+          };
+          return span;
+        };
+        return childLogger;
+      };
+
+      await zhihuAdapter.fetchArticle({
+        url: 'https://zhuanlan.zhihu.com/p/123456',
+        page: mockPage as any,
+        options: {
+          slug: 'test-slug',
+          imageRoot: '/tmp/test',
+          downloadImage: mockDownloadImage,
+          logger: mockLogger,
+        },
+      });
+
+      // Verify logger was called with adapter context
+      expect(logCalls.filter((c) => c.fields?.adapter === 'zhihu').length).toBeGreaterThan(0);
+      expect(spanCalls.filter((c) => c.name === 'zhihu-extraction').length).toBeGreaterThan(0);
+      expect(
+        spanCalls.filter((c) => c.name === 'zhihu-extraction' && c.status === 'ok').length,
+      ).toBeGreaterThan(0);
+    });
+
+    it('should log retry attempts with backoff info', async () => {
+      const mockPage = createMockPage();
+      let attemptCount = 0;
+
+      // First attempt fails, second succeeds
+      mockPage.evaluate.mockImplementation(() => {
+        attemptCount++;
+        if (attemptCount === 1) {
+          return Promise.reject(new Error('Temporary failure'));
+        }
+        return Promise.resolve({
+          title: 'Article',
+          author: 'Author',
+          published: '2024-01-01',
+          html: '<p>Content</p>',
+        });
+      });
+
+      const warnCalls: Array<{ message: string; fields?: LogFields }> = [];
+      const infoCalls: Array<{ message: string; fields?: LogFields }> = [];
+      const mockLogger = createLogger({ silent: true });
+
+      // Wrap child to track warnings and info
+      const originalChild = mockLogger.child.bind(mockLogger);
+      mockLogger.child = (fields: LogFields) => {
+        const childLogger = originalChild(fields);
+        const originalWarn = childLogger.warn.bind(childLogger);
+        childLogger.warn = (message: string, warnFields?: LogFields) => {
+          warnCalls.push({ message, fields: { ...fields, ...warnFields } });
+          return originalWarn(message, warnFields);
+        };
+        const originalInfo = childLogger.info.bind(childLogger);
+        childLogger.info = (message: string, infoFields?: LogFields) => {
+          infoCalls.push({ message, fields: { ...fields, ...infoFields } });
+          return originalInfo(message, infoFields);
+        };
+        return childLogger;
+      };
+
+      await zhihuAdapter.fetchArticle({
+        url: 'https://zhuanlan.zhihu.com/p/123456',
+        page: mockPage as any,
+        options: {
+          slug: 'test',
+          imageRoot: '/tmp/test',
+          downloadImage: async () => null,
+          logger: mockLogger,
+        },
+      });
+
+      // Verify retry was logged with attempt and backoff info
+      expect(
+        warnCalls.filter((c) => c.fields?.attempt === 1 && c.fields?.backoffMs).length +
+          infoCalls.filter((c) => c.fields?.attempt === 1 && c.fields?.backoffMs).length,
+      ).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Medium Adapter', () => {
+    it('should log extraction strategy and stats', async () => {
+      const mockPage = createMockPage();
+      const mockDownloadImage = vi.fn().mockResolvedValue('/images/test.jpg');
+
+      mockPage.evaluate.mockResolvedValue({
+        title: 'Medium Article',
+        author: 'Author',
+        published: '2024-01-01',
+        html: '<p>Content</p>',
+      });
+
+      const logCalls: Array<{ level: string; message: string; fields?: LogFields }> = [];
+      const summaryCalls: Array<{ fields?: LogFields }> = [];
+      const mockLogger = createLogger({ silent: true });
+
+      // Wrap child to track info and summary calls
+      const originalChild = mockLogger.child.bind(mockLogger);
+      mockLogger.child = (fields: LogFields) => {
+        const childLogger = originalChild(fields);
+        const originalInfo = childLogger.info.bind(childLogger);
+        childLogger.info = (message: string, infoFields?: LogFields) => {
+          logCalls.push({ level: 'info', message, fields: { ...fields, ...infoFields } });
+          return originalInfo(message, infoFields);
+        };
+        const originalSummary = childLogger.summary.bind(childLogger);
+        childLogger.summary = (summaryFields: LogFields) => {
+          summaryCalls.push({ fields: { ...fields, ...summaryFields } });
+          return originalSummary(summaryFields);
+        };
+        return childLogger;
+      };
+
+      await mediumAdapter.fetchArticle({
+        url: 'https://medium.com/@user/article',
+        page: mockPage as any,
+        options: {
+          slug: 'test-slug',
+          imageRoot: '/tmp/test',
+          downloadImage: mockDownloadImage,
+          logger: mockLogger,
+        },
+      });
+
+      // Verify logger captured adapter and stats
+      expect(logCalls.filter((c) => c.fields?.adapter === 'medium').length).toBeGreaterThan(0);
+
+      // Check either in info logs or summary
+      const hasStatsInInfo =
+        logCalls.filter(
+          (c) => c.fields?.imagesCount !== undefined && c.fields?.markdownLength !== undefined,
+        ).length > 0;
+      const hasStatsInSummary =
+        summaryCalls.filter(
+          (c) => c.fields?.imagesCount !== undefined && c.fields?.markdownLength !== undefined,
+        ).length > 0;
+
+      expect(hasStatsInInfo || hasStatsInSummary).toBe(true);
     });
   });
 });

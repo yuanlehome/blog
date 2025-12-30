@@ -6,6 +6,8 @@
 
 import type { Adapter, Article, FetchArticleInput } from './types.js';
 import { htmlToMdx } from '../../content-import.js';
+import type { Logger } from '../../logger/types.js';
+import { createLogger } from '../../logger/index.js';
 
 // Constants for retry and timing
 const MAX_RETRIES = 3;
@@ -131,13 +133,19 @@ async function extractZhihuWithRetry(
   page: any,
   url: string,
   maxRetries = MAX_RETRIES,
+  logger?: Logger,
 ): Promise<{ title: string; author: string; published: string; html: string }> {
   const sanitizedUrl = sanitizeZhihuUrl(url);
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`Attempt ${attempt}/${maxRetries} to extract from ${sanitizedUrl}`);
+      logger?.info('Attempting extraction', {
+        adapter: 'zhihu',
+        attempt,
+        maxRetries,
+        url: sanitizedUrl,
+      });
 
       await page.goto(sanitizedUrl, {
         waitUntil: 'domcontentloaded',
@@ -148,6 +156,12 @@ async function extractZhihuWithRetry(
 
       const blockReason = await detectBlockedPage(page);
       if (blockReason) {
+        logger?.warn('Zhihu blocked request', {
+          adapter: 'zhihu',
+          attempt,
+          reason: blockReason,
+          blockedDetected: true,
+        });
         throw new Error(blockReason);
       }
 
@@ -222,15 +236,31 @@ async function extractZhihuWithRetry(
         throw new Error('Zhihu DOM structure changed: Failed to extract article content');
       }
 
-      console.log(`Successfully extracted article: ${result.title}`);
+      logger?.info('Successfully extracted article', {
+        adapter: 'zhihu',
+        attempt,
+        title: result.title,
+        hasAuthor: Boolean(result.author),
+        hasPublished: Boolean(result.published),
+        htmlLength: result.html.length,
+      });
       return result;
     } catch (error) {
       lastError = error as Error;
-      console.error(`Attempt ${attempt} failed:`, error);
+      logger?.warn('Extraction attempt failed', {
+        adapter: 'zhihu',
+        attempt,
+        maxRetries,
+        error: error instanceof Error ? error.message : String(error),
+      });
 
       if (attempt < maxRetries) {
         const backoffMs = Math.min(BASE_BACKOFF_MS * Math.pow(2, attempt - 1), MAX_BACKOFF_MS);
-        console.log(`Waiting ${backoffMs}ms before retry...`);
+        logger?.info('Waiting before retry', {
+          adapter: 'zhihu',
+          attempt,
+          backoffMs,
+        });
         await page.waitForTimeout(backoffMs);
       }
     }
@@ -252,30 +282,77 @@ export const zhihuAdapter: Adapter = {
 
   async fetchArticle(input: FetchArticleInput): Promise<Article> {
     const { url, page, options = {} } = input;
-    const { slug = 'zhihu-article', imageRoot = '/tmp/images', publicBasePath } = options;
+    const {
+      slug = 'zhihu-article',
+      imageRoot = '/tmp/images',
+      publicBasePath,
+      logger: parentLogger,
+    } = options;
 
-    // Extract article with retry logic
-    const result = await extractZhihuWithRetry(page, url);
+    // Create child logger with context
+    const logger =
+      parentLogger?.child({
+        module: 'import',
+        adapter: 'zhihu',
+        url,
+        slug,
+      }) ?? createLogger({ silent: true });
 
-    // Convert HTML to Markdown
-    const { markdown, images } = await htmlToMdx(result.html, {
-      slug,
-      provider: 'zhihu',
-      baseUrl: sanitizeZhihuUrl(url),
-      imageRoot,
-      articleUrl: url,
-      publicBasePath: publicBasePath || `/images/zhihu/${slug}`,
-      downloadImage: options.downloadImage,
-    });
+    const extractionSpan = logger.span({ name: 'zhihu-extraction', fields: { adapter: 'zhihu' } });
+    extractionSpan.start();
 
-    return {
-      title: result.title,
-      markdown,
-      canonicalUrl: sanitizeZhihuUrl(url),
-      source: 'zhihu',
-      author: result.author,
-      publishedAt: result.published || undefined,
-      images: images.map((localPath) => ({ url: '', localPath })),
-    };
+    try {
+      // Extract article with retry logic
+      const result = await extractZhihuWithRetry(page, url, MAX_RETRIES, logger);
+
+      logger.info('Converting HTML to Markdown', {
+        adapter: 'zhihu',
+        htmlLength: result.html.length,
+      });
+
+      // Convert HTML to Markdown
+      const { markdown, images } = await htmlToMdx(result.html, {
+        slug,
+        provider: 'zhihu',
+        baseUrl: sanitizeZhihuUrl(url),
+        imageRoot,
+        articleUrl: url,
+        publicBasePath: publicBasePath || `/images/zhihu/${slug}`,
+        downloadImage: options.downloadImage,
+      });
+
+      extractionSpan.end({
+        status: 'ok',
+        fields: {
+          imagesCount: images.length,
+          markdownLength: markdown.length,
+        },
+      });
+
+      logger.summary({
+        status: 'ok',
+        adapter: 'zhihu',
+        title: result.title,
+        imagesCount: images.length,
+        markdownLength: markdown.length,
+      });
+
+      return {
+        title: result.title,
+        markdown,
+        canonicalUrl: sanitizeZhihuUrl(url),
+        source: 'zhihu',
+        author: result.author,
+        publishedAt: result.published || undefined,
+        images: images.map((localPath) => ({ url: '', localPath })),
+      };
+    } catch (error) {
+      extractionSpan.end({ status: 'fail' });
+      logger.error(error instanceof Error ? error : new Error(String(error)), {
+        adapter: 'zhihu',
+        url,
+      });
+      throw error;
+    }
   },
 };

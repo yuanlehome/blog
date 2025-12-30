@@ -9,6 +9,7 @@ import { zhihuAdapter } from './zhihu.js';
 import { mediumAdapter } from './medium.js';
 import { wechatAdapter } from './wechat.js';
 import { othersAdapter } from './others.js';
+import type { Logger } from '../../logger/types.js';
 
 /**
  * Default adapter registry implementation
@@ -36,9 +37,21 @@ class DefaultAdapterRegistry implements AdapterRegistry {
     });
   }
 
-  resolve(url: string): Adapter | null {
+  resolve(url: string, logger?: Logger): Adapter | null {
+    logger?.debug('Resolving adapter', {
+      module: 'import',
+      url,
+      availableAdapters: this.adapters.length,
+    });
+
     for (const adapter of this.adapters) {
       if (adapter.canHandle(url)) {
+        logger?.info('Adapter resolved', {
+          module: 'import',
+          adapter: adapter.id,
+          url,
+          matcher: 'canHandle',
+        });
         return adapter;
       }
     }
@@ -75,8 +88,8 @@ registerDefaultAdapters();
 /**
  * Resolve the best adapter for a given URL
  */
-export function resolveAdapter(url: string): Adapter | null {
-  return adapterRegistry.resolve(url);
+export function resolveAdapter(url: string, logger?: Logger): Adapter | null {
+  return adapterRegistry.resolve(url, logger);
 }
 
 /**

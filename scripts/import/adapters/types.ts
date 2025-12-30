@@ -3,6 +3,7 @@
  */
 
 import type { Page } from '@playwright/test';
+import type { Logger } from '../logger/types.js';
 
 /**
  * Standardized article structure output by all adapters
@@ -53,6 +54,7 @@ export interface FetchArticleInput {
     imageRoot?: string;
     publicBasePath?: string;
     downloadImage?: DownloadImageFunction;
+    logger?: Logger;
   };
 }
 
@@ -104,7 +106,7 @@ export interface AdapterRegistry {
   register(adapter: Adapter): void;
 
   /** Resolve the best adapter for a given URL */
-  resolve(url: string): Adapter | null;
+  resolve(url: string, logger?: Logger): Adapter | null;
 
   /** Get all registered adapters */
   getAll(): Adapter[];
