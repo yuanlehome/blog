@@ -1,0 +1,118 @@
+# Typography Configuration
+# Font families, sizes, and text rendering
+
+# ========================================
+# Font Families
+# ========================================
+fontFamily:
+  # Sans-serif font stack (UI elements, body text)
+  sans:
+    - 'ui-sans-serif'
+    - 'system-ui'
+    - '-apple-system'
+    - 'BlinkMacSystemFont'
+    - '"Segoe UI"'
+    - 'Roboto'
+    - '"Helvetica Neue"'
+    - 'Arial'
+    - '"Noto Sans"'
+    - 'sans-serif'
+    - '"Apple Color Emoji"'
+    - '"Segoe UI Emoji"'
+    - '"Segoe UI Symbol"'
+    - '"Noto Color Emoji"'
+  
+  # Serif font stack (optional, for article content)
+  serif:
+    - 'ui-serif'
+    - 'Georgia'
+    - 'Cambria'
+    - '"Times New Roman"'
+    - 'Times'
+    - 'serif'
+  
+  # Monospace font stack (code blocks, inline code)
+  mono:
+    - '"Fira Code"'
+    - '"SF Mono"'
+    - 'SFMono-Regular'
+    - 'Menlo'
+    - 'Monaco'
+    - 'Consolas'
+    - '"Liberation Mono"'
+    - '"Courier New"'
+    - 'monospace'
+
+# ========================================
+# Font Sizes (rem units)
+# ========================================
+fontSize:
+  # Extra small text (captions, labels)
+  xs: '0.75rem' # 12px
+  
+  # Small text (metadata, secondary info)
+  sm: '0.875rem' # 14px
+  
+  # Base body text
+  base: '1rem' # 16px
+  
+  # Large text (lead paragraphs)
+  lg: '1.125rem' # 18px
+  
+  # Extra large (section headings)
+  xl: '1.25rem' # 20px
+  
+  # 2X large (page titles)
+  '2xl': '1.5rem' # 24px
+  
+  # 3X large (hero titles)
+  '3xl': '1.875rem' # 30px
+  
+  # 4X large (display titles)
+  '4xl': '2.25rem' # 36px
+
+# ========================================
+# Line Heights
+# ========================================
+lineHeight:
+  # Tight (headings)
+  tight: 1.25
+  
+  # Snug (subheadings)
+  snug: 1.375
+  
+  # Normal (body text)
+  normal: 1.5
+  
+  # Relaxed (article content)
+  relaxed: 1.625
+  
+  # Loose (code blocks)
+  loose: 1.75
+
+# ========================================
+# Font Weights
+# ========================================
+fontWeight:
+  normal: 400
+  medium: 500
+  semibold: 600
+  bold: 700
+
+# ========================================
+# Prose Configuration
+# ========================================
+prose:
+  # Maximum width for prose content
+  maxWidth: '65ch'
+  
+  # Use serif font for article body
+  useSerif: false
+  
+  # Paragraph spacing
+  paragraphSpacing: '1.25em'
+  
+  # Heading spacing
+  headingSpacing:
+    before: '1.5em'
+    after: '0.5em'

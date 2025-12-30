@@ -1,6 +1,9 @@
 # Theme Configuration
 # Visual theme and appearance settings
 
+# ========================================
+# Theme Mode & Storage
+# ========================================
 # Default theme preference
 defaultTheme: 'system' # Options: "light", "dark", "system"
 
@@ -21,7 +24,101 @@ labels:
   light: 'Light'
   dark: 'Dark'
 
+# ========================================
+# Color System
+# ========================================
+colors:
+  # Primary brand color (links, buttons, hover states)
+  brand: '#3b82f6' # blue-500
+  
+  # Accent color (tags, highlights, emphasis)
+  accent: '#8b5cf6' # violet-500
+  
+  # Page backgrounds
+  background:
+    base: '#ffffff' # white
+    subtle: '#f8fafc' # slate-50
+    muted: '#f1f5f9' # slate-100
+  
+  # Text colors
+  foreground:
+    base: '#0f172a' # slate-900
+    muted: '#64748b' # slate-500
+    
+  # Border colors
+  border:
+    default: '#e2e8f0' # slate-200
+    subtle: '#f1f5f9' # slate-100
+    
+  # Card/Surface colors
+  card:
+    background: '#ffffff'
+    border: '#e2e8f0'
+    
+  # Code block colors
+  code:
+    background: '#f8fafc' # slate-50
+    foreground: '#0f172a' # slate-900
+    border: '#e5e7eb' # gray-200
+    scrollbar: '#cbd5e1' # slate-300
+
+# Dark mode colors
+darkColors:
+  brand: '#60a5fa' # blue-400
+  accent: '#a78bfa' # violet-400
+  
+  background:
+    base: '#0f172a' # slate-900
+    subtle: '#1e293b' # slate-800
+    muted: '#334155' # slate-700
+  
+  foreground:
+    base: '#f1f5f9' # slate-100
+    muted: '#94a3b8' # slate-400
+    
+  border:
+    default: '#334155' # slate-700
+    subtle: '#1e293b' # slate-800
+    
+  card:
+    background: '#1e293b'
+    border: '#334155'
+    
+  code:
+    background: '#0b1221' # custom dark blue
+    foreground: '#e2e8f0' # slate-200
+    border: '#334155' # slate-700
+    scrollbar: '#475569' # slate-600
+
+# ========================================
+# Code Highlighting
+# ========================================
+codeTheme:
+  # Light and dark theme names for syntax highlighting
+  light: 'github-light'
+  dark: 'github-dark'
+  
+  # Code block features
+  showLineNumbers: true
+  showCopyButton: true
+  wrapLongLines: false
+  
+  # Inline code style
+  inlineCodeStyle: 'subtle' # Options: "subtle", "boxed"
+
+# ========================================
+# Link & Focus Styles
+# ========================================
+emphasis:
+  # Link underline behavior
+  linkUnderline: 'hover' # Options: "never", "hover", "always"
+  
+  # Focus ring visibility
+  focusRing: true
+
+# ========================================
 # Animation preferences
+# ========================================
 animations:
   respectReducedMotion: true
   enableScrollEffects: true
