@@ -1,0 +1,43 @@
+# Layout Configuration
+# Container, sidebar, and layout mode settings
+
+# Container settings
+container:
+  # Maximum width of main content area
+  width: '72rem' # 1152px, equivalent to max-w-6xl
+  # Horizontal padding (responsive)
+  paddingX:
+    mobile: '1rem' # 16px, equivalent to px-4
+    tablet: '1rem'
+    desktop: '1rem'
+
+# Layout mode for article pages
+# Options: "centered" (single column), "rightSidebar", "leftSidebar"
+layoutMode: 'rightSidebar'
+
+# Sidebar configuration (applies when layoutMode includes sidebar)
+sidebar:
+  enabled: true
+  position: 'right' # Options: "left", "right"
+  width: '18rem' # 288px
+  sticky: true
+  gap: '3rem' # Gap between content and sidebar (48px, lg:gap-12)
+
+# Table of Contents configuration
+toc:
+  enabled: true
+  position: 'right' # Options: "left", "right", "inline"
+  # Mobile behavior: "drawer" (floating), "inline" (in content), "hidden"
+  mobileBehavior: 'drawer'
+  defaultOpen: false
+  # Offset from top when sticky (in pixels)
+  offset: 96
+
+# Alignment settings
+alignment:
+  # Header alignment
+  headerAlign: 'left' # Options: "left", "center"
+  # Footer alignment
+  footerAlign: 'left' # Options: "left", "center"
+  # Post metadata alignment
+  postMetaAlign: 'left' # Options: "left", "center"

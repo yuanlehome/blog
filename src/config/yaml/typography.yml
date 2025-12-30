@@ -1,0 +1,67 @@
+# Typography Configuration
+# Font families, sizes, and line heights
+
+# Font family stacks
+fontFamily:
+  # Sans-serif font stack (default body text)
+  sans:
+    - 'ui-sans-serif'
+    - 'system-ui'
+    - '-apple-system'
+    - 'BlinkMacSystemFont'
+    - 'Segoe UI'
+    - 'Roboto'
+    - 'Helvetica Neue'
+    - 'Arial'
+    - 'sans-serif'
+  # Serif font stack (optional, for headings or special content)
+  serif:
+    - 'ui-serif'
+    - 'Georgia'
+    - 'Cambria'
+    - 'Times New Roman'
+    - 'Times'
+    - 'serif'
+  # Monospace font stack (code blocks)
+  mono:
+    - 'Fira Code'
+    - 'SFMono-Regular'
+    - 'Menlo'
+    - 'Monaco'
+    - 'Consolas'
+    - 'Liberation Mono'
+    - 'Courier New'
+    - 'monospace'
+
+# Font size scale (in rem)
+fontSize:
+  xs: '0.75rem' # 12px
+  sm: '0.875rem' # 14px
+  base: '1rem' # 16px
+  lg: '1.125rem' # 18px
+  xl: '1.25rem' # 20px
+  '2xl': '1.5rem' # 24px
+  '3xl': '1.875rem' # 30px
+  '4xl': '2.25rem' # 36px
+
+# Line height
+lineHeight:
+  body: 1.75 # For paragraphs
+  heading: 1.3 # For headings
+  code: 1.65 # For code blocks
+  tight: 1.25 # For compact text
+
+# Font weights
+fontWeight:
+  normal: 400
+  medium: 500
+  semibold: 600
+  bold: 700
+
+# Prose (article content) settings
+prose:
+  # Maximum width for optimal reading
+  maxWidth: 'none' # Uses container width
+  # Spacing multipliers (relative to base spacing)
+  headingSpacing: 1.0
+  paragraphSpacing: 1.0

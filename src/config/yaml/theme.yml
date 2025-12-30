@@ -1,8 +1,14 @@
 # Theme Configuration
 # Visual theme and appearance settings
 
-# Default theme preference
-defaultTheme: 'system' # Options: "light", "dark", "system"
+# Color mode settings
+colorMode:
+  # Default theme preference: "light", "dark", "system"
+  default: 'system'
+  # Allow users to toggle theme
+  allowToggle: true
+  # Persist theme preference in localStorage
+  persist: true
 
 # Available theme options
 themes:
@@ -20,6 +26,88 @@ icons:
 labels:
   light: 'Light'
   dark: 'Dark'
+
+# Color palette for light mode
+colors:
+  # Brand/primary color (links, buttons, accents)
+  brand: '#3b82f6' # blue-500
+  # Accent/emphasis color (tags, highlights)
+  accent: '#8b5cf6' # violet-500
+  # Page background
+  background: '#ffffff' # white
+  # Main text color
+  foreground: '#111827' # gray-900
+  # Secondary/muted text
+  muted: '#6b7280' # gray-500
+  # Border color
+  border: '#e5e7eb' # gray-200
+  # Card/panel background
+  card: '#f9fafb' # gray-50
+  # Code-specific colors
+  code:
+    background: '#f8fafc' # slate-50
+    foreground: '#0f172a' # slate-900
+    border: '#e2e8f0' # slate-200
+    # Syntax highlighting accent colors
+    keyword: '#3b82f6' # blue-500
+    string: '#10b981' # emerald-500
+    comment: '#94a3b8' # slate-400
+    function: '#8b5cf6' # violet-500
+
+# Color palette for dark mode
+darkColors:
+  brand: '#60a5fa' # blue-400
+  accent: '#a78bfa' # violet-400
+  background: '#111827' # gray-900
+  foreground: '#f9fafb' # gray-50
+  muted: '#9ca3af' # gray-400
+  border: '#374151' # gray-700
+  card: '#1f2937' # gray-800
+  code:
+    background: '#0b1221' # custom dark blue
+    foreground: '#e2e8f0' # slate-200
+    border: '#334155' # slate-700
+    keyword: '#60a5fa' # blue-400
+    string: '#34d399' # emerald-400
+    comment: '#64748b' # slate-500
+    function: '#a78bfa' # violet-400
+
+# Link styling
+emphasis:
+  # Link underline style: "never", "hover", "always"
+  linkUnderline: 'hover'
+  # Show focus ring on interactive elements
+  focusRing: true
+
+# Code block configuration
+codeBlock:
+  # Theme for syntax highlighting
+  # The actual theme is handled by the syntax highlighter
+  # This controls display preferences
+  theme:
+    light: 'github-light' # Light mode code theme
+    dark: 'github-dark' # Dark mode code theme
+  # Show line numbers in code blocks
+  showLineNumbers: true
+  # Show copy button on code blocks
+  showCopyButton: true
+  # Wrap long lines instead of horizontal scroll
+  wrapLongLines: false
+  # Inline code style: "subtle" (background only), "boxed" (with border)
+  inlineCodeStyle: 'subtle'
+  # Border radius (inherits from components.yml but can override)
+  radius: '0.9rem'
+  # Enable line highlighting
+  enableHighlight: true
+
+# Header styling
+header:
+  # Header variant: "default", "subtle", "frosted", "elevated"
+  variant: 'default'
+  # Background opacity (0-1)
+  backgroundOpacity: 0.92
+  # Blur effect strength when using frosted variant
+  blurStrength: '10px'
 
 # Animation preferences
 animations:

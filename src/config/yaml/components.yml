@@ -1,0 +1,74 @@
+# Component Styling Configuration
+# Border radius, shadows, borders, and motion settings
+
+# Border radius settings
+radius:
+  sm: '0.35rem' # 5.6px, for inline code
+  md: '0.65rem' # 10.4px, for buttons
+  lg: '0.9rem' # 14.4px, for code blocks
+  xl: '0.75rem' # 12px, for cards and images
+
+# Shadow settings
+shadow:
+  # Card shadow levels
+  card: 'md' # Options: "none", "sm", "md", "lg"
+  # Code block shadow
+  codeBlock: 'md' # Options: "none", "sm", "md", "lg"
+  # Header shadow when scrolled
+  header: 'md' # Options: "none", "sm", "md", "lg"
+  # Enable lift effect on hover
+  hoverLift: false
+
+# Shadow definitions (mapped from levels)
+shadowValues:
+  none: 'none'
+  sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)'
+  md: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)'
+  lg: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)'
+  xl: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)'
+
+# Dark mode shadow values
+shadowValuesDark:
+  none: 'none'
+  sm: '0 1px 2px 0 rgb(0 0 0 / 0.3)'
+  md: '0 10px 30px rgb(0 0 0 / 0.28)'
+  lg: '0 20px 40px rgb(0 0 0 / 0.35)'
+  xl: '0 25px 50px rgb(0 0 0 / 0.4)'
+
+# Border settings
+border:
+  # Default border style
+  style: 'solid' # Options: "solid", "dashed", "dotted"
+  # Default border width
+  width: '1px'
+
+# Motion/animation settings
+motion:
+  # Enable animations globally
+  enabled: true
+  # Animation intensity level
+  level: 'normal' # Options: "subtle", "normal", "energetic"
+  # Respect user's reduced motion preference
+  respectReducedMotion: true
+
+# Motion timing values
+motionTiming:
+  subtle:
+    duration: '100ms'
+    easing: 'ease'
+  normal:
+    duration: '160ms'
+    easing: 'ease'
+  energetic:
+    duration: '240ms'
+    easing: 'ease-in-out'
+
+# Spacing scale (for component spacing)
+# Options: "compact" (tighter spacing), "comfortable" (default)
+spacingScale: 'comfortable'
+
+# Spacing multipliers
+spacingMultiplier:
+  compact: 0.75
+  comfortable: 1.0
+  relaxed: 1.25
