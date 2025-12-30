@@ -4,6 +4,16 @@ import { getNavConfig } from '../config/loaders';
 
 const BASE = normalizeBase(import.meta.env.BASE_URL);
 const navConfig = getNavConfig();
+
+// Helper to construct menu item URLs
+function getMenuItemUrl(item: { isExternal: boolean; href: string }): string {
+  if (item.isExternal) {
+    return item.href;
+  }
+  // Remove leading slash from href and append to BASE
+  const path = item.href.startsWith('/') ? item.href.slice(1) : item.href;
+  return `${BASE}${path}`;
+}
 ---
 
 <header class="site-header header-variant-frosted" data-header>
@@ -15,7 +25,7 @@ const navConfig = getNavConfig();
       {
         navConfig.header.menuItems.map((item) => (
           <a
-            href={item.isExternal ? item.href : `${BASE}${item.href.replace(/^\//, '')}`}
+            href={getMenuItemUrl(item)}
             class="hover:underline"
             target={item.openInNewTab ? '_blank' : undefined}
             rel={item.openInNewTab ? 'noopener noreferrer' : undefined}

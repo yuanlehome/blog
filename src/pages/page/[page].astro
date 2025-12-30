@@ -8,8 +8,6 @@ import { normalizeBase } from '../../lib/slug';
 import { getPaginationPages } from '../../lib/ui/pagination';
 import { getHomeConfig, getSiteConfig } from '../../config/loaders';
 
-const homeConfig = getHomeConfig();
-
 export async function getStaticPaths() {
   const homeConfig = getHomeConfig();
   const PAGE_SIZE = homeConfig.pagination.pageSize;
@@ -24,6 +22,7 @@ export async function getStaticPaths() {
 
 const { slice, page, totalPages } = Astro.props;
 const BASE = normalizeBase(import.meta.env.BASE_URL);
+const homeConfig = getHomeConfig();
 const siteConfig = getSiteConfig();
 const paginationPages = getPaginationPages({
   currentPage: page,

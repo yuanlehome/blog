@@ -2,7 +2,7 @@
 import { getPostConfig } from '../config/loaders';
 
 const postConfig = getPostConfig();
-const { lang = postConfig.comments.giscus.lang } = Astro.props;
+const lang = Astro.props.lang || postConfig.comments.giscus.lang;
 const giscus = postConfig.comments.giscus;
 const themeMap = postConfig.comments.themeMapping;
 ---
