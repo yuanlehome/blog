@@ -3,7 +3,7 @@
  */
 
 import type { Page } from '@playwright/test';
-import type { Logger } from '../logger/types.js';
+import type { Logger } from '../../logger/types.js';
 
 /**
  * Standardized article structure output by all adapters
