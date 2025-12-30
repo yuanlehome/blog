@@ -15,10 +15,10 @@ export default defineConfig({
         'scripts/markdown/index.ts',
       ],
       thresholds: {
-        lines: 75,
-        functions: 75,
+        lines: 80,
+        functions: 80,
         branches: 75,
-        statements: 75,
+        statements: 80,
       },
     },
   },

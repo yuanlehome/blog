@@ -50,7 +50,8 @@ describe('Redaction', () => {
 
   describe('redactValue', () => {
     it('should redact Bearer tokens', () => {
-      const input = 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.long-token-value-here';
+      const input =
+        'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.long-token-value-here';
       const output = redactValue(input);
       expect(output).toContain('Bearer eyJhbG...here');
       expect(output).not.toContain('long-token-value');

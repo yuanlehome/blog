@@ -73,11 +73,11 @@ class SpanImpl implements Span {
     if (!this.started) {
       this.start();
     }
-    
+
     const endTime = Date.now();
     const durationMs = this.startTime ? endTime - this.startTime : 0;
     const status = options.status || 'ok';
-    
+
     this.logger.log('info', `${this.name} completed`, {
       ...this.fields,
       ...options.fields,
@@ -202,7 +202,7 @@ class LoggerImpl implements Logger {
     const fieldsStr = formatFieldsPretty(fields, this.useColor);
 
     const output = `${timeStr} ${levelStr} ${message}${fieldsStr}`;
-    
+
     // All output goes to console.log for testing consistency
     console.log(output);
   }

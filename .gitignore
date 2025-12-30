@@ -31,3 +31,6 @@ pnpm-debug.log*
 
 # debug artifacts
 artifacts/
+
+# Logger output
+.logs/

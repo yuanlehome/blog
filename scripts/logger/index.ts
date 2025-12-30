@@ -1,8 +1,8 @@
 /**
  * Unified Logging System
- * 
+ *
  * A lightweight, structured logging system for script execution
- * 
+ *
  * Features:
  * - Standard logging levels (debug/info/warn/error)
  * - Structured logging with fields (JSON support)
@@ -12,24 +12,24 @@
  * - Multiple output formats (pretty/json)
  * - File output support (JSON Lines)
  * - Child loggers with inherited context
- * 
+ *
  * Usage:
  * ```typescript
  * import { createLogger, generateRunId } from './logger/index.js';
- * 
+ *
  * const logger = createLogger({
  *   fields: { runId: generateRunId(), script: 'my-script' }
  * });
- * 
+ *
  * logger.info('Starting script');
- * 
+ *
  * const span = logger.time('fetch-data');
  * // ... do work ...
  * span.end({ status: 'ok' });
- * 
+ *
  * logger.summary({ status: 'ok', durationMs: 1234 });
  * ```
- * 
+ *
  * Environment Variables:
  * - LOG_LEVEL: debug|info|warn|error (default: info)
  * - LOG_FORMAT: pretty|json (default: pretty)

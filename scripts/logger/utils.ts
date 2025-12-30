@@ -9,13 +9,13 @@ export const colors = {
   reset: '\x1b[0m',
   bold: '\x1b[1m',
   dim: '\x1b[2m',
-  
+
   // Level colors
   debug: '\x1b[36m', // cyan
-  info: '\x1b[32m',  // green
-  warn: '\x1b[33m',  // yellow
+  info: '\x1b[32m', // green
+  warn: '\x1b[33m', // yellow
   error: '\x1b[31m', // red
-  
+
   // Semantic colors
   gray: '\x1b[90m',
   blue: '\x1b[34m',
@@ -29,12 +29,12 @@ export function shouldUseColor(forceColor?: boolean): boolean {
   if (forceColor !== undefined) {
     return forceColor;
   }
-  
+
   // Disable colors in CI environments
   if (process.env.CI === 'true' || process.env.NO_COLOR === '1') {
     return false;
   }
-  
+
   // Enable colors if stdout is a TTY
   return process.stdout.isTTY ?? false;
 }
@@ -90,7 +90,7 @@ export function formatFieldsPretty(fields: Record<string, any>, useColor: boolea
   if (Object.keys(fields).length === 0) {
     return '';
   }
-  
+
   const formatted = Object.entries(fields)
     .map(([key, value]) => {
       const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
@@ -98,7 +98,7 @@ export function formatFieldsPretty(fields: Record<string, any>, useColor: boolea
       return `${keyColored}=${valueStr}`;
     })
     .join(' ');
-  
+
   return ` ${formatted}`;
 }
 
