@@ -39,6 +39,8 @@ describe('SearchModal URL generation', () => {
 
     it('generates correct URL with /blog base (without trailing slash)', () => {
       const url = generateSearchIndexUrl('/blog', 'https://example.com');
+      // URL constructor treats /blog as a file path and replaces it
+      // This is why normalizeBase is important in production to ensure trailing slash
       expect(url).toBe('https://example.com/search-index.json');
     });
 

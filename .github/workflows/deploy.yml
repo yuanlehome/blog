@@ -45,7 +45,7 @@ jobs:
             echo "ERROR: dist/search-index.json is missing!"
             exit 1
           fi
-          SIZE=$(stat -f%z dist/search-index.json 2>/dev/null || stat -c%s dist/search-index.json 2>/dev/null)
+          SIZE=$(wc -c < dist/search-index.json | tr -d ' ')
           if [ "$SIZE" -lt 100 ]; then
             echo "ERROR: dist/search-index.json is too small ($SIZE bytes), likely empty or corrupted!"
             exit 1
