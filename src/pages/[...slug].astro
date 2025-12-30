@@ -13,6 +13,8 @@ import Giscus from '../components/Giscus.astro';
 import ReadingProgress from '../components/ReadingProgress.astro';
 import FloatingActionStack from '../components/FloatingActionStack.astro';
 import { getDisplayDates } from '../lib/content/dates';
+import { getLayoutConfig } from '../config/loaders';
+import { alignToTextClass, alignToJustifyClass, alignToItemsClass } from '../lib/ui/alignment';
 
 export async function getStaticPaths() {
   const posts = await getPublishedPosts();
@@ -30,6 +32,12 @@ const related = findRelated(all, post);
 const commentsEnabled = post.data.comments ?? true;
 const dates = getDisplayDates(post.data);
 const hasCover = Boolean(post.data.cover);
+
+// Get post meta alignment from config
+const layoutConfig = getLayoutConfig();
+const postMetaAlign = layoutConfig.alignment.postMetaAlign;
+const metaTextClass = alignToTextClass(postMetaAlign);
+const metaJustifyClass = alignToJustifyClass(postMetaAlign);
 ---
 
 <Layout title={post.data.title} image={resolveAssetUrl(post.data.cover)}>
@@ -50,9 +58,9 @@ const hasCover = Boolean(post.data.cover);
             }`}
           >
             <div class={`flex flex-col gap-4 ${hasCover ? 'md:h-full' : ''}`}>
-              <h1 class="text-3xl md:text-4xl font-bold leading-tight">{post.data.title}</h1>
+              <h1 class={`text-3xl md:text-4xl font-bold leading-tight ${metaTextClass}`}>{post.data.title}</h1>
               <div
-                class={`text-gray-500 text-sm flex items-center gap-3 flex-wrap ${
+                class={`text-gray-500 text-sm flex ${alignToItemsClass(postMetaAlign)} ${metaJustifyClass} gap-3 flex-wrap ${
                   hasCover ? 'md:mt-auto' : ''
                 }`}
               >

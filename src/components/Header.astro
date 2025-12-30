@@ -1,9 +1,16 @@
 ---
 import { normalizeBase } from '../lib/slug';
-import { getNavConfig } from '../config/loaders';
+import { getNavConfig, getLayoutConfig } from '../config/loaders';
+import { alignToJustifyClass, alignToItemsClass } from '../lib/ui/alignment';
 
 const BASE = normalizeBase(import.meta.env.BASE_URL);
 const navConfig = getNavConfig();
+const layoutConfig = getLayoutConfig();
+
+// Get alignment classes from config
+const headerAlign = layoutConfig.alignment.headerAlign;
+const justifyClass = alignToJustifyClass(headerAlign);
+const itemsClass = alignToItemsClass(headerAlign);
 
 // Helper to construct menu item URLs
 function getMenuItemUrl(item: { isExternal: boolean; href: string }): string {
@@ -17,11 +24,11 @@ function getMenuItemUrl(item: { isExternal: boolean; href: string }): string {
 ---
 
 <header class="site-header header-variant-frosted" data-header>
-  <div class="container mx-auto px-5 py-3 sm:py-4 flex justify-between items-center max-w-5xl">
+  <div class={`container mx-auto px-5 py-3 sm:py-4 flex ${justifyClass === 'justify-center' ? 'justify-center' : 'justify-between'} ${itemsClass} max-w-5xl`}>
     <a href={BASE} class="text-xl font-bold hover:text-blue-600 dark:hover:text-blue-400"
       >{navConfig.header.brandText}</a
     >
-    <nav class="flex items-center gap-3">
+    <nav class={`flex ${itemsClass} gap-3`}>
       {
         navConfig.header.menuItems.map((item) => (
           <a
