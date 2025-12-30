@@ -482,17 +482,15 @@ npm run delete:article -- --target=my-article-slug --delete-images --dry-run
 
 自动增强导入/同步的 Markdown 文章，包括：
 
-- **自动翻译**：检测英文文章并翻译为中文
+- **自动翻译**：检测英文文章并翻译为中文（同时修复数学公式）
 - **代码块语言标注**：自动推断并补齐缺失的语言标识符
 - **图片 caption 规范化**：转换为标准 HTML figure 结构
-- **数学公式修复**：自动修复导入文章中的数学块问题
 - **格式清理**：压缩多余空行、统一换行符
 
 #### 使用场景
 
-- 导入英文技术文章时自动翻译
+- 导入英文技术文章时自动翻译（翻译过程中同时修复数学公式）
 - 修复从 Notion 或其他平台导入的格式问题
-- 修复从知乎、Medium 等平台导入的数学公式问题
 - 统一文章格式规范
 
 #### 何时触发
@@ -628,35 +626,53 @@ DeepSeek 翻译器遵循严格的翻译规则：
   - `yaml`：结构化 key-value（包括 GitHub Actions）
   - `json`：JSON 结构
 
-##### D. 数学公式修复（Math Fixer）
+##### D. 翻译器中的数学公式修复（Translator Math Fixing）
 
 **功能特性**：
 
-- 修复导入文章中常见的 LaTeX/数学块语法问题
-- 基于确定性规则的自动修复（不依赖 LLM）
+- 数学公式修复已集成到 LLM 翻译器（DeepSeek）中
+- 翻译和数学修复在同一次 LLM 调用中完成
 - 对无法修复的数学块安全降级（转换为代码块）
+
+**工作方式**：
+
+1. **统一处理**：翻译器同时接收文本节点和数学节点
+2. **LLM 修复**：使用 LLM（DeepSeek）修复数学块中的 LaTeX 语法问题
+3. **严格验证**：修复后的数学块必须通过验证（无 `$`、括号配对等）
+4. **确定性兜底**：验证失败的数学块自动转为 `tex` 代码块
 
 **可修复的问题类型**：
 
 1. **数学块被错误拆断**：
-   - 示例：`$$ content $$ more $$` → 移除内部的 `$$`
+   - 示例：`$$内容 $$ 更多$$` → 移除内部的 `$$`
    - 原因：导入时格式错误，导致数学块中间出现额外的 `$$` 分隔符
 
-2. **嵌套的 inline `$` 分隔符**：
+2. **嵌套的 inline `$` 分隔符**（关键修复）：
    - 示例：`$\displaystyle\sum_{i}$` → `\displaystyle\sum_{i}`
-   - 原因：在 block math 内部错误使用了 inline math 分隔符
+   - 这是最常见的坏样本，在 block math 内部错误使用了 inline math 分隔符
+   - **必须删除所有 `$` 符号**
 
 3. **括号/花括号不闭合**：
-   - 自动检测并补齐缺失的 `{}`、`[]`、`()` （高置信场景）
+   - LLM 自动补齐缺失的 `{}`、`[]`、`()`
    - 示例：`\frac{a}{b` → `\frac{a}{b}`
 
 4. **跨行命令断裂**：
    - 修复 `\colorbox{color}{content}` 等命令的花括号配对问题
    - 确保命令的两层花括号都正确闭合
 
-5. **伪数学块**：
-   - 检测被错误包裹在 `$$` 中的普通文本（长段中文、无数学符号）
-   - 策略：转换为 `tex` 代码块，避免渲染失败
+**LLM Prompt 要求**：
+
+系统提示词中包含明确的数学修复规则：
+- 严格禁止输出任何 `$` 或 `$$`（block math 已在外部包裹）
+- 严格禁止输出 `\[` 或 `\]`
+- 必须修复以下坏样本模式：
+  ```
+  \displaystyle\exp(m_{[0,L)}-m_{[0,L+1)})$}\colorbox{orange}{$\displaystyle...
+  ```
+  应变为（删除所有 `$`）：
+  ```
+  \displaystyle\exp(m_{[0,L)}-m_{[0,L+1)})}\\colorbox{orange}{\displaystyle...
+  ```
 
 **降级策略**：
 
@@ -664,7 +680,7 @@ DeepSeek 翻译器遵循严格的翻译规则：
 
 ```markdown
 \`\`\`tex
-原始或修复后的 LaTeX 内容
+原始 LaTeX 内容
 \`\`\`
 
 _Note: Math block could not be automatically fixed (原因). Showing as code._
@@ -672,9 +688,18 @@ _Note: Math block could not be automatically fixed (原因). Showing as code._
 
 **验证机制**：
 
-- 检查修复后的数学块不包含孤立的 `$$` 或 `$`
-- 验证括号配对平衡
-- 检查命令完整性（避免截断的 `\` 命令）
+修复后的数学块必须通过以下验证：
+- 不包含任何 `$` 或 `$$` 分隔符
+- 不包含 `\[` 或 `\]` 分隔符
+- 不包含 HTML 标签
+- 括号配对平衡（`{}`、`[]`、`()`）
+
+**关键优势**：
+
+- **单次调用**：翻译 + 数学修复在一个 LLM 请求中完成
+- **上下文感知**：LLM 可以理解数学内容的上下文
+- **智能修复**：比纯规则更灵活，可处理复杂情况
+- **确定性兜底**：验证失败时自动降级，保证页面不崩溃
 
 **示例**：
 
@@ -685,11 +710,11 @@ $$
 \sum_{l\in[0,L+1)}\exp(s_l-m_{[0,L+1)}) = \colorbox{red}{
 $$
 
-\displaystyle\exp(m*{[0,L)}-m*{[0,L+1)})$}\colorbox{orange}{$\displaystyle\sum*{l\in[0,L)}\exp(s_l-m*{[0,L)})$}
+\displaystyle\exp(m_{[0,L)}-m_{[0,L+1)})$}\colorbox{orange}{$\displaystyle\sum_{l\in[0,L)}\exp(s_l-m_{[0,L)})$}
 $$
 ```
 
-修复后：
+修复后（由翻译器处理）：
 
 ```markdown
 $$
@@ -738,8 +763,8 @@ Enhanced my-article:
   - Translated from en
   - Fixed 3 code fences
   - Fixed 2 image captions
-  - Fixed 1 math blocks
-  - Degraded 0 math blocks to code
+  - Patched 1 math blocks via translator
+  - Degraded 0 math blocks to code fence
 ```
 
 #### 模块架构
@@ -747,9 +772,9 @@ Enhanced my-article:
 实现位于 `scripts/markdown/`：
 
 - `language-detector.ts`：语言检测
-- `translator.ts`：翻译接口与实现
+- `translator.ts`：翻译接口与实现（包含数学修复支持）
+- `deepseek-translator.ts`：DeepSeek LLM 翻译器（同时处理文本翻译和数学修复）
 - `code-fence-fixer.ts`：代码语言检测
-- `math-fixer.ts`：数学公式修复
 - `markdown-processor.ts`：主处理管线
 - `index.ts`：导出接口
 

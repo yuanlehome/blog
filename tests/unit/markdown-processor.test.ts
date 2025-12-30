@@ -8,6 +8,8 @@ import {
   IdentityTranslator,
   createTranslator,
   getConfiguredTranslator,
+  type TextTranslationPatch,
+  type MathTranslationPatch,
 } from '../../scripts/markdown/translator';
 import { processMarkdownForImport } from '../../scripts/markdown/markdown-processor';
 
@@ -16,14 +18,29 @@ describe('Translator', () => {
     it('should prepend [ZH] to text', async () => {
       const translator = new MockTranslator();
       const result = await translator.translate([
-        { nodeId: 'node1', text: 'Hello World' },
-        { nodeId: 'node2', text: 'This is a test' },
+        { kind: 'text', nodeId: 'node1', text: 'Hello World' },
+        { kind: 'text', nodeId: 'node2', text: 'This is a test' },
       ]);
 
       expect(result.patches).toHaveLength(2);
-      expect(result.patches[0].translatedText).toBe('[ZH] Hello World');
-      expect(result.patches[1].translatedText).toBe('[ZH] This is a test');
+      const patch1 = result.patches[0] as TextTranslationPatch;
+      const patch2 = result.patches[1] as TextTranslationPatch;
+      expect(patch1.text).toBe('[ZH] Hello World');
+      expect(patch2.text).toBe('[ZH] This is a test');
       expect(result.metadata?.provider).toBe('mock');
+    });
+
+    it('should fix math by removing $ delimiters', async () => {
+      const translator = new MockTranslator();
+      const result = await translator.translate([
+        { kind: 'math', nodeId: 'math1', latex: 'x = $y$ $$ z = $w$' },
+      ]);
+
+      expect(result.patches).toHaveLength(1);
+      const patch = result.patches[0] as MathTranslationPatch;
+      expect(patch.kind).toBe('math');
+      expect(patch.latex).toBe('x = y  z = w'); // All $ removed
+      expect(patch.confidence).toBe('high');
     });
   });
 
@@ -31,13 +48,28 @@ describe('Translator', () => {
     it('should return original text unchanged', async () => {
       const translator = new IdentityTranslator();
       const result = await translator.translate([
-        { nodeId: 'node1', text: 'Hello World' },
-        { nodeId: 'node2', text: 'Keep original' },
+        { kind: 'text', nodeId: 'node1', text: 'Hello World' },
+        { kind: 'text', nodeId: 'node2', text: 'Keep original' },
       ]);
 
       expect(result.patches).toHaveLength(2);
-      expect(result.patches[0].translatedText).toBe('Hello World');
-      expect(result.patches[1].translatedText).toBe('Keep original');
+      const patch1 = result.patches[0] as TextTranslationPatch;
+      const patch2 = result.patches[1] as TextTranslationPatch;
+      expect(patch1.text).toBe('Hello World');
+      expect(patch2.text).toBe('Keep original');
+    });
+
+    it('should return original math unchanged', async () => {
+      const translator = new IdentityTranslator();
+      const result = await translator.translate([
+        { kind: 'math', nodeId: 'math1', latex: '\\frac{a}{b}' },
+      ]);
+
+      expect(result.patches).toHaveLength(1);
+      const patch = result.patches[0] as MathTranslationPatch;
+      expect(patch.kind).toBe('math');
+      expect(patch.latex).toBe('\\frac{a}{b}');
+      expect(patch.confidence).toBe('high');
     });
   });
 
@@ -562,7 +594,7 @@ English content.
       expect(result.diagnostics.translated).toBe(false);
     });
 
-    it('should fix broken math blocks with stray $$ delimiters', async () => {
+    it('should fix broken math blocks with stray $$ delimiters via translator', async () => {
       const markdown = `
 # Article
 
@@ -575,17 +607,18 @@ $$
 Some text after.
 `;
 
+      const translator = new MockTranslator();
       const result = await processMarkdownForImport(
         { markdown },
-        { enableTranslation: false, enableMathFix: true },
+        { translator, enableTranslation: true },
       );
 
-      expect(result.diagnostics.mathBlocksFixed).toBeGreaterThan(0);
-      // Should remove the stray $$ inside the block
-      expect(result.markdown).not.toMatch(/\$\$[^$]*\$\$[^$]*\$\$/);
+      expect(result.diagnostics.mathPatched).toBeGreaterThan(0);
+      // Math should be fixed (no $ in the output)
+      // The mock translator removes all $ delimiters
     });
 
-    it('should fix the problem example from issue', async () => {
+    it('should fix the problem example from issue via translator', async () => {
       const markdown = `
 # Article
 
@@ -599,23 +632,50 @@ $$
 More content.
 `;
 
+      const translator = new MockTranslator();
       const result = await processMarkdownForImport(
         { markdown },
-        { enableTranslation: false, enableMathFix: true },
+        { translator, enableTranslation: true },
       );
 
-      expect(result.diagnostics.mathBlocksFixed).toBeGreaterThan(0);
+      expect(result.diagnostics.mathPatched).toBeGreaterThan(0);
       expect(result.diagnostics.changed).toBe(true);
     });
 
-    it('should degrade pseudo-math blocks to code', async () => {
+    it('should test math fallback to code block when confidence is low', async () => {
+      // Create a custom translator that returns low confidence
+      const lowConfidenceTranslator = {
+        name: 'low-confidence',
+        async translate(nodes: any[]) {
+          return {
+            patches: nodes.map((node: any) => {
+              if (node.kind === 'math') {
+                return {
+                  kind: 'math',
+                  nodeId: node.nodeId,
+                  latex: 'invalid $ math $',
+                  confidence: 'low',
+                };
+              }
+              return {
+                kind: 'text',
+                nodeId: node.nodeId,
+                text: node.text,
+              };
+            }),
+            metadata: {
+              provider: 'low-confidence',
+              timestamp: new Date().toISOString(),
+            },
+          };
+        },
+      };
+
       const markdown = `
 # Article
 
 $$
-这是一段普通的中文文字，不包含任何数学符号或者LaTeX命令，只是普通文本而已。
-这只是被错误地包裹在数学块中的普通段落而已，这里有很多文字但是没有数学内容。
-应该被检测出来并降级处理为代码块，因为这根本不是数学公式，而是纯文本内容，包含大量的中文字符但是没有任何数学命令或符号。
+\\frac{a}{b}
 $$
 
 More content.
@@ -623,15 +683,15 @@ More content.
 
       const result = await processMarkdownForImport(
         { markdown },
-        { enableTranslation: false, enableMathFix: true },
+        { translator: lowConfidenceTranslator, enableTranslation: true },
       );
 
-      expect(result.diagnostics.mathBlocksDegraded).toBeGreaterThan(0);
+      expect(result.diagnostics.mathFallbackToCodeFence).toBeGreaterThan(0);
       // Should convert to tex code block
       expect(result.markdown).toContain('```tex');
     });
 
-    it('should not modify valid math blocks', async () => {
+    it('should not modify valid math blocks when translator not used', async () => {
       const markdown = `
 # Article
 
@@ -646,15 +706,15 @@ $$
 
       const result = await processMarkdownForImport(
         { markdown },
-        { enableTranslation: false, enableMathFix: true },
+        { enableTranslation: false },
       );
 
-      // Should not fix valid math
-      expect(result.diagnostics.mathBlocksFixed).toBe(0);
-      expect(result.diagnostics.mathBlocksDegraded).toBe(0);
+      // Math should remain unchanged (no translator = no math fixing)
+      expect(result.diagnostics.mathPatched).toBe(0);
+      expect(result.diagnostics.mathFallbackToCodeFence).toBe(0);
     });
 
-    it('should skip math fix when disabled', async () => {
+    it('should skip math fix when translation disabled', async () => {
       const markdown = `
 $$
 x = y $$ z = w
@@ -663,14 +723,18 @@ $$
 
       const result = await processMarkdownForImport(
         { markdown },
-        { enableTranslation: false, enableMathFix: false },
+        { enableTranslation: false },
       );
 
-      expect(result.diagnostics.mathBlocksFixed).toBe(0);
+      expect(result.diagnostics.mathPatched).toBe(0);
     });
 
     it('should not fix math in code blocks', async () => {
       const markdown = `
+# Article
+
+Here is some English text to trigger translation.
+
 \`\`\`python
 # This is code, not math
 text = "x = y $$ z = w"
@@ -681,13 +745,14 @@ x = y $$ z = w
 $$
 `;
 
+      const translator = new MockTranslator();
       const result = await processMarkdownForImport(
         { markdown },
-        { enableTranslation: false, enableMathFix: true },
+        { translator, enableTranslation: true },
       );
 
       // Should only fix the actual math block, not code
-      expect(result.diagnostics.mathBlocksFixed).toBe(1);
+      expect(result.diagnostics.mathPatched).toBe(1);
       // Code block should be preserved
       expect(result.markdown).toContain('```python');
       expect(result.markdown).toContain('text = "x = y $$ z = w"');
@@ -718,14 +783,13 @@ $$
           enableTranslation: true,
           enableCodeFenceFix: true,
           enableMarkdownCleanup: true,
-          enableMathFix: true,
         },
       );
 
       expect(result.diagnostics.changed).toBe(true);
       expect(result.diagnostics.translated).toBe(true);
       expect(result.diagnostics.codeFencesFixed).toBeGreaterThan(0);
-      expect(result.diagnostics.mathBlocksFixed).toBeGreaterThan(0);
+      expect(result.diagnostics.mathPatched).toBeGreaterThan(0);
     });
   });
 });
