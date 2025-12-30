@@ -6,9 +6,6 @@ coverage/
 test-results/
 tmp/
 
-# generated files
-public/search-index.json
-
 # dependencies
 node_modules/
 
