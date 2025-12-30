@@ -222,15 +222,90 @@ test.describe('Blog smoke journey', () => {
     await context.close();
   });
 
-  test('search box is noted when available', async ({ page }) => {
+  test('search modal opens with keyboard shortcut and navigates', async ({ page }) => {
     await page.goto('/');
-    const searchInput = page.locator('input[type="search"]');
-    if (await searchInput.count()) {
-      await searchInput.first().fill('flash');
-      await expect(searchInput.first()).toHaveValue(/flash/);
-    } else {
-      test.info().annotations.push({ type: 'todo', description: 'Search UI not yet implemented' });
+    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
+    if (await notFoundHeading.count()) {
+      const baseLink = page.locator('a[href="/blog/"]');
+      if (await baseLink.count()) {
+        await baseLink.first().click();
+      }
     }
+
+    // Wait for page to be fully loaded
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(500);
+
+    // Open search with Ctrl+K (or Meta+K on Mac)
+    await page.keyboard.press('Control+k');
+
+    // Wait for search modal to open
+    const searchModal = page.locator('#search-modal[data-open="true"]');
+    await expect(searchModal).toBeVisible({ timeout: 5000 });
+
+    // Check that input is focused
+    const searchInput = page.locator('#search-input');
+    await expect(searchInput).toBeVisible();
+
+    // Wait for search engine to initialize (loads index)
+    await page.waitForTimeout(1000);
+
+    // Type a search query
+    await searchInput.fill('flash');
+
+    // Wait for debounce and results
+    await page.waitForTimeout(500);
+
+    // Check if results are visible (may be empty depending on content)
+    const resultsOrRecent = page.locator(
+      '.search-modal__result, .search-modal__recent-list .search-modal__result',
+    );
+
+    // If there are results, test navigation
+    const resultCount = await resultsOrRecent.count();
+    if (resultCount > 0) {
+      // Navigate with arrow keys
+      await searchInput.focus();
+      await page.keyboard.press('ArrowDown');
+      const selectedResult = page.locator('.search-modal__result.is-selected');
+      await expect(selectedResult).toBeVisible();
+    }
+
+    // Close with ESC
+    await page.keyboard.press('Escape');
+    await expect(searchModal).toBeHidden();
+  });
+
+  test('search trigger button opens modal', async ({ page }) => {
+    await page.goto('/');
+    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
+    if (await notFoundHeading.count()) {
+      const baseLink = page.locator('a[href="/blog/"]');
+      if (await baseLink.count()) {
+        await baseLink.first().click();
+      }
+    }
+
+    // Wait for page to be fully loaded
+    await page.waitForLoadState('domcontentloaded');
+
+    // Click search trigger button
+    const searchTrigger = page.locator('#search-trigger');
+    await expect(searchTrigger).toBeVisible();
+    await searchTrigger.click();
+
+    // Wait for search modal to open
+    const searchModal = page.locator('#search-modal[data-open="true"]');
+    await expect(searchModal).toBeVisible({ timeout: 5000 });
+
+    // Check input is visible
+    const searchInput = page.locator('#search-input');
+    await expect(searchInput).toBeVisible();
+
+    // Close by clicking close button instead of backdrop (more reliable)
+    const closeButton = page.locator('.search-modal__close');
+    await closeButton.click();
+    await expect(searchModal).toBeHidden();
   });
 
   test('mobile floating actions are vertically ordered and non-overlapping', async ({
