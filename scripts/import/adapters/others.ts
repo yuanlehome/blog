@@ -24,7 +24,12 @@ export const othersAdapter: Adapter = {
 
   async fetchArticle(input: FetchArticleInput): Promise<Article> {
     const { url, page, options = {} } = input;
-    const { slug = 'article', imageRoot = '/tmp/images', publicBasePath, logger: parentLogger } = options;
+    const {
+      slug = 'article',
+      imageRoot = '/tmp/images',
+      publicBasePath,
+      logger: parentLogger,
+    } = options;
 
     // Create child logger with context
     const logger =
@@ -35,7 +40,10 @@ export const othersAdapter: Adapter = {
         slug,
       }) ?? createLogger({ silent: true });
 
-    const extractionSpan = logger.span({ name: 'others-extraction', fields: { adapter: 'others' } });
+    const extractionSpan = logger.span({
+      name: 'others-extraction',
+      fields: { adapter: 'others' },
+    });
     extractionSpan.start();
 
     try {

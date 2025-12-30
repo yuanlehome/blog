@@ -35,7 +35,12 @@ export const mediumAdapter: Adapter = {
 
   async fetchArticle(input: FetchArticleInput): Promise<Article> {
     const { url, page, options = {} } = input;
-    const { slug = 'medium-article', imageRoot = '/tmp/images', publicBasePath, logger: parentLogger } = options;
+    const {
+      slug = 'medium-article',
+      imageRoot = '/tmp/images',
+      publicBasePath,
+      logger: parentLogger,
+    } = options;
 
     // Create child logger with context
     const logger =
@@ -46,7 +51,10 @@ export const mediumAdapter: Adapter = {
         slug,
       }) ?? createLogger({ silent: true });
 
-    const extractionSpan = logger.span({ name: 'medium-extraction', fields: { adapter: 'medium' } });
+    const extractionSpan = logger.span({
+      name: 'medium-extraction',
+      fields: { adapter: 'medium' },
+    });
     extractionSpan.start();
 
     try {

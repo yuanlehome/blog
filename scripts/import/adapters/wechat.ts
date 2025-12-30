@@ -35,7 +35,12 @@ export const wechatAdapter: Adapter = {
 
   async fetchArticle(input: FetchArticleInput): Promise<Article> {
     const { url, page, options = {} } = input;
-    const { slug = 'wechat-article', imageRoot = '/tmp/images', publicBasePath, logger: parentLogger } = options;
+    const {
+      slug = 'wechat-article',
+      imageRoot = '/tmp/images',
+      publicBasePath,
+      logger: parentLogger,
+    } = options;
 
     // Create child logger with context
     const logger =
@@ -46,7 +51,10 @@ export const wechatAdapter: Adapter = {
         slug,
       }) ?? createLogger({ silent: true });
 
-    const extractionSpan = logger.span({ name: 'wechat-extraction', fields: { adapter: 'wechat' } });
+    const extractionSpan = logger.span({
+      name: 'wechat-extraction',
+      fields: { adapter: 'wechat' },
+    });
     extractionSpan.start();
 
     try {

@@ -2,7 +2,7 @@
  * Tests for Translation and Markdown Processing
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   MockTranslator,
   IdentityTranslator,
@@ -16,6 +16,8 @@ import {
   type TextTranslationNode,
 } from '../../scripts/markdown/translator';
 import { processMarkdownForImport } from '../../scripts/markdown/markdown-processor';
+import { createLogger } from '../../scripts/logger/index.js';
+import type { Logger, LogFields } from '../../scripts/logger/types.js';
 
 describe('Translator', () => {
   describe('MockTranslator', () => {
@@ -789,5 +791,151 @@ $$
       expect(result.diagnostics.codeFencesFixed).toBeGreaterThan(0);
       expect(result.diagnostics.mathPatched).toBeGreaterThan(0);
     });
+  });
+});
+
+describe('Markdown Processor with Logger', () => {
+  it('should call logger.span for each processing step', async () => {
+    const markdown = `
+# Test Article
+
+\`\`\`
+print("test")
+\`\`\`
+`;
+
+    // Create mock logger to track calls
+    const logCalls: Array<{ level: string; message: string; fields?: LogFields }> = [];
+    const spanCalls: Array<{ name: string; status?: string; fields?: LogFields }> = [];
+
+    const mockLogger = createLogger({ silent: true });
+
+    // Wrap child to track context
+    const originalChild = mockLogger.child.bind(mockLogger);
+    mockLogger.child = (fields: LogFields) => {
+      const childLogger = originalChild(fields);
+      // Track all calls on the child
+      const originalInfo = childLogger.info.bind(childLogger);
+      childLogger.info = (message: string, infoFields?: LogFields) => {
+        logCalls.push({ level: 'info', message, fields: { ...fields, ...infoFields } });
+        return originalInfo(message, infoFields);
+      };
+      const originalSpan = childLogger.span.bind(childLogger);
+      childLogger.span = (opts) => {
+        const span = originalSpan(opts);
+        spanCalls.push({ name: opts.name, fields: { ...fields, ...opts.fields } });
+        const originalEnd = span.end.bind(span);
+        span.end = (endOpts) => {
+          spanCalls.push({
+            name: opts.name,
+            status: endOpts?.status,
+            fields: { ...fields, ...opts.fields, ...endOpts?.fields },
+          });
+          return originalEnd(endOpts);
+        };
+        return span;
+      };
+      return childLogger;
+    };
+
+    const result = await processMarkdownForImport(
+      { markdown },
+      {
+        enableTranslation: false,
+        enableCodeFenceFix: true,
+        logger: mockLogger,
+      },
+    );
+
+    // Verify that spans were created
+    expect(spanCalls.filter((c) => c.name === 'markdown-processing').length).toBeGreaterThan(0);
+    expect(spanCalls.filter((c) => c.name === 'code-fence-fix').length).toBeGreaterThan(0);
+
+    // Verify logger calls include module context
+    expect(logCalls.some((c) => c.fields?.module === 'markdown')).toBe(true);
+  });
+
+  it('should use child logger with context in translators', async () => {
+    const markdown = `
+# Hello World
+
+This is English content.
+`;
+
+    const logCalls: Array<{ level: string; message: string; fields?: LogFields }> = [];
+    const mockLogger = createLogger({ silent: true });
+
+    // Wrap child to track all calls
+    const originalChild = mockLogger.child.bind(mockLogger);
+    mockLogger.child = (fields: LogFields) => {
+      const childLogger = originalChild(fields);
+      const originalInfo = childLogger.info.bind(childLogger);
+      childLogger.info = (message: string, infoFields?: LogFields) => {
+        logCalls.push({ level: 'info', message, fields: { ...fields, ...infoFields } });
+        return originalInfo(message, infoFields);
+      };
+      const originalDebug = childLogger.debug.bind(childLogger);
+      childLogger.debug = (message: string, debugFields?: LogFields) => {
+        logCalls.push({ level: 'debug', message, fields: { ...fields, ...debugFields } });
+        return originalDebug(message, debugFields);
+      };
+      return childLogger;
+    };
+
+    const translator = new MockTranslator();
+    await processMarkdownForImport(
+      { markdown },
+      {
+        translator,
+        enableTranslation: true,
+        logger: mockLogger,
+      },
+    );
+
+    // Verify translator received logger context
+    expect(logCalls.filter((c) => c.fields?.step === 'translate').length).toBeGreaterThan(0);
+  });
+
+  it('should log warnings on translation failure', async () => {
+    const markdown = `# Test
+
+English content.`;
+
+    const warnCalls: Array<{ message: string; fields?: LogFields }> = [];
+    const mockLogger = createLogger({ silent: true });
+
+    // Wrap child to track warnings
+    const originalChild = mockLogger.child.bind(mockLogger);
+    mockLogger.child = (fields: LogFields) => {
+      const childLogger = originalChild(fields);
+      const originalWarn = childLogger.warn.bind(childLogger);
+      childLogger.warn = (message: string, warnFields?: LogFields) => {
+        warnCalls.push({ message, fields: { ...fields, ...warnFields } });
+        return originalWarn(message, warnFields);
+      };
+      return childLogger;
+    };
+
+    const failingTranslator = {
+      name: 'failing',
+      async translate() {
+        throw new Error('Translation API error');
+      },
+    };
+
+    const result = await processMarkdownForImport(
+      { markdown },
+      {
+        translator: failingTranslator,
+        enableTranslation: true,
+        logger: mockLogger,
+      },
+    );
+
+    // Should still return valid markdown
+    expect(result.markdown).toBeTruthy();
+
+    // Should log warning with fallback info
+    expect(warnCalls.filter((c) => c.fields?.fallbackUsed === true).length).toBeGreaterThan(0);
   });
 });

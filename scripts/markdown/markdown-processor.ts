@@ -847,7 +847,10 @@ export async function processMarkdownForImport(
 
     // Fix code fences BEFORE translation (so they are properly marked as non-translatable)
     if (enableCodeFenceFix) {
-      const codeFenceSpan = logger.span({ name: 'code-fence-fix', fields: { step: 'codeFenceFix' } });
+      const codeFenceSpan = logger.span({
+        name: 'code-fence-fix',
+        fields: { step: 'codeFenceFix' },
+      });
       codeFenceSpan.start();
       const fixed = fixCodeFences(tree);
       diagnostics.codeFencesFixed = fixed;
@@ -860,7 +863,10 @@ export async function processMarkdownForImport(
     // Fix image captions BEFORE translation (convert to markdown-native italic format)
     // This ensures captions are properly structured before translation extracts text
     if (enableImageCaptionFix) {
-      const captionSpan = logger.span({ name: 'image-caption-fix', fields: { step: 'captionFix' } });
+      const captionSpan = logger.span({
+        name: 'image-caption-fix',
+        fields: { step: 'captionFix' },
+      });
       captionSpan.start();
       const fixed = fixImageCaptions(tree);
       diagnostics.imageCaptionsFixed = fixed;

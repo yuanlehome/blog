@@ -282,7 +282,12 @@ export const zhihuAdapter: Adapter = {
 
   async fetchArticle(input: FetchArticleInput): Promise<Article> {
     const { url, page, options = {} } = input;
-    const { slug = 'zhihu-article', imageRoot = '/tmp/images', publicBasePath, logger: parentLogger } = options;
+    const {
+      slug = 'zhihu-article',
+      imageRoot = '/tmp/images',
+      publicBasePath,
+      logger: parentLogger,
+    } = options;
 
     // Create child logger with context
     const logger =
