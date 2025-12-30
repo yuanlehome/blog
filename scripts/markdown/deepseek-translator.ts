@@ -16,7 +16,9 @@ import type {
   TranslationNode,
   TranslationResult,
   TranslationPatch,
+  TranslationOptions,
 } from './translator.js';
+import type { Logger } from '../logger/types.js';
 
 /**
  * DeepSeek API configuration
@@ -172,12 +174,18 @@ export class DeepSeekTranslator implements Translator {
   /**
    * Translate nodes using DeepSeek API
    */
-  async translate(nodes: TranslationNode[]): Promise<TranslationResult> {
+  async translate(
+    nodes: TranslationNode[],
+    options?: TranslationOptions,
+  ): Promise<TranslationResult> {
+    const logger = options?.logger;
+
     if (!this.config.apiKey) {
       throw new Error('DEEPSEEK_API_KEY is not configured');
     }
 
     if (nodes.length === 0) {
+      logger?.debug('No nodes to translate');
       return {
         patches: [],
         metadata: {
@@ -192,9 +200,17 @@ export class DeepSeekTranslator implements Translator {
     const batches = this.createBatches(nodes);
     this.diagnostics.totalBatches = batches.length;
 
+    logger?.info('Translation batches created', {
+      batches: batches.length,
+      totalNodes: nodes.length,
+      totalChars: batches.reduce((sum, b) => sum + b.totalChars, 0),
+    });
+
     // Process batches with concurrency control
     const semaphore = new Semaphore(this.config.maxConcurrency);
-    const batchPromises = batches.map((batch) => this.processBatch(batch, semaphore));
+    const batchPromises = batches.map((batch, idx) =>
+      this.processBatch(batch, semaphore, logger?.child({ batchIndex: idx })),
+    );
     const batchResults = await Promise.all(batchPromises);
 
     // Merge results
@@ -229,6 +245,13 @@ export class DeepSeekTranslator implements Translator {
         }
       }
     }
+
+    logger?.info('Translation completed', {
+      totalBatches: this.diagnostics.totalBatches,
+      successBatches: this.diagnostics.successBatches,
+      failedBatches: this.diagnostics.failedBatches,
+      cacheHits: this.diagnostics.cacheHits,
+    });
 
     return {
       patches,
@@ -291,6 +314,7 @@ export class DeepSeekTranslator implements Translator {
   private async processBatch(
     batch: TranslationBatch,
     semaphore: Semaphore,
+    logger?: Logger,
   ): Promise<{ success: boolean; patches: TranslationPatch[]; nodeIds: string[] }> {
     const nodeIds = batch.nodes.map((n) => n.nodeId);
 
@@ -303,26 +327,36 @@ export class DeepSeekTranslator implements Translator {
       if (cached) {
         this.diagnostics.cacheHits++;
         this.diagnostics.successBatches++;
+        logger?.debug('Cache hit for translation batch', {
+          cacheKey: cacheKey.substring(0, 16),
+          nodesCount: batch.nodes.length,
+        });
         return { success: true, patches: cached, nodeIds };
       }
 
       // Make API request
+      logger?.debug('Translating batch', {
+        nodesCount: batch.nodes.length,
+        chars: batch.totalChars,
+      });
       const patches = await this.translateBatch(batch.nodes);
 
       // Cache successful result
       if (patches.length > 0) {
         this.cacheTranslation(cacheKey, patches);
         this.diagnostics.successBatches++;
+        logger?.debug('Batch translation succeeded', { patchesCount: patches.length });
         return { success: true, patches, nodeIds };
       }
 
       this.diagnostics.failedBatches++;
+      logger?.warn('Batch translation returned no patches', { nodesCount: batch.nodes.length });
       return { success: false, patches: [], nodeIds };
     } catch (error) {
-      console.warn(
-        `DeepSeek translation batch failed:`,
-        error instanceof Error ? error.message : error,
-      );
+      logger?.warn('Batch translation failed', {
+        error: error instanceof Error ? error.message : String(error),
+        nodesCount: batch.nodes.length,
+      });
       this.diagnostics.failedBatches++;
       return { success: false, patches: [], nodeIds };
     } finally {

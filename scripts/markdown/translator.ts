@@ -6,6 +6,7 @@
  */
 
 import { DeepSeekTranslator } from './deepseek-translator.js';
+import type { Logger } from '../logger/types.js';
 
 /**
  * Input node for translation (text content)
@@ -69,11 +70,18 @@ export interface TranslationResult {
 }
 
 /**
+ * Translation options
+ */
+export interface TranslationOptions {
+  logger?: Logger;
+}
+
+/**
  * Base translator interface
  */
 export interface Translator {
   name: string;
-  translate(nodes: TranslationNode[]): Promise<TranslationResult>;
+  translate(nodes: TranslationNode[], options?: TranslationOptions): Promise<TranslationResult>;
 }
 
 /**
@@ -84,7 +92,13 @@ export interface Translator {
 export class MockTranslator implements Translator {
   name = 'mock';
 
-  async translate(nodes: TranslationNode[]): Promise<TranslationResult> {
+  async translate(
+    nodes: TranslationNode[],
+    options?: TranslationOptions,
+  ): Promise<TranslationResult> {
+    const logger = options?.logger;
+    logger?.info('Mock translation started', { nodesCount: nodes.length });
+
     const patches: TranslationPatch[] = nodes.map((node) => {
       if (node.kind === 'text') {
         return {
@@ -104,6 +118,10 @@ export class MockTranslator implements Translator {
       }
     });
 
+    logger?.info('Mock translation completed', {
+      patchesCount: patches.length,
+    });
+
     return {
       patches,
       metadata: {
@@ -121,7 +139,13 @@ export class MockTranslator implements Translator {
 export class IdentityTranslator implements Translator {
   name = 'identity';
 
-  async translate(nodes: TranslationNode[]): Promise<TranslationResult> {
+  async translate(
+    nodes: TranslationNode[],
+    options?: TranslationOptions,
+  ): Promise<TranslationResult> {
+    const logger = options?.logger;
+    logger?.debug('Identity translation (no-op)', { nodesCount: nodes.length });
+
     const patches: TranslationPatch[] = nodes.map((node) => {
       if (node.kind === 'text') {
         return {
