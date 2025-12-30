@@ -12,9 +12,7 @@ describe('Config Audit Script', () => {
   beforeAll(() => {
     // Ensure the audit report exists (run audit before tests if needed)
     if (!fs.existsSync(auditReportPath)) {
-      throw new Error(
-        'Audit report not found. Run "npm run config:audit" before running tests.',
-      );
+      throw new Error('Audit report not found. Run "npm run config:audit" before running tests.');
     }
   });
 

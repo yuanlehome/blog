@@ -14,18 +14,19 @@
 
 ## 二、配置项清单 (Config Inventory)
 
-| 配置路径 | 类型 | 默认值 | 状态 | 问题 |
-|---------|------|--------|------|------|
-| `layout.alignment.headerAlign` | enum | `left` | ✅ USED | - |
-| `layout.alignment.footerAlign` | enum | `left` | ✅ USED | - |
-| `layout.alignment.postMetaAlign` | enum | `left` | ✅ USED | Hardcoded class "items-center" found in /home/runner/work/blog/blog/src/components/MobileToc.astro - may shadow config; Hardcoded class "items-center" found in /home/runner/work/blog/blog/src/components/PostList.astro - may shadow config; Hardcoded class "items-start" found in /home/runner/work/blog/blog/src/components/TocTree.astro - may shadow config |
-| `layout.layoutMode` | enum | `rightSidebar` | ⚪ READ_ONLY | - |
-| `layout.sidebar.enabled` | boolean | `true` | ⚪ READ_ONLY | - |
-| `layout.sidebar.position` | enum | `right` | ⚪ READ_ONLY | - |
+| 配置路径                         | 类型    | 默认值         | 状态         | 问题                                                                                                                                                                                                                                                                                                                                                               |
+| -------------------------------- | ------- | -------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `layout.alignment.headerAlign`   | enum    | `left`         | ✅ USED      | -                                                                                                                                                                                                                                                                                                                                                                  |
+| `layout.alignment.footerAlign`   | enum    | `left`         | ✅ USED      | -                                                                                                                                                                                                                                                                                                                                                                  |
+| `layout.alignment.postMetaAlign` | enum    | `left`         | ✅ USED      | Hardcoded class "items-center" found in /home/runner/work/blog/blog/src/components/MobileToc.astro - may shadow config; Hardcoded class "items-center" found in /home/runner/work/blog/blog/src/components/PostList.astro - may shadow config; Hardcoded class "items-start" found in /home/runner/work/blog/blog/src/components/TocTree.astro - may shadow config |
+| `layout.layoutMode`              | enum    | `rightSidebar` | ⚪ READ_ONLY | -                                                                                                                                                                                                                                                                                                                                                                  |
+| `layout.sidebar.enabled`         | boolean | `true`         | ⚪ READ_ONLY | -                                                                                                                                                                                                                                                                                                                                                                  |
+| `layout.sidebar.position`        | enum    | `right`        | ⚪ READ_ONLY | -                                                                                                                                                                                                                                                                                                                                                                  |
 
 ## 三、问题详情 (Issues Detail)
 
 无问题。
+
 ## 四、修复建议 (Fix Recommendations)
 
 无需修复。所有关键配置已生效。
@@ -48,6 +49,7 @@
 
 - **必须使用映射函数**：禁止直接硬编码配置对应的样式
 - **示例**：
+
   ```ts
   // ❌ 错误：硬编码
   <div class="text-center">
@@ -63,7 +65,7 @@
 已创建 `src/lib/ui/alignment.ts` 提供：
 
 - `alignToTextClass()` - 映射到 `text-*` class
-- `alignToJustifyClass()` - 映射到 `justify-*` class  
+- `alignToJustifyClass()` - 映射到 `justify-*` class
 - `alignToItemsClass()` - 映射到 `items-*` class
 - `getAllAlignmentClasses()` - 获取所有对齐 class
 

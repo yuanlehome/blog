@@ -26,7 +26,6 @@ function findFiles(dir: string, patterns: string[]): string[] {
         results.push(...findFiles(fullPath, patterns));
       }
     } else {
-      const ext = path.extname(entry.name);
       if (
         patterns.some((p) => entry.name.endsWith(p)) &&
         !entry.name.includes('.test.') &&
@@ -67,21 +66,8 @@ interface AuditResult {
  * Extract config items from schema files
  */
 function extractConfigInventory(): ConfigItem[] {
-  const inventory: ConfigItem[] = [];
-  const loaderFiles = [
-    'src/config/loaders/layout.ts',
-    'src/config/loaders/theme.ts',
-    'src/config/loaders/components.ts',
-    'src/config/loaders/typography.ts',
-    'src/config/loaders/home.ts',
-    'src/config/loaders/nav.ts',
-    'src/config/loaders/post.ts',
-    'src/config/loaders/profile.ts',
-    'src/config/loaders/site.ts',
-  ];
-
   // For now, manually define known config items that need checking
-  // In a real implementation, we'd parse the schema files
+  // Future: Parse schema files automatically to extract all config items
   const knownConfigs: ConfigItem[] = [
     {
       path: 'layout.alignment.headerAlign',
