@@ -1,26 +1,51 @@
 ---
 import { normalizeBase } from '../lib/slug';
+import { getNavConfig } from '../config/loaders';
 
 const BASE = normalizeBase(import.meta.env.BASE_URL);
+const navConfig = getNavConfig();
+
+// Helper to construct menu item URLs
+function getMenuItemUrl(item: { isExternal: boolean; href: string }): string {
+  if (item.isExternal) {
+    return item.href;
+  }
+  // Remove leading slash from href and append to BASE
+  const path = item.href.startsWith('/') ? item.href.slice(1) : item.href;
+  return `${BASE}${path}`;
+}
 ---
 
 <header class="site-header header-variant-frosted" data-header>
   <div class="container mx-auto px-5 py-3 sm:py-4 flex justify-between items-center max-w-5xl">
     <a href={BASE} class="text-xl font-bold hover:text-blue-600 dark:hover:text-blue-400"
-      >Yuanle Liu‘s Blog</a
+      >{navConfig.header.brandText}</a
     >
     <nav class="flex items-center gap-3">
-      <a href={BASE} class="hover:underline">Home</a>
-      <a href={`${BASE}archive/`} class="hover:underline">Archive</a>
-      <a href={`${BASE}about/`} class="hover:underline">About</a>
-      <a href={`${BASE}rss.xml`} class="hover:underline">RSS</a>
-      <button
-        id="theme-toggle"
-        class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800"
-        aria-label="Toggle theme"
-      >
-        🖥️☀️
-      </button>
+      {
+        navConfig.header.menuItems.map((item) => (
+          <a
+            href={getMenuItemUrl(item)}
+            class="hover:underline"
+            target={item.openInNewTab ? '_blank' : undefined}
+            rel={item.openInNewTab ? 'noopener noreferrer' : undefined}
+          >
+            {item.label}
+          </a>
+        ))
+      }
+      {
+        navConfig.theme.enableToggle && (
+          <button
+            id="theme-toggle"
+            class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800"
+            aria-label="Toggle theme"
+          >
+            {navConfig.theme.icons.default}
+            {navConfig.theme.icons.light}
+          </button>
+        )
+      }
     </nav>
   </div>
 </header>

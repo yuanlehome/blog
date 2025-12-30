@@ -1,0 +1,27 @@
+# Theme Configuration
+# Visual theme and appearance settings
+
+# Default theme preference
+defaultTheme: 'system' # Options: "light", "dark", "system"
+
+# Available theme options
+themes:
+  - 'light'
+  - 'dark'
+
+# Theme storage
+storageKey: 'theme'
+
+# Theme icons and labels
+icons:
+  light: '☀️'
+  dark: '🌙'
+
+labels:
+  light: 'Light'
+  dark: 'Dark'
+
+# Animation preferences
+animations:
+  respectReducedMotion: true
+  enableScrollEffects: true

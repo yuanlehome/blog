@@ -1,9 +1,13 @@
 ---
+import { getSiteConfig } from '../config/loaders';
+
+const siteConfig = getSiteConfig();
 const today = new Date();
 ---
 
 <footer class="py-8 mt-auto border-t border-gray-200 dark:border-gray-800">
   <div class="container mx-auto px-4 text-center text-gray-500 max-w-4xl">
-    &copy; {today.getFullYear()} Yuanle Liu‘s Blog. All rights reserved.
+    &copy; {today.getFullYear()}
+    {siteConfig.siteName}. {siteConfig.copyrightText}
   </div>
 </footer>

@@ -1,0 +1,78 @@
+# Post Page Configuration
+# Settings for individual blog post pages
+
+# Post metadata display
+metadata:
+  showPublishedDate: true
+  showUpdatedDate: true
+  showReadingTime: true
+  showWordCount: true
+
+  # Date labels (Chinese/English)
+  publishedLabel: '发布于'
+  updatedLabel: '更新于'
+
+  # Icons for metadata
+  icons:
+    published: '📅'
+    updated: '🔄'
+    wordCount: '✍️'
+    readingTime: '⏱️'
+
+# Table of Contents
+tableOfContents:
+  enable: true
+  defaultExpanded: false
+  showOnMobile: true
+  mobileTrigger: false
+
+# Floating actions
+floatingActions:
+  enableToc: true
+  enableTop: true
+  enableBottom: true
+
+# Reading progress bar
+readingProgress:
+  enable: true
+
+# Navigation between posts
+prevNext:
+  enable: true
+
+# Related posts
+relatedPosts:
+  enable: true
+  maxCount: 3
+
+# Comments system
+comments:
+  enable: true
+  defaultEnabled: true
+  provider: 'giscus'
+
+  # Giscus configuration
+  giscus:
+    repo: 'yuanlehome/blog'
+    repoId: 'R_kgDOQu2Jjw'
+    category: 'General'
+    categoryId: 'DIC_kwDOQu2Jj84C0QDN'
+    mapping: 'pathname'
+    strict: '0'
+    reactionsEnabled: '1'
+    emitMetadata: '0'
+    inputPosition: 'bottom'
+    theme: 'preferred_color_scheme'
+    lang: 'zh-CN'
+
+  # Theme mapping for light/dark mode
+  themeMapping:
+    light: 'light'
+    dark: 'dark_dimmed'
+
+# Source attribution
+sourceAttribution:
+  enable: true
+  prefix: '📝 转载 / 引用来源：'
+  authorPrefix: '作者'
+  linkText: '查看原文'

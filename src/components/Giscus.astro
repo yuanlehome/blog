@@ -1,5 +1,10 @@
 ---
-const { lang = 'zh-CN' } = Astro.props;
+import { getPostConfig } from '../config/loaders';
+
+const postConfig = getPostConfig();
+const lang = Astro.props.lang || postConfig.comments.giscus.lang;
+const giscus = postConfig.comments.giscus;
+const themeMap = postConfig.comments.themeMapping;
 ---
 
 <section id="comments" class="mt-12">
@@ -7,16 +12,16 @@ const { lang = 'zh-CN' } = Astro.props;
     <script
       is:inline
       src="https://giscus.app/client.js"
-      data-repo="yuanlehome/blog"
-      data-repo-id="R_kgDOQu2Jjw"
-      data-category="General"
-      data-category-id="DIC_kwDOQu2Jj84C0QDN"
-      data-mapping="pathname"
-      data-strict="0"
-      data-reactions-enabled="1"
-      data-emit-metadata="0"
-      data-input-position="bottom"
-      data-theme="preferred_color_scheme"
+      data-repo={giscus.repo}
+      data-repo-id={giscus.repoId}
+      data-category={giscus.category}
+      data-category-id={giscus.categoryId}
+      data-mapping={giscus.mapping}
+      data-strict={giscus.strict}
+      data-reactions-enabled={giscus.reactionsEnabled}
+      data-emit-metadata={giscus.emitMetadata}
+      data-input-position={giscus.inputPosition}
+      data-theme={giscus.theme}
       data-lang={lang}
       crossorigin="anonymous"
       async></script>

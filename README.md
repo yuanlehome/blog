@@ -162,6 +162,7 @@ npm run check && npm run lint && npm run test
 ## 📚 文档
 
 - [架构说明](docs/architecture.md)：模块职责与设计规范
+- [配置指南](docs/configuration.md)：**YAML 配置文件详解，自定义博客 UI 无需改代码**
 - [CI 工作流](docs/ci-workflow.md)：GitHub Actions 触发与关系
 - [Scripts 指南](scripts/README.md)：脚本参数与用例
 

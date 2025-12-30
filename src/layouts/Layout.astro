@@ -3,6 +3,7 @@ import 'katex/dist/katex.min.css';
 import '../styles/global.css';
 import ThemeScript from '../components/ThemeScript.astro';
 import { normalizeBase } from '../lib/slug';
+import { getSiteConfig } from '../config/loaders';
 
 interface Props {
   title: string;
@@ -11,19 +12,20 @@ interface Props {
 }
 
 const BASE = normalizeBase(import.meta.env.BASE_URL);
+const siteConfig = getSiteConfig();
 const url = new URL(
   Astro.url.pathname,
   new URL(BASE, Astro.site ?? 'http://localhost/'),
 ).toString();
 const {
   title,
-  description = 'A minimal Astro blog',
-  image = `${BASE}placeholder-social.jpg`,
+  description = siteConfig.description,
+  image = `${BASE}${siteConfig.socialImage}`,
 } = Astro.props;
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang={siteConfig.defaultLanguage}>
   <head>
     <ThemeScript />
     <meta charset="UTF-8" />
@@ -32,7 +34,11 @@ const {
     <link rel="icon" type="image/svg+xml" href={`${BASE}favicon.svg`} />
     <meta name="generator" content={Astro.generator} />
     <link rel="canonical" href={url} />
-    <link rel="alternate" type="application/rss+xml" title="RSS" href={`${BASE}rss.xml`} />
+    {
+      siteConfig.enableRSS && (
+        <link rel="alternate" type="application/rss+xml" title="RSS" href={`${BASE}rss.xml`} />
+      )
+    }
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:image" content={image} />
