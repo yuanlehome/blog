@@ -40,7 +40,7 @@ src/config/yaml/
 | `title`           | string  | "Yuanle Liu's Blog"      | 网站标题             |
 | `description`     | string  | "A minimal Astro blog"   | 网站描述（用于 SEO） |
 | `author`          | string  | "Yuanle Liu"             | 作者名称             |
-| `copyrightYear`   | number  | 2024                     | 版权年份             |
+| `copyrightYear`   | number  | 2025                     | 版权年份             |
 | `copyrightText`   | string  | "All rights reserved."   | 版权文本             |
 | `defaultLanguage` | string  | "en"                     | 默认语言             |
 | `dateFormat`      | string  | "YYYY-MM-DD"             | 日期格式             |
@@ -55,7 +55,7 @@ siteName: '我的技术博客'
 title: '我的技术博客'
 description: '分享技术文章和编程经验'
 author: '张三'
-copyrightYear: 2024
+copyrightYear: 2025
 copyrightText: '保留所有权利。'
 defaultLanguage: 'zh-CN'
 enableRSS: true
