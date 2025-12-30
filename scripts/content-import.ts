@@ -1187,13 +1187,15 @@ async function main() {
     fs.mkdirSync(contentDir, { recursive: true });
     fs.mkdirSync(imageRoot, { recursive: true });
 
-    // Generate slug from title or URL path as fallback
+    // Generate fallback slug from URL path
     const urlPath = new URL(targetUrl).pathname.split('/').filter(Boolean).pop() || '';
-    const tempSlug = `${adapter.id}-${urlPath || Date.now()}`;
+    const fallbackSlug = urlPath || `${adapter.id}-${Date.now()}`;
 
-    // Fetch article using adapter
+    // Phase 1: Fetch article metadata to determine final slug
+    // We pass fallbackSlug initially but will regenerate after getting the title
     const fetchSpan = logger.time('fetch-article');
     let article;
+    let tempSlug: string;
     try {
       article = await withBrowser(async (context) => {
         const page = await context.newPage();
@@ -1201,13 +1203,14 @@ async function main() {
           url: targetUrl,
           page,
           options: {
-            slug: tempSlug,
+            slug: fallbackSlug,
             imageRoot,
-            publicBasePath: `/images/${adapter.id}/${tempSlug}`,
+            publicBasePath: `/images/${adapter.id}/${fallbackSlug}`,
             downloadImage: options.dryRun ? async () => null : undefined,
           },
         });
       });
+      tempSlug = fallbackSlug;
       fetchSpan.end({
         status: 'ok',
         fields: {
@@ -1221,13 +1224,73 @@ async function main() {
       throw error;
     }
 
-    // Generate final slug from article title
+    // Phase 2: Generate final slug from article title
     const slug = slugFromTitle({
       title: article.title,
-      fallbackId: urlPath || `${adapter.id}-${Date.now()}`,
+      fallbackId: fallbackSlug,
     });
 
-    logger.info('Generated slug', { slug, title: article.title });
+    logger.info('Generated slug', { tempSlug, finalSlug: slug, title: article.title });
+
+    // Phase 3: Handle slug migration if tempSlug != finalSlug
+    // This ensures image directory and references are consistent with final slug
+    if (tempSlug !== slug && !options.dryRun) {
+      const migrationSpan = logger.time('slug-migration');
+      try {
+        const tempImageDir = path.join(imageRoot, tempSlug);
+        const finalImageDir = path.join(imageRoot, slug);
+        const tempPublicPath = `/images/${adapter.id}/${tempSlug}`;
+        const finalPublicPath = `/images/${adapter.id}/${slug}`;
+
+        // Move image directory if it exists
+        if (fs.existsSync(tempImageDir)) {
+          // Ensure target doesn't exist to avoid conflicts
+          if (fs.existsSync(finalImageDir)) {
+            logger.warn('Target image directory already exists, removing it', {
+              finalImageDir,
+            });
+            fs.rmSync(finalImageDir, { recursive: true, force: true });
+          }
+
+          fs.renameSync(tempImageDir, finalImageDir);
+          logger.info('Moved image directory', {
+            from: tempImageDir,
+            to: finalImageDir,
+          });
+
+          // Rewrite image paths in markdown
+          const oldPathPattern = new RegExp(
+            tempPublicPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+            'g',
+          );
+          article.markdown = article.markdown.replace(oldPathPattern, finalPublicPath);
+
+          // Update article.images metadata
+          if (article.images) {
+            article.images = article.images.map((img) => ({
+              ...img,
+              localPath: img.localPath
+                ? img.localPath.replace(tempPublicPath, finalPublicPath)
+                : img.localPath,
+            }));
+          }
+
+          logger.info('Rewrote image references', {
+            from: tempPublicPath,
+            to: finalPublicPath,
+            imageCount: article.images?.length || 0,
+          });
+        }
+
+        migrationSpan.end({ status: 'ok' });
+      } catch (error) {
+        migrationSpan.end({ status: 'fail' });
+        logger.error('Failed to migrate slug', { error });
+        throw new Error(
+          `Failed to migrate from tempSlug "${tempSlug}" to finalSlug "${slug}": ${error}`,
+        );
+      }
+    }
 
     const publishedDate = article.publishedAt ? new Date(article.publishedAt) : new Date();
     const safeDate = Number.isNaN(publishedDate.valueOf()) ? new Date() : publishedDate;

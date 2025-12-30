@@ -129,4 +129,166 @@ describe('content import for external articles', () => {
       expect(output).toContain('<br />');
     });
   });
+
+  describe('slug consistency for images', () => {
+    it('handles consistent slug for image paths (tempSlug == finalSlug)', async () => {
+      const article = extractArticleFromHtml(fixtureHtml, MATMUL_URL);
+      const slug = 'matrix-multiplication-from-first-principles';
+      
+      const downloadImage = vi.fn(
+        async (
+          imageUrl: string,
+          _provider: string,
+          slug: string,
+          _imageRoot: string,
+          index: number,
+          _articleUrl?: string,
+          publicBasePath?: string,
+        ) => {
+          const base = publicBasePath || `/images/others/${slug}`;
+          return path.posix.join(
+            base,
+            `${String(index + 1).padStart(3, '0')}-${path.basename(new URL(imageUrl).pathname)}`,
+          );
+        },
+      );
+
+      const { markdown, images } = await htmlToMdx(article.html, {
+        slug,
+        provider: 'others',
+        baseUrl: article.baseUrl,
+        imageRoot: '/tmp/images',
+        articleUrl: MATMUL_URL,
+        publicBasePath: `/images/others/${slug}`,
+        downloadImage,
+      });
+
+      // All image paths should use the consistent slug
+      expect(images.length).toBeGreaterThan(0);
+      images.forEach((imgPath) => {
+        expect(imgPath).toContain(`/images/others/${slug}/`);
+        expect(imgPath).not.toContain('/images/others/others-');
+      });
+
+      // Markdown should contain correct image references
+      const imageReferences = markdown.match(/!\[.*?\]\((\/images\/[^)]+)\)/g) || [];
+      expect(imageReferences.length).toBeGreaterThan(0);
+      imageReferences.forEach((ref) => {
+        expect(ref).toContain(`/images/others/${slug}/`);
+      });
+    });
+
+    it('handles different tempSlug vs finalSlug scenarios', async () => {
+      // Simulate the bug scenario where URL path differs from title-derived slug
+      const article = extractArticleFromHtml(fixtureHtml, MATMUL_URL);
+      const tempSlug = 'matmul'; // from URL path
+      const finalSlug = 'matrix-multiplication-from-first-principles'; // from title
+      
+      // First: simulate downloading with tempSlug
+      const downloadImageWithTemp = vi.fn(
+        async (
+          imageUrl: string,
+          _provider: string,
+          slug: string,
+          _imageRoot: string,
+          index: number,
+        ) => {
+          return `/images/others/${tempSlug}/${String(index + 1).padStart(3, '0')}-${path.basename(new URL(imageUrl).pathname)}`;
+        },
+      );
+
+      const { markdown: markdownWithTemp, images: imagesWithTemp } = await htmlToMdx(article.html, {
+        slug: tempSlug,
+        provider: 'others',
+        baseUrl: article.baseUrl,
+        imageRoot: '/tmp/images',
+        articleUrl: MATMUL_URL,
+        publicBasePath: `/images/others/${tempSlug}`,
+        downloadImage: downloadImageWithTemp,
+      });
+
+      // Verify images initially use tempSlug
+      expect(imagesWithTemp.length).toBeGreaterThan(0);
+      imagesWithTemp.forEach((imgPath) => {
+        expect(imgPath).toContain(`/images/others/${tempSlug}/`);
+      });
+
+      // Simulate the migration: rewrite paths from tempSlug to finalSlug
+      const tempPublicPath = `/images/others/${tempSlug}`;
+      const finalPublicPath = `/images/others/${finalSlug}`;
+      const oldPathPattern = new RegExp(
+        tempPublicPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+        'g',
+      );
+      const migratedMarkdown = markdownWithTemp.replace(oldPathPattern, finalPublicPath);
+      const migratedImages = imagesWithTemp.map((imgPath) =>
+        imgPath.replace(tempPublicPath, finalPublicPath),
+      );
+
+      // After migration: all paths should use finalSlug
+      expect(migratedImages.length).toBeGreaterThan(0);
+      migratedImages.forEach((imgPath) => {
+        expect(imgPath).toContain(`/images/others/${finalSlug}/`);
+        expect(imgPath).not.toContain(`/images/others/${tempSlug}/`);
+      });
+
+      // Markdown should have updated references
+      const imageReferences = migratedMarkdown.match(/!\[.*?\]\((\/images\/[^)]+)\)/g) || [];
+      expect(imageReferences.length).toBeGreaterThan(0);
+      imageReferences.forEach((ref) => {
+        expect(ref).toContain(`/images/others/${finalSlug}/`);
+        expect(ref).not.toContain(`/images/others/${tempSlug}/`);
+      });
+    });
+
+    it('verifies image path rewriting is complete and accurate', async () => {
+      const html = `
+        <div>
+          <p>Article content with images</p>
+          <img src="https://example.com/image1.jpg" alt="First" />
+          <img src="https://example.com/image2.png" alt="Second" />
+          <p>More content</p>
+          <img src="https://example.com/image3.gif" alt="Third" />
+        </div>
+      `;
+
+      const tempSlug = 'temp-article';
+      const finalSlug = 'final-article-title';
+
+      const downloadImage = vi.fn(
+        async (_url: string, _provider: string, slug: string, _imageRoot: string, index: number) => {
+          return `/images/others/${tempSlug}/${String(index + 1).padStart(3, '0')}-image${index + 1}.jpg`;
+        },
+      );
+
+      const { markdown, images } = await htmlToMdx(html, {
+        slug: tempSlug,
+        provider: 'others',
+        baseUrl: 'https://example.com',
+        imageRoot: '/tmp/images',
+        publicBasePath: `/images/others/${tempSlug}`,
+        downloadImage,
+      });
+
+      // Verify all 3 images were processed with tempSlug
+      expect(images).toHaveLength(3);
+      expect(images[0]).toBe(`/images/others/${tempSlug}/001-image1.jpg`);
+      expect(images[1]).toBe(`/images/others/${tempSlug}/002-image2.jpg`);
+      expect(images[2]).toBe(`/images/others/${tempSlug}/003-image3.jpg`);
+
+      // Simulate migration
+      const migratedMarkdown = markdown.replace(
+        new RegExp(`/images/others/${tempSlug}`, 'g'),
+        `/images/others/${finalSlug}`,
+      );
+
+      // Verify no tempSlug remains in markdown
+      expect(migratedMarkdown).not.toContain(`/images/others/${tempSlug}`);
+      expect(migratedMarkdown).toContain(`/images/others/${finalSlug}`);
+
+      // Count occurrences - should be exactly 3 (one per image)
+      const finalSlugMatches = migratedMarkdown.match(new RegExp(`/images/others/${finalSlug}`, 'g'));
+      expect(finalSlugMatches).toHaveLength(3);
+    });
+  });
 });
