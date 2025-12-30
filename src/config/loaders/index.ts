@@ -80,5 +80,12 @@ export {
   type ComponentsConfig,
 } from './components';
 
+export {
+  loadSearchConfig,
+  getSearchConfig,
+  defaultSearchConfig,
+  type SearchConfig,
+} from './search';
+
 // Export base utilities
 export { loadConfig, loadConfigWithDefaults } from './base';
