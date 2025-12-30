@@ -10,6 +10,10 @@ import {
   getConfiguredTranslator,
   type TextTranslationPatch,
   type MathTranslationPatch,
+  type Translator,
+  type TranslationNode,
+  type TranslationResult,
+  type TextTranslationNode,
 } from '../../scripts/markdown/translator';
 import { processMarkdownForImport } from '../../scripts/markdown/markdown-processor';
 
@@ -644,23 +648,23 @@ More content.
 
     it('should test math fallback to code block when confidence is low', async () => {
       // Create a custom translator that returns low confidence
-      const lowConfidenceTranslator = {
+      const lowConfidenceTranslator: Translator = {
         name: 'low-confidence',
-        async translate(nodes: any[]) {
+        async translate(nodes: TranslationNode[]): Promise<TranslationResult> {
           return {
-            patches: nodes.map((node: any) => {
+            patches: nodes.map((node) => {
               if (node.kind === 'math') {
                 return {
-                  kind: 'math',
+                  kind: 'math' as const,
                   nodeId: node.nodeId,
                   latex: 'invalid $ math $',
-                  confidence: 'low',
+                  confidence: 'low' as const,
                 };
               }
               return {
-                kind: 'text',
+                kind: 'text' as const,
                 nodeId: node.nodeId,
-                text: node.text,
+                text: (node as TextTranslationNode).text,
               };
             }),
             metadata: {
@@ -704,10 +708,7 @@ $$
 $$
 `;
 
-      const result = await processMarkdownForImport(
-        { markdown },
-        { enableTranslation: false },
-      );
+      const result = await processMarkdownForImport({ markdown }, { enableTranslation: false });
 
       // Math should remain unchanged (no translator = no math fixing)
       expect(result.diagnostics.mathPatched).toBe(0);
@@ -721,10 +722,7 @@ x = y $$ z = w
 $$
 `;
 
-      const result = await processMarkdownForImport(
-        { markdown },
-        { enableTranslation: false },
-      );
+      const result = await processMarkdownForImport({ markdown }, { enableTranslation: false });
 
       expect(result.diagnostics.mathPatched).toBe(0);
     });

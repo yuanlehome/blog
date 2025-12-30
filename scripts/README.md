@@ -663,14 +663,18 @@ DeepSeek 翻译器遵循严格的翻译规则：
 **LLM Prompt 要求**：
 
 系统提示词中包含明确的数学修复规则：
+
 - 严格禁止输出任何 `$` 或 `$$`（block math 已在外部包裹）
 - 严格禁止输出 `\[` 或 `\]`
 - 必须修复以下坏样本模式：
-  ```
+
+  ```text
   \displaystyle\exp(m_{[0,L)}-m_{[0,L+1)})$}\colorbox{orange}{$\displaystyle...
   ```
+
   应变为（删除所有 `$`）：
-  ```
+
+  ```text
   \displaystyle\exp(m_{[0,L)}-m_{[0,L+1)})}\\colorbox{orange}{\displaystyle...
   ```
 
@@ -689,6 +693,7 @@ _Note: Math block could not be automatically fixed (原因). Showing as code._
 **验证机制**：
 
 修复后的数学块必须通过以下验证：
+
 - 不包含任何 `$` 或 `$$` 分隔符
 - 不包含 `\[` 或 `\]` 分隔符
 - 不包含 HTML 标签
@@ -710,7 +715,7 @@ $$
 \sum_{l\in[0,L+1)}\exp(s_l-m_{[0,L+1)}) = \colorbox{red}{
 $$
 
-\displaystyle\exp(m_{[0,L)}-m_{[0,L+1)})$}\colorbox{orange}{$\displaystyle\sum_{l\in[0,L)}\exp(s_l-m_{[0,L)})$}
+\displaystyle\exp(m*{[0,L)}-m*{[0,L+1)})$}\colorbox{orange}{$\displaystyle\sum*{l\in[0,L)}\exp(s_l-m*{[0,L)})$}
 $$
 ```
 

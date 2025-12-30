@@ -254,7 +254,7 @@ describe('DeepSeekTranslator', () => {
 
       // Should fallback to original text
       expect(result.patches).toHaveLength(1);
-      expect(result.patches[0].translatedText).toBe('Hello');
+      expect((result.patches[0] as any).text).toBe('Hello');
       expect(result.metadata?.failedBatches).toBe(1);
     });
 
@@ -280,7 +280,7 @@ describe('DeepSeekTranslator', () => {
 
       // Should fallback to original text
       expect(result.patches).toHaveLength(1);
-      expect(result.patches[0].translatedText).toBe('Hello');
+      expect((result.patches[0] as any).text).toBe('Hello');
       expect(result.metadata?.failedBatches).toBe(1);
     });
 
@@ -354,7 +354,7 @@ describe('DeepSeekTranslator', () => {
 
       // Should fallback to original text
       expect(result.patches).toHaveLength(1);
-      expect(result.patches[0].translatedText).toBe('Hello');
+      expect((result.patches[0] as any).text).toBe('Hello');
       expect(result.metadata?.failedBatches).toBe(1);
     }, 10000); // Increase test timeout
 
@@ -369,7 +369,7 @@ describe('DeepSeekTranslator', () => {
 
       // Should fallback to original text
       expect(result.patches).toHaveLength(1);
-      expect(result.patches[0].translatedText).toBe('Hello');
+      expect((result.patches[0] as any).text).toBe('Hello');
       expect(result.metadata?.failedBatches).toBe(1);
     });
 
@@ -384,7 +384,7 @@ describe('DeepSeekTranslator', () => {
 
       // Should fallback to original text
       expect(result.patches).toHaveLength(1);
-      expect(result.patches[0].translatedText).toBe('Hello');
+      expect((result.patches[0] as any).text).toBe('Hello');
       expect(result.metadata?.failedBatches).toBe(1);
     });
   });
@@ -472,7 +472,9 @@ describe('DeepSeekTranslator', () => {
               {
                 message: {
                   content: JSON.stringify({
-                    patches: { node1: { kind: 'text', text: `Translated: ${userContent.slice(0, 20)}...` } },
+                    patches: {
+                      node1: { kind: 'text', text: `Translated: ${userContent.slice(0, 20)}...` },
+                    },
                   }),
                 },
               },
@@ -494,6 +496,7 @@ describe('DeepSeekTranslator', () => {
     it('should respect max concurrency limit', async () => {
       // Create many batches
       const nodes: TranslationNode[] = Array.from({ length: 10 }, (_, i) => ({
+        kind: 'text',
         nodeId: `node${i}`,
         text: 'A'.repeat(60), // Each creates its own batch
       }));

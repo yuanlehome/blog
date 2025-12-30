@@ -18,7 +18,12 @@ import type { Root, Code, Paragraph, Image } from 'mdast';
 import matter from 'gray-matter';
 
 import { detectLanguage, shouldTranslate } from './language-detector.js';
-import { type Translator, type TranslationNode, type TranslationPatch, getConfiguredTranslator } from './translator.js';
+import {
+  type Translator,
+  type TranslationNode,
+  type TranslationPatch,
+  getConfiguredTranslator,
+} from './translator.js';
 import { detectCodeLanguage, isGitHubActionsWorkflow } from './code-fence-fixer.js';
 
 export interface ProcessingOptions {
@@ -840,7 +845,7 @@ export async function processMarkdownForImport(
       const translatableNodes = extractTranslatableNodes(tree);
       if (translatableNodes.length > 0) {
         const translationResult = await translator.translate(translatableNodes);
-        
+
         const applyStats = applyTranslationPatches(tree, translationResult.patches);
         diagnostics.mathPatched = applyStats.mathPatched;
         diagnostics.mathFallbackToCodeFence = applyStats.mathFallbackToCodeFence;

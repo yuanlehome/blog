@@ -92,8 +92,7 @@ interface TranslationDiagnostics {
 interface DeepSeekPatchResponse {
   patches: Record<
     string,
-    | { kind: 'text'; text: string }
-    | { kind: 'math'; latex: string; confidence: 'high' | 'low' }
+    { kind: 'text'; text: string } | { kind: 'math'; latex: string; confidence: 'high' | 'low' }
   >;
 }
 
@@ -214,10 +213,20 @@ export class DeepSeekTranslator implements Translator {
     // Fallback: Add identity patches for failed nodes
     for (const node of nodes) {
       if (failedNodeIds.has(node.nodeId) && !patches.find((p) => p.nodeId === node.nodeId)) {
-        patches.push({
-          nodeId: node.nodeId,
-          translatedText: node.text, // Keep original text
-        });
+        if (node.kind === 'text') {
+          patches.push({
+            kind: 'text',
+            nodeId: node.nodeId,
+            text: node.text, // Keep original text
+          });
+        } else {
+          patches.push({
+            kind: 'math',
+            nodeId: node.nodeId,
+            latex: node.latex, // Keep original latex
+            confidence: 'low',
+          });
+        }
       }
     }
 
@@ -244,7 +253,7 @@ export class DeepSeekTranslator implements Translator {
     let currentChars = 0;
 
     for (const node of nodes) {
-      const nodeChars = node.text.length;
+      const nodeChars = node.kind === 'text' ? node.text.length : node.latex.length;
 
       // If single node exceeds limit, create dedicated batch
       if (nodeChars > this.config.maxBatchChars) {
@@ -330,7 +339,7 @@ export class DeepSeekTranslator implements Translator {
       string,
       { kind: 'text'; text: string } | { kind: 'math'; latex: string }
     > = {};
-    
+
     nodes.forEach((node) => {
       if (node.kind === 'text') {
         nodeInfo[node.nodeId] = { kind: 'text', text: node.text };
@@ -463,10 +472,7 @@ If you cannot produce valid JSON, output the minimal valid structure: {"patches"
    * Build user prompt with nodes to translate/fix
    */
   private buildUserPrompt(
-    nodeInfo: Record<
-      string,
-      { kind: 'text'; text: string } | { kind: 'math'; latex: string }
-    >,
+    nodeInfo: Record<string, { kind: 'text'; text: string } | { kind: 'math'; latex: string }>,
   ): string {
     const nodeList = Object.entries(nodeInfo)
       .map(([id, data]) => {
@@ -505,10 +511,7 @@ Remember: Output only valid JSON with the exact structure shown in system prompt
    */
   private parseAndValidateResponse(
     content: string,
-    expectedNodes: Record<
-      string,
-      { kind: 'text'; text: string } | { kind: 'math'; latex: string }
-    >,
+    expectedNodes: Record<string, { kind: 'text'; text: string } | { kind: 'math'; latex: string }>,
   ): DeepSeekPatchResponse | null {
     try {
       const parsed = JSON.parse(content) as DeepSeekPatchResponse;
@@ -535,7 +538,7 @@ Remember: Output only valid JSON with the exact structure shown in system prompt
         }
 
         const patchData = parsed.patches[nodeId];
-        
+
         // Validate patch structure
         if (typeof patchData !== 'object' || !patchData.kind) {
           console.warn(`Invalid patch structure for node: ${nodeId}`);
@@ -550,7 +553,9 @@ Remember: Output only valid JSON with the exact structure shown in system prompt
 
         // Validate kind matches
         if (patchData.kind !== inputData.kind) {
-          console.warn(`Kind mismatch for node ${nodeId}: expected ${inputData.kind}, got ${patchData.kind}`);
+          console.warn(
+            `Kind mismatch for node ${nodeId}: expected ${inputData.kind}, got ${patchData.kind}`,
+          );
           // Fallback to original
           if (inputData.kind === 'text') {
             parsed.patches[nodeId] = { kind: 'text', text: inputData.text };
@@ -563,14 +568,16 @@ Remember: Output only valid JSON with the exact structure shown in system prompt
         // Validate text patch
         if (patchData.kind === 'text') {
           if (typeof patchData.text !== 'string') {
-            patchData.text = String(patchData.text || inputData.text);
+            const textInput = inputData as { kind: 'text'; text: string };
+            patchData.text = String(patchData.text || textInput.text);
           }
         }
-        
+
         // Validate math patch
         if (patchData.kind === 'math') {
+          const mathInput = inputData as { kind: 'math'; latex: string };
           if (typeof patchData.latex !== 'string') {
-            patchData.latex = String(patchData.latex || inputData.latex);
+            patchData.latex = String(patchData.latex || mathInput.latex);
           }
           if (!patchData.confidence) {
             patchData.confidence = 'low';
@@ -592,7 +599,15 @@ Remember: Output only valid JSON with the exact structure shown in system prompt
    * Generate cache key for a batch of nodes
    */
   private getCacheKey(nodes: TranslationNode[]): string {
-    const content = nodes.map((n) => `${n.nodeId}:${n.text}`).join('|');
+    const content = nodes
+      .map((n) => {
+        if (n.kind === 'text') {
+          return `${n.nodeId}:${n.text}`;
+        } else {
+          return `${n.nodeId}:${n.latex}`;
+        }
+      })
+      .join('|');
     const hash = crypto
       .createHash('sha256')
       .update(content)
