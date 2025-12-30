@@ -211,7 +211,9 @@ Example good output:
   }
 
   private buildUserPrompt(requests: MathFixRequest[]): string {
-    const items = requests.map((req) => `"${req.id}": ${JSON.stringify(req.content)}`).join(',\n  ');
+    const items = requests
+      .map((req) => `"${req.id}": ${JSON.stringify(req.content)}`)
+      .join(',\n  ');
     return `Fix these block math expressions. Remove ALL $ characters and fix brace imbalances:\n\n{\n  ${items}\n}\n\nReturn JSON with fixes for each id.`;
   }
 

@@ -257,7 +257,9 @@ $$
     expect(result.fixed).not.toContain('$$');
 
     // The issues should include multiple fixes
-    expect(result.issues.some((issue) => issue.includes('$$') || issue.includes('LLM fixed'))).toBe(true);
+    expect(result.issues.some((issue) => issue.includes('$$') || issue.includes('LLM fixed'))).toBe(
+      true,
+    );
   });
 });
 
@@ -288,6 +290,8 @@ describe('Enhanced Validator', () => {
 
     // Should be caught by validator
     expect(result.confidence).toBe('low');
-    expect(result.issues.some((issue) => issue.includes('\\[') || issue.includes('\\]'))).toBe(true);
+    expect(result.issues.some((issue) => issue.includes('\\[') || issue.includes('\\]'))).toBe(
+      true,
+    );
   });
 });

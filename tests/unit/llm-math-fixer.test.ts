@@ -81,8 +81,7 @@ describe('LLM Math Fixer', () => {
     });
 
     it('should handle complex nested colorbox with inline $', async () => {
-      const badSample =
-        '\\colorbox{red}{$a$} + \\colorbox{blue}{$b$} + \\colorbox{green}{$c$}';
+      const badSample = '\\colorbox{red}{$a$} + \\colorbox{blue}{$b$} + \\colorbox{green}{$c$}';
       const result = await fixer.fixMathBlock(badSample);
 
       expect(result.fixed).not.toContain('$');
@@ -175,8 +174,7 @@ describe('LLM Math Fixer', () => {
     });
 
     it('should fix multiple inline $ with colorbox in sequence', async () => {
-      const badSample =
-        '$\\alpha$\\colorbox{yellow}{$\\beta$}$\\gamma$\\colorbox{cyan}{$\\delta$}';
+      const badSample = '$\\alpha$\\colorbox{yellow}{$\\beta$}$\\gamma$\\colorbox{cyan}{$\\delta$}';
       const result = await fixer.fixMathBlock(badSample);
 
       expect(result.fixed).not.toContain('$');

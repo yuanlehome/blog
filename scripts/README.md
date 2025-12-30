@@ -632,35 +632,103 @@ DeepSeek 翻译器遵循严格的翻译规则：
 
 **功能特性**：
 
-- 修复导入文章中常见的 LaTeX/数学块语法问题
-- 基于确定性规则的自动修复（不依赖 LLM）
+- **完全基于 LLM 的数学块修复**（当前仓库的唯一策略）
+- 使用 LLM 清洗修复 block math 内混入的 inline math `$` 分隔符
+- 重点修复 `\colorbox{...}{...}` 与 `$` 交织导致的语法错误
 - 对无法修复的数学块安全降级（转换为代码块）
+
+**重要说明**：
+
+> ⚠️ **当前仓库已决定：math block 的清洗修复完全交给 LLM，并且只支持这种方式**。
+>
+> 不再使用基于规则的确定性修复方法。所有数学块修复均通过 LLM Provider 完成。
+
+**LLM Provider 配置**：
+
+| 环境变量                   | 必需 | 默认值                     | 说明                                                      |
+| -------------------------- | ---- | -------------------------- | --------------------------------------------------------- |
+| `MATH_FIX_PROVIDER`        | 否   | `mock`                     | LLM provider 类型：`mock`（CI/测试）或 `deepseek`（生产） |
+| `DEEPSEEK_API_KEY`         | 是\* | 无                         | DeepSeek API 密钥（仅当 provider 为 `deepseek` 时需要）   |
+| `DEEPSEEK_MODEL`           | 否   | `deepseek-chat`            | DeepSeek 模型名称                                         |
+| `DEEPSEEK_BASE_URL`        | 否   | `https://api.deepseek.com` | DeepSeek API 基础 URL                                     |
+| `MATH_FIX_MAX_BATCH_SIZE`  | 否   | `10`                       | 单批次最大数学块数量                                      |
+| `MATH_FIX_MAX_CONCURRENCY` | 否   | `2`                        | 最大并发请求数                                            |
+
+**重点修复目标（坏样本示例）**：
+
+在 block math 内混入了 inline math 的 `$`，并且与 `\colorbox{...}{...}` / `\displaystyle` 等命令交织，出现以下模式：
+
+- `$}` - dollar 在闭合花括号前
+- `{$\displaystyle...$}` - dollar 在花括号内包裹
+- 结尾多一个 `$`
+- `\displaystyle` 在 block math 内冗余
+
+**坏样本示例**（必须被修复）：
+
+```latex
+\displaystyle\exp(m_{[0,L)}-m_{[0,L+1)})$}\colorbox{orange}{$\displaystyle\sum_{l\in[0,L)}\exp(s_l-m_{[0,L)})$} + \colorbox{lime}{$\displaystyle\exp(s_L-m_{[0,L+1)})$}$
+```
+
+**LLM 修复规则（Prompt 中强制要求）**：
+
+1. 输入是 block math 的 LaTeX 内容，不包含外层 `$$`
+2. 任务：让内容成为合法的 block-math LaTeX
+3. **严禁输出任何 `$` 字符**（因为会破坏 block math）
+4. 对形如 `\colorbox{X}{ $ ... $ }`、`...$}`、`{$...` 这类：
+   - 移除所有 `$`，保留其中数学内容
+   - 修复因 `$` 删除导致的花括号不闭合问题
+5. 移除冗余的 `\displaystyle` 命令（在 block math 内无需显式声明）
+6. 不改变数学含义，不扩写公式
+7. 输出必须为严格 JSON：`{ "fixes": { "id": {"fixed": "...", "confidence": "high|medium|low", "notes": ["..."]}, ... } }`
+8. `fixed` 字段中**不得包含 `$$` 或任何 `$` 字符**
 
 **可修复的问题类型**：
 
-1. **数学块被错误拆断**：
-   - 示例：`$$ content $$ more $$` → 移除内部的 `$$`
-   - 原因：导入时格式错误，导致数学块中间出现额外的 `$$` 分隔符
-
-2. **嵌套的 inline `$` 分隔符**：
-   - 示例：`$\displaystyle\sum_{i}$` → `\displaystyle\sum_{i}`
+1. **block math 内混入 inline `$` 分隔符**：
+   - 示例：`$\displaystyle\sum_{i}$` → `\sum_{i}`
    - 原因：在 block math 内部错误使用了 inline math 分隔符
+   - 修复：移除所有 `$`，保留数学内容
 
-3. **括号/花括号不闭合**：
-   - 自动检测并补齐缺失的 `{}`、`[]`、`()` （高置信场景）
-   - 示例：`\frac{a}{b` → `\frac{a}{b}`
+2. **`\colorbox` 与 `$` 交织导致的语法错误**：
+   - 示例：`\colorbox{red}{$a$} + \colorbox{blue}{$b$}` → `\colorbox{red}{a} + \colorbox{blue}{b}`
+   - 原因：`\colorbox` 内部错误包裹了 inline math 分隔符
+   - 修复：移除 `$`，保持 `\colorbox` 结构完整
 
-4. **跨行命令断裂**：
-   - 修复 `\colorbox{color}{content}` 等命令的花括号配对问题
-   - 确保命令的两层花括号都正确闭合
+3. **`$}` 模式（dollar 破坏花括号闭合）**：
+   - 示例：`\colorbox{red}{content$}` → `\colorbox{red}{content}`
+   - 原因：dollar 出现在花括号内，导致解析器混乱
+   - 修复：移除 `$`，修复花括号平衡
 
-5. **伪数学块**：
+4. **冗余的 `\displaystyle` 命令**：
+   - 示例：`$\displaystyle E = mc^2$` → `E = mc^2`
+   - 原因：block math 默认使用 display style，显式声明是冗余的
+   - 修复：移除 `\displaystyle`
+
+5. **花括号不闭合**：
+   - 示例：`\frac{a}{b + \frac{c}{d}` → `\frac{a}{b + \frac{c}{d}}`
+   - 原因：导入时被截断或格式化错误
+   - 修复：LLM 智能补齐缺失的闭合花括号（最多 3 个，超过则降级）
+
+6. **伪数学块**：
    - 检测被错误包裹在 `$$` 中的普通文本（长段中文、无数学符号）
    - 策略：转换为 `tex` 代码块，避免渲染失败
 
+**增强的验证机制**：
+
+修复后的数学块会经过严格验证：
+
+- ✅ **不允许包含任何 `$` 字符**（STRICT - block math 不得含有 inline math 分隔符）
+- ✅ 不允许包含 `$$` 分隔符
+- ✅ 不允许包含 `\[` 或 `\]` 分隔符（这是 LaTeX 的另一种 block math 语法）
+- ✅ 不允许包含 HTML 标签（`<img>`, `<figure>`, `<div>` 等）
+- ✅ 验证括号配对平衡（`{}`、`[]`、`()`）
+- ✅ 检查命令完整性（避免截断的 `\` 命令）
+
+如果验证失败，数学块将被降级为 `tex` 代码块。
+
 **降级策略**：
 
-对于无法自动修复的数学块（置信度低或验证失败）：
+对于 LLM 修复失败、验证失败、或置信度低的数学块：
 
 ```markdown
 \`\`\`tex
@@ -670,32 +738,69 @@ DeepSeek 翻译器遵循严格的翻译规则：
 _Note: Math block could not be automatically fixed (原因). Showing as code._
 ```
 
-**验证机制**：
+**Mock Provider（CI/测试环境）**：
 
-- 检查修复后的数学块不包含孤立的 `$$` 或 `$`
-- 验证括号配对平衡
-- 检查命令完整性（避免截断的 `\` 命令）
+- 不依赖外部 API，适用于 CI 和本地测试
+- 应用确定性规则：
+  - 移除所有未转义的 `$` 字符（保留 `\$`）
+  - 移除 `\displaystyle` 命令
+  - 简单的花括号平衡（补齐缺失的 `}`，最多 3 个）
+- 快速、可预测、不产生 API 费用
 
-**示例**：
+**DeepSeek Provider（生产环境）**：
 
-导入前（知乎文章）：
+- 使用 DeepSeek LLM 进行智能修复
+- 需要配置 `DEEPSEEK_API_KEY`
+- 支持批处理和去重优化
+- 超时保护和失败降级
+- 适用于复杂的数学块修复场景
 
-```markdown
+**使用示例**：
+
+```bash
+# 测试/CI 环境（使用 mock provider，默认）
+MATH_FIX_PROVIDER=mock npm run notion:sync
+
+# 生产环境（使用 DeepSeek LLM）
+MATH_FIX_PROVIDER=deepseek \
+DEEPSEEK_API_KEY=sk-your-key \
+npm run notion:sync
+```
+
+**修复示例**：
+
+导入前（知乎文章，坏样本）：
+
+```latex
 $$
 \sum_{l\in[0,L+1)}\exp(s_l-m_{[0,L+1)}) = \colorbox{red}{
 $$
 
-\displaystyle\exp(m*{[0,L)}-m*{[0,L+1)})$}\colorbox{orange}{$\displaystyle\sum*{l\in[0,L)}\exp(s_l-m*{[0,L)})$}
+\displaystyle\exp(m_{[0,L)}-m_{[0,L+1)})$}\colorbox{orange}{$\displaystyle\sum_{l\in[0,L)}\exp(s_l-m_{[0,L)})$} + \colorbox{lime}{$\displaystyle\exp(s_L-m_{[0,L+1)})$}$
 $$
 ```
 
-修复后：
+LLM 修复后：
 
-```markdown
+```latex
 $$
-\sum_{l\in[0,L+1)}\exp(s_l-m_{[0,L+1)}) = \colorbox{red}{\displaystyle\exp(m_{[0,L)}-m_{[0,L+1)})\colorbox{orange}{\displaystyle\sum_{l\in[0,L)}\exp(s_l-m_{[0,L)})}}
+\sum_{l\in[0,L+1)}\exp(s_l-m_{[0,L+1)}) = \colorbox{red}{\exp(m_{[0,L)}-m_{[0,L+1)})}\colorbox{orange}{\sum_{l\in[0,L)}\exp(s_l-m_{[0,L)})}} + \colorbox{lime}{\exp(s_L-m_{[0,L+1)})}
 $$
 ```
+
+关键变化：
+
+- 移除了所有 `$` 字符
+- 移除了冗余的 `\displaystyle` 命令
+- 修复了因 `$` 导致的花括号不平衡问题
+- 保持了数学公式的原有含义
+
+**实现位置**：
+
+- `scripts/markdown/llm-math-fixer.ts` - LLM 修复器核心实现
+- `scripts/markdown/math-fixer.ts` - 修复工厂和验证器
+- `tests/unit/llm-math-fixer.test.ts` - LLM 修复器测试
+- `tests/unit/math-fixer.test.ts` - 集成测试
 
 ##### E. 图片 caption 处理
 
