@@ -70,6 +70,29 @@ const actions = buildActions({ enableTop, enableToc, enableBottom });
   let contentHeight = 0;
   let ticking = false;
 
+  // Find the actual scrolling container
+  const getScrollContainer = (): HTMLElement | Window => {
+    if (!article) return window;
+
+    let element = article.parentElement;
+    while (element) {
+      const style = window.getComputedStyle(element);
+      const overflowY = style.overflowY;
+      const isScrollable =
+        (overflowY === 'auto' || overflowY === 'scroll') &&
+        element.scrollHeight > element.clientHeight;
+
+      if (isScrollable) {
+        return element;
+      }
+      element = element.parentElement;
+    }
+
+    return window;
+  };
+
+  const scrollContainer = getScrollContainer();
+
   const measure = () => {
     if (!article) return;
     const rect = article.getBoundingClientRect();
@@ -108,8 +131,64 @@ const actions = buildActions({ enableTop, enableToc, enableBottom });
   };
 
   const scrollToBottom = () => {
-    const maxScroll = Math.max(start + contentHeight - window.innerHeight, start);
-    window.scrollTo({ top: maxScroll, behavior: prefersReduce ? 'auto' : 'smooth' });
+    // Try to find the bottom anchor first
+    const bottomAnchor = document.getElementById('page-bottom-anchor');
+
+    if (bottomAnchor) {
+      // Calculate the exact scroll position to show the anchor at the bottom of viewport
+      const anchorRect = bottomAnchor.getBoundingClientRect();
+      const currentScrollY = window.scrollY;
+      const targetScrollY = currentScrollY + anchorRect.bottom - window.innerHeight;
+
+      window.scrollTo({
+        top: Math.max(0, targetScrollY),
+        behavior: prefersReduce ? 'auto' : 'smooth',
+      });
+
+      // Add a secondary calibration after a delay to handle async content
+      // This ensures we scroll to the true bottom even if images/iframes load after initial scroll
+      let retryCount = 0;
+      const maxRetries = 2;
+
+      const recalibrate = () => {
+        if (retryCount >= maxRetries) return;
+        retryCount++;
+
+        setTimeout(() => {
+          // Check if we're already at the bottom
+          const scrollElement =
+            scrollContainer instanceof Window ? document.documentElement : scrollContainer;
+          const currentScroll =
+            scrollContainer instanceof Window ? window.scrollY : scrollContainer.scrollTop;
+          const maxScroll = scrollElement.scrollHeight - scrollElement.clientHeight;
+
+          // If we're not within 10px of the bottom, scroll again
+          if (maxScroll - currentScroll > 10) {
+            const newAnchorRect = bottomAnchor.getBoundingClientRect();
+            const newScrollY = window.scrollY + newAnchorRect.bottom - window.innerHeight;
+
+            window.scrollTo({
+              top: Math.max(0, newScrollY),
+              behavior: prefersReduce ? 'auto' : 'smooth',
+            });
+            recalibrate();
+          }
+        }, 400);
+      };
+
+      recalibrate();
+    } else {
+      // Fallback: use document scroll height
+      const scrollElement =
+        scrollContainer instanceof Window ? document.documentElement : scrollContainer;
+      const maxScroll = Math.max(scrollElement.scrollHeight - scrollElement.clientHeight, start);
+
+      if (scrollContainer instanceof Window) {
+        window.scrollTo({ top: maxScroll, behavior: prefersReduce ? 'auto' : 'smooth' });
+      } else {
+        scrollContainer.scrollTo({ top: maxScroll, behavior: prefersReduce ? 'auto' : 'smooth' });
+      }
+    }
   };
 
   const syncTocState = (open: boolean) => {
