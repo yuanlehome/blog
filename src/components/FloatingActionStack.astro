@@ -135,9 +135,13 @@ const actions = buildActions({ enableTop, enableToc, enableBottom });
     const bottomAnchor = document.getElementById('page-bottom-anchor');
 
     if (bottomAnchor) {
-      // Use scrollIntoView with the anchor for precise positioning
-      bottomAnchor.scrollIntoView({
-        block: 'end',
+      // Calculate the exact scroll position to show the anchor at the bottom of viewport
+      const anchorRect = bottomAnchor.getBoundingClientRect();
+      const currentScrollY = window.scrollY;
+      const targetScrollY = currentScrollY + anchorRect.bottom - window.innerHeight;
+
+      window.scrollTo({
+        top: Math.max(0, targetScrollY),
         behavior: prefersReduce ? 'auto' : 'smooth',
       });
 
@@ -160,13 +164,16 @@ const actions = buildActions({ enableTop, enableToc, enableBottom });
 
           // If we're not within 10px of the bottom, scroll again
           if (maxScroll - currentScroll > 10) {
-            bottomAnchor.scrollIntoView({
-              block: 'end',
+            const newAnchorRect = bottomAnchor.getBoundingClientRect();
+            const newScrollY = window.scrollY + newAnchorRect.bottom - window.innerHeight;
+
+            window.scrollTo({
+              top: Math.max(0, newScrollY),
               behavior: prefersReduce ? 'auto' : 'smooth',
             });
             recalibrate();
           }
-        }, 300);
+        }, 400);
       };
 
       recalibrate();
