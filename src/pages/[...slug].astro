@@ -157,6 +157,7 @@ const metaJustifyClass = alignToJustifyClass(postMetaAlign);
         <PrevNext prev={prev} next={next} />
         <RelatedPosts posts={related} />
         {commentsEnabled && <Giscus lang="zh-CN" loading="lazy" />}
+        <div id="page-bottom-anchor" aria-hidden="true" style="height: 1px;"></div>
       </article>
       <TableOfContents headings={headings} />
     </div>

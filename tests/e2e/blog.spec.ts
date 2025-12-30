@@ -299,6 +299,166 @@ test.describe('Blog smoke journey', () => {
     await context.close();
   });
 
+  test('bottom button scrolls to true page bottom', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+
+    await page.goto('/');
+    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
+    if (await notFoundHeading.count()) {
+      const baseLink = page.locator('a[href="/blog/"]');
+      if (await baseLink.count()) {
+        await baseLink.first().click();
+      }
+    }
+
+    const firstLink = page.locator('#post-list li a').first();
+    await firstLink.click();
+    await expect(page.locator('[data-article]')).toBeVisible();
+
+    // Ensure all images are loaded
+    await page.waitForLoadState('networkidle');
+
+    const stack = page.locator('[data-floating-action-stack]');
+    await expect(stack).toBeVisible();
+
+    const bottomButton = stack.locator('[data-action="bottom"]');
+    await expect(bottomButton).toBeVisible();
+
+    // Click bottom button
+    await bottomButton.click();
+
+    // Wait for scroll to complete
+    await page.waitForTimeout(1000);
+
+    // Check that we've scrolled to near the bottom
+    const scrollMetrics = await page.evaluate(() => {
+      const scrollTop = window.scrollY;
+      const scrollHeight = document.documentElement.scrollHeight;
+      const clientHeight = window.innerHeight;
+      const maxScroll = scrollHeight - clientHeight;
+      const distanceFromBottom = maxScroll - scrollTop;
+
+      return {
+        scrollTop,
+        scrollHeight,
+        clientHeight,
+        maxScroll,
+        distanceFromBottom,
+      };
+    });
+
+    // Assert we're within 50px of the actual bottom (allowing for smooth scroll variance)
+    expect(scrollMetrics.distanceFromBottom).toBeLessThanOrEqual(50);
+
+    // Verify bottom anchor exists
+    const bottomAnchor = page.locator('#page-bottom-anchor');
+    await expect(bottomAnchor).toBeAttached();
+
+    await context.close();
+  });
+
+  test('bottom button works correctly with comments enabled', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+
+    await page.goto('/');
+    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
+    if (await notFoundHeading.count()) {
+      const baseLink = page.locator('a[href="/blog/"]');
+      if (await baseLink.count()) {
+        await baseLink.first().click();
+      }
+    }
+
+    // Find a post with comments enabled (most posts should have this)
+    const firstLink = page.locator('#post-list li a').first();
+    await firstLink.click();
+    await expect(page.locator('[data-article]')).toBeVisible();
+
+    // Wait for page to load
+    await page.waitForLoadState('networkidle');
+
+    const stack = page.locator('[data-floating-action-stack]');
+    const bottomButton = stack.locator('[data-action="bottom"]');
+
+    // Scroll to top first
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(300);
+
+    // Click bottom button
+    await bottomButton.click();
+
+    // Wait for scroll and potential recalibration
+    await page.waitForTimeout(1500);
+
+    // Verify we're at or very near the bottom
+    const isNearBottom = await page.evaluate(() => {
+      const scrollTop = window.scrollY;
+      const scrollHeight = document.documentElement.scrollHeight;
+      const clientHeight = window.innerHeight;
+      const maxScroll = scrollHeight - clientHeight;
+      const distanceFromBottom = maxScroll - scrollTop;
+
+      return distanceFromBottom <= 50;
+    });
+
+    expect(isNearBottom).toBe(true);
+
+    await context.close();
+  });
+
+  test('top button scrolls to article start after bottom scroll', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+
+    await page.goto('/');
+    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
+    if (await notFoundHeading.count()) {
+      const baseLink = page.locator('a[href="/blog/"]');
+      if (await baseLink.count()) {
+        await baseLink.first().click();
+      }
+    }
+
+    const firstLink = page.locator('#post-list li a').first();
+    await firstLink.click();
+    await expect(page.locator('[data-article]')).toBeVisible();
+
+    await page.waitForLoadState('networkidle');
+
+    const stack = page.locator('[data-floating-action-stack]');
+    const bottomButton = stack.locator('[data-action="bottom"]');
+    const topButton = stack.locator('[data-action="top"]');
+
+    // Record article top position
+    const articleTop = await page.evaluate(() => {
+      const article = document.querySelector('[data-article]');
+      if (!article) return null;
+      const rect = article.getBoundingClientRect();
+      return rect.top + window.scrollY;
+    });
+
+    // Click bottom button
+    await bottomButton.click();
+    await page.waitForTimeout(1000);
+
+    // Verify we scrolled down significantly
+    const scrolledDown = await page.evaluate(() => window.scrollY > 200);
+    expect(scrolledDown).toBe(true);
+
+    // Now click top button
+    await topButton.click();
+    await page.waitForTimeout(1000);
+
+    // Verify we're back near the article top
+    await expect
+      .poll(async () => page.evaluate(() => window.scrollY))
+      .toBeLessThanOrEqual((articleTop ?? 0) + 20);
+
+    await context.close();
+  });
+
   test('pagination navigation works correctly', async ({ page }) => {
     await page.goto('/');
     const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
