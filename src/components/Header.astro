@@ -87,8 +87,14 @@ function getMenuItemUrl(item: { isExternal: boolean; href: string }): string {
     const icon = iconFor(resolved);
     const label = labelFor(resolved);
     (button as HTMLElement).dataset.theme = preference;
-    // Wrap emoji in a span to fix baseline alignment
-    button.innerHTML = `<span class="inline-flex items-center justify-center" style="line-height: 1;">${icon}</span> ${label}`;
+    // Clear button and create elements to wrap emoji for baseline alignment
+    button.textContent = '';
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'inline-flex items-center justify-center';
+    iconSpan.style.lineHeight = '1';
+    iconSpan.textContent = icon;
+    button.appendChild(iconSpan);
+    button.appendChild(document.createTextNode(' ' + label));
     button.setAttribute('aria-label', `Toggle theme (current: ${label})`);
   };
 
