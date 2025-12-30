@@ -17,6 +17,11 @@ class DefaultAdapterRegistry implements AdapterRegistry {
   private adapters: Adapter[] = [];
 
   register(adapter: Adapter): void {
+    // Skip if adapter is undefined (can happen during circular imports)
+    if (!adapter || !adapter.id) {
+      return;
+    }
+
     // Remove existing adapter with same ID
     this.adapters = this.adapters.filter((a) => a.id !== adapter.id);
 
