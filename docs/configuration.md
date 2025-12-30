@@ -10,9 +10,13 @@
 4. [首页配置 (home.yml)](#首页配置-homeyml)
 5. [文章页配置 (post.yml)](#文章页配置-postyml)
 6. [主题配置 (theme.yml)](#主题配置-themeyml)
-7. [个人资料配置 (profile.yml)](#个人资料配置-profileyml)
-8. [配置验证](#配置验证)
-9. [常见问题](#常见问题)
+7. [布局配置 (layout.yml)](#布局配置-layoutyml) ⭐ **新增**
+8. [排版配置 (typography.yml)](#排版配置-typographyyml) ⭐ **新增**
+9. [组件配置 (components.yml)](#组件配置-componentsyml) ⭐ **新增**
+10. [个人资料配置 (profile.yml)](#个人资料配置-profileyml)
+11. [配置验证](#配置验证)
+12. [自定义示例](#自定义示例) ⭐ **新增**
+13. [常见问题](#常见问题)
 
 ## 配置文件位置
 
@@ -20,12 +24,15 @@
 
 ```text
 src/config/yaml/
-├── site.yml       # 站点全局配置
-├── nav.yml        # 导航菜单配置
-├── home.yml       # 首页配置
-├── post.yml       # 文章页配置
-├── theme.yml      # 主题配置
-└── profile.yml    # 个人资料配置
+├── site.yml         # 站点全局配置
+├── nav.yml          # 导航菜单配置
+├── home.yml         # 首页配置
+├── post.yml         # 文章页配置
+├── theme.yml        # 主题与色彩配置
+├── layout.yml       # 布局与结构配置 ⭐ 新增
+├── typography.yml   # 字体与排版配置 ⭐ 新增
+├── components.yml   # 组件样式配置 ⭐ 新增
+└── profile.yml      # 个人资料配置
 ```
 
 ## 站点配置 (site.yml)
@@ -474,3 +481,515 @@ pagination:
 ## 反馈
 
 如有问题或建议，请在 GitHub 仓库提 issue。
+
+## 布局配置 (layout.yml)
+
+**⭐ 新增配置**：控制页面布局、侧边栏、目录和对齐方式。
+
+### 字段说明
+
+#### container
+
+| 字段      | 类型   | 默认值  | 说明               |
+| --------- | ------ | ------- | ------------------ |
+| `width`   | string | "72rem" | 主内容区最大宽度   |
+| `paddingX` | object | {...}   | 水平内边距（响应式） |
+
+#### layoutMode
+
+| 值              | 说明                   |
+| --------------- | ---------------------- |
+| `centered`      | 单列居中布局（无侧边栏） |
+| `rightSidebar`  | 右侧边栏布局（默认）    |
+| `leftSidebar`   | 左侧边栏布局           |
+
+#### sidebar
+
+| 字段      | 类型    | 默认值   | 说明         |
+| --------- | ------- | -------- | ------------ |
+| `enabled` | boolean | true     | 是否启用侧边栏 |
+| `position` | enum   | "right"  | 位置：left/right |
+| `width`   | string  | "18rem"  | 侧边栏宽度    |
+| `sticky`  | boolean | true     | 是否固定定位  |
+| `gap`     | string  | "3rem"   | 与内容区间距  |
+
+#### toc（目录）
+
+| 字段              | 类型    | 默认值    | 说明                     |
+| ----------------- | ------- | --------- | ------------------------ |
+| `enabled`         | boolean | true      | 是否启用目录             |
+| `position`        | enum    | "right"   | 位置：left/right/inline  |
+| `mobileBehavior`  | enum    | "drawer"  | 移动端行为：drawer/inline/hidden |
+| `defaultOpen`     | boolean | false     | 默认是否展开             |
+| `offset`          | number  | 96        | 顶部偏移量（px）         |
+
+#### alignment
+
+| 字段            | 类型 | 默认值  | 说明             |
+| --------------- | ---- | ------- | ---------------- |
+| `headerAlign`   | enum | "left"  | 头部对齐：left/center |
+| `footerAlign`   | enum | "left"  | 底部对齐：left/center |
+| `postMetaAlign` | enum | "left"  | 文章元信息对齐    |
+
+### 示例
+
+```yaml
+# 单列居中布局
+container:
+  width: '65rem'
+layoutMode: 'centered'
+alignment:
+  headerAlign: 'center'
+
+# 左侧边栏布局
+layoutMode: 'leftSidebar'
+sidebar:
+  position: 'left'
+  width: '16rem'
+toc:
+  position: 'left'
+```
+
+## 排版配置 (typography.yml)
+
+**⭐ 新增配置**：控制字体、字号、行高等排版设置。
+
+### 字段说明
+
+#### fontFamily
+
+| 字段    | 类型  | 说明               |
+| ------- | ----- | ------------------ |
+| `sans`  | array | 无衬线字体栈       |
+| `serif` | array | 衬线字体栈         |
+| `mono`  | array | 等宽字体栈（代码）  |
+
+#### fontSize
+
+字号预设，支持的键：`xs`, `sm`, `base`, `lg`, `xl`, `2xl`, `3xl`, `4xl`
+
+#### lineHeight
+
+| 字段      | 类型   | 默认值 | 说明       |
+| --------- | ------ | ------ | ---------- |
+| `body`    | number | 1.75   | 正文行高   |
+| `heading` | number | 1.3    | 标题行高   |
+| `code`    | number | 1.65   | 代码行高   |
+| `tight`   | number | 1.25   | 紧凑行高   |
+
+#### fontWeight
+
+| 字段       | 类型   | 默认值 | 说明       |
+| ---------- | ------ | ------ | ---------- |
+| `normal`   | number | 400    | 普通字重   |
+| `medium`   | number | 500    | 中等字重   |
+| `semibold` | number | 600    | 次粗字重   |
+| `bold`     | number | 700    | 粗字重     |
+
+### 示例
+
+```yaml
+# 使用衬线字体作为正文
+fontFamily:
+  sans:
+    - 'Georgia'
+    - 'serif'
+
+# 调整字号
+fontSize:
+  base: '1.125rem' # 18px，更大的正文
+  lg: '1.25rem'
+
+# 更紧凑的行距
+lineHeight:
+  body: 1.6
+  code: 1.5
+```
+
+## 组件配置 (components.yml)
+
+**⭐ 新增配置**：控制圆角、阴影、边框、动画等组件样式。
+
+### 字段说明
+
+#### radius（圆角）
+
+| 字段 | 类型   | 默认值     | 用途            |
+| ---- | ------ | ---------- | --------------- |
+| `sm` | string | "0.35rem"  | 行内代码等      |
+| `md` | string | "0.65rem"  | 按钮等          |
+| `lg` | string | "0.9rem"   | 代码块等        |
+| `xl` | string | "0.75rem"  | 卡片、图片等     |
+
+#### shadow（阴影）
+
+| 字段        | 类型    | 默认值 | 说明                       |
+| ----------- | ------- | ------ | -------------------------- |
+| `card`      | enum    | "md"   | 卡片阴影级别               |
+| `codeBlock` | enum    | "md"   | 代码块阴影级别             |
+| `header`    | enum    | "md"   | 头部阴影级别               |
+| `hoverLift` | boolean | false  | 悬停时是否有抬升效果       |
+
+阴影级别：`none`, `sm`, `md`, `lg`
+
+#### border
+
+| 字段    | 类型   | 默认值   | 说明          |
+| ------- | ------ | -------- | ------------- |
+| `style` | enum   | "solid"  | 边框样式      |
+| `width` | string | "1px"    | 边框宽度      |
+
+边框样式：`solid`, `dashed`, `dotted`
+
+#### motion（动画）
+
+| 字段                   | 类型    | 默认值     | 说明                     |
+| ---------------------- | ------- | ---------- | ------------------------ |
+| `enabled`              | boolean | true       | 是否启用动画             |
+| `level`                | enum    | "normal"   | 动画强度                 |
+| `respectReducedMotion` | boolean | true       | 尊重系统减少动画设置     |
+
+动画强度：`subtle`（100ms），`normal`（160ms），`energetic`（240ms）
+
+#### spacingScale
+
+| 值            | 倍数  | 说明         |
+| ------------- | ----- | ------------ |
+| `compact`     | 0.75  | 紧凑间距     |
+| `comfortable` | 1.0   | 舒适间距（默认） |
+| `relaxed`     | 1.25  | 宽松间距     |
+
+### 示例
+
+```yaml
+# 更圆润的设计
+radius:
+  sm: '0.5rem'
+  md: '0.75rem'
+  lg: '1rem'
+  xl: '1.25rem'
+
+# 更明显的阴影
+shadow:
+  card: 'lg'
+  codeBlock: 'lg'
+  hoverLift: true
+
+# 更快的动画
+motion:
+  level: 'subtle'
+
+# 更紧凑的间距
+spacingScale: 'compact'
+```
+
+## 主题配置 (theme.yml) - 增强版
+
+**🔄 已扩展**：新增色彩、代码块和头部样式配置。
+
+### 新增字段说明
+
+#### colorMode
+
+| 字段          | 类型    | 默认值   | 说明                     |
+| ------------- | ------- | -------- | ------------------------ |
+| `default`     | enum    | "system" | 默认主题：light/dark/system |
+| `allowToggle` | boolean | true     | 允许切换主题             |
+| `persist`     | boolean | true     | 保存用户选择到 localStorage |
+
+#### colors（亮色模式）
+
+| 字段         | 类型   | 默认值      | 说明           |
+| ------------ | ------ | ----------- | -------------- |
+| `brand`      | color  | "#3b82f6"   | 品牌主色       |
+| `accent`     | color  | "#8b5cf6"   | 强调色         |
+| `background` | color  | "#ffffff"   | 页面背景       |
+| `foreground` | color  | "#111827"   | 文本颜色       |
+| `muted`      | color  | "#6b7280"   | 次要文本       |
+| `border`     | color  | "#e5e7eb"   | 边框颜色       |
+| `card`       | color  | "#f9fafb"   | 卡片背景       |
+| `code.*`     | object | {...}       | 代码相关颜色    |
+
+**颜色格式**：支持 hex（`#3b82f6`）、rgb（`rgb(59, 130, 246)`）、hsl（`hsl(217, 91%, 60%)`）
+
+#### darkColors（暗色模式）
+
+与 `colors` 结构相同，用于暗色模式的配色方案。
+
+#### emphasis（强调样式）
+
+| 字段            | 类型    | 默认值    | 说明                    |
+| --------------- | ------- | --------- | ----------------------- |
+| `linkUnderline` | enum    | "hover"   | 链接下划线：never/hover/always |
+| `focusRing`     | boolean | true      | 显示焦点环              |
+
+#### codeBlock（代码块）
+
+| 字段               | 类型    | 默认值         | 说明                     |
+| ------------------ | ------- | -------------- | ------------------------ |
+| `theme.light`      | string  | "github-light" | 亮色模式语法主题         |
+| `theme.dark`       | string  | "github-dark"  | 暗色模式语法主题         |
+| `showLineNumbers`  | boolean | true           | 显示行号                 |
+| `showCopyButton`   | boolean | true           | 显示复制按钮             |
+| `wrapLongLines`    | boolean | false          | 换行显示长代码           |
+| `inlineCodeStyle`  | enum    | "subtle"       | 行内代码样式：subtle/boxed |
+| `radius`           | string  | "0.9rem"       | 代码块圆角               |
+| `enableHighlight`  | boolean | true           | 启用行高亮               |
+
+#### header（页头样式）
+
+| 字段                 | 类型   | 默认值     | 说明                           |
+| -------------------- | ------ | ---------- | ------------------------------ |
+| `variant`            | enum   | "default"  | 变体：default/subtle/frosted/elevated |
+| `backgroundOpacity`  | number | 0.92       | 背景不透明度（0-1）            |
+| `blurStrength`       | string | "10px"     | 毛玻璃效果强度（frosted 变体）  |
+
+### 完整示例
+
+```yaml
+# 自定义配色方案
+colorMode:
+  default: 'light'
+  allowToggle: true
+
+colors:
+  brand: '#0066cc'
+  accent: '#ff6b6b'
+  background: '#fafafa'
+  code:
+    background: '#f5f5f5'
+    keyword: '#0066cc'
+
+darkColors:
+  brand: '#4da6ff'
+  accent: '#ff8787'
+  background: '#0a0a0a'
+
+# 代码块配置
+codeBlock:
+  showLineNumbers: true
+  showCopyButton: true
+  wrapLongLines: false
+  inlineCodeStyle: 'subtle'
+
+# 页头样式
+header:
+  variant: 'frosted'
+  backgroundOpacity: 0.85
+  blurStrength: '12px'
+
+emphasis:
+  linkUnderline: 'always'
+  focusRing: true
+```
+
+
+## 自定义示例
+
+以下是一些常见的自定义场景示例。
+
+### 示例 1：宽屏居中布局
+
+适合喜欢简洁、专注阅读体验的用户。
+
+```yaml
+# layout.yml
+container:
+  width: '80rem' # 更宽的内容区
+layoutMode: 'centered'
+sidebar:
+  enabled: false
+toc:
+  position: 'inline' # 目录放在文章内
+alignment:
+  headerAlign: 'center'
+  postMetaAlign: 'center'
+```
+
+### 示例 2：紧凑深色主题
+
+适合代码密集型博客。
+
+```yaml
+# theme.yml
+colorMode:
+  default: 'dark'
+
+darkColors:
+  background: '#0d1117'
+  foreground: '#c9d1d9'
+  code:
+    background: '#161b22'
+
+codeBlock:
+  theme:
+    dark: 'monokai'
+  showLineNumbers: true
+  wrapLongLines: true
+
+# components.yml
+spacingScale: 'compact'
+radius:
+  lg: '0.5rem' # 更少圆角
+
+# typography.yml
+fontSize:
+  base: '0.95rem' # 稍小的字体
+lineHeight:
+  body: 1.6
+```
+
+### 示例 3：左侧边栏 + 大字体
+
+适合阅读性优先的技术文章。
+
+```yaml
+# layout.yml
+layoutMode: 'leftSidebar'
+sidebar:
+  position: 'left'
+  width: '20rem'
+toc:
+  position: 'left'
+
+# typography.yml
+fontSize:
+  base: '1.125rem' # 18px 基础字体
+  lg: '1.375rem'
+lineHeight:
+  body: 1.8 # 更宽松的行高
+
+fontFamily:
+  sans:
+    - 'Source Sans Pro'
+    - 'system-ui'
+    - 'sans-serif'
+
+# components.yml
+spacingScale: 'relaxed'
+```
+
+### 示例 4：彩色视觉风格
+
+适合设计类、创意类博客。
+
+```yaml
+# theme.yml
+colors:
+  brand: '#8b5cf6' # 紫色主题
+  accent: '#ec4899' # 粉色强调
+  card: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+
+# components.yml
+radius:
+  xl: '1.5rem' # 更圆润
+shadow:
+  card: 'lg'
+  hoverLift: true
+
+motion:
+  level: 'energetic' # 更有活力的动画
+
+# typography.yml
+fontFamily:
+  sans:
+    - 'Inter'
+    - 'system-ui'
+```
+
+### 示例 5：极简黑白
+
+适合文学、哲学类博客。
+
+```yaml
+# theme.yml
+colors:
+  brand: '#000000'
+  accent: '#333333'
+  background: '#ffffff'
+  foreground: '#000000'
+  border: '#e0e0e0'
+
+emphasis:
+  linkUnderline: 'always'
+
+# components.yml
+radius:
+  sm: '0'
+  md: '0'
+  lg: '0'
+  xl: '0' # 无圆角
+
+shadow:
+  card: 'none'
+  codeBlock: 'none'
+
+border:
+  style: 'solid'
+  width: '2px'
+
+# typography.yml
+fontFamily:
+  sans:
+    - 'Merriweather'
+    - 'Georgia'
+    - 'serif'
+
+fontSize:
+  base: '1.1rem'
+
+lineHeight:
+  body: 1.8
+```
+
+## 配置验证
+
+所有配置文件都使用 Zod 进行 schema 验证。如果配置无效，构建时会显示详细的错误信息。
+
+### 常见验证错误
+
+1. **颜色格式错误**
+
+   ```text
+   Invalid configuration in theme.yml:
+     - colors.brand: Invalid color format. Use hex (#abc or #aabbcc), rgb(), rgba(), hsl(), or hsla()
+   ```
+
+   解决：确保颜色值使用正确的格式，如 `#3b82f6` 或 `rgb(59, 130, 246)`。
+
+2. **枚举值错误**
+
+   ```text
+   Invalid configuration in layout.yml:
+     - layoutMode: Invalid enum value. Expected 'centered' | 'rightSidebar' | 'leftSidebar'
+   ```
+
+   解决：使用配置文档中列出的有效值。
+
+3. **数值范围错误**
+
+   ```text
+   Invalid configuration in typography.yml:
+     - lineHeight.body: Number must be less than or equal to 3
+   ```
+
+   解决：确保数值在允许的范围内。
+
+4. **字段类型错误**
+
+   ```text
+   Invalid configuration in components.yml:
+     - radius.lg: Expected string, received number
+   ```
+
+   解决：确保字段类型正确，尺寸值需要带单位（如 `"1rem"` 而不是 `1`）。
+
+### 验证配置
+
+运行以下命令检查配置是否有效：
+
+```bash
+npm run check
+npm run test
+```
+
