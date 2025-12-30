@@ -10,14 +10,16 @@ export default {
                         'code::before': { content: '""' },
                         'code::after': { content: '""' },
                         code: {
-                            color: theme('colors.sky.800'),
-                            backgroundColor: theme('colors.sky.50'),
-                            padding: '0.2em 0.35em',
-                            borderRadius: '0.35rem',
+                            color: theme('colors.zinc.700'),
+                            backgroundColor: theme('colors.zinc.100'),
+                            padding: '0.2em 0.4em',
+                            borderRadius: '0.25rem',
                             fontWeight: '500',
+                            fontSize: '0.875em',
+                            fontFamily: 'var(--code-font)',
                         },
                         'code:not(pre code)': {
-                            color: theme('colors.sky.800'),
+                            color: theme('colors.zinc.700'),
                         },
                         pre: {
                             backgroundColor: 'transparent',
@@ -30,8 +32,8 @@ export default {
                             padding: '0',
                         },
                         '.dark code': {
-                            color: theme('colors.sky.200'),
-                            backgroundColor: theme('colors.slate.800'),
+                            color: theme('colors.zinc.200'),
+                            backgroundColor: theme('colors.zinc.800'),
                         },
                     },
                 },

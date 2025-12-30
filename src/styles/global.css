@@ -2,36 +2,43 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================
+   Technical Blog Typography System
+   - Engineering documentation style
+   - Low-saturation, professional appearance
+   ============================================ */
+
 :root {
+  /* Legacy code font variables - now uses CSS variables from config */
   --code-font:
-    'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-    monospace;
+    'JetBrains Mono', 'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
   --code-radius: 0.9rem;
-  --code-border: 1px solid rgb(229 231 235 / 0.7);
-  --code-bg: #f8fafc;
-  --code-fg: #0f172a;
-  --code-scrollbar: rgb(203 213 225 / 0.75);
-  --code-highlight-bg: rgb(59 130 246 / 0.12);
-  --code-highlight-accent: rgb(59 130 246);
-  --header-bg: rgb(248 250 252 / 0.92);
-  --header-bg-scrolled: rgb(248 250 252 / 0.98);
-  --header-border: rgb(226 232 240 / 0.9);
-  --header-shadow: 0 8px 24px rgb(15 23 42 / 0.08);
-  --header-shadow-strong: 0 10px 30px rgb(15 23 42 / 0.12);
+  --code-border: 1px solid rgb(228 228 231 / 0.7);
+  --code-bg: #f4f4f5;
+  --code-fg: #18181b;
+  --code-scrollbar: rgb(161 161 170 / 0.6);
+  --code-highlight-bg: rgb(2 132 199 / 0.1);
+  --code-highlight-accent: rgb(2 132 199);
+  --header-bg: rgb(250 250 250 / 0.92);
+  --header-bg-scrolled: rgb(250 250 250 / 0.98);
+  --header-border: rgb(228 228 231 / 0.9);
+  --header-shadow: 0 8px 24px rgb(24 24 27 / 0.06);
+  --header-shadow-strong: 0 10px 30px rgb(24 24 27 / 0.1);
 }
 
 .dark {
-  --code-border: 1px solid rgb(51 65 85 / 0.7);
-  --code-bg: #0b1221;
-  --code-fg: #e2e8f0;
-  --code-scrollbar: rgb(71 85 105 / 0.8);
-  --code-highlight-bg: rgb(59 130 246 / 0.2);
-  --code-highlight-accent: rgb(96 165 250);
-  --header-bg: rgb(15 23 42 / 0.72);
-  --header-bg-scrolled: rgb(15 23 42 / 0.84);
-  --header-border: rgb(71 85 105 / 0.8);
-  --header-shadow: 0 10px 32px rgb(0 0 0 / 0.28);
-  --header-shadow-strong: 0 16px 40px rgb(0 0 0 / 0.32);
+  --code-border: 1px solid rgb(63 63 70 / 0.7);
+  --code-bg: #1f1f23;
+  --code-fg: #e4e4e7;
+  --code-scrollbar: rgb(63 63 70 / 0.8);
+  --code-highlight-bg: rgb(56 189 248 / 0.15);
+  --code-highlight-accent: rgb(56 189 248);
+  --header-bg: rgb(24 24 27 / 0.72);
+  --header-bg-scrolled: rgb(24 24 27 / 0.88);
+  --header-border: rgb(63 63 70 / 0.8);
+  --header-shadow: 0 10px 32px rgb(0 0 0 / 0.24);
+  --header-shadow-strong: 0 16px 40px rgb(0 0 0 / 0.3);
 }
 
 html,
@@ -63,16 +70,16 @@ body {
 }
 
 .header-variant-subtle {
-  --header-bg: rgb(250 251 252);
-  --header-bg-scrolled: rgb(248 250 252);
-  --header-border: rgb(226 232 240);
+  --header-bg: rgb(250 250 250);
+  --header-bg-scrolled: rgb(250 250 250);
+  --header-border: rgb(228 228 231);
   box-shadow: none;
 }
 
 .dark .header-variant-subtle {
-  --header-bg: rgb(18 24 38);
-  --header-bg-scrolled: rgb(22 30 48);
-  --header-border: rgb(71 85 105 / 0.85);
+  --header-bg: rgb(24 24 27);
+  --header-bg-scrolled: rgb(27 27 30);
+  --header-border: rgb(63 63 70 / 0.85);
 }
 
 .header-variant-frosted {
@@ -86,12 +93,12 @@ body {
 }
 
 .header-variant-elevated {
-  background: linear-gradient(180deg, var(--header-bg) 0%, rgb(255 255 255 / 0.92) 100%);
+  background: linear-gradient(180deg, var(--header-bg) 0%, rgb(250 250 250 / 0.92) 100%);
   box-shadow: none;
 }
 
 .dark .header-variant-elevated {
-  background: linear-gradient(180deg, var(--header-bg) 0%, rgb(15 23 42 / 0.78) 100%);
+  background: linear-gradient(180deg, var(--header-bg) 0%, rgb(24 24 27 / 0.78) 100%);
 }
 
 .header-variant-elevated.is-scrolled {
@@ -173,11 +180,11 @@ body {
   gap: 0.75rem;
   padding: 0.75rem 1rem;
   font-size: 0.85rem;
-  background: linear-gradient(90deg, transparent, rgb(59 130 246 / 0.08));
+  background: linear-gradient(90deg, transparent, rgb(2 132 199 / 0.06));
 }
 
 .dark .code-block__header {
-  background: linear-gradient(90deg, transparent, rgb(59 130 246 / 0.16));
+  background: linear-gradient(90deg, transparent, rgb(56 189 248 / 0.1));
 }
 
 .code-block__title {
@@ -189,7 +196,7 @@ body {
 
 .code-block__copy {
   position: relative;
-  border: 1px solid rgb(148 163 184 / 0.6);
+  border: 1px solid rgb(161 161 170 / 0.5);
   background: transparent;
   border-radius: 0.65rem;
   padding: 0.4rem 0.8rem;
@@ -202,16 +209,16 @@ body {
 .code-block__copy:hover,
 .code-block__copy:focus-visible {
   outline: none;
-  border-color: rgb(59 130 246 / 0.9);
-  color: rgb(37 99 235);
-  box-shadow: 0 0 0 3px rgb(59 130 246 / 0.18);
+  border-color: rgb(2 132 199 / 0.8);
+  color: rgb(2 132 199);
+  box-shadow: 0 0 0 3px rgb(2 132 199 / 0.12);
 }
 
 .dark .code-block__copy:hover,
 .dark .code-block__copy:focus-visible {
-  color: rgb(96 165 250);
-  border-color: rgb(96 165 250 / 0.8);
-  box-shadow: 0 0 0 3px rgb(96 165 250 / 0.2);
+  color: rgb(56 189 248);
+  border-color: rgb(56 189 248 / 0.7);
+  box-shadow: 0 0 0 3px rgb(56 189 248 / 0.15);
 }
 
 .code-block__copy[data-state='copied']::after,
@@ -276,7 +283,7 @@ body {
   content: attr(data-line-number);
   position: absolute;
   left: 1rem;
-  color: rgb(148 163 184 / 0.75);
+  color: rgb(161 161 170 / 0.6);
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
   user-select: none;

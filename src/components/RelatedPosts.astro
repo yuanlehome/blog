@@ -11,15 +11,15 @@ const { posts } = Astro.props;
 
 {
   posts.length > 0 && (
-    <div class="mt-10 border-t border-gray-200 dark:border-gray-800 pt-6">
+    <div class="mt-10 border-t border-zinc-200 dark:border-zinc-800 pt-6">
       <h3 class="text-lg font-semibold mb-4">Related posts</h3>
       <div class="grid md:grid-cols-2 gap-4">
         {posts.map((post) => (
           <a
             href={buildPostUrl(post.slug)}
-            class="block p-4 rounded-lg border border-gray-200 dark:border-gray-800 hover:border-blue-500 hover:-translate-y-0.5 transition"
+            class="block p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:border-sky-500 hover:-translate-y-0.5 transition"
           >
-            <div class="text-xs text-gray-500 mb-1">{post.data.date.toLocaleDateString()}</div>
+            <div class="text-xs text-zinc-500 mb-1">{post.data.date.toLocaleDateString()}</div>
             <div class="font-semibold">{post.data.title}</div>
           </a>
         ))}

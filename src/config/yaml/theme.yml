@@ -1,5 +1,6 @@
 # Theme Configuration
 # Visual theme and appearance settings
+# Designed for technical documentation / engineering blog style
 
 # Color mode settings
 colorMode:
@@ -28,49 +29,58 @@ labels:
   dark: 'Dark'
 
 # Color palette for light mode
+# Low-saturation, professional, technical documentation style
 colors:
-  # Brand/primary color (links, buttons, accents)
-  brand: '#3b82f6' # blue-500
-  # Accent/emphasis color (tags, highlights)
-  accent: '#8b5cf6' # violet-500
-  # Page background
-  background: '#ffffff' # white
-  # Main text color
-  foreground: '#111827' # gray-900
-  # Secondary/muted text
-  muted: '#6b7280' # gray-500
-  # Border color
-  border: '#e5e7eb' # gray-200
-  # Card/panel background
-  card: '#f9fafb' # gray-50
-  # Code-specific colors
+  # Single accent color (cyan-blue, engineering style)
+  brand: '#0284c7' # sky-600 - primary links, buttons, accents
+  # Keep accent same as brand for unified appearance
+  accent: '#0284c7' # sky-600 - tags, highlights
+  # Off-white background (not pure white, reduces eye strain)
+  background: '#fafafa' # neutral-50
+  # Dark gray foreground (not pure black, softer on eyes)
+  foreground: '#18181b' # zinc-900
+  # Muted text color for secondary content
+  muted: '#71717a' # zinc-500
+  # Subtle border color
+  border: '#e4e4e7' # zinc-200
+  # Card/panel background (slightly elevated)
+  card: '#f4f4f5' # zinc-100
+  # Code-specific colors (low contrast, technical feel)
   code:
-    background: '#f8fafc' # slate-50
-    foreground: '#0f172a' # slate-900
-    border: '#e2e8f0' # slate-200
-    # Syntax highlighting accent colors
-    keyword: '#3b82f6' # blue-500
-    string: '#10b981' # emerald-500
-    comment: '#94a3b8' # slate-400
-    function: '#8b5cf6' # violet-500
+    background: '#f4f4f5' # zinc-100
+    foreground: '#18181b' # zinc-900
+    border: '#e4e4e7' # zinc-200
+    # Syntax highlighting - single accent approach
+    keyword: '#0284c7' # sky-600
+    string: '#059669' # emerald-600
+    comment: '#a1a1aa' # zinc-400
+    function: '#0284c7' # sky-600
 
 # Color palette for dark mode
+# Low-saturation, comfortable for long reading sessions
 darkColors:
-  brand: '#60a5fa' # blue-400
-  accent: '#a78bfa' # violet-400
-  background: '#111827' # gray-900
-  foreground: '#f9fafb' # gray-50
-  muted: '#9ca3af' # gray-400
-  border: '#374151' # gray-700
-  card: '#1f2937' # gray-800
+  # Accent color (slightly brighter for dark mode)
+  brand: '#38bdf8' # sky-400
+  accent: '#38bdf8' # sky-400
+  # Dark background (not pure black, reduces eye strain)
+  background: '#18181b' # zinc-900
+  # Light foreground (not pure white, softer)
+  foreground: '#fafafa' # neutral-50
+  # Muted text for secondary content
+  muted: '#a1a1aa' # zinc-400
+  # Subtle border color
+  border: '#3f3f46' # zinc-700
+  # Card/panel background
+  card: '#27272a' # zinc-800
+  # Code-specific colors for dark mode
   code:
-    background: '#0b1221' # custom dark blue
-    foreground: '#e2e8f0' # slate-200
-    border: '#334155' # slate-700
-    keyword: '#60a5fa' # blue-400
+    background: '#1f1f23' # custom dark (between zinc-800 and zinc-900)
+    foreground: '#e4e4e7' # zinc-200
+    border: '#3f3f46' # zinc-700
+    keyword: '#38bdf8' # sky-400
     string: '#34d399' # emerald-400
-    comment: '#64748b' # slate-500
-    function: '#a78bfa' # violet-400
+    comment: '#71717a' # zinc-500
+    function: '#38bdf8' # sky-400
 
 # Link styling
 emphasis:
