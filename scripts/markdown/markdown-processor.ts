@@ -160,63 +160,69 @@ function applyTranslationPatches(tree: Root, patches: Record<string, string>): v
  * Fix math nodes in the AST
  * Applies math fixing logic to block math nodes
  */
-function fixMathNodes(tree: Root): { fixCount: number; degradedCount: number } {
+async function fixMathNodes(tree: Root): Promise<{ fixCount: number; degradedCount: number }> {
   let fixCount = 0;
   let degradedCount = 0;
   const nodesToReplace: Array<{ parent: any; index: number; newNode: any }> = [];
+  const mathNodesToFix: Array<{ node: any; index: number; parent: any }> = [];
 
+  // First pass: collect all math nodes
   visit(tree, (node: any, index: number | undefined, parent: any) => {
-    // Only fix block math nodes (type: 'math')
     if (node.type === 'math' && node.value) {
-      const result = fixMathBlock(node.value);
-
-      if (result.changed) {
-        fixCount++;
-      }
-
-      // If confidence is low or pseudo-math detected, degrade to code block
-      if (
-        result.confidence === 'low' ||
-        result.issues.some((issue) => issue.includes('pseudo-math'))
-      ) {
-        degradedCount++;
-        const issuesText = result.issues.join(', ');
-
-        // Replace math node with code block
-        const codeNode = {
-          type: 'code',
-          lang: 'tex',
-          value: result.fixed.trim(),
-        };
-
-        const noteNode = {
-          type: 'paragraph',
-          children: [
-            {
-              type: 'emphasis',
-              children: [
-                {
-                  type: 'text',
-                  value: `Note: Math block could not be automatically fixed (${issuesText}). Showing as code.`,
-                },
-              ],
-            },
-          ],
-        };
-
-        if (parent && typeof index === 'number') {
-          nodesToReplace.push({
-            parent,
-            index,
-            newNode: [codeNode, noteNode],
-          });
-        }
-      } else if (result.changed) {
-        // Update the node value with fixed content
-        node.value = result.fixed;
-      }
+      mathNodesToFix.push({ node, index: index!, parent });
     }
   });
+
+  // Fix all math nodes (async)
+  for (const { node, index, parent } of mathNodesToFix) {
+    const result = await fixMathBlock(node.value);
+
+    if (result.changed) {
+      fixCount++;
+    }
+
+    // If confidence is low or pseudo-math detected, degrade to code block
+    if (
+      result.confidence === 'low' ||
+      result.issues.some((issue) => issue.includes('pseudo-math'))
+    ) {
+      degradedCount++;
+      const issuesText = result.issues.join(', ');
+
+      // Replace math node with code block
+      const codeNode = {
+        type: 'code',
+        lang: 'tex',
+        value: result.fixed.trim(),
+      };
+
+      const noteNode = {
+        type: 'paragraph',
+        children: [
+          {
+            type: 'emphasis',
+            children: [
+              {
+                type: 'text',
+                value: `Note: Math block could not be automatically fixed (${issuesText}). Showing as code.`,
+              },
+            ],
+          },
+        ],
+      };
+
+      if (parent && typeof index === 'number') {
+        nodesToReplace.push({
+          parent,
+          index,
+          newNode: [codeNode, noteNode],
+        });
+      }
+    } else if (result.changed) {
+      // Update the node value with fixed content
+      node.value = result.fixed;
+    }
+  }
 
   // Apply node replacements (in reverse order to maintain indices)
   nodesToReplace.reverse().forEach(({ parent, index, newNode }) => {
@@ -758,7 +764,7 @@ export async function processMarkdownForImport(
 
   // Fix math nodes BEFORE translation (so they are properly fixed before translation)
   if (enableMathFix) {
-    const { fixCount, degradedCount } = fixMathNodes(tree);
+    const { fixCount, degradedCount } = await fixMathNodes(tree);
     diagnostics.mathBlocksFixed = fixCount;
     diagnostics.mathBlocksDegraded = degradedCount;
     if (fixCount > 0 || degradedCount > 0) {

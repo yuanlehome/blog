@@ -1,18 +1,18 @@
 /**
  * Math Fixer Module
  *
- * Fixes common LaTeX/math syntax issues in imported markdown:
- * - Removes stray $$ delimiters inside block math
- * - Removes nested inline $ delimiters inside block math
- * - Balances brackets/braces with high-confidence heuristics
- * - Cleans up broken \colorbox and similar commands
- * - Detects and downgrades pseudo-math blocks (plain text in $$)
+ * Fixes common LaTeX/math syntax issues in imported markdown using LLM-based cleaning.
  *
- * Strategy:
- * 1. Deterministic rule-based fixes (no LLM, high confidence)
- * 2. Validation after fixing
+ * Strategy (NEW - LLM-based):
+ * 1. LLM-based math fixing (removes inline $ in block math, fixes \colorbox, etc.)
+ * 2. Enhanced validation after fixing (strict $ checking)
  * 3. Safe fallback: convert unfixable math to tex code blocks
+ *
+ * Key Fix Target: Inline math `$` mixed inside block math, intertwined with
+ * `\colorbox{...}{...}` / `\displaystyle` commands.
  */
+
+import { getConfiguredMathFixer, type LLMMathFixer } from './llm-math-fixer.js';
 
 export interface MathFixResult {
   fixed: string;
@@ -22,10 +22,24 @@ export interface MathFixResult {
   degraded: boolean; // true if converted to code block
 }
 
+// Singleton LLM fixer instance
+let llmFixerInstance: LLMMathFixer | null = null;
+
+/**
+ * Get or create LLM math fixer instance
+ */
+function getLLMFixer(): LLMMathFixer {
+  if (!llmFixerInstance) {
+    llmFixerInstance = getConfiguredMathFixer();
+  }
+  return llmFixerInstance;
+}
+
 /**
  * Fix a block math node (content between $$ ... $$)
+ * Uses LLM-based fixing as primary strategy
  */
-export function fixMathBlock(raw: string): MathFixResult {
+export async function fixMathBlock(raw: string): Promise<MathFixResult> {
   const result: MathFixResult = {
     fixed: raw,
     changed: false,
@@ -36,7 +50,7 @@ export function fixMathBlock(raw: string): MathFixResult {
 
   let content = raw;
 
-  // 1. Remove invisible/unusual characters
+  // 1. Normalize invisible characters (quick pre-processing)
   content = normalizeInvisibleChars(content);
   if (content !== raw) {
     result.changed = true;
@@ -51,42 +65,36 @@ export function fixMathBlock(raw: string): MathFixResult {
     return result;
   }
 
-  // 3. Remove stray $$ inside block math
-  const withoutDoubleDollar = removeStrayDoubleDollar(content);
-  if (withoutDoubleDollar !== content) {
-    content = withoutDoubleDollar;
-    result.changed = true;
-    result.issues.push('Removed stray $$ delimiters inside block math');
-  }
+  // 3. LLM-based fixing (primary strategy)
+  try {
+    const llmFixer = getLLMFixer();
+    const llmResult = await llmFixer.fixMathBlock(content);
 
-  // 4. Remove nested inline $ delimiters inside block math
-  const withoutInlineDollar = removeNestedInlineDollar(content);
-  if (withoutInlineDollar !== content) {
-    content = withoutInlineDollar;
-    result.changed = true;
-    result.issues.push('Removed nested inline $ delimiters');
-  }
+    if (llmResult.fixed !== content) {
+      content = llmResult.fixed;
+      result.changed = true;
 
-  // 5. Fix broken \colorbox and similar commands
-  const withFixedCommands = fixBrokenLatexCommands(content);
-  if (withFixedCommands !== content) {
-    content = withFixedCommands;
-    result.changed = true;
-    result.issues.push('Fixed broken LaTeX commands');
-  }
+      // Only add notes if there are meaningful notes (not empty)
+      if (llmResult.notes.length > 0) {
+        result.issues.push(`LLM fixed: ${llmResult.notes.join(', ')}`);
+      }
 
-  // 6. Balance brackets with high confidence
-  const balanceResult = balanceBrackets(content);
-  if (balanceResult.changed) {
-    content = balanceResult.fixed;
-    result.changed = true;
-    result.issues.push('Balanced brackets/braces');
-    if (balanceResult.confidence === 'low') {
-      result.confidence = 'low';
+      // Map LLM confidence to our confidence
+      if (llmResult.confidence === 'low') {
+        result.confidence = 'low';
+      }
+    } else if (llmResult.notes.length > 0) {
+      // LLM tried to fix but resulted in same content - unusual
+      // Still record notes but don't mark as changed
+      result.issues.push(`LLM notes: ${llmResult.notes.join(', ')}`);
     }
+  } catch (error) {
+    // LLM fixing failed, log and continue with validation
+    result.issues.push(`LLM fixing failed: ${error}`);
+    result.confidence = 'low';
   }
 
-  // 7. Validate the result
+  // 4. Validate the result with enhanced rules
   const validation = validateMathBlock(content);
   if (!validation.valid) {
     result.confidence = 'low';
@@ -184,252 +192,18 @@ function isPseudoMath(content: string): boolean {
 }
 
 /**
- * Remove stray $$ delimiters inside block math
- * Example: "content $$ more content" -> "content more content"
- */
-function removeStrayDoubleDollar(content: string): string {
-  // Split by $$ and check if there are odd occurrences
-  // If we find $$ in the middle, remove them
-  let result = content;
-
-  // Simple approach: replace all $$ with empty string
-  // This works because we're already inside a block math (delimited by outer $$)
-  result = result.replace(/\$\$/g, '');
-
-  return result;
-}
-
-/**
- * Remove nested inline $ delimiters inside block math
- * Example: "$\displaystyle\sum_{i}$" -> "\displaystyle\sum_{i}"
- * Strategy: Remove unescaped $ that appear to be inline delimiters
- */
-function removeNestedInlineDollar(content: string): string {
-  let result = '';
-  let i = 0;
-
-  while (i < content.length) {
-    const char = content[i];
-
-    // Check for escaped dollar
-    if (char === '\\' && i + 1 < content.length && content[i + 1] === '$') {
-      result += '\\$';
-      i += 2;
-      continue;
-    }
-
-    // Check for unescaped $
-    if (char === '$') {
-      // Skip this dollar (don't add to result)
-      i++;
-      continue;
-    }
-
-    result += char;
-    i++;
-  }
-
-  return result;
-}
-
-/**
- * Fix broken LaTeX commands like \colorbox{color}{content}
- * Ensures both pairs of braces are balanced
- */
-function fixBrokenLatexCommands(content: string): string {
-  let result = content;
-
-  // Pattern: \colorbox{...}{...} or similar commands
-  // Find commands that might be broken
-  const commandPattern = /\\(colorbox|textcolor|fcolorbox|boxed|fbox)\s*\{/g;
-
-  let match;
-  const fixes: Array<{ start: number; end: number; replacement: string }> = [];
-
-  while ((match = commandPattern.exec(content)) !== null) {
-    const cmdStart = match.index;
-    const firstBraceStart = match.index + match[0].length - 1;
-
-    // Find the end of first brace
-    const firstBraceEnd = findMatchingBrace(content, firstBraceStart);
-    if (firstBraceEnd === -1) {
-      // First brace not closed, skip
-      continue;
-    }
-
-    // Check if there's a second brace immediately after
-    let secondBraceStart = firstBraceEnd + 1;
-    // Skip whitespace
-    while (secondBraceStart < content.length && /\s/.test(content[secondBraceStart])) {
-      secondBraceStart++;
-    }
-
-    if (secondBraceStart >= content.length || content[secondBraceStart] !== '{') {
-      // No second brace, this command might be incomplete
-      continue;
-    }
-
-    // Find the end of second brace
-    const secondBraceEnd = findMatchingBrace(content, secondBraceStart);
-    if (secondBraceEnd === -1) {
-      // Second brace not closed, try to close it
-      // Find a reasonable place to close (end of line or next command)
-      let closePos = content.indexOf('\n', secondBraceStart);
-      if (closePos === -1) {
-        closePos = content.length;
-      }
-
-      // Check if there's another backslash command before the newline
-      const nextCmd = content.indexOf('\\', secondBraceStart + 1);
-      if (nextCmd !== -1 && nextCmd < closePos) {
-        closePos = nextCmd;
-      }
-
-      // Insert closing brace
-      const fixed = content.slice(cmdStart, closePos) + '}';
-      fixes.push({ start: cmdStart, end: closePos, replacement: fixed });
-    }
-  }
-
-  // Apply fixes in reverse order to maintain indices
-  fixes.reverse().forEach((fix) => {
-    result = result.slice(0, fix.start) + fix.replacement + result.slice(fix.end);
-  });
-
-  return result;
-}
-
-/**
- * Find matching closing brace for an opening brace
- * Returns -1 if not found
- */
-function findMatchingBrace(text: string, openPos: number): number {
-  if (text[openPos] !== '{') {
-    return -1;
-  }
-
-  let depth = 1;
-  let i = openPos + 1;
-
-  while (i < text.length && depth > 0) {
-    const char = text[i];
-
-    // Check for escaped braces
-    if (i > 0 && text[i - 1] === '\\') {
-      i++;
-      continue;
-    }
-
-    if (char === '{') {
-      depth++;
-    } else if (char === '}') {
-      depth--;
-      if (depth === 0) {
-        return i;
-      }
-    }
-
-    i++;
-  }
-
-  return -1; // Not found
-}
-
-/**
- * Balance brackets and braces with high-confidence heuristics
- */
-function balanceBrackets(content: string): {
-  fixed: string;
-  changed: boolean;
-  confidence: 'high' | 'low';
-} {
-  const result = {
-    fixed: content,
-    changed: false,
-    confidence: 'high' as 'high' | 'low',
-  };
-
-  // Count brackets
-  const counts = {
-    '{': 0,
-    '}': 0,
-    '[': 0,
-    ']': 0,
-    '(': 0,
-    ')': 0,
-  };
-
-  let i = 0;
-  while (i < content.length) {
-    const char = content[i];
-
-    // Skip escaped characters
-    if (char === '\\' && i + 1 < content.length) {
-      i += 2;
-      continue;
-    }
-
-    if (char in counts) {
-      counts[char as keyof typeof counts]++;
-    }
-
-    i++;
-  }
-
-  // Check balance
-  let fixed = content;
-  let changed = false;
-
-  // Fix braces {}
-  const braceDiff = counts['{'] - counts['}'];
-  if (braceDiff > 0 && braceDiff <= 3) {
-    // Missing closing braces, add them at the end
-    fixed += '}'.repeat(braceDiff);
-    changed = true;
-  } else if (braceDiff < 0) {
-    // Extra closing braces, harder to fix safely
-    result.confidence = 'low';
-  }
-
-  // Fix square brackets []
-  const squareDiff = counts['['] - counts[']'];
-  if (squareDiff > 0 && squareDiff <= 3) {
-    fixed += ']'.repeat(squareDiff);
-    changed = true;
-  } else if (squareDiff < 0) {
-    result.confidence = 'low';
-  }
-
-  // Fix parentheses ()
-  const parenDiff = counts['('] - counts[')'];
-  if (parenDiff > 0 && parenDiff <= 3) {
-    fixed += ')'.repeat(parenDiff);
-    changed = true;
-  } else if (parenDiff < 0) {
-    result.confidence = 'low';
-  }
-
-  if (changed) {
-    result.fixed = fixed;
-    result.changed = true;
-  }
-
-  return result;
-}
-
-/**
  * Validate that fixed math block is potentially valid
- * Lightweight validation (no KaTeX execution)
+ * Enhanced validation with strict $ checking
  */
 function validateMathBlock(content: string): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
-  // Check 1: No stray $$ or $ delimiters
+  // Check 1: No stray $$ delimiters (STRICT - block math cannot contain $$)
   if (content.includes('$$')) {
     errors.push('Contains stray $$ delimiter');
   }
 
-  // Count unescaped single $ (should not exist in block math)
+  // Check 2: Count unescaped single $ (STRICT - should not exist in block math at all)
   let dollarCount = 0;
   for (let i = 0; i < content.length; i++) {
     if (content[i] === '$' && (i === 0 || content[i - 1] !== '\\')) {
@@ -437,10 +211,21 @@ function validateMathBlock(content: string): { valid: boolean; errors: string[] 
     }
   }
   if (dollarCount > 0) {
-    errors.push(`Contains ${dollarCount} unescaped $ delimiter(s)`);
+    errors.push(`Contains ${dollarCount} unescaped $ delimiter(s) - not allowed in block math`);
   }
 
-  // Check 2: Bracket balance
+  // Check 3: No LaTeX display delimiters \[ \] (these are alternative block math delimiters)
+  if (content.includes('\\[') || content.includes('\\]')) {
+    errors.push('Contains \\[ or \\] delimiters - not allowed in block math');
+  }
+
+  // Check 4: No HTML tags (common corruption from imports)
+  const htmlTagPattern = /<(img|figure|div|span|p|br|a)\b[^>]*>/i;
+  if (htmlTagPattern.test(content)) {
+    errors.push('Contains HTML tags - not valid LaTeX');
+  }
+
+  // Check 5: Bracket balance
   const brackets = { '{': 0, '[': 0, '(': 0 };
   for (let i = 0; i < content.length; i++) {
     const char = content[i];
@@ -464,7 +249,7 @@ function validateMathBlock(content: string): { valid: boolean; errors: string[] 
     errors.push(`Unbalanced parentheses: ${brackets['(']}`);
   }
 
-  // Check 3: No truncated commands (backslash at end without command)
+  // Check 6: No truncated commands (backslash at end without command)
   if (content.trim().endsWith('\\') && !content.trim().endsWith('\\\\')) {
     errors.push('Truncated command at end');
   }
