@@ -298,4 +298,80 @@ test.describe('Blog smoke journey', () => {
 
     await context.close();
   });
+
+  test('pagination navigation works correctly', async ({ page }) => {
+    await page.goto('/');
+    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
+    if (await notFoundHeading.count()) {
+      const baseLink = page.locator('a[href="/blog/"]');
+      if (await baseLink.count()) {
+        await baseLink.first().click();
+      }
+    }
+
+    // Check if pagination is present (only if more than 5 posts)
+    const pagination = page.locator('nav[aria-label="Pagination"]');
+    if ((await pagination.count()) === 0) {
+      test.info().annotations.push({
+        type: 'skip',
+        description: 'Not enough posts for pagination',
+      });
+      return;
+    }
+
+    // Verify pagination structure on first page
+    await expect(pagination).toBeVisible();
+
+    // Check that "Newer" is disabled on first page
+    const newerButton = pagination.locator('span[aria-disabled="true"]', {
+      hasText: /← Newer/,
+    });
+    await expect(newerButton).toBeVisible();
+
+    // Check current page indicator
+    const currentPageIndicator = pagination.locator('span[aria-current="page"]');
+    await expect(currentPageIndicator).toBeVisible();
+    await expect(currentPageIndicator).toHaveText('1');
+
+    // Check page links exist
+    const pageLinks = pagination.locator('a[aria-label^="Go to page"]');
+    const pageLinkCount = await pageLinks.count();
+    expect(pageLinkCount).toBeGreaterThan(0);
+
+    // Click on page 2 if it exists
+    if (pageLinkCount >= 1) {
+      const page2Link = pagination.locator('a[aria-label="Go to page 2"]');
+      if ((await page2Link.count()) > 0) {
+        await page2Link.click();
+
+        // Verify we're on page 2
+        await expect(page).toHaveURL(/page\/2\//);
+        await expect(pagination.locator('span[aria-current="page"]')).toHaveText('2');
+
+        // Verify "Newer" is now enabled
+        const newerLinkOnPage2 = pagination.locator('a[aria-label="Go to previous page"]', {
+          hasText: /← Newer/,
+        });
+        await expect(newerLinkOnPage2).toBeVisible();
+
+        // Click "Older" if available
+        const olderButton = pagination.locator('a[aria-label="Go to next page"]', {
+          hasText: /Older →/,
+        });
+        if ((await olderButton.count()) > 0) {
+          await olderButton.click();
+          await expect(page).toHaveURL(/page\/3\//);
+          await expect(pagination.locator('span[aria-current="page"]')).toHaveText('3');
+        }
+
+        // Navigate back to homepage
+        const page1Link = pagination.locator('a[aria-label="Go to page 1"]');
+        if ((await page1Link.count()) > 0) {
+          await page1Link.click();
+          await expect(page).toHaveURL(/\/$|\/blog\/$/);
+          await expect(pagination.locator('span[aria-current="page"]')).toHaveText('1');
+        }
+      }
+    }
+  });
 });

@@ -5,6 +5,7 @@ import Footer from '../../components/Footer.astro';
 import PostList from '../../components/PostList.astro';
 import { getPublishedPosts } from '../../lib/content/posts';
 import { normalizeBase } from '../../lib/slug';
+import { getPaginationPages } from '../../lib/ui/pagination';
 
 export async function getStaticPaths() {
   const PAGE_SIZE = 5;
@@ -19,6 +20,7 @@ export async function getStaticPaths() {
 
 const { slice, page, totalPages } = Astro.props;
 const BASE = normalizeBase(import.meta.env.BASE_URL);
+const paginationPages = getPaginationPages({ currentPage: page, totalPages, windowSize: 5 });
 ---
 
 <Layout title={`Page ${page} | Yuanle Liu‘s Blog`}>
@@ -30,32 +32,75 @@ const BASE = normalizeBase(import.meta.env.BASE_URL);
     </div>
     <PostList posts={slice} />
 
-    <div class="flex justify-between items-center mt-10 text-sm">
+    <nav class="flex justify-center items-center gap-2 mt-10" aria-label="Pagination">
       {
         page > 1 ? (
           <a
             href={page === 2 ? `${BASE}` : `${BASE}page/${page - 1}/`}
-            class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800"
+            class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            aria-label="Go to previous page"
           >
             ← Newer
           </a>
         ) : (
-          <span />
+          <span
+            class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800 opacity-50 cursor-not-allowed"
+            aria-disabled="true"
+            aria-label="No previous page"
+          >
+            ← Newer
+          </span>
         )
       }
+
+      <div class="flex gap-1 md:gap-2" role="list">
+        {
+          paginationPages.map((pageNum) =>
+            pageNum === 'ellipsis' ? (
+              <span class="px-2 md:px-3 py-2 text-gray-500 dark:text-gray-400" aria-hidden="true">
+                …
+              </span>
+            ) : pageNum === page ? (
+              <span
+                class="px-3 py-2 rounded bg-blue-500 text-white font-semibold"
+                aria-current="page"
+                aria-label={`Page ${pageNum}, current page`}
+              >
+                {pageNum}
+              </span>
+            ) : (
+              <a
+                href={pageNum === 1 ? `${BASE}` : `${BASE}page/${pageNum}/`}
+                class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                aria-label={`Go to page ${pageNum}`}
+              >
+                {pageNum}
+              </a>
+            ),
+          )
+        }
+      </div>
+
       {
         page < totalPages ? (
           <a
             href={`${BASE}page/${page + 1}/`}
-            class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800"
+            class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            aria-label="Go to next page"
           >
             Older →
           </a>
         ) : (
-          <span />
+          <span
+            class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800 opacity-50 cursor-not-allowed"
+            aria-disabled="true"
+            aria-label="No next page"
+          >
+            Older →
+          </span>
         )
       }
-    </div>
+    </nav>
   </main>
   <Footer />
 </Layout>
