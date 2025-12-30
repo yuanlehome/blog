@@ -39,6 +39,19 @@ jobs:
       - name: List build output
         run: ls -R dist
 
+      - name: Validate search index
+        run: |
+          if [ ! -f dist/search-index.json ]; then
+            echo "ERROR: dist/search-index.json is missing!"
+            exit 1
+          fi
+          SIZE=$(stat -f%z dist/search-index.json 2>/dev/null || stat -c%s dist/search-index.json 2>/dev/null)
+          if [ "$SIZE" -lt 100 ]; then
+            echo "ERROR: dist/search-index.json is too small ($SIZE bytes), likely empty or corrupted!"
+            exit 1
+          fi
+          echo "✓ Search index validated: $SIZE bytes"
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

@@ -176,12 +176,46 @@ const enabled = config.enabled;
         // Show loading
         if (loadingEl) loadingEl.style.display = 'flex';
 
-        // Fetch search index
-        const response = await fetch(`${BASE}search-index.json`);
+        // Fetch search index - use URL constructor for safer path joining
+        const indexUrl = new URL('search-index.json', window.location.origin + BASE).toString();
+
+        const response = await fetch(indexUrl);
         if (!response.ok) {
+          const contentType = response.headers.get('content-type') || '';
+          console.error('Failed to load search index:', {
+            url: indexUrl,
+            status: response.status,
+            statusText: response.statusText,
+            contentType: contentType,
+          });
           throw new Error(`Failed to load search index: ${response.status}`);
         }
-        searchIndex = await response.json();
+
+        // Read response text first to detect HTML 404 pages
+        const responseText = await response.text();
+        const contentType = response.headers.get('content-type') || '';
+
+        // Check if we got HTML instead of JSON (common for 404 pages)
+        if (!contentType.includes('application/json') && responseText.trim().startsWith('<')) {
+          console.error('Search index returned HTML instead of JSON:', {
+            url: indexUrl,
+            contentType: contentType,
+            preview: responseText.substring(0, 100),
+          });
+          throw new Error('Search index is not JSON (got HTML)');
+        }
+
+        // Parse JSON
+        try {
+          searchIndex = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('Failed to parse search index JSON:', {
+            url: indexUrl,
+            error: parseError.message,
+            preview: responseText.substring(0, 100),
+          });
+          throw new Error('Invalid search index format');
+        }
 
         // Import and initialize search engine
         const { SearchEngine } = await import('../lib/search/engine');
