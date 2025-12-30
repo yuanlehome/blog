@@ -20,6 +20,7 @@ export const typographyConfigSchema = z.object({
       sans: z
         .array(z.string())
         .default([
+          'Inter',
           'ui-sans-serif',
           'system-ui',
           '-apple-system',
@@ -28,6 +29,9 @@ export const typographyConfigSchema = z.object({
           'Roboto',
           'Helvetica Neue',
           'Arial',
+          'Noto Sans SC',
+          'PingFang SC',
+          'Microsoft YaHei',
           'sans-serif',
         ]),
       serif: z
@@ -36,6 +40,7 @@ export const typographyConfigSchema = z.object({
       mono: z
         .array(z.string())
         .default([
+          'JetBrains Mono',
           'Fira Code',
           'SFMono-Regular',
           'Menlo',
@@ -92,6 +97,7 @@ export type TypographyConfig = z.infer<typeof typographyConfigSchema>;
 export const defaultTypographyConfig: TypographyConfig = {
   fontFamily: {
     sans: [
+      'Inter',
       'ui-sans-serif',
       'system-ui',
       '-apple-system',
@@ -100,10 +106,14 @@ export const defaultTypographyConfig: TypographyConfig = {
       'Roboto',
       'Helvetica Neue',
       'Arial',
+      'Noto Sans SC',
+      'PingFang SC',
+      'Microsoft YaHei',
       'sans-serif',
     ],
     serif: ['ui-serif', 'Georgia', 'Cambria', 'Times New Roman', 'Times', 'serif'],
     mono: [
+      'JetBrains Mono',
       'Fira Code',
       'SFMono-Regular',
       'Menlo',

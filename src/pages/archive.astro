@@ -17,17 +17,17 @@ const groups = groupByYearMonth(posts);
       {
         groups.map((group) => (
           <section
-            class="border border-gray-200 dark:border-gray-800 rounded-xl p-4"
+            class="border border-zinc-200 dark:border-zinc-800 rounded-xl p-4"
             aria-label={group.key}
           >
             <h2 class="text-xl font-semibold mb-3">{group.key}</h2>
             <ul class="space-y-3">
               {group.posts.map((post) => (
                 <li class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <a href={buildPostUrl(post.slug)} class="font-medium hover:text-blue-600">
+                  <a href={buildPostUrl(post.slug)} class="font-medium hover:text-sky-600">
                     {post.data.title}
                   </a>
-                  <div class="flex items-center gap-3 text-sm text-gray-500">
+                  <div class="flex items-center gap-3 text-sm text-zinc-500">
                     <span>{post.data.date.toLocaleDateString()}</span>
                   </div>
                 </li>

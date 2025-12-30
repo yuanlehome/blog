@@ -36,7 +36,7 @@ const paginationPages = getPaginationPages({
   <main class="container mx-auto px-4 py-8 max-w-4xl">
     <div class="flex flex-col gap-2 mb-6">
       <h2 class="text-2xl font-bold">{homeConfig.title}</h2>
-      <p class="text-sm text-gray-500">{homeConfig.navigation.pageLabel} {page} / {totalPages}</p>
+      <p class="text-sm text-zinc-500">{homeConfig.navigation.pageLabel} {page} / {totalPages}</p>
     </div>
     <PostList posts={slice} />
 
@@ -45,14 +45,14 @@ const paginationPages = getPaginationPages({
         page > 1 ? (
           <a
             href={page === 2 ? `${BASE}` : `${BASE}page/${page - 1}/`}
-            class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            class="px-3 py-2 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
             aria-label="Go to previous page"
           >
             {homeConfig.navigation.newerText}
           </a>
         ) : (
           <span
-            class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800 opacity-50 cursor-not-allowed"
+            class="px-3 py-2 rounded bg-zinc-100 dark:bg-zinc-800 opacity-50 cursor-not-allowed"
             aria-disabled="true"
             aria-label="No previous page"
           >
@@ -65,12 +65,12 @@ const paginationPages = getPaginationPages({
         {
           paginationPages.map((pageNum) =>
             pageNum === 'ellipsis' ? (
-              <span class="px-2 md:px-3 py-2 text-gray-500 dark:text-gray-400" aria-hidden="true">
+              <span class="px-2 md:px-3 py-2 text-zinc-500 dark:text-zinc-400" aria-hidden="true">
                 …
               </span>
             ) : pageNum === page ? (
               <span
-                class="px-3 py-2 rounded bg-blue-500 text-white font-semibold"
+                class="px-3 py-2 rounded bg-sky-600 text-white font-semibold"
                 aria-current="page"
                 aria-label={`${homeConfig.navigation.pageLabel} ${pageNum}, current page`}
               >
@@ -79,7 +79,7 @@ const paginationPages = getPaginationPages({
             ) : (
               <a
                 href={pageNum === 1 ? `${BASE}` : `${BASE}page/${pageNum}/`}
-                class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                class="px-3 py-2 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
                 aria-label={`Go to page ${pageNum}`}
               >
                 {pageNum}
@@ -93,14 +93,14 @@ const paginationPages = getPaginationPages({
         page < totalPages ? (
           <a
             href={`${BASE}page/${page + 1}/`}
-            class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            class="px-3 py-2 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
             aria-label="Go to next page"
           >
             {homeConfig.navigation.olderText}
           </a>
         ) : (
           <span
-            class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800 opacity-50 cursor-not-allowed"
+            class="px-3 py-2 rounded bg-zinc-100 dark:bg-zinc-800 opacity-50 cursor-not-allowed"
             aria-disabled="true"
             aria-label="No next page"
           >

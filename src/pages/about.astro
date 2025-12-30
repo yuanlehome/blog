@@ -16,22 +16,22 @@ const BASE = normalizeBase(import.meta.env.BASE_URL);
     <section class="flex flex-col md:flex-row items-center gap-12 mb-16">
       <div class="w-48 h-48 md:w-64 md:h-64 flex-shrink-0 relative">
         <div
-          class="absolute inset-0 bg-blue-100 dark:bg-blue-900 rounded-full blur-2xl opacity-50 animate-pulse"
+          class="absolute inset-0 bg-sky-100 dark:bg-sky-900 rounded-full blur-2xl opacity-50 animate-pulse"
         >
         </div>
         <img
           src={`${BASE}${siteConfig.socialImage}`}
           alt="Profile"
-          class="relative w-full h-full object-cover rounded-full border-4 border-white dark:border-gray-800 shadow-xl"
+          class="relative w-full h-full object-cover rounded-full border-4 border-white dark:border-zinc-800 shadow-xl"
         />
       </div>
       <div class="text-center md:text-left">
         <h1
-          class="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400"
+          class="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-sky-600 to-cyan-600 dark:from-sky-400 dark:to-cyan-400"
         >
           Hi, I'm {profile.name}
         </h1>
-        <p class="text-xl text-gray-600 dark:text-gray-300 mb-6 max-w-lg mx-auto md:mx-0">
+        <p class="text-xl text-zinc-600 dark:text-zinc-300 mb-6 max-w-lg mx-auto md:mx-0">
           {profile.bio}
         </p>
         <div class="flex gap-4 justify-center md:justify-start">
@@ -40,7 +40,7 @@ const BASE = normalizeBase(import.meta.env.BASE_URL);
               <a
                 href={link.url}
                 target="_blank"
-                class={`px-6 py-2 text-white rounded-full transition-colors ${link.colorClass || 'bg-gray-700 hover:bg-gray-600'}`}
+                class={`px-6 py-2 text-white rounded-full transition-colors ${link.colorClass || 'bg-zinc-700 hover:bg-zinc-600'}`}
               >
                 {link.name}
               </a>
@@ -52,18 +52,18 @@ const BASE = normalizeBase(import.meta.env.BASE_URL);
 
     <section class="grid md:grid-cols-2 gap-8 mb-16">
       <div
-        class="group relative overflow-hidden rounded-2xl border border-gray-200/80 bg-white/80 p-8 shadow-[0_10px_30px_rgb(15_23_42/0.04)] transition duration-200 ease-out hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_14px_36px_rgb(59_130_246/0.12)] dark:border-gray-800/80 dark:bg-gray-900/70 dark:shadow-[0_16px_38px_rgb(0_0_0/0.45)] dark:hover:border-blue-500/35 dark:hover:shadow-[0_18px_40px_rgb(59_130_246/0.18)]"
+        class="group relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-neutral-50/80 p-8 shadow-[0_10px_30px_rgb(24_24_27/0.04)] transition duration-200 ease-out hover:-translate-y-1 hover:border-sky-200 hover:shadow-[0_14px_36px_rgb(2_132_199/0.1)] dark:border-zinc-800/80 dark:bg-zinc-900/70 dark:shadow-[0_16px_38px_rgb(0_0_0/0.4)] dark:hover:border-sky-500/35 dark:hover:shadow-[0_18px_40px_rgb(56_189_248/0.12)]"
       >
         <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
           <span>🚀</span>
           {profile.whatIDo.title}
         </h2>
-        <p class="text-gray-600 dark:text-gray-300 leading-relaxed">
+        <p class="text-zinc-600 dark:text-zinc-300 leading-relaxed">
           {profile.whatIDo.description}
         </p>
       </div>
       <div
-        class="group relative overflow-hidden rounded-2xl border border-gray-200/80 bg-white/80 p-8 shadow-[0_10px_30px_rgb(15_23_42/0.04)] transition duration-200 ease-out hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_14px_36px_rgb(59_130_246/0.12)] dark:border-gray-800/80 dark:bg-gray-900/70 dark:shadow-[0_16px_38px_rgb(0_0_0/0.45)] dark:hover:border-blue-500/35 dark:hover:shadow-[0_18px_40px_rgb(59_130_246/0.18)]"
+        class="group relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-neutral-50/80 p-8 shadow-[0_10px_30px_rgb(24_24_27/0.04)] transition duration-200 ease-out hover:-translate-y-1 hover:border-sky-200 hover:shadow-[0_14px_36px_rgb(2_132_199/0.1)] dark:border-zinc-800/80 dark:bg-zinc-900/70 dark:shadow-[0_16px_38px_rgb(0_0_0/0.4)] dark:hover:border-sky-500/35 dark:hover:shadow-[0_18px_40px_rgb(56_189_248/0.12)]"
       >
         <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
           <span>🛠️</span>
@@ -72,7 +72,7 @@ const BASE = normalizeBase(import.meta.env.BASE_URL);
         <div class="flex flex-wrap gap-2">
           {
             profile.techStack.skills.map((tech) => (
-              <span class="px-3 py-1 bg-white dark:bg-gray-700 rounded-lg text-sm font-medium shadow-sm">
+              <span class="px-3 py-1 bg-neutral-50 dark:bg-zinc-700 rounded-lg text-sm font-medium shadow-sm">
                 {tech}
               </span>
             ))
@@ -83,15 +83,15 @@ const BASE = normalizeBase(import.meta.env.BASE_URL);
 
     <section class="prose dark:prose-invert max-w-none">
       <h2 class="text-3xl font-bold mb-6 text-center">{profile.journey.title}</h2>
-      <div class="relative border-l-2 border-gray-200 dark:border-gray-700 ml-4 space-y-8">
+      <div class="relative border-l-2 border-zinc-200 dark:border-zinc-700 ml-4 space-y-8">
         {
           profile.journey.items.map((item) => (
-            <div class="ml-6 relative rounded-xl border border-gray-200/70 bg-white/80 p-4 shadow-[0_10px_30px_rgb(15_23_42/0.03)] transition duration-200 ease-out hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_14px_32px_rgb(59_130_246/0.12)] dark:border-gray-800/70 dark:bg-gray-900/60 dark:shadow-[0_14px_30px_rgb(0_0_0/0.4)] dark:hover:border-blue-500/35 dark:hover:shadow-[0_16px_34px_rgb(59_130_246/0.16)]">
+            <div class="ml-6 relative rounded-xl border border-zinc-200/70 bg-neutral-50/80 p-4 shadow-[0_10px_30px_rgb(24_24_27/0.03)] transition duration-200 ease-out hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-[0_14px_32px_rgb(2_132_199/0.1)] dark:border-zinc-800/70 dark:bg-zinc-900/60 dark:shadow-[0_14px_30px_rgb(0_0_0/0.35)] dark:hover:border-sky-500/35 dark:hover:shadow-[0_16px_34px_rgb(56_189_248/0.12)]">
               <div
-                class={`absolute -left-[31px] top-1 w-4 h-4 rounded-full border-4 border-white dark:border-gray-900 ${item.color || 'bg-gray-300 dark:bg-gray-600'}`}
+                class={`absolute -left-[31px] top-1 w-4 h-4 rounded-full border-4 border-white dark:border-zinc-900 ${item.color || 'bg-zinc-300 dark:bg-zinc-600'}`}
               />
               <h3 class="text-lg font-bold">{item.year}</h3>
-              <p class="text-gray-600 dark:text-gray-400">
+              <p class="text-zinc-600 dark:text-zinc-400">
                 <strong>{item.role}</strong>. {item.description}
               </p>
             </div>

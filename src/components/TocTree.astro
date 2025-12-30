@@ -20,27 +20,27 @@ const { nodes, depth = 0 } = Astro.props;
         title={node.text}
         class:list={[
           'group flex items-start gap-2 truncate underline-offset-2 transition',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
-          'dark:focus-visible:ring-offset-gray-900',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2',
+          'dark:focus-visible:ring-offset-zinc-900',
           {
             // H1 - Chapter title style
-            'text-base font-semibold text-gray-900 dark:text-gray-100': node.depth === 1,
+            'text-base font-semibold text-zinc-900 dark:text-zinc-100': node.depth === 1,
             // H2 - Regular style with indent
-            'text-sm text-gray-700 dark:text-gray-200 pl-3': node.depth === 2,
+            'text-sm text-zinc-700 dark:text-zinc-200 pl-3': node.depth === 2,
             // H3 - Smaller with more indent
-            'text-sm text-gray-600 dark:text-gray-300 pl-6': node.depth === 3,
+            'text-sm text-zinc-600 dark:text-zinc-300 pl-6': node.depth === 3,
             // H4+ - Even smaller with more indent
-            'text-xs text-gray-500 dark:text-gray-400 pl-9': node.depth >= 4,
+            'text-xs text-zinc-500 dark:text-zinc-400 pl-9': node.depth >= 4,
           },
         ]}
       >
         <span
           class:list={[
             'mt-0.5 text-xs transition-colors',
-            'group-data-[active=true]:text-blue-600 dark:group-data-[active=true]:text-blue-400',
+            'group-data-[active=true]:text-sky-600 dark:group-data-[active=true]:text-sky-400',
             {
-              'text-gray-600 dark:text-gray-400': node.depth === 1,
-              'text-gray-400 dark:text-gray-500': node.depth > 1,
+              'text-zinc-600 dark:text-zinc-400': node.depth === 1,
+              'text-zinc-400 dark:text-zinc-500': node.depth > 1,
             },
           ]}
         >

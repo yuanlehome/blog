@@ -15,9 +15,9 @@ const { prev, next } = Astro.props;
     prev ? (
       <a
         href={buildPostUrl(prev.slug)}
-        class="block p-4 rounded-lg border border-gray-200 dark:border-gray-800 hover:border-blue-500"
+        class="block p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:border-sky-500"
       >
-        <div class="text-xs uppercase text-gray-500">Previous</div>
+        <div class="text-xs uppercase text-zinc-500">Previous</div>
         <div class="font-semibold">{prev.data.title}</div>
       </a>
     ) : (
@@ -29,9 +29,9 @@ const { prev, next } = Astro.props;
     next ? (
       <a
         href={buildPostUrl(next.slug)}
-        class="block p-4 rounded-lg border border-gray-200 dark:border-gray-800 hover:border-blue-500 text-right"
+        class="block p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:border-sky-500 text-right"
       >
-        <div class="text-xs uppercase text-gray-500">Next</div>
+        <div class="text-xs uppercase text-zinc-500">Next</div>
         <div class="font-semibold">{next.data.title}</div>
       </a>
     ) : (

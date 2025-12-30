@@ -1,10 +1,13 @@
 # Typography Configuration
 # Font families, sizes, and line heights
+# Designed for technical documentation / engineering blog style
 
 # Font family stacks
 fontFamily:
-  # Sans-serif font stack (default body text)
+  # Sans-serif font stack (modern, technical style)
+  # Inter is prioritized for its excellent readability in technical content
   sans:
+    - 'Inter'
     - 'ui-sans-serif'
     - 'system-ui'
     - '-apple-system'
@@ -13,6 +16,9 @@ fontFamily:
     - 'Roboto'
     - 'Helvetica Neue'
     - 'Arial'
+    - 'Noto Sans SC'
+    - 'PingFang SC'
+    - 'Microsoft YaHei'
     - 'sans-serif'
   # Serif font stack (optional, for headings or special content)
   serif:
@@ -22,8 +28,10 @@ fontFamily:
     - 'Times New Roman'
     - 'Times'
     - 'serif'
-  # Monospace font stack (code blocks)
+  # Monospace font stack (engineering-focused)
+  # JetBrains Mono is prioritized for its developer-oriented design
   mono:
+    - 'JetBrains Mono'
     - 'Fira Code'
     - 'SFMono-Regular'
     - 'Menlo'

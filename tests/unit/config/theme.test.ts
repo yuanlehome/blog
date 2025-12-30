@@ -262,7 +262,7 @@ describe('Theme Configuration', () => {
       if (result.success) {
         expect(result.data.colorMode.default).toBe('system');
         expect(result.data.codeBlock.showLineNumbers).toBe(true);
-        expect(result.data.colors.brand).toBe('#3b82f6');
+        expect(result.data.colors.brand).toBe('#0284c7');
       }
     });
   });
@@ -272,8 +272,8 @@ describe('Theme Configuration', () => {
       expect(defaultThemeConfig.colorMode.default).toBe('system');
       expect(['light', 'dark', 'system']).toContain(defaultThemeConfig.colorMode.default);
       expect(defaultThemeConfig.themes).toBeInstanceOf(Array);
-      expect(defaultThemeConfig.colors.brand).toBe('#3b82f6');
-      expect(defaultThemeConfig.darkColors.brand).toBe('#60a5fa');
+      expect(defaultThemeConfig.colors.brand).toBe('#0284c7');
+      expect(defaultThemeConfig.darkColors.brand).toBe('#38bdf8');
     });
 
     it('should pass schema validation', () => {
