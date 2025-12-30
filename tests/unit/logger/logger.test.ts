@@ -6,7 +6,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import { createLogger } from '../../../scripts/logger/logger';
-import type { Logger } from '../../../scripts/logger/types';
 
 describe('Logger', () => {
   let originalEnv: NodeJS.ProcessEnv;
