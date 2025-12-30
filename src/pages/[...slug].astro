@@ -58,7 +58,9 @@ const metaJustifyClass = alignToJustifyClass(postMetaAlign);
             }`}
           >
             <div class={`flex flex-col gap-4 ${hasCover ? 'md:h-full' : ''}`}>
-              <h1 class={`text-3xl md:text-4xl font-bold leading-tight ${metaTextClass}`}>{post.data.title}</h1>
+              <h1 class={`text-3xl md:text-4xl font-bold leading-tight ${metaTextClass}`}>
+                {post.data.title}
+              </h1>
               <div
                 class={`text-gray-500 text-sm flex ${alignToItemsClass(postMetaAlign)} ${metaJustifyClass} gap-3 flex-wrap ${
                   hasCover ? 'md:mt-auto' : ''

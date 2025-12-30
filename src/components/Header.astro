@@ -24,7 +24,9 @@ function getMenuItemUrl(item: { isExternal: boolean; href: string }): string {
 ---
 
 <header class="site-header header-variant-frosted" data-header>
-  <div class={`container mx-auto px-5 py-3 sm:py-4 flex ${justifyClass === 'justify-center' ? 'justify-center' : 'justify-between'} ${itemsClass} max-w-5xl`}>
+  <div
+    class={`container mx-auto px-5 py-3 sm:py-4 flex ${justifyClass === 'justify-center' ? 'justify-center' : 'justify-between'} ${itemsClass} max-w-5xl`}
+  >
     <a href={BASE} class="text-xl font-bold hover:text-blue-600 dark:hover:text-blue-400"
       >{navConfig.header.brandText}</a
     >

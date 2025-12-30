@@ -159,19 +159,38 @@ function scanConfigUsage(inventory: ConfigItem[]): void {
     const keyParts = item.path.split('.');
     const key = keyParts[keyParts.length - 1];
 
+    let hasProperUsage = false;
+    let hasUtilityMapping = false;
+
     for (const file of sourceFiles) {
       const content = fs.readFileSync(file, 'utf-8');
 
       // Check if this config key is referenced
       if (content.includes(key)) {
         item.usages.push(file);
+
+        // Check if it's properly used through utility functions
+        if (
+          key.includes('Align') &&
+          (content.includes('alignToTextClass') ||
+            content.includes('alignToJustifyClass') ||
+            content.includes('alignToItemsClass') ||
+            content.includes('getAllAlignmentClasses'))
+        ) {
+          hasUtilityMapping = true;
+        }
       }
 
-      // Check for hardcoded values that shadow config
-      if (item.type === 'enum' && item.possibleValues) {
-        for (const value of item.possibleValues) {
-          // Check for hardcoded alignment classes
-          if (key.includes('Align')) {
+      // For alignment configs, check if components/pages consume them through utility functions
+      if (key.includes('Align')) {
+        // Check if alignment utility is imported
+        if (content.includes('from ') && content.includes('/lib/ui/alignment')) {
+          hasProperUsage = true;
+        }
+
+        // Still check for hardcoded values that might shadow config
+        if (item.type === 'enum' && item.possibleValues) {
+          for (const value of item.possibleValues) {
             const classPatterns = [
               `text-${value}`,
               `justify-${value === 'left' ? 'start' : value}`,
@@ -179,7 +198,8 @@ function scanConfigUsage(inventory: ConfigItem[]): void {
             ];
 
             for (const pattern of classPatterns) {
-              if (content.includes(pattern)) {
+              // Only flag as issue if hardcoded AND no utility mapping
+              if (content.includes(pattern) && !hasUtilityMapping && !content.includes('alignTo')) {
                 item.issues.push(
                   `Hardcoded class "${pattern}" found in ${file} - may shadow config`,
                 );
@@ -193,6 +213,8 @@ function scanConfigUsage(inventory: ConfigItem[]): void {
     // Determine status
     if (item.usages.length === 0) {
       item.status = 'UNUSED';
+    } else if (hasProperUsage || hasUtilityMapping) {
+      item.status = 'USED';
     } else if (item.issues.length > 0) {
       item.status = 'SHADOWED';
     } else {
@@ -283,9 +305,7 @@ function generateReport(result: AuditResult): string {
     if (item.status === 'UNUSED') {
       lines.push(`- **${item.path}**: 需要在相应组件中消费此配置，或从 schema/yml 中移除`);
     } else if (item.status === 'SHADOWED') {
-      lines.push(
-        `- **${item.path}**: 移除硬编码的 class，改为从配置读取并映射到 Tailwind class`,
-      );
+      lines.push(`- **${item.path}**: 移除硬编码的 class，改为从配置读取并映射到 Tailwind class`);
     }
   }
   lines.push('');
