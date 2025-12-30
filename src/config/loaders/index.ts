@@ -59,7 +59,12 @@ export {
   type JourneyItem,
 } from './profile';
 
-export { loadLayoutConfig, getLayoutConfig, defaultLayoutConfig, type LayoutConfig } from './layout';
+export {
+  loadLayoutConfig,
+  getLayoutConfig,
+  defaultLayoutConfig,
+  type LayoutConfig,
+} from './layout';
 
 export {
   loadTypographyConfig,
@@ -77,4 +82,3 @@ export {
 
 // Export base utilities
 export { loadConfig, loadConfigWithDefaults } from './base';
-

@@ -17,35 +17,34 @@ import typographyConfigData from '../yaml/typography.yml';
 export const typographyConfigSchema = z.object({
   fontFamily: z
     .object({
-      sans: z.array(z.string()).default([
-        'ui-sans-serif',
-        'system-ui',
-        '-apple-system',
-        'BlinkMacSystemFont',
-        'Segoe UI',
-        'Roboto',
-        'Helvetica Neue',
-        'Arial',
-        'sans-serif',
-      ]),
-      serif: z.array(z.string()).default([
-        'ui-serif',
-        'Georgia',
-        'Cambria',
-        'Times New Roman',
-        'Times',
-        'serif',
-      ]),
-      mono: z.array(z.string()).default([
-        'Fira Code',
-        'SFMono-Regular',
-        'Menlo',
-        'Monaco',
-        'Consolas',
-        'Liberation Mono',
-        'Courier New',
-        'monospace',
-      ]),
+      sans: z
+        .array(z.string())
+        .default([
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'Segoe UI',
+          'Roboto',
+          'Helvetica Neue',
+          'Arial',
+          'sans-serif',
+        ]),
+      serif: z
+        .array(z.string())
+        .default(['ui-serif', 'Georgia', 'Cambria', 'Times New Roman', 'Times', 'serif']),
+      mono: z
+        .array(z.string())
+        .default([
+          'Fira Code',
+          'SFMono-Regular',
+          'Menlo',
+          'Monaco',
+          'Consolas',
+          'Liberation Mono',
+          'Courier New',
+          'monospace',
+        ]),
     })
     .default({}),
   fontSize: z

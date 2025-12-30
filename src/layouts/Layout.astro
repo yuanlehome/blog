@@ -4,6 +4,8 @@ import '../styles/global.css';
 import ThemeScript from '../components/ThemeScript.astro';
 import { normalizeBase } from '../lib/slug';
 import { getSiteConfig } from '../config/loaders';
+import { getThemeConfig, getTypographyConfig, getComponentsConfig } from '../config/loaders';
+import { generateThemeCSS } from '../lib/theme/cssGenerator';
 
 interface Props {
   title: string;
@@ -13,6 +15,13 @@ interface Props {
 
 const BASE = normalizeBase(import.meta.env.BASE_URL);
 const siteConfig = getSiteConfig();
+const themeConfig = getThemeConfig();
+const typographyConfig = getTypographyConfig();
+const componentsConfig = getComponentsConfig();
+
+// Generate theme CSS variables
+const themeCSS = generateThemeCSS(themeConfig, typographyConfig, componentsConfig);
+
 const url = new URL(
   Astro.url.pathname,
   new URL(BASE, Astro.site ?? 'http://localhost/'),
@@ -49,6 +58,8 @@ const {
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={image} />
     <title>{title}</title>
+
+    <style set:html={themeCSS}></style>
 
     <style>
       :root {
