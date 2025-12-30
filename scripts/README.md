@@ -43,18 +43,18 @@ scripts/
 
 **环境变量（必需）**：
 
-| 变量名              | 说明                |
-| ------------------- | ------------------- |
-| `NOTION_TOKEN`      | Notion API token    |
-| `NOTION_DATABASE_ID`| Notion 数据库 ID    |
+| 变量名               | 说明             |
+| -------------------- | ---------------- |
+| `NOTION_TOKEN`       | Notion API token |
+| `NOTION_DATABASE_ID` | Notion 数据库 ID |
 
 **环境变量（可选）**：
 
-| 变量名                        | 默认值     | 说明               |
-| ----------------------------- | ---------- | ------------------ |
-| `MARKDOWN_TRANSLATE_ENABLED`  | `0`        | 启用翻译（`1`/`0`）|
-| `MARKDOWN_TRANSLATE_PROVIDER` | `identity` | 翻译提供商         |
-| `DEEPSEEK_API_KEY`            | —          | DeepSeek API key   |
+| 变量名                        | 默认值     | 说明                |
+| ----------------------------- | ---------- | ------------------- |
+| `MARKDOWN_TRANSLATE_ENABLED`  | `0`        | 启用翻译（`1`/`0`） |
+| `MARKDOWN_TRANSLATE_PROVIDER` | `identity` | 翻译提供商          |
+| `DEEPSEEK_API_KEY`            | —          | DeepSeek API key    |
 
 **输出**：
 
@@ -84,38 +84,38 @@ scripts/
 
 **命令行参数**：
 
-| 参数                        | 类型    | 必需 | 默认值  | 说明               |
-| --------------------------- | ------- | ---- | ------- | ------------------ |
-| `--url`                     | string  | ✓    | —       | 文章 URL           |
-| `--allow-overwrite`         | boolean | ✗    | `false` | 覆盖已存在文章     |
-| `--dry-run`                 | boolean | ✗    | `false` | 预览模式           |
-| `--use-first-image-as-cover`| boolean | ✗    | `false` | 首图作为封面       |
+| 参数                         | 类型    | 必需 | 默认值  | 说明           |
+| ---------------------------- | ------- | ---- | ------- | -------------- |
+| `--url`                      | string  | ✓    | —       | 文章 URL       |
+| `--allow-overwrite`          | boolean | ✗    | `false` | 覆盖已存在文章 |
+| `--dry-run`                  | boolean | ✗    | `false` | 预览模式       |
+| `--use-first-image-as-cover` | boolean | ✗    | `false` | 首图作为封面   |
 
 **环境变量**（可替代命令行参数）：
 
-| 变量名                   | 对应参数                    |
-| ------------------------ | --------------------------- |
-| `URL`                    | `--url`                     |
-| `ALLOW_OVERWRITE`        | `--allow-overwrite`         |
-| `DRY_RUN`                | `--dry-run`                 |
-| `USE_FIRST_IMAGE_AS_COVER`| `--use-first-image-as-cover`|
+| 变量名                     | 对应参数                     |
+| -------------------------- | ---------------------------- |
+| `URL`                      | `--url`                      |
+| `ALLOW_OVERWRITE`          | `--allow-overwrite`          |
+| `DRY_RUN`                  | `--dry-run`                  |
+| `USE_FIRST_IMAGE_AS_COVER` | `--use-first-image-as-cover` |
 
 **环境变量（翻译，可选）**：
 
-| 变量名                        | 默认值     | 说明               |
-| ----------------------------- | ---------- | ------------------ |
-| `MARKDOWN_TRANSLATE_ENABLED`  | `0`        | 启用翻译           |
-| `MARKDOWN_TRANSLATE_PROVIDER` | `identity` | 翻译提供商         |
-| `DEEPSEEK_API_KEY`            | —          | DeepSeek API key   |
+| 变量名                        | 默认值     | 说明             |
+| ----------------------------- | ---------- | ---------------- |
+| `MARKDOWN_TRANSLATE_ENABLED`  | `0`        | 启用翻译         |
+| `MARKDOWN_TRANSLATE_PROVIDER` | `identity` | 翻译提供商       |
+| `DEEPSEEK_API_KEY`            | —          | DeepSeek API key |
 
 **支持的平台**：
 
-| 平台      | URL 模式                        | 输出目录                |
-| --------- | ------------------------------- | ----------------------- |
-| 知乎      | `zhuanlan.zhihu.com/p/*`        | `src/content/blog/zhihu/` |
-| 微信      | `mp.weixin.qq.com/s/*`          | `src/content/blog/wechat/`|
-| Medium    | `*.medium.com/*`                | `src/content/blog/medium/`|
-| 其他      | 任意 URL                        | `src/content/blog/others/`|
+| 平台   | URL 模式                 | 输出目录                   |
+| ------ | ------------------------ | -------------------------- |
+| 知乎   | `zhuanlan.zhihu.com/p/*` | `src/content/blog/zhihu/`  |
+| 微信   | `mp.weixin.qq.com/s/*`   | `src/content/blog/wechat/` |
+| Medium | `*.medium.com/*`         | `src/content/blog/medium/` |
+| 其他   | 任意 URL                 | `src/content/blog/others/` |
 
 **使用示例**：
 
@@ -142,11 +142,11 @@ npm run import:content -- --url="<URL>" --dry-run
 
 **命令行参数**：
 
-| 参数             | 类型    | 必需 | 默认值  | 说明                   |
-| ---------------- | ------- | ---- | ------- | ---------------------- |
-| `--target`       | string  | ✓    | —       | slug 或文件路径        |
-| `--delete-images`| boolean | ✗    | `false` | 删除关联图片目录       |
-| `--dry-run`      | boolean | ✗    | `false` | 预览模式               |
+| 参数              | 类型    | 必需 | 默认值  | 说明             |
+| ----------------- | ------- | ---- | ------- | ---------------- |
+| `--target`        | string  | ✓    | —       | slug 或文件路径  |
+| `--delete-images` | boolean | ✗    | `false` | 删除关联图片目录 |
+| `--dry-run`       | boolean | ✗    | `false` | 预览模式         |
 
 **环境变量**（可替代命令行参数）：
 
@@ -200,30 +200,30 @@ npm run delete:article -- --target=my-slug --delete-images --dry-run
 
 ### 3.1 功能列表
 
-| 功能               | 说明                                   |
-| ------------------ | -------------------------------------- |
-| 语言检测           | 分析文章主体语言（英文/中文）          |
-| 翻译               | 英文文章翻译为中文（可选）             |
-| 代码块语言标注     | 自动推断并补齐缺失的语言标识符         |
-| 图片 caption 处理  | 转换为 Markdown 斜体格式               |
-| 数学公式修复       | 修正 `$ x $` → `$x$` 等格式问题        |
-| 格式清理           | 压缩多余空行、统一换行符               |
+| 功能              | 说明                            |
+| ----------------- | ------------------------------- |
+| 语言检测          | 分析文章主体语言（英文/中文）   |
+| 翻译              | 英文文章翻译为中文（可选）      |
+| 代码块语言标注    | 自动推断并补齐缺失的语言标识符  |
+| 图片 caption 处理 | 转换为 Markdown 斜体格式        |
+| 数学公式修复      | 修正 `$ x $` → `$x$` 等格式问题 |
+| 格式清理          | 压缩多余空行、统一换行符        |
 
 ### 3.2 翻译提供商
 
-| Provider   | 说明                       |
-| ---------- | -------------------------- |
-| `identity` | 不翻译，保持原文（默认）   |
-| `deepseek` | 使用 DeepSeek API 翻译     |
+| Provider   | 说明                     |
+| ---------- | ------------------------ |
+| `identity` | 不翻译，保持原文（默认） |
+| `deepseek` | 使用 DeepSeek API 翻译   |
 
 **DeepSeek 环境变量**：
 
-| 变量名                        | 必需 | 默认值                     |
-| ----------------------------- | ---- | -------------------------- |
-| `DEEPSEEK_API_KEY`            | 是   | —                          |
-| `DEEPSEEK_MODEL`              | 否   | `deepseek-chat`            |
-| `DEEPSEEK_BASE_URL`           | 否   | `https://api.deepseek.com` |
-| `DEEPSEEK_CACHE_ENABLED`      | 否   | `1`                        |
+| 变量名                   | 必需 | 默认值                     |
+| ------------------------ | ---- | -------------------------- |
+| `DEEPSEEK_API_KEY`       | 是   | —                          |
+| `DEEPSEEK_MODEL`         | 否   | `deepseek-chat`            |
+| `DEEPSEEK_BASE_URL`      | 否   | `https://api.deepseek.com` |
+| `DEEPSEEK_CACHE_ENABLED` | 否   | `1`                        |
 
 ---
 
@@ -231,10 +231,10 @@ npm run delete:article -- --target=my-slug --delete-images --dry-run
 
 ### 4.1 可导入的模块
 
-| 模块                   | 用途             |
-| ---------------------- | ---------------- |
-| `src/config/paths.ts`  | 路径配置         |
-| `src/lib/slug/`        | Slug 生成与验证  |
+| 模块                  | 用途            |
+| --------------------- | --------------- |
+| `src/config/paths.ts` | 路径配置        |
+| `src/lib/slug/`       | Slug 生成与验证 |
 
 ### 4.2 依赖边界
 
@@ -244,11 +244,11 @@ npm run delete:article -- --target=my-slug --delete-images --dry-run
 
 ### 4.3 与 CI 的关系
 
-| Workflow               | 调用的 Script              |
-| ---------------------- | -------------------------- |
-| `sync-notion.yml`      | `scripts/notion-sync.ts`   |
-| `import-content.yml`   | `scripts/content-import.ts`|
-| `delete-article.yml`   | `scripts/delete-article.ts`|
+| Workflow             | 调用的 Script               |
+| -------------------- | --------------------------- |
+| `sync-notion.yml`    | `scripts/notion-sync.ts`    |
+| `import-content.yml` | `scripts/content-import.ts` |
+| `delete-article.yml` | `scripts/delete-article.ts` |
 
 > **详细 CI 说明** → [docs/ci-workflow.md](../docs/ci-workflow.md)
 
@@ -260,12 +260,15 @@ npm run delete:article -- --target=my-slug --delete-images --dry-run
 
 1. 创建 `scripts/<script-name>.ts`
 2. 导入必要模块：
+
    ```typescript
    import { BLOG_CONTENT_DIR } from '../src/config/paths';
    import { slugFromTitle } from '../src/lib/slug';
    ```
+
 3. 实现主函数和参数解析
 4. 在 `package.json` 添加 npm script：
+
    ```json
    {
      "scripts": {
@@ -273,6 +276,7 @@ npm run delete:article -- --target=my-slug --delete-images --dry-run
      }
    }
    ```
+
 5. 在本文档中添加说明
 
 ### 5.2 设计原则

@@ -40,27 +40,27 @@ blog/
 
 Astro 构建期和浏览器运行期执行的代码。**完全隔离于 scripts**，仅操作预生成的内容制品。
 
-| 子模块             | 职责                                           |
-| ------------------ | ---------------------------------------------- |
-| `src/config/`      | 路径、站点元数据、环境变量、功能开关           |
-| `src/lib/slug/`    | Slug 生成与冲突检测（**可被 scripts 导入**）   |
-| `src/lib/content/` | 内容查询、日期格式化、阅读时间、目录树         |
-| `src/lib/markdown/`| Remark/Rehype 插件（标题锚点、外链、语法高亮） |
-| `src/lib/site/`    | 资源 URL 解析                                  |
-| `src/lib/ui/`      | 客户端交互（代码复制、浮动按钮）               |
-| `src/lib/theme/`   | 主题切换逻辑                                   |
-| `src/content/blog/`| 博客文章（notion/、wechat/、others/、本地）    |
+| 子模块              | 职责                                           |
+| ------------------- | ---------------------------------------------- |
+| `src/config/`       | 路径、站点元数据、环境变量、功能开关           |
+| `src/lib/slug/`     | Slug 生成与冲突检测（**可被 scripts 导入**）   |
+| `src/lib/content/`  | 内容查询、日期格式化、阅读时间、目录树         |
+| `src/lib/markdown/` | Remark/Rehype 插件（标题锚点、外链、语法高亮） |
+| `src/lib/site/`     | 资源 URL 解析                                  |
+| `src/lib/ui/`       | 客户端交互（代码复制、浮动按钮）               |
+| `src/lib/theme/`    | 主题切换逻辑                                   |
+| `src/content/blog/` | 博客文章（notion/、wechat/、others/、本地）    |
 
 ### 2.2 Scripts 层（`scripts/`）
 
 内容获取与预处理，在 **Astro 构建之外** 通过 Node.js 运行。
 
-| 脚本                 | 职责                                 |
-| -------------------- | ------------------------------------ |
-| `notion-sync.ts`     | 同步 Notion 数据库已发布页面         |
-| `content-import.ts`  | 从外部 URL（知乎、微信、Medium）导入 |
-| `delete-article.ts`  | 删除文章及关联图片                   |
-| `config-audit.ts`    | 配置生效性审计                       |
+| 脚本                | 职责                                 |
+| ------------------- | ------------------------------------ |
+| `notion-sync.ts`    | 同步 Notion 数据库已发布页面         |
+| `content-import.ts` | 从外部 URL（知乎、微信、Medium）导入 |
+| `delete-article.ts` | 删除文章及关联图片                   |
+| `config-audit.ts`   | 配置生效性审计                       |
 
 > **详细参数与用法** → [scripts/README.md](../scripts/README.md)
 
@@ -68,27 +68,27 @@ Astro 构建期和浏览器运行期执行的代码。**完全隔离于 scripts*
 
 自动化触发与执行。
 
-| Workflow                      | 职责                           |
-| ----------------------------- | ------------------------------ |
-| `validation.yml`              | PR/push 质量门禁               |
-| `deploy.yml`                  | 构建并发布到 GitHub Pages      |
-| `sync-notion.yml`             | 定时/手动同步 Notion           |
-| `import-content.yml`          | 手动导入外部文章               |
-| `delete-article.yml`          | 手动删除文章                   |
-| `post-deploy-smoke-test.yml`  | 部署后烟测                     |
-| `link-check.yml`              | 链接有效性检查                 |
-| `pr-preview.yml`              | PR 预览站点                    |
+| Workflow                     | 职责                      |
+| ---------------------------- | ------------------------- |
+| `validation.yml`             | PR/push 质量门禁          |
+| `deploy.yml`                 | 构建并发布到 GitHub Pages |
+| `sync-notion.yml`            | 定时/手动同步 Notion      |
+| `import-content.yml`         | 手动导入外部文章          |
+| `delete-article.yml`         | 手动删除文章              |
+| `post-deploy-smoke-test.yml` | 部署后烟测                |
+| `link-check.yml`             | 链接有效性检查            |
+| `pr-preview.yml`             | PR 预览站点               |
 
 > **详细说明** → [ci-workflow.md](./ci-workflow.md)
 
 ### 2.4 Docs（`docs/`）
 
-| 文档                 | 职责                         |
-| -------------------- | ---------------------------- |
-| `architecture.md`    | 仓库结构与模块设计（本文档） |
-| `ci-workflow.md`     | CI/Workflow 整体工作流       |
-| `configuration.md`   | 用户/站点层面配置            |
-| `config-audit.md`    | 配置治理与一致性             |
+| 文档               | 职责                         |
+| ------------------ | ---------------------------- |
+| `architecture.md`  | 仓库结构与模块设计（本文档） |
+| `ci-workflow.md`   | CI/Workflow 整体工作流       |
+| `configuration.md` | 用户/站点层面配置            |
+| `config-audit.md`  | 配置治理与一致性             |
 
 ---
 
@@ -131,12 +131,12 @@ Astro 构建期和浏览器运行期执行的代码。**完全隔离于 scripts*
 
 ### 3.2 边界规则
 
-| 方向               | 允许 | 说明                                               |
-| ------------------ | ---- | -------------------------------------------------- |
-| Scripts → Runtime  | 部分 | 只能导入 `src/config/paths.ts` 和 `src/lib/slug/`  |
-| Runtime → Scripts  | 禁止 | Runtime 不得依赖 scripts                           |
-| Scripts → utils.ts | 允许 | Scripts 内部共享工具                               |
-| Runtime → utils.ts | 禁止 | `scripts/utils.ts` 仅供 scripts 使用               |
+| 方向               | 允许 | 说明                                              |
+| ------------------ | ---- | ------------------------------------------------- |
+| Scripts → Runtime  | 部分 | 只能导入 `src/config/paths.ts` 和 `src/lib/slug/` |
+| Runtime → Scripts  | 禁止 | Runtime 不得依赖 scripts                          |
+| Scripts → utils.ts | 允许 | Scripts 内部共享工具                              |
+| Runtime → utils.ts | 禁止 | `scripts/utils.ts` 仅供 scripts 使用              |
 
 ### 3.3 共享模块
 
@@ -155,14 +155,14 @@ Astro 构建期和浏览器运行期执行的代码。**完全隔离于 scripts*
 
 ### 4.1 在 `src/` 中添加功能
 
-| 功能类型           | 放置位置              |
-| ------------------ | --------------------- |
-| 配置（路径、URL）  | `src/config/`         |
-| Markdown 转换      | `src/lib/markdown/`   |
-| 内容查询/转换      | `src/lib/content/`    |
-| URL/Slug 相关      | `src/lib/slug/` 或 `src/lib/site/` |
-| 客户端交互         | `src/lib/ui/`         |
-| 新领域（如搜索）   | `src/lib/<domain>/`   |
+| 功能类型          | 放置位置                           |
+| ----------------- | ---------------------------------- |
+| 配置（路径、URL） | `src/config/`                      |
+| Markdown 转换     | `src/lib/markdown/`                |
+| 内容查询/转换     | `src/lib/content/`                 |
+| URL/Slug 相关     | `src/lib/slug/` 或 `src/lib/site/` |
+| 客户端交互        | `src/lib/ui/`                      |
+| 新领域（如搜索）  | `src/lib/<domain>/`                |
 
 **禁止**：创建 `src/lib/utils/` 或 `src/lib/helpers/`
 

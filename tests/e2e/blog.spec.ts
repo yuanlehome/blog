@@ -318,7 +318,7 @@ test.describe('Blog smoke journey', () => {
 
     // Wait for page to be fully loaded (DOM ready, not network idle due to Giscus)
     await page.waitForLoadState('domcontentloaded');
-    
+
     const stack = page.locator('[data-floating-action-stack]');
     await expect(stack).toBeVisible();
 

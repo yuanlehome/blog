@@ -32,18 +32,18 @@ src/config/yaml/
 
 ### 2.1 站点配置（`site.yml`）
 
-| 字段              | 类型    | 默认值                   | 说明                 |
-| ----------------- | ------- | ------------------------ | -------------------- |
-| `siteName`        | string  | "Yuanle Liu's Blog"      | 网站名称             |
-| `title`           | string  | "Yuanle Liu's Blog"      | 网站标题             |
-| `description`     | string  | "A minimal Astro blog"   | 网站描述（SEO）      |
-| `author`          | string  | "Yuanle Liu"             | 作者名称             |
-| `copyrightYear`   | number  | 2025                     | 版权年份             |
-| `copyrightText`   | string  | "All rights reserved."   | 版权文本             |
-| `defaultLanguage` | string  | "en"                     | 默认语言             |
-| `dateFormat`      | string  | "YYYY-MM-DD"             | 日期格式             |
-| `enableRSS`       | boolean | true                     | 启用 RSS             |
-| `enableSitemap`   | boolean | true                     | 启用站点地图         |
+| 字段              | 类型    | 默认值                 | 说明            |
+| ----------------- | ------- | ---------------------- | --------------- |
+| `siteName`        | string  | "Yuanle Liu's Blog"    | 网站名称        |
+| `title`           | string  | "Yuanle Liu's Blog"    | 网站标题        |
+| `description`     | string  | "A minimal Astro blog" | 网站描述（SEO） |
+| `author`          | string  | "Yuanle Liu"           | 作者名称        |
+| `copyrightYear`   | number  | 2025                   | 版权年份        |
+| `copyrightText`   | string  | "All rights reserved." | 版权文本        |
+| `defaultLanguage` | string  | "en"                   | 默认语言        |
+| `dateFormat`      | string  | "YYYY-MM-DD"           | 日期格式        |
+| `enableRSS`       | boolean | true                   | 启用 RSS        |
+| `enableSitemap`   | boolean | true                   | 启用站点地图    |
 
 ### 2.2 导航配置（`nav.yml`）
 
@@ -66,55 +66,55 @@ theme:
 
 ### 2.3 首页配置（`home.yml`）
 
-| 字段                       | 类型    | 默认值            | 说明             |
-| -------------------------- | ------- | ----------------- | ---------------- |
-| `title`                    | string  | "Recent Posts"    | 首页标题         |
-| `showPostCount`            | boolean | true              | 显示文章总数     |
-| `postCountText`            | string  | "published posts" | 文章计数后缀     |
-| `pagination.pageSize`      | number  | 5                 | 每页文章数       |
-| `pagination.windowSize`    | number  | 5                 | 分页窗口大小     |
-| `navigation.newerText`     | string  | "← Newer"         | 更新按钮文本     |
-| `navigation.olderText`     | string  | "Older →"         | 更早按钮文本     |
+| 字段                    | 类型    | 默认值            | 说明         |
+| ----------------------- | ------- | ----------------- | ------------ |
+| `title`                 | string  | "Recent Posts"    | 首页标题     |
+| `showPostCount`         | boolean | true              | 显示文章总数 |
+| `postCountText`         | string  | "published posts" | 文章计数后缀 |
+| `pagination.pageSize`   | number  | 5                 | 每页文章数   |
+| `pagination.windowSize` | number  | 5                 | 分页窗口大小 |
+| `navigation.newerText`  | string  | "← Newer"         | 更新按钮文本 |
+| `navigation.olderText`  | string  | "Older →"         | 更早按钮文本 |
 
 ### 2.4 文章页配置（`post.yml`）
 
-| 字段                        | 类型    | 默认值   | 说明           |
-| --------------------------- | ------- | -------- | -------------- |
-| `metadata.showPublishedDate`| boolean | true     | 显示发布日期   |
-| `metadata.showUpdatedDate`  | boolean | true     | 显示更新日期   |
-| `metadata.showReadingTime`  | boolean | true     | 显示阅读时间   |
-| `metadata.showWordCount`    | boolean | true     | 显示字数       |
-| `tableOfContents.enable`    | boolean | true     | 启用目录       |
-| `tableOfContents.defaultExpanded` | boolean | false | 默认展开     |
-| `floatingActions.enableToc` | boolean | true     | 目录浮动按钮   |
-| `floatingActions.enableTop` | boolean | true     | 返回顶部按钮   |
-| `comments.enable`           | boolean | true     | 启用评论       |
-| `comments.provider`         | string  | "giscus" | 评论服务商     |
+| 字段                              | 类型    | 默认值   | 说明         |
+| --------------------------------- | ------- | -------- | ------------ |
+| `metadata.showPublishedDate`      | boolean | true     | 显示发布日期 |
+| `metadata.showUpdatedDate`        | boolean | true     | 显示更新日期 |
+| `metadata.showReadingTime`        | boolean | true     | 显示阅读时间 |
+| `metadata.showWordCount`          | boolean | true     | 显示字数     |
+| `tableOfContents.enable`          | boolean | true     | 启用目录     |
+| `tableOfContents.defaultExpanded` | boolean | false    | 默认展开     |
+| `floatingActions.enableToc`       | boolean | true     | 目录浮动按钮 |
+| `floatingActions.enableTop`       | boolean | true     | 返回顶部按钮 |
+| `comments.enable`                 | boolean | true     | 启用评论     |
+| `comments.provider`               | string  | "giscus" | 评论服务商   |
 
 ### 2.5 布局配置（`layout.yml`）
 
-| 字段                        | 类型    | 默认值         | 说明               |
-| --------------------------- | ------- | -------------- | ------------------ |
-| `layoutMode`                | enum    | "rightSidebar" | 布局模式           |
-| `sidebar.enabled`           | boolean | true           | 启用侧边栏         |
-| `sidebar.position`          | enum    | "right"        | 侧边栏位置         |
-| `alignment.headerAlign`     | enum    | "left"         | 头部对齐           |
-| `alignment.footerAlign`     | enum    | "left"         | 底部对齐           |
-| `alignment.postMetaAlign`   | enum    | "left"         | 文章元信息对齐     |
+| 字段                      | 类型    | 默认值         | 说明           |
+| ------------------------- | ------- | -------------- | -------------- |
+| `layoutMode`              | enum    | "rightSidebar" | 布局模式       |
+| `sidebar.enabled`         | boolean | true           | 启用侧边栏     |
+| `sidebar.position`        | enum    | "right"        | 侧边栏位置     |
+| `alignment.headerAlign`   | enum    | "left"         | 头部对齐       |
+| `alignment.footerAlign`   | enum    | "left"         | 底部对齐       |
+| `alignment.postMetaAlign` | enum    | "left"         | 文章元信息对齐 |
 
 **layoutMode 可选值**：`centered`、`rightSidebar`、`leftSidebar`
 
 ### 2.6 主题配置（`theme.yml`）
 
-| 字段                           | 类型    | 默认值         | 说明               |
-| ------------------------------ | ------- | -------------- | ------------------ |
-| `colorMode.default`            | enum    | "system"       | 默认主题           |
-| `colorMode.allowToggle`        | boolean | true           | 允许切换           |
-| `colors.brand`                 | color   | "#3b82f6"      | 品牌色             |
-| `colors.accent`                | color   | "#8b5cf6"      | 强调色             |
-| `codeBlock.showLineNumbers`    | boolean | true           | 代码行号           |
-| `codeBlock.showCopyButton`     | boolean | true           | 复制按钮           |
-| `header.variant`               | enum    | "default"      | 页头样式           |
+| 字段                        | 类型    | 默认值    | 说明     |
+| --------------------------- | ------- | --------- | -------- |
+| `colorMode.default`         | enum    | "system"  | 默认主题 |
+| `colorMode.allowToggle`     | boolean | true      | 允许切换 |
+| `colors.brand`              | color   | "#3b82f6" | 品牌色   |
+| `colors.accent`             | color   | "#8b5cf6" | 强调色   |
+| `codeBlock.showLineNumbers` | boolean | true      | 代码行号 |
+| `codeBlock.showCopyButton`  | boolean | true      | 复制按钮 |
+| `header.variant`            | enum    | "default" | 页头样式 |
 
 ---
 

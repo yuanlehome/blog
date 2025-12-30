@@ -11,16 +11,16 @@
 
 ## 一、Workflow 清单
 
-| Workflow 文件                  | 职责                     | 触发条件                         |
-| ------------------------------ | ------------------------ | -------------------------------- |
-| `validation.yml`               | 质量门禁                 | PR → main / Push → main          |
-| `deploy.yml`                   | 构建并发布 GitHub Pages  | Push → main / 手动               |
-| `sync-notion.yml`              | 同步 Notion 内容         | 每日 00:00 UTC / 手动            |
-| `import-content.yml`           | 导入外部文章             | 手动                             |
-| `delete-article.yml`           | 删除文章                 | 手动                             |
-| `post-deploy-smoke-test.yml`   | 部署后烟测               | `deploy.yml` 成功后              |
-| `link-check.yml`               | 链接有效性检查           | PR → main / Push → main / 每周一 |
-| `pr-preview.yml`               | PR 预览站点              | PR 打开/同步/关闭                |
+| Workflow 文件                | 职责                    | 触发条件                         |
+| ---------------------------- | ----------------------- | -------------------------------- |
+| `validation.yml`             | 质量门禁                | PR → main / Push → main          |
+| `deploy.yml`                 | 构建并发布 GitHub Pages | Push → main / 手动               |
+| `sync-notion.yml`            | 同步 Notion 内容        | 每日 00:00 UTC / 手动            |
+| `import-content.yml`         | 导入外部文章            | 手动                             |
+| `delete-article.yml`         | 删除文章                | 手动                             |
+| `post-deploy-smoke-test.yml` | 部署后烟测              | `deploy.yml` 成功后              |
+| `link-check.yml`             | 链接有效性检查          | PR → main / Push → main / 每周一 |
+| `pr-preview.yml`             | PR 预览站点             | PR 打开/同步/关闭                |
 
 ---
 
@@ -81,10 +81,10 @@
 
 **输入参数（手动触发）**：
 
-| 参数                         | 类型    | 默认值     | 说明               |
-| ---------------------------- | ------- | ---------- | ------------------ |
-| `markdown_translate_enabled` | boolean | `false`    | 启用 Markdown 翻译 |
-| `markdown_translate_provider`| choice  | `identity` | 翻译提供商         |
+| 参数                          | 类型    | 默认值     | 说明               |
+| ----------------------------- | ------- | ---------- | ------------------ |
+| `markdown_translate_enabled`  | boolean | `false`    | 启用 Markdown 翻译 |
+| `markdown_translate_provider` | choice  | `identity` | 翻译提供商         |
 
 **调用 Scripts**：`npm run notion:sync` → `scripts/notion-sync.ts`
 
@@ -109,14 +109,14 @@
 
 **输入参数**：
 
-| 参数                         | 类型    | 默认值     | 说明                   |
-| ---------------------------- | ------- | ---------- | ---------------------- |
-| `url`                        | string  | —          | 必填，文章 URL         |
-| `allow_overwrite`            | boolean | `false`    | 覆盖已存在文章         |
-| `dry_run`                    | boolean | `false`    | 预览模式               |
-| `use_first_image_as_cover`   | boolean | `true`     | 首图作为封面           |
-| `markdown_translate_enabled` | boolean | `false`    | 启用翻译               |
-| `markdown_translate_provider`| choice  | `deepseek` | 翻译提供商             |
+| 参数                          | 类型    | 默认值     | 说明           |
+| ----------------------------- | ------- | ---------- | -------------- |
+| `url`                         | string  | —          | 必填，文章 URL |
+| `allow_overwrite`             | boolean | `false`    | 覆盖已存在文章 |
+| `dry_run`                     | boolean | `false`    | 预览模式       |
+| `use_first_image_as_cover`    | boolean | `true`     | 首图作为封面   |
+| `markdown_translate_enabled`  | boolean | `false`    | 启用翻译       |
+| `markdown_translate_provider` | choice  | `deepseek` | 翻译提供商     |
 
 **调用 Scripts**：`npm run import:content` → `scripts/content-import.ts`
 
@@ -141,11 +141,11 @@
 
 **输入参数**：
 
-| 参数            | 类型    | 默认值  | 说明                 |
-| --------------- | ------- | ------- | -------------------- |
+| 参数            | 类型    | 默认值  | 说明                  |
+| --------------- | ------- | ------- | --------------------- |
 | `target`        | string  | —       | 必填，slug 或文件路径 |
-| `delete_images` | boolean | `false` | 删除关联图片         |
-| `dry_run`       | boolean | `false` | 预览模式             |
+| `delete_images` | boolean | `false` | 删除关联图片          |
+| `dry_run`       | boolean | `false` | 预览模式              |
 
 **调用 Scripts**：`npm run delete:article` → `scripts/delete-article.ts`
 
@@ -257,21 +257,21 @@
 
 以下 workflow 需要 secrets，只能手动触发：
 
-| Workflow             | 需要的 Secrets                                   |
-| -------------------- | ------------------------------------------------ |
+| Workflow             | 需要的 Secrets                                                   |
+| -------------------- | ---------------------------------------------------------------- |
 | `sync-notion.yml`    | `NOTION_TOKEN`、`NOTION_DATABASE_ID`、`DEEPSEEK_API_KEY`（可选） |
-| `import-content.yml` | `DEEPSEEK_API_KEY`（可选）                       |
-| `delete-article.yml` | 无                                               |
+| `import-content.yml` | `DEEPSEEK_API_KEY`（可选）                                       |
+| `delete-article.yml` | 无                                                               |
 
 ---
 
 ## 五、Workflow 与 Scripts 的关系
 
-| Workflow               | npm script           | 脚本文件                   |
-| ---------------------- | -------------------- | -------------------------- |
-| `sync-notion.yml`      | `npm run notion:sync`| `scripts/notion-sync.ts`   |
-| `import-content.yml`   | `npm run import:content` | `scripts/content-import.ts` |
-| `delete-article.yml`   | `npm run delete:article` | `scripts/delete-article.ts` |
+| Workflow             | npm script               | 脚本文件                    |
+| -------------------- | ------------------------ | --------------------------- |
+| `sync-notion.yml`    | `npm run notion:sync`    | `scripts/notion-sync.ts`    |
+| `import-content.yml` | `npm run import:content` | `scripts/content-import.ts` |
+| `delete-article.yml` | `npm run delete:article` | `scripts/delete-article.ts` |
 
 **职责边界**：
 

@@ -6,13 +6,13 @@
 
 ## 快速导航
 
-| 文档                                          | 说明                         |
-| --------------------------------------------- | ---------------------------- |
-| [架构说明](docs/architecture.md)              | 仓库结构与模块设计           |
-| [CI 工作流](docs/ci-workflow.md)              | GitHub Actions 触发与流程    |
-| [站点配置](docs/configuration.md)             | YAML 配置文件详解            |
-| [配置治理](docs/config-audit.md)              | 配置入口与一致性规范         |
-| [Scripts 指南](scripts/README.md)             | 脚本参数与用例               |
+| 文档                              | 说明                      |
+| --------------------------------- | ------------------------- |
+| [架构说明](docs/architecture.md)  | 仓库结构与模块设计        |
+| [CI 工作流](docs/ci-workflow.md)  | GitHub Actions 触发与流程 |
+| [站点配置](docs/configuration.md) | YAML 配置文件详解         |
+| [配置治理](docs/config-audit.md)  | 配置入口与一致性规范      |
+| [Scripts 指南](scripts/README.md) | 脚本参数与用例            |
 
 ---
 
@@ -108,13 +108,13 @@ blog/
 
 ## CI/CD
 
-| Workflow                     | 触发条件             | 职责                   |
-| ---------------------------- | -------------------- | ---------------------- |
-| `validation.yml`             | PR / Push → main     | 质量门禁               |
-| `deploy.yml`                 | Push → main          | 部署 GitHub Pages      |
-| `sync-notion.yml`            | 每日 / 手动          | 同步 Notion            |
-| `import-content.yml`         | 手动                 | 导入外部文章           |
-| `post-deploy-smoke-test.yml` | 部署后               | 烟测                   |
+| Workflow                     | 触发条件         | 职责              |
+| ---------------------------- | ---------------- | ----------------- |
+| `validation.yml`             | PR / Push → main | 质量门禁          |
+| `deploy.yml`                 | Push → main      | 部署 GitHub Pages |
+| `sync-notion.yml`            | 每日 / 手动      | 同步 Notion       |
+| `import-content.yml`         | 手动             | 导入外部文章      |
+| `post-deploy-smoke-test.yml` | 部署后           | 烟测              |
 
 > **详细说明** → [docs/ci-workflow.md](docs/ci-workflow.md)
 
