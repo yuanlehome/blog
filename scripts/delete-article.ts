@@ -253,8 +253,8 @@ async function findImageDirsBySlug(slug: string): Promise<string[]> {
 async function main() {
   const scriptStart = now();
   const options = parseOptions();
-  const logger = createScriptLogger('delete-article', { target: options.target });
-  
+  const logger = createScriptLogger('delete-article', {});
+
   logger.info('Starting article deletion', {
     target: options.target,
     deleteImages: options.deleteImages,

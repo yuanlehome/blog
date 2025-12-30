@@ -21,7 +21,6 @@ import { slugFromTitle } from '../src/lib/slug';
 import { processMarkdownForImport } from './markdown/index.js';
 import { resolveAdapter } from './import/adapters/index.js';
 import { createScriptLogger, now, duration } from './logger-helpers.js';
-import type { Logger } from './logger/types.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -1163,7 +1162,7 @@ async function main() {
   // Create logger with sanitized URL (remove sensitive query params)
   const sanitizedUrl = sanitizeZhihuUrl(targetUrl);
   const logger = createScriptLogger('content-import', { url: sanitizedUrl });
-  
+
   logger.info('Starting content import', {
     dryRun: options.dryRun,
     allowOverwrite: options.allowOverwrite,

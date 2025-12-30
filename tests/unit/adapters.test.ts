@@ -4,7 +4,7 @@
  * Tests for import adapters with mocked browser and network calls
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { zhihuAdapter } from '../../scripts/import/adapters/zhihu.js';
 import { wechatAdapter } from '../../scripts/import/adapters/wechat.js';
 import { mediumAdapter } from '../../scripts/import/adapters/medium.js';
@@ -36,7 +36,9 @@ describe('Zhihu Adapter', () => {
     });
 
     it('should not handle general zhihu.com URLs without zhuanlan', () => {
-      expect(zhihuAdapter.canHandle('https://www.zhihu.com/question/123456/answer/789')).toBe(false);
+      expect(zhihuAdapter.canHandle('https://www.zhihu.com/question/123456/answer/789')).toBe(
+        false,
+      );
     });
 
     it('should not handle non-Zhihu URLs', () => {

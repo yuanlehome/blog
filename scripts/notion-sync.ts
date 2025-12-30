@@ -11,7 +11,6 @@ import { slugFromTitle, ensureUniqueSlug } from '../src/lib/slug';
 import { NOTION_CONTENT_DIR, NOTION_PUBLIC_IMG_DIR, ensureDir } from '../src/config/paths';
 import { processMarkdownForImport } from './markdown/index.js';
 import { createScriptLogger, now, duration } from './logger-helpers.js';
-import type { Logger } from './logger/types.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -248,7 +247,7 @@ function isFullPage(page: any): page is PageObjectResponse {
 export async function sync() {
   const scriptStart = now();
   const logger = createScriptLogger('notion-sync', {});
-  
+
   logger.info('Starting Notion sync', {
     databaseId: DATABASE_ID ? DATABASE_ID.substring(0, 8) + '...' : 'none',
   });
@@ -335,7 +334,7 @@ export async function sync() {
         const existingBySlug = existingPosts.bySlug.get(slug);
         if (existingBySlug && existingBySlug.lastEdited === lastEditedTime) {
           logger.debug('Skipping unchanged page', { slug, pageId });
-          processSpan.end({ status: 'skipped', fields: { slug } });
+          processSpan.end({ status: 'ok', fields: { slug, skipped: true } });
           skippedCount++;
           continue;
         }
