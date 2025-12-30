@@ -34,7 +34,7 @@ on:
         options:
           - identity
           - deepseek
-        default: identity
+        default: deepseek
 
 permissions:
   contents: write
