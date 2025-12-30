@@ -490,46 +490,46 @@ pagination:
 
 #### container
 
-| 字段      | 类型   | 默认值  | 说明               |
-| --------- | ------ | ------- | ------------------ |
-| `width`   | string | "72rem" | 主内容区最大宽度   |
+| 字段       | 类型   | 默认值  | 说明                 |
+| ---------- | ------ | ------- | -------------------- |
+| `width`    | string | "72rem" | 主内容区最大宽度     |
 | `paddingX` | object | {...}   | 水平内边距（响应式） |
 
 #### layoutMode
 
-| 值              | 说明                   |
-| --------------- | ---------------------- |
-| `centered`      | 单列居中布局（无侧边栏） |
-| `rightSidebar`  | 右侧边栏布局（默认）    |
-| `leftSidebar`   | 左侧边栏布局           |
+| 值             | 说明                     |
+| -------------- | ------------------------ |
+| `centered`     | 单列居中布局（无侧边栏） |
+| `rightSidebar` | 右侧边栏布局（默认）     |
+| `leftSidebar`  | 左侧边栏布局             |
 
 #### sidebar
 
-| 字段      | 类型    | 默认值   | 说明         |
-| --------- | ------- | -------- | ------------ |
-| `enabled` | boolean | true     | 是否启用侧边栏 |
-| `position` | enum   | "right"  | 位置：left/right |
-| `width`   | string  | "18rem"  | 侧边栏宽度    |
-| `sticky`  | boolean | true     | 是否固定定位  |
-| `gap`     | string  | "3rem"   | 与内容区间距  |
+| 字段       | 类型    | 默认值  | 说明             |
+| ---------- | ------- | ------- | ---------------- |
+| `enabled`  | boolean | true    | 是否启用侧边栏   |
+| `position` | enum    | "right" | 位置：left/right |
+| `width`    | string  | "18rem" | 侧边栏宽度       |
+| `sticky`   | boolean | true    | 是否固定定位     |
+| `gap`      | string  | "3rem"  | 与内容区间距     |
 
 #### toc（目录）
 
-| 字段              | 类型    | 默认值    | 说明                     |
-| ----------------- | ------- | --------- | ------------------------ |
-| `enabled`         | boolean | true      | 是否启用目录             |
-| `position`        | enum    | "right"   | 位置：left/right/inline  |
-| `mobileBehavior`  | enum    | "drawer"  | 移动端行为：drawer/inline/hidden |
-| `defaultOpen`     | boolean | false     | 默认是否展开             |
-| `offset`          | number  | 96        | 顶部偏移量（px）         |
+| 字段             | 类型    | 默认值   | 说明                             |
+| ---------------- | ------- | -------- | -------------------------------- |
+| `enabled`        | boolean | true     | 是否启用目录                     |
+| `position`       | enum    | "right"  | 位置：left/right/inline          |
+| `mobileBehavior` | enum    | "drawer" | 移动端行为：drawer/inline/hidden |
+| `defaultOpen`    | boolean | false    | 默认是否展开                     |
+| `offset`         | number  | 96       | 顶部偏移量（px）                 |
 
 #### alignment
 
-| 字段            | 类型 | 默认值  | 说明             |
-| --------------- | ---- | ------- | ---------------- |
-| `headerAlign`   | enum | "left"  | 头部对齐：left/center |
-| `footerAlign`   | enum | "left"  | 底部对齐：left/center |
-| `postMetaAlign` | enum | "left"  | 文章元信息对齐    |
+| 字段            | 类型 | 默认值 | 说明                  |
+| --------------- | ---- | ------ | --------------------- |
+| `headerAlign`   | enum | "left" | 头部对齐：left/center |
+| `footerAlign`   | enum | "left" | 底部对齐：left/center |
+| `postMetaAlign` | enum | "left" | 文章元信息对齐        |
 
 ### 示例
 
@@ -562,7 +562,7 @@ toc:
 | ------- | ----- | ------------------ |
 | `sans`  | array | 无衬线字体栈       |
 | `serif` | array | 衬线字体栈         |
-| `mono`  | array | 等宽字体栈（代码）  |
+| `mono`  | array | 等宽字体栈（代码） |
 
 #### fontSize
 
@@ -570,21 +570,21 @@ toc:
 
 #### lineHeight
 
-| 字段      | 类型   | 默认值 | 说明       |
-| --------- | ------ | ------ | ---------- |
-| `body`    | number | 1.75   | 正文行高   |
-| `heading` | number | 1.3    | 标题行高   |
-| `code`    | number | 1.65   | 代码行高   |
-| `tight`   | number | 1.25   | 紧凑行高   |
+| 字段      | 类型   | 默认值 | 说明     |
+| --------- | ------ | ------ | -------- |
+| `body`    | number | 1.75   | 正文行高 |
+| `heading` | number | 1.3    | 标题行高 |
+| `code`    | number | 1.65   | 代码行高 |
+| `tight`   | number | 1.25   | 紧凑行高 |
 
 #### fontWeight
 
-| 字段       | 类型   | 默认值 | 说明       |
-| ---------- | ------ | ------ | ---------- |
-| `normal`   | number | 400    | 普通字重   |
-| `medium`   | number | 500    | 中等字重   |
-| `semibold` | number | 600    | 次粗字重   |
-| `bold`     | number | 700    | 粗字重     |
+| 字段       | 类型   | 默认值 | 说明     |
+| ---------- | ------ | ------ | -------- |
+| `normal`   | number | 400    | 普通字重 |
+| `medium`   | number | 500    | 中等字重 |
+| `semibold` | number | 600    | 次粗字重 |
+| `bold`     | number | 700    | 粗字重   |
 
 ### 示例
 
@@ -614,50 +614,50 @@ lineHeight:
 
 #### radius（圆角）
 
-| 字段 | 类型   | 默认值     | 用途            |
-| ---- | ------ | ---------- | --------------- |
-| `sm` | string | "0.35rem"  | 行内代码等      |
-| `md` | string | "0.65rem"  | 按钮等          |
-| `lg` | string | "0.9rem"   | 代码块等        |
-| `xl` | string | "0.75rem"  | 卡片、图片等     |
+| 字段 | 类型   | 默认值    | 用途         |
+| ---- | ------ | --------- | ------------ |
+| `sm` | string | "0.35rem" | 行内代码等   |
+| `md` | string | "0.65rem" | 按钮等       |
+| `lg` | string | "0.9rem"  | 代码块等     |
+| `xl` | string | "0.75rem" | 卡片、图片等 |
 
 #### shadow（阴影）
 
-| 字段        | 类型    | 默认值 | 说明                       |
-| ----------- | ------- | ------ | -------------------------- |
-| `card`      | enum    | "md"   | 卡片阴影级别               |
-| `codeBlock` | enum    | "md"   | 代码块阴影级别             |
-| `header`    | enum    | "md"   | 头部阴影级别               |
-| `hoverLift` | boolean | false  | 悬停时是否有抬升效果       |
+| 字段        | 类型    | 默认值 | 说明                 |
+| ----------- | ------- | ------ | -------------------- |
+| `card`      | enum    | "md"   | 卡片阴影级别         |
+| `codeBlock` | enum    | "md"   | 代码块阴影级别       |
+| `header`    | enum    | "md"   | 头部阴影级别         |
+| `hoverLift` | boolean | false  | 悬停时是否有抬升效果 |
 
 阴影级别：`none`, `sm`, `md`, `lg`
 
 #### border
 
-| 字段    | 类型   | 默认值   | 说明          |
-| ------- | ------ | -------- | ------------- |
-| `style` | enum   | "solid"  | 边框样式      |
-| `width` | string | "1px"    | 边框宽度      |
+| 字段    | 类型   | 默认值  | 说明     |
+| ------- | ------ | ------- | -------- |
+| `style` | enum   | "solid" | 边框样式 |
+| `width` | string | "1px"   | 边框宽度 |
 
 边框样式：`solid`, `dashed`, `dotted`
 
 #### motion（动画）
 
-| 字段                   | 类型    | 默认值     | 说明                     |
-| ---------------------- | ------- | ---------- | ------------------------ |
-| `enabled`              | boolean | true       | 是否启用动画             |
-| `level`                | enum    | "normal"   | 动画强度                 |
-| `respectReducedMotion` | boolean | true       | 尊重系统减少动画设置     |
+| 字段                   | 类型    | 默认值   | 说明                 |
+| ---------------------- | ------- | -------- | -------------------- |
+| `enabled`              | boolean | true     | 是否启用动画         |
+| `level`                | enum    | "normal" | 动画强度             |
+| `respectReducedMotion` | boolean | true     | 尊重系统减少动画设置 |
 
 动画强度：`subtle`（100ms），`normal`（160ms），`energetic`（240ms）
 
 #### spacingScale
 
-| 值            | 倍数  | 说明         |
-| ------------- | ----- | ------------ |
-| `compact`     | 0.75  | 紧凑间距     |
-| `comfortable` | 1.0   | 舒适间距（默认） |
-| `relaxed`     | 1.25  | 宽松间距     |
+| 值            | 倍数 | 说明             |
+| ------------- | ---- | ---------------- |
+| `compact`     | 0.75 | 紧凑间距         |
+| `comfortable` | 1.0  | 舒适间距（默认） |
+| `relaxed`     | 1.25 | 宽松间距         |
 
 ### 示例
 
@@ -691,24 +691,24 @@ spacingScale: 'compact'
 
 #### colorMode
 
-| 字段          | 类型    | 默认值   | 说明                     |
-| ------------- | ------- | -------- | ------------------------ |
+| 字段          | 类型    | 默认值   | 说明                        |
+| ------------- | ------- | -------- | --------------------------- |
 | `default`     | enum    | "system" | 默认主题：light/dark/system |
-| `allowToggle` | boolean | true     | 允许切换主题             |
+| `allowToggle` | boolean | true     | 允许切换主题                |
 | `persist`     | boolean | true     | 保存用户选择到 localStorage |
 
 #### colors（亮色模式）
 
-| 字段         | 类型   | 默认值      | 说明           |
-| ------------ | ------ | ----------- | -------------- |
-| `brand`      | color  | "#3b82f6"   | 品牌主色       |
-| `accent`     | color  | "#8b5cf6"   | 强调色         |
-| `background` | color  | "#ffffff"   | 页面背景       |
-| `foreground` | color  | "#111827"   | 文本颜色       |
-| `muted`      | color  | "#6b7280"   | 次要文本       |
-| `border`     | color  | "#e5e7eb"   | 边框颜色       |
-| `card`       | color  | "#f9fafb"   | 卡片背景       |
-| `code.*`     | object | {...}       | 代码相关颜色    |
+| 字段         | 类型   | 默认值    | 说明         |
+| ------------ | ------ | --------- | ------------ |
+| `brand`      | color  | "#3b82f6" | 品牌主色     |
+| `accent`     | color  | "#8b5cf6" | 强调色       |
+| `background` | color  | "#ffffff" | 页面背景     |
+| `foreground` | color  | "#111827" | 文本颜色     |
+| `muted`      | color  | "#6b7280" | 次要文本     |
+| `border`     | color  | "#e5e7eb" | 边框颜色     |
+| `card`       | color  | "#f9fafb" | 卡片背景     |
+| `code.*`     | object | {...}     | 代码相关颜色 |
 
 **颜色格式**：支持 hex（`#3b82f6`）、rgb（`rgb(59, 130, 246)`）、hsl（`hsl(217, 91%, 60%)`）
 
@@ -718,31 +718,31 @@ spacingScale: 'compact'
 
 #### emphasis（强调样式）
 
-| 字段            | 类型    | 默认值    | 说明                    |
-| --------------- | ------- | --------- | ----------------------- |
-| `linkUnderline` | enum    | "hover"   | 链接下划线：never/hover/always |
-| `focusRing`     | boolean | true      | 显示焦点环              |
+| 字段            | 类型    | 默认值  | 说明                           |
+| --------------- | ------- | ------- | ------------------------------ |
+| `linkUnderline` | enum    | "hover" | 链接下划线：never/hover/always |
+| `focusRing`     | boolean | true    | 显示焦点环                     |
 
 #### codeBlock（代码块）
 
-| 字段               | 类型    | 默认值         | 说明                     |
-| ------------------ | ------- | -------------- | ------------------------ |
-| `theme.light`      | string  | "github-light" | 亮色模式语法主题         |
-| `theme.dark`       | string  | "github-dark"  | 暗色模式语法主题         |
-| `showLineNumbers`  | boolean | true           | 显示行号                 |
-| `showCopyButton`   | boolean | true           | 显示复制按钮             |
-| `wrapLongLines`    | boolean | false          | 换行显示长代码           |
-| `inlineCodeStyle`  | enum    | "subtle"       | 行内代码样式：subtle/boxed |
-| `radius`           | string  | "0.9rem"       | 代码块圆角               |
-| `enableHighlight`  | boolean | true           | 启用行高亮               |
+| 字段              | 类型    | 默认值         | 说明                       |
+| ----------------- | ------- | -------------- | -------------------------- |
+| `theme.light`     | string  | "github-light" | 亮色模式语法主题           |
+| `theme.dark`      | string  | "github-dark"  | 暗色模式语法主题           |
+| `showLineNumbers` | boolean | true           | 显示行号                   |
+| `showCopyButton`  | boolean | true           | 显示复制按钮               |
+| `wrapLongLines`   | boolean | false          | 换行显示长代码             |
+| `inlineCodeStyle` | enum    | "subtle"       | 行内代码样式：subtle/boxed |
+| `radius`          | string  | "0.9rem"       | 代码块圆角                 |
+| `enableHighlight` | boolean | true           | 启用行高亮                 |
 
 #### header（页头样式）
 
-| 字段                 | 类型   | 默认值     | 说明                           |
-| -------------------- | ------ | ---------- | ------------------------------ |
-| `variant`            | enum   | "default"  | 变体：default/subtle/frosted/elevated |
-| `backgroundOpacity`  | number | 0.92       | 背景不透明度（0-1）            |
-| `blurStrength`       | string | "10px"     | 毛玻璃效果强度（frosted 变体）  |
+| 字段                | 类型   | 默认值    | 说明                                  |
+| ------------------- | ------ | --------- | ------------------------------------- |
+| `variant`           | enum   | "default" | 变体：default/subtle/frosted/elevated |
+| `backgroundOpacity` | number | 0.92      | 背景不透明度（0-1）                   |
+| `blurStrength`      | string | "10px"    | 毛玻璃效果强度（frosted 变体）        |
 
 ### 完整示例
 
@@ -782,7 +782,6 @@ emphasis:
   linkUnderline: 'always'
   focusRing: true
 ```
-
 
 ## 自定义示例
 
@@ -942,7 +941,7 @@ lineHeight:
   body: 1.8
 ```
 
-## 配置验证
+## 配置验证与错误排查
 
 所有配置文件都使用 Zod 进行 schema 验证。如果配置无效，构建时会显示详细的错误信息。
 
@@ -992,4 +991,3 @@ lineHeight:
 npm run check
 npm run test
 ```
-
