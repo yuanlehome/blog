@@ -134,7 +134,7 @@ describe('content import for external articles', () => {
     it('handles consistent slug for image paths (tempSlug == finalSlug)', async () => {
       const article = extractArticleFromHtml(fixtureHtml, MATMUL_URL);
       const slug = 'matrix-multiplication-from-first-principles';
-      
+
       const downloadImage = vi.fn(
         async (
           imageUrl: string,
@@ -183,7 +183,7 @@ describe('content import for external articles', () => {
       const article = extractArticleFromHtml(fixtureHtml, MATMUL_URL);
       const tempSlug = 'matmul'; // from URL path
       const finalSlug = 'matrix-multiplication-from-first-principles'; // from title
-      
+
       // First: simulate downloading with tempSlug
       const downloadImageWithTemp = vi.fn(
         async (
@@ -216,10 +216,7 @@ describe('content import for external articles', () => {
       // Simulate the migration: rewrite paths from tempSlug to finalSlug
       const tempPublicPath = `/images/others/${tempSlug}`;
       const finalPublicPath = `/images/others/${finalSlug}`;
-      const oldPathPattern = new RegExp(
-        tempPublicPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
-        'g',
-      );
+      const oldPathPattern = new RegExp(tempPublicPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
       const migratedMarkdown = markdownWithTemp.replace(oldPathPattern, finalPublicPath);
       const migratedImages = imagesWithTemp.map((imgPath) =>
         imgPath.replace(tempPublicPath, finalPublicPath),
@@ -256,7 +253,13 @@ describe('content import for external articles', () => {
       const finalSlug = 'final-article-title';
 
       const downloadImage = vi.fn(
-        async (_url: string, _provider: string, slug: string, _imageRoot: string, index: number) => {
+        async (
+          _url: string,
+          _provider: string,
+          slug: string,
+          _imageRoot: string,
+          index: number,
+        ) => {
           return `/images/others/${tempSlug}/${String(index + 1).padStart(3, '0')}-image${index + 1}.jpg`;
         },
       );
@@ -287,7 +290,9 @@ describe('content import for external articles', () => {
       expect(migratedMarkdown).toContain(`/images/others/${finalSlug}`);
 
       // Count occurrences - should be exactly 3 (one per image)
-      const finalSlugMatches = migratedMarkdown.match(new RegExp(`/images/others/${finalSlug}`, 'g'));
+      const finalSlugMatches = migratedMarkdown.match(
+        new RegExp(`/images/others/${finalSlug}`, 'g'),
+      );
       expect(finalSlugMatches).toHaveLength(3);
     });
   });
