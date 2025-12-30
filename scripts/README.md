@@ -172,8 +172,8 @@ npm run notion:sync
 interface Adapter {
   id: 'zhihu' | 'medium' | 'wechat' | 'others';
   name: string;
-  canHandle(url: string): boolean;  // URL 匹配规则
-  fetchArticle(input): Promise<Article>;  // 统一抓取接口
+  canHandle(url: string): boolean; // URL 匹配规则
+  fetchArticle(input): Promise<Article>; // 统一抓取接口
 }
 ```
 
@@ -263,6 +263,7 @@ npm run import:content -- --url="<URL>" --use-first-image-as-cover
 **URL 模式**：`https://zhuanlan.zhihu.com/p/<article-id>`
 
 **关键特性**：
+
 - 多 selector 容错提取（`.Post-RichText`, `.RichText`, `article` 等）
 - URL 参数清理（去除 `utm_*`, `share_code` 等追踪参数）
 - 反爬虫应对：
@@ -284,6 +285,7 @@ npm run import:content -- --url="<URL>" --use-first-image-as-cover
 **URL 模式**：`https://mp.weixin.qq.com/s/*`
 
 **关键特性**：
+
 - 懒加载图片处理（优先级：data-src → data-original → data-backup-src → src）
 - 占位符检测：
   - 文件大小阈值（< 60KB）
@@ -299,6 +301,7 @@ npm run import:content -- --url="<URL>" --use-first-image-as-cover
 **URL 模式**：`*.medium.com/*`
 
 **关键特性**：
+
 - 等待 `article` 元素加载
 - 提取作者元数据（meta[name="author"]）
 - 提取发布时间（meta[property="article:published_time"]）
@@ -308,6 +311,7 @@ npm run import:content -- --url="<URL>" --use-first-image-as-cover
 **URL 模式**：任意 URL（兜底）
 
 **关键特性**：
+
 - Readability 算法提取正文
 - 自动检测主内容区域
 - 去除噪声元素（导航、页脚、评论、广告）
@@ -324,10 +328,11 @@ npm run import:content -- --url="<URL>" --use-first-image-as-cover
 ```markdown
 ![图片描述](image-url)
 
-*图1：这是图片说明文字*
+_图1：这是图片说明文字_
 ```
 
 **实现**：
+
 - 在 `markdown-processor.ts` 的 `fixImageCaptions` 函数中统一处理
 - 检测图片后紧跟的短文本（≤ 120 字符）
 - 自动转换为 `emphasis` 节点（Markdown 斜体）
@@ -337,6 +342,7 @@ npm run import:content -- --url="<URL>" --use-first-image-as-cover
 **Q1：为什么知乎文章导入失败？**
 
 A：可能原因：
+
 - 知乎反爬虫拦截（需要重试）
 - 文章需要登录查看（无法导入）
 - DOM 结构变化（联系维护者更新 selector）
@@ -344,6 +350,7 @@ A：可能原因：
 **Q2：微信图片下载失败怎么办？**
 
 A：自动启用 Playwright 浏览器回退下载，无需手动干预。如仍失败，可能是：
+
 - 防盗链策略更新
 - 图片已被删除
 - 网络问题
@@ -478,12 +485,14 @@ npm run delete:article -- --target=my-article-slug --delete-images --dry-run
 - **自动翻译**：检测英文文章并翻译为中文
 - **代码块语言标注**：自动推断并补齐缺失的语言标识符
 - **图片 caption 规范化**：转换为标准 HTML figure 结构
+- **数学公式修复**：自动修复导入文章中的数学块问题
 - **格式清理**：压缩多余空行、统一换行符
 
 #### 使用场景
 
 - 导入英文技术文章时自动翻译
 - 修复从 Notion 或其他平台导入的格式问题
+- 修复从知乎、Medium 等平台导入的数学公式问题
 - 统一文章格式规范
 
 #### 何时触发
@@ -619,7 +628,76 @@ DeepSeek 翻译器遵循严格的翻译规则：
   - `yaml`：结构化 key-value（包括 GitHub Actions）
   - `json`：JSON 结构
 
-##### D. 图片 caption 处理
+##### D. 数学公式修复（Math Fixer）
+
+**功能特性**：
+
+- 修复导入文章中常见的 LaTeX/数学块语法问题
+- 基于确定性规则的自动修复（不依赖 LLM）
+- 对无法修复的数学块安全降级（转换为代码块）
+
+**可修复的问题类型**：
+
+1. **数学块被错误拆断**：
+   - 示例：`$$ content $$ more $$` → 移除内部的 `$$`
+   - 原因：导入时格式错误，导致数学块中间出现额外的 `$$` 分隔符
+
+2. **嵌套的 inline `$` 分隔符**：
+   - 示例：`$\displaystyle\sum_{i}$` → `\displaystyle\sum_{i}`
+   - 原因：在 block math 内部错误使用了 inline math 分隔符
+
+3. **括号/花括号不闭合**：
+   - 自动检测并补齐缺失的 `{}`、`[]`、`()` （高置信场景）
+   - 示例：`\frac{a}{b` → `\frac{a}{b}`
+
+4. **跨行命令断裂**：
+   - 修复 `\colorbox{color}{content}` 等命令的花括号配对问题
+   - 确保命令的两层花括号都正确闭合
+
+5. **伪数学块**：
+   - 检测被错误包裹在 `$$` 中的普通文本（长段中文、无数学符号）
+   - 策略：转换为 `tex` 代码块，避免渲染失败
+
+**降级策略**：
+
+对于无法自动修复的数学块（置信度低或验证失败）：
+
+```markdown
+\`\`\`tex
+原始或修复后的 LaTeX 内容
+\`\`\`
+
+_Note: Math block could not be automatically fixed (原因). Showing as code._
+```
+
+**验证机制**：
+
+- 检查修复后的数学块不包含孤立的 `$$` 或 `$`
+- 验证括号配对平衡
+- 检查命令完整性（避免截断的 `\` 命令）
+
+**示例**：
+
+导入前（知乎文章）：
+
+```markdown
+$$
+\sum_{l\in[0,L+1)}\exp(s_l-m_{[0,L+1)}) = \colorbox{red}{
+$$
+
+\displaystyle\exp(m*{[0,L)}-m*{[0,L+1)})$}\colorbox{orange}{$\displaystyle\sum*{l\in[0,L)}\exp(s_l-m*{[0,L)})$}
+$$
+```
+
+修复后：
+
+```markdown
+$$
+\sum_{l\in[0,L+1)}\exp(s_l-m_{[0,L+1)}) = \colorbox{red}{\displaystyle\exp(m_{[0,L)}-m_{[0,L+1)})\colorbox{orange}{\displaystyle\sum_{l\in[0,L)}\exp(s_l-m_{[0,L)})}}
+$$
+```
+
+##### E. 图片 caption 处理
 
 - 识别图片后紧跟的短文本（≤ 120 字符）作为 caption
 - 转换为 HTML `<figure>` 结构：
@@ -636,13 +714,13 @@ DeepSeek 翻译器遵循严格的翻译规则：
   - 标题、列表、代码块不作为 caption
   - 避免破坏文档结构
 
-##### E. Markdown 格式清理
+##### F. Markdown 格式清理
 
 - 压缩 3+ 连续空行为 2 行
 - 统一为 LF 换行符（`\n`）
 - 规范标题和代码块间距
 
-##### F. Frontmatter 增强
+##### G. Frontmatter 增强
 
 翻译后自动添加元数据：
 
@@ -660,6 +738,8 @@ Enhanced my-article:
   - Translated from en
   - Fixed 3 code fences
   - Fixed 2 image captions
+  - Fixed 1 math blocks
+  - Degraded 0 math blocks to code
 ```
 
 #### 模块架构
@@ -669,6 +749,7 @@ Enhanced my-article:
 - `language-detector.ts`：语言检测
 - `translator.ts`：翻译接口与实现
 - `code-fence-fixer.ts`：代码语言检测
+- `math-fixer.ts`：数学公式修复
 - `markdown-processor.ts`：主处理管线
 - `index.ts`：导出接口
 
@@ -686,7 +767,8 @@ const result = await processMarkdownForImport(
     enableCodeFenceFix: true, // 修复代码块
     enableImageCaptionFix: true, // 修复图片 caption
     enableMarkdownCleanup: true, // 清理格式
-    enableMathDelimiterFix: true, // 修复数学公式（如 `$ x $` → `$x$`）
+    enableMathDelimiterFix: true, // 修复数学公式分隔符（如 `$ x $` → `$x$`）
+    enableMathFix: true, // 修复数学块内容问题
   },
 );
 
