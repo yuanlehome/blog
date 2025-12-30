@@ -12,7 +12,6 @@ import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
 import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
 import { visit } from 'unist-util-visit';
 import type { Root, Code, Paragraph, Image } from 'mdast';
 import matter from 'gray-matter';
@@ -20,7 +19,6 @@ import matter from 'gray-matter';
 import { detectLanguage, shouldTranslate } from './language-detector.js';
 import { type Translator, type TranslationNode, getConfiguredTranslator } from './translator.js';
 import { detectCodeLanguage, isGitHubActionsWorkflow } from './code-fence-fixer.js';
-import { fixMathBlock } from './math-fixer.js';
 
 export interface ProcessingOptions {
   slug?: string;
@@ -31,7 +29,6 @@ export interface ProcessingOptions {
   enableImageCaptionFix?: boolean;
   enableMarkdownCleanup?: boolean;
   enableMathDelimiterFix?: boolean;
-  enableMathFix?: boolean;
 }
 
 export interface ProcessingDiagnostics {
@@ -42,9 +39,6 @@ export interface ProcessingDiagnostics {
   imageCaptionsFixed: number;
   emptyLinesCompressed: number;
   mathDelimitersFixed: number;
-  mathBlocksFixed: number;
-  mathBlocksDegraded: number;
-  mathFixFailedCount: number;
   frontmatterUpdated: boolean;
   translationProvider?: string;
   translationModel?: string;
@@ -154,76 +148,6 @@ function applyTranslationPatches(tree: Root, patches: Record<string, string>): v
       node.alt = patches[(node as any)._altNodeId];
     }
   });
-}
-
-/**
- * Fix math nodes in the AST
- * Applies math fixing logic to block math nodes
- */
-function fixMathNodes(tree: Root): { fixCount: number; degradedCount: number } {
-  let fixCount = 0;
-  let degradedCount = 0;
-  const nodesToReplace: Array<{ parent: any; index: number; newNode: any }> = [];
-
-  visit(tree, (node: any, index: number | undefined, parent: any) => {
-    // Only fix block math nodes (type: 'math')
-    if (node.type === 'math' && node.value) {
-      const result = fixMathBlock(node.value);
-
-      if (result.changed) {
-        fixCount++;
-      }
-
-      // If confidence is low or pseudo-math detected, degrade to code block
-      if (
-        result.confidence === 'low' ||
-        result.issues.some((issue) => issue.includes('pseudo-math'))
-      ) {
-        degradedCount++;
-        const issuesText = result.issues.join(', ');
-
-        // Replace math node with code block
-        const codeNode = {
-          type: 'code',
-          lang: 'tex',
-          value: result.fixed.trim(),
-        };
-
-        const noteNode = {
-          type: 'paragraph',
-          children: [
-            {
-              type: 'emphasis',
-              children: [
-                {
-                  type: 'text',
-                  value: `Note: Math block could not be automatically fixed (${issuesText}). Showing as code.`,
-                },
-              ],
-            },
-          ],
-        };
-
-        if (parent && typeof index === 'number') {
-          nodesToReplace.push({
-            parent,
-            index,
-            newNode: [codeNode, noteNode],
-          });
-        }
-      } else if (result.changed) {
-        // Update the node value with fixed content
-        node.value = result.fixed;
-      }
-    }
-  });
-
-  // Apply node replacements (in reverse order to maintain indices)
-  nodesToReplace.reverse().forEach(({ parent, index, newNode }) => {
-    parent.children.splice(index, 1, ...newNode);
-  });
-
-  return { fixCount, degradedCount };
 }
 
 /**
@@ -696,7 +620,6 @@ export async function processMarkdownForImport(
     enableImageCaptionFix = true,
     enableMarkdownCleanup = true,
     enableMathDelimiterFix = true,
-    enableMathFix = true,
   } = options;
 
   const diagnostics: ProcessingDiagnostics = {
@@ -706,9 +629,6 @@ export async function processMarkdownForImport(
     imageCaptionsFixed: 0,
     emptyLinesCompressed: 0,
     mathDelimitersFixed: 0,
-    mathBlocksFixed: 0,
-    mathBlocksDegraded: 0,
-    mathFixFailedCount: 0,
     frontmatterUpdated: false,
   };
 
@@ -732,8 +652,8 @@ export async function processMarkdownForImport(
     needsTranslation = true;
   }
 
-  // Parse markdown to AST (with remark-math to parse math nodes)
-  const processor = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
+  // Parse markdown to AST
+  const processor = unified().use(remarkParse).use(remarkGfm);
 
   const tree = processor.parse(processedMarkdown) as Root;
 
@@ -752,16 +672,6 @@ export async function processMarkdownForImport(
     const fixed = fixImageCaptions(tree);
     diagnostics.imageCaptionsFixed = fixed;
     if (fixed > 0) {
-      diagnostics.changed = true;
-    }
-  }
-
-  // Fix math nodes BEFORE translation (so they are properly fixed before translation)
-  if (enableMathFix) {
-    const { fixCount, degradedCount } = fixMathNodes(tree);
-    diagnostics.mathBlocksFixed = fixCount;
-    diagnostics.mathBlocksDegraded = degradedCount;
-    if (fixCount > 0 || degradedCount > 0) {
       diagnostics.changed = true;
     }
   }
@@ -803,7 +713,7 @@ export async function processMarkdownForImport(
     }
   }
 
-  // Convert AST back to markdown (with remark-math to serialize math nodes)
+  // Convert AST back to markdown
   const stringifyProcessor = unified()
     .use(remarkStringify, {
       bullet: '-',
@@ -811,8 +721,7 @@ export async function processMarkdownForImport(
       fences: true,
       incrementListMarker: false,
     })
-    .use(remarkGfm)
-    .use(remarkMath);
+    .use(remarkGfm);
 
   processedMarkdown = stringifyProcessor.stringify(tree);
 

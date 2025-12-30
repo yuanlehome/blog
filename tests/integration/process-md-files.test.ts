@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import {
@@ -78,10 +78,8 @@ describe('markdown processor integration', () => {
       },
     );
 
-    // remark-math handles inline math trimming automatically
-    // The fixMathDelimiters is mainly for cases it doesn't catch
     expect(result.markdown).toContain('$x$');
-    // mathDelimitersFixed may be 0 if remark-math already handled it
+    expect(result.diagnostics.mathDelimitersFixed).toBeGreaterThan(0);
   });
 
   it('processes files through markdown processor', async () => {
@@ -98,8 +96,8 @@ describe('markdown processor integration', () => {
     fs.writeFileSync(tmpFile, result.markdown);
     const updated = fs.readFileSync(tmpFile, 'utf-8');
 
-    // remark-math handles inline math trimming automatically
     expect(updated).toContain('$spaced$');
+    expect(result.diagnostics.mathDelimitersFixed).toBeGreaterThan(0);
 
     fs.rmSync(tmpFile, { force: true });
   });
