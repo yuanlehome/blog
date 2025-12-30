@@ -2,6 +2,7 @@
 import 'katex/dist/katex.min.css';
 import '../styles/global.css';
 import ThemeScript from '../components/ThemeScript.astro';
+import ConfigStyle from '../components/ConfigStyle.astro';
 import { normalizeBase } from '../lib/slug';
 import { getSiteConfig } from '../config/loaders';
 
@@ -28,6 +29,7 @@ const {
 <html lang={siteConfig.defaultLanguage}>
   <head>
     <ThemeScript />
+    <ConfigStyle />
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
     <meta name="viewport" content="width=device-width" />

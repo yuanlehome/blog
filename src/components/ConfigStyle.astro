@@ -1,0 +1,19 @@
+---
+/**
+ * ConfigStyle Component
+ * 
+ * Injects CSS variables generated from configuration into the page.
+ * This component should be included in the Layout component.
+ */
+
+import { getThemeConfig, getTypographyConfig, getComponentsConfig } from '../config/loaders';
+import { generateConfigCSS } from '../lib/style/css-vars';
+
+const themeConfig = getThemeConfig();
+const typographyConfig = getTypographyConfig();
+const componentsConfig = getComponentsConfig();
+
+const cssContent = generateConfigCSS(themeConfig, typographyConfig, componentsConfig);
+---
+
+<style is:global set:html={cssContent}></style>
