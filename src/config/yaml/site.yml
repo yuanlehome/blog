@@ -4,20 +4,20 @@
 # Site identity
 siteName: "Yuanle Liu's Blog"
 title: "Yuanle Liu's Blog"
-description: "A minimal Astro blog"
-author: "Yuanle Liu"
+description: 'A minimal Astro blog'
+author: 'Yuanle Liu'
 
 # Copyright information
 copyrightYear: 2024
-copyrightText: "All rights reserved."
+copyrightText: 'All rights reserved.'
 
 # Language and localization
-defaultLanguage: "en"
-dateFormat: "YYYY-MM-DD"
+defaultLanguage: 'en'
+dateFormat: 'YYYY-MM-DD'
 
 # SEO and feeds
 enableRSS: true
 enableSitemap: true
 
 # Social meta defaults
-socialImage: "placeholder-social.jpg"
+socialImage: 'placeholder-social.jpg'

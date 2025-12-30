@@ -27,11 +27,7 @@ export interface ConfigLoadResult<T> {
  * @returns Validated configuration data
  * @throws Error if validation fails
  */
-export function loadConfig<T>(
-  configModule: unknown,
-  schema: ZodSchema<T>,
-  configName: string,
-): T {
+export function loadConfig<T>(configModule: unknown, schema: ZodSchema<T>, configName: string): T {
   try {
     // Parse and validate the configuration
     const result = schema.safeParse(configModule);

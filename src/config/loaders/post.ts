@@ -226,7 +226,8 @@ export const defaultPostConfig: PostConfig = {
  * @throws Error if configuration is invalid
  */
 export function loadPostConfig(): PostConfig {
-  return loadConfig(postConfigData, postConfigSchema, 'post.yml');
+  const parsed = loadConfig(postConfigData, postConfigSchema, 'post.yml');
+  return parsed as PostConfig;
 }
 
 /**

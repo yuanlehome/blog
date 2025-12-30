@@ -14,7 +14,7 @@ describe('Navigation Configuration', () => {
   describe('loadNavConfig', () => {
     it('should load and validate navigation configuration', () => {
       const config = loadNavConfig();
-      
+
       expect(config).toBeDefined();
       expect(config.header).toBeDefined();
       expect(config.header.brandText).toBeDefined();
@@ -24,7 +24,7 @@ describe('Navigation Configuration', () => {
 
     it('should have menu items with required fields', () => {
       const config = loadNavConfig();
-      
+
       if (config.header.menuItems.length > 0) {
         const firstItem = config.header.menuItems[0];
         expect(firstItem.label).toBeDefined();
@@ -38,7 +38,7 @@ describe('Navigation Configuration', () => {
     it('should return cached configuration', () => {
       const config1 = getNavConfig();
       const config2 = getNavConfig();
-      
+
       expect(config1).toBe(config2);
     });
   });
@@ -47,19 +47,19 @@ describe('Navigation Configuration', () => {
     it('should accept valid configuration', () => {
       const validConfig = {
         header: {
-          brandText: "Test Blog",
+          brandText: 'Test Blog',
           menuItems: [
-            { label: "Home", href: "/", isExternal: false },
-            { label: "About", href: "/about", isExternal: false },
+            { label: 'Home', href: '/', isExternal: false },
+            { label: 'About', href: '/about', isExternal: false },
           ],
         },
         theme: {
           enableToggle: true,
           showLabel: true,
           icons: {
-            light: "☀️",
-            dark: "🌙",
-            default: "🖥️",
+            light: '☀️',
+            dark: '🌙',
+            default: '🖥️',
           },
         },
       };
@@ -71,13 +71,13 @@ describe('Navigation Configuration', () => {
     it('should use defaults for missing theme', () => {
       const minimalConfig = {
         header: {
-          brandText: "Test Blog",
+          brandText: 'Test Blog',
           menuItems: [],
         },
       };
 
       const result = navConfigSchema.parse(minimalConfig);
-      
+
       expect(result.theme).toBeDefined();
       expect(result.theme.enableToggle).toBe(true);
     });

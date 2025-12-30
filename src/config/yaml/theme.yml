@@ -2,24 +2,24 @@
 # Visual theme and appearance settings
 
 # Default theme preference
-defaultTheme: "system" # Options: "light", "dark", "system"
+defaultTheme: 'system' # Options: "light", "dark", "system"
 
 # Available theme options
 themes:
-  - "light"
-  - "dark"
+  - 'light'
+  - 'dark'
 
 # Theme storage
-storageKey: "theme"
+storageKey: 'theme'
 
 # Theme icons and labels
 icons:
-  light: "☀️"
-  dark: "🌙"
+  light: '☀️'
+  dark: '🌙'
 
 labels:
-  light: "Light"
-  dark: "Dark"
+  light: 'Light'
+  dark: 'Dark'
 
 # Animation preferences
 animations:

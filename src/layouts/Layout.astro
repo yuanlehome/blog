@@ -34,9 +34,11 @@ const {
     <link rel="icon" type="image/svg+xml" href={`${BASE}favicon.svg`} />
     <meta name="generator" content={Astro.generator} />
     <link rel="canonical" href={url} />
-    {siteConfig.enableRSS && (
-      <link rel="alternate" type="application/rss+xml" title="RSS" href={`${BASE}rss.xml`} />
-    )}
+    {
+      siteConfig.enableRSS && (
+        <link rel="alternate" type="application/rss+xml" title="RSS" href={`${BASE}rss.xml`} />
+      )
+    }
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:image" content={image} />

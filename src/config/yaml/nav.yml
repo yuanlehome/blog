@@ -4,20 +4,20 @@
 header:
   # Logo/brand text linking to home
   brandText: "Yuanle Liu's Blog"
-  
+
   # Navigation menu items
   menuItems:
-    - label: "Home"
-      href: "/"
+    - label: 'Home'
+      href: '/'
       isExternal: false
-    - label: "Archive"
-      href: "/archive/"
+    - label: 'Archive'
+      href: '/archive/'
       isExternal: false
-    - label: "About"
-      href: "/about/"
+    - label: 'About'
+      href: '/about/'
       isExternal: false
-    - label: "RSS"
-      href: "/rss.xml"
+    - label: 'RSS'
+      href: '/rss.xml'
       isExternal: false
 
 # Theme toggle settings
@@ -25,6 +25,6 @@ theme:
   enableToggle: true
   showLabel: true
   icons:
-    light: "☀️"
-    dark: "🌙"
-    default: "🖥️"
+    light: '☀️'
+    dark: '🌙'
+    default: '🖥️'

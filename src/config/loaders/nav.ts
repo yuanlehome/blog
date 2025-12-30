@@ -84,7 +84,8 @@ export const defaultNavConfig: NavConfig = {
  * @throws Error if configuration is invalid
  */
 export function loadNavConfig(): NavConfig {
-  return loadConfig(navConfigData, navConfigSchema, 'nav.yml');
+  const parsed = loadConfig(navConfigData, navConfigSchema, 'nav.yml');
+  return parsed as NavConfig;
 }
 
 /**

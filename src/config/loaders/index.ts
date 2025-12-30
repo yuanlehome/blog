@@ -16,12 +16,7 @@
  */
 
 // Export all loader functions
-export {
-  loadSiteConfig,
-  getSiteConfig,
-  defaultSiteConfig,
-  type SiteConfig,
-} from './site';
+export { loadSiteConfig, getSiteConfig, defaultSiteConfig, type SiteConfig } from './site';
 
 export {
   loadNavConfig,
@@ -32,12 +27,7 @@ export {
   type NavTheme,
 } from './nav';
 
-export {
-  loadHomeConfig,
-  getHomeConfig,
-  defaultHomeConfig,
-  type HomeConfig,
-} from './home';
+export { loadHomeConfig, getHomeConfig, defaultHomeConfig, type HomeConfig } from './home';
 
 export {
   loadPostConfig,
@@ -55,12 +45,7 @@ export {
   type SourceAttribution,
 } from './post';
 
-export {
-  loadThemeConfig,
-  getThemeConfig,
-  defaultThemeConfig,
-  type ThemeConfig,
-} from './theme';
+export { loadThemeConfig, getThemeConfig, defaultThemeConfig, type ThemeConfig } from './theme';
 
 export {
   loadProfileConfig,

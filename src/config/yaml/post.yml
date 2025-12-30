@@ -7,17 +7,17 @@ metadata:
   showUpdatedDate: true
   showReadingTime: true
   showWordCount: true
-  
+
   # Date labels (Chinese/English)
-  publishedLabel: "发布于"
-  updatedLabel: "更新于"
-  
+  publishedLabel: '发布于'
+  updatedLabel: '更新于'
+
   # Icons for metadata
   icons:
-    published: "📅"
-    updated: "🔄"
-    wordCount: "✍️"
-    readingTime: "⏱️"
+    published: '📅'
+    updated: '🔄'
+    wordCount: '✍️'
+    readingTime: '⏱️'
 
 # Table of Contents
 tableOfContents:
@@ -49,30 +49,30 @@ relatedPosts:
 comments:
   enable: true
   defaultEnabled: true
-  provider: "giscus"
-  
+  provider: 'giscus'
+
   # Giscus configuration
   giscus:
-    repo: "yuanlehome/blog"
-    repoId: "R_kgDOQu2Jjw"
-    category: "General"
-    categoryId: "DIC_kwDOQu2Jj84C0QDN"
-    mapping: "pathname"
-    strict: "0"
-    reactionsEnabled: "1"
-    emitMetadata: "0"
-    inputPosition: "bottom"
-    theme: "preferred_color_scheme"
-    lang: "zh-CN"
-    
+    repo: 'yuanlehome/blog'
+    repoId: 'R_kgDOQu2Jjw'
+    category: 'General'
+    categoryId: 'DIC_kwDOQu2Jj84C0QDN'
+    mapping: 'pathname'
+    strict: '0'
+    reactionsEnabled: '1'
+    emitMetadata: '0'
+    inputPosition: 'bottom'
+    theme: 'preferred_color_scheme'
+    lang: 'zh-CN'
+
   # Theme mapping for light/dark mode
   themeMapping:
-    light: "light"
-    dark: "dark_dimmed"
+    light: 'light'
+    dark: 'dark_dimmed'
 
 # Source attribution
 sourceAttribution:
   enable: true
-  prefix: "📝 转载 / 引用来源："
-  authorPrefix: "作者"
-  linkText: "查看原文"
+  prefix: '📝 转载 / 引用来源：'
+  authorPrefix: '作者'
+  linkText: '查看原文'

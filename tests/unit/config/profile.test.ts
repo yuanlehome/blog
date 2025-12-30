@@ -14,7 +14,7 @@ describe('Profile Configuration', () => {
   describe('loadProfileConfig', () => {
     it('should load and validate profile configuration', () => {
       const config = loadProfileConfig();
-      
+
       expect(config).toBeDefined();
       expect(config.name).toBeDefined();
       expect(config.bio).toBeDefined();
@@ -26,8 +26,8 @@ describe('Profile Configuration', () => {
 
     it('should have social links with valid URLs', () => {
       const config = loadProfileConfig();
-      
-      config.socialLinks.forEach(link => {
+
+      config.socialLinks.forEach((link) => {
         expect(link.name).toBeDefined();
         expect(link.url).toBeDefined();
         expect(link.url).toMatch(/^https?:\/\//);
@@ -39,7 +39,7 @@ describe('Profile Configuration', () => {
     it('should return cached configuration', () => {
       const config1 = getProfileConfig();
       const config2 = getProfileConfig();
-      
+
       expect(config1).toBe(config2);
     });
   });
@@ -47,26 +47,24 @@ describe('Profile Configuration', () => {
   describe('profileConfigSchema', () => {
     it('should accept valid configuration', () => {
       const validConfig = {
-        name: "Test User",
-        bio: "A test bio",
-        socialLinks: [
-          { name: "GitHub", url: "https://github.com/test" },
-        ],
+        name: 'Test User',
+        bio: 'A test bio',
+        socialLinks: [{ name: 'GitHub', url: 'https://github.com/test' }],
         whatIDo: {
-          title: "What I Do",
-          description: "Building software",
+          title: 'What I Do',
+          description: 'Building software',
         },
         techStack: {
-          title: "Tech Stack",
-          skills: ["TypeScript", "Node.js"],
+          title: 'Tech Stack',
+          skills: ['TypeScript', 'Node.js'],
         },
         journey: {
-          title: "My Journey",
+          title: 'My Journey',
           items: [
             {
-              year: "2020",
-              role: "Developer",
-              description: "Built things",
+              year: '2020',
+              role: 'Developer',
+              description: 'Built things',
             },
           ],
         },
@@ -78,9 +76,7 @@ describe('Profile Configuration', () => {
 
     it('should reject invalid URLs', () => {
       const invalidConfig = {
-        socialLinks: [
-          { name: "Test", url: "not-a-url" },
-        ],
+        socialLinks: [{ name: 'Test', url: 'not-a-url' }],
       };
 
       const result = profileConfigSchema.safeParse(invalidConfig);

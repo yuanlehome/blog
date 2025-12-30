@@ -14,7 +14,7 @@ describe('Home Page Configuration', () => {
   describe('loadHomeConfig', () => {
     it('should load and validate home configuration', () => {
       const config = loadHomeConfig();
-      
+
       expect(config).toBeDefined();
       expect(config.title).toBeDefined();
       expect(config.pagination).toBeDefined();
@@ -27,7 +27,7 @@ describe('Home Page Configuration', () => {
     it('should return cached configuration', () => {
       const config1 = getHomeConfig();
       const config2 = getHomeConfig();
-      
+
       expect(config1).toBe(config2);
     });
   });
@@ -35,17 +35,17 @@ describe('Home Page Configuration', () => {
   describe('homeConfigSchema', () => {
     it('should accept valid configuration', () => {
       const validConfig = {
-        title: "Recent Posts",
+        title: 'Recent Posts',
         showPostCount: true,
-        postCountText: "posts",
+        postCountText: 'posts',
         pagination: {
           pageSize: 10,
           windowSize: 5,
         },
         navigation: {
-          newerText: "← Newer",
-          olderText: "Older →",
-          pageLabel: "Page",
+          newerText: '← Newer',
+          olderText: 'Older →',
+          pageLabel: 'Page',
         },
       };
 

@@ -25,7 +25,11 @@ export async function getStaticPaths() {
 const { slice, page, totalPages } = Astro.props;
 const BASE = normalizeBase(import.meta.env.BASE_URL);
 const siteConfig = getSiteConfig();
-const paginationPages = getPaginationPages({ currentPage: page, totalPages, windowSize: homeConfig.pagination.windowSize });
+const paginationPages = getPaginationPages({
+  currentPage: page,
+  totalPages,
+  windowSize: homeConfig.pagination.windowSize,
+});
 ---
 
 <Layout title={`${homeConfig.navigation.pageLabel} ${page} | ${siteConfig.siteName}`}>

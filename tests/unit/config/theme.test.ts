@@ -14,7 +14,7 @@ describe('Theme Configuration', () => {
   describe('loadThemeConfig', () => {
     it('should load and validate theme configuration', () => {
       const config = loadThemeConfig();
-      
+
       expect(config).toBeDefined();
       expect(config.defaultTheme).toBeDefined();
       expect(config.themes).toBeInstanceOf(Array);
@@ -26,7 +26,7 @@ describe('Theme Configuration', () => {
     it('should return cached configuration', () => {
       const config1 = getThemeConfig();
       const config2 = getThemeConfig();
-      
+
       expect(config1).toBe(config2);
     });
   });
@@ -34,16 +34,16 @@ describe('Theme Configuration', () => {
   describe('themeConfigSchema', () => {
     it('should accept valid configuration', () => {
       const validConfig = {
-        defaultTheme: "light" as const,
-        themes: ["light", "dark"],
-        storageKey: "theme",
+        defaultTheme: 'light' as const,
+        themes: ['light', 'dark'],
+        storageKey: 'theme',
         icons: {
-          light: "☀️",
-          dark: "🌙",
+          light: '☀️',
+          dark: '🌙',
         },
         labels: {
-          light: "Light",
-          dark: "Dark",
+          light: 'Light',
+          dark: 'Dark',
         },
         animations: {
           respectReducedMotion: true,
@@ -57,7 +57,7 @@ describe('Theme Configuration', () => {
 
     it('should validate defaultTheme enum', () => {
       const invalidConfig = {
-        defaultTheme: "invalid",
+        defaultTheme: 'invalid',
       };
 
       const result = themeConfigSchema.safeParse(invalidConfig);

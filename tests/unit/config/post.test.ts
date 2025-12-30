@@ -14,7 +14,7 @@ describe('Post Page Configuration', () => {
   describe('loadPostConfig', () => {
     it('should load and validate post configuration', () => {
       const config = loadPostConfig();
-      
+
       expect(config).toBeDefined();
       expect(config.metadata).toBeDefined();
       expect(config.tableOfContents).toBeDefined();
@@ -27,7 +27,7 @@ describe('Post Page Configuration', () => {
 
     it('should have giscus configuration', () => {
       const config = loadPostConfig();
-      
+
       expect(config.comments.giscus).toBeDefined();
       expect(config.comments.giscus.repo).toBeDefined();
       expect(config.comments.giscus.repoId).toBeDefined();
@@ -38,7 +38,7 @@ describe('Post Page Configuration', () => {
     it('should return cached configuration', () => {
       const config1 = getPostConfig();
       const config2 = getPostConfig();
-      
+
       expect(config1).toBe(config2);
     });
   });
@@ -51,13 +51,13 @@ describe('Post Page Configuration', () => {
           showUpdatedDate: true,
           showReadingTime: true,
           showWordCount: true,
-          publishedLabel: "Published",
-          updatedLabel: "Updated",
+          publishedLabel: 'Published',
+          updatedLabel: 'Updated',
           icons: {
-            published: "📅",
-            updated: "🔄",
-            wordCount: "✍️",
-            readingTime: "⏱️",
+            published: '📅',
+            updated: '🔄',
+            wordCount: '✍️',
+            readingTime: '⏱️',
           },
         },
         tableOfContents: {
@@ -84,30 +84,30 @@ describe('Post Page Configuration', () => {
         comments: {
           enable: true,
           defaultEnabled: true,
-          provider: "giscus",
+          provider: 'giscus',
           giscus: {
-            repo: "owner/repo",
-            repoId: "id",
-            category: "General",
-            categoryId: "id",
-            mapping: "pathname",
-            strict: "0",
-            reactionsEnabled: "1",
-            emitMetadata: "0",
-            inputPosition: "bottom",
-            theme: "preferred_color_scheme",
-            lang: "en",
+            repo: 'owner/repo',
+            repoId: 'id',
+            category: 'General',
+            categoryId: 'id',
+            mapping: 'pathname',
+            strict: '0',
+            reactionsEnabled: '1',
+            emitMetadata: '0',
+            inputPosition: 'bottom',
+            theme: 'preferred_color_scheme',
+            lang: 'en',
           },
           themeMapping: {
-            light: "light",
-            dark: "dark",
+            light: 'light',
+            dark: 'dark',
           },
         },
         sourceAttribution: {
           enable: true,
-          prefix: "Source:",
-          authorPrefix: "Author",
-          linkText: "View original",
+          prefix: 'Source:',
+          authorPrefix: 'Author',
+          linkText: 'View original',
         },
       };
 

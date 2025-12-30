@@ -15,7 +15,7 @@ describe('Site Configuration', () => {
   describe('loadSiteConfig', () => {
     it('should load and validate site configuration', () => {
       const config = loadSiteConfig();
-      
+
       expect(config).toBeDefined();
       expect(config.siteName).toBeDefined();
       expect(config.title).toBeDefined();
@@ -25,7 +25,7 @@ describe('Site Configuration', () => {
 
     it('should have correct types', () => {
       const config = loadSiteConfig();
-      
+
       expect(typeof config.siteName).toBe('string');
       expect(typeof config.title).toBe('string');
       expect(typeof config.description).toBe('string');
@@ -41,7 +41,7 @@ describe('Site Configuration', () => {
     it('should return cached configuration', () => {
       const config1 = getSiteConfig();
       const config2 = getSiteConfig();
-      
+
       expect(config1).toBe(config2);
     });
   });
@@ -49,17 +49,17 @@ describe('Site Configuration', () => {
   describe('siteConfigSchema', () => {
     it('should accept valid configuration', () => {
       const validConfig: SiteConfig = {
-        siteName: "Test Blog",
-        title: "Test Blog",
-        description: "A test blog",
-        author: "Test Author",
+        siteName: 'Test Blog',
+        title: 'Test Blog',
+        description: 'A test blog',
+        author: 'Test Author',
         copyrightYear: 2024,
-        copyrightText: "All rights reserved.",
-        defaultLanguage: "en",
-        dateFormat: "YYYY-MM-DD",
+        copyrightText: 'All rights reserved.',
+        defaultLanguage: 'en',
+        dateFormat: 'YYYY-MM-DD',
         enableRSS: true,
         enableSitemap: true,
-        socialImage: "test.jpg",
+        socialImage: 'test.jpg',
       };
 
       const result = siteConfigSchema.safeParse(validConfig);
@@ -68,14 +68,14 @@ describe('Site Configuration', () => {
 
     it('should use defaults for missing optional fields', () => {
       const minimalConfig = {
-        siteName: "Test Blog",
-        title: "Test Blog",
-        description: "A test blog",
-        author: "Test Author",
+        siteName: 'Test Blog',
+        title: 'Test Blog',
+        description: 'A test blog',
+        author: 'Test Author',
       };
 
       const result = siteConfigSchema.parse(minimalConfig);
-      
+
       expect(result.copyrightYear).toBeDefined();
       expect(result.copyrightText).toBe('All rights reserved.');
       expect(result.enableRSS).toBe(true);
@@ -84,7 +84,7 @@ describe('Site Configuration', () => {
 
     it('should reject invalid configuration', () => {
       const invalidConfig = {
-        siteName: "",
+        siteName: '',
       };
 
       const result = siteConfigSchema.safeParse(invalidConfig);

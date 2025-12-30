@@ -68,7 +68,8 @@ export const defaultThemeConfig: ThemeConfig = {
  * @throws Error if configuration is invalid
  */
 export function loadThemeConfig(): ThemeConfig {
-  return loadConfig(themeConfigData, themeConfigSchema, 'theme.yml');
+  const parsed = loadConfig(themeConfigData, themeConfigSchema, 'theme.yml');
+  return parsed as ThemeConfig;
 }
 
 /**

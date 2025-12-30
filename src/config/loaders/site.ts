@@ -58,7 +58,8 @@ export const defaultSiteConfig: SiteConfig = {
  * @throws Error if configuration is invalid
  */
 export function loadSiteConfig(): SiteConfig {
-  return loadConfig(siteConfigData, siteConfigSchema, 'site.yml');
+  const parsed = loadConfig(siteConfigData, siteConfigSchema, 'site.yml');
+  return parsed as SiteConfig;
 }
 
 /**

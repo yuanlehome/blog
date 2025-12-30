@@ -62,7 +62,8 @@ export const defaultHomeConfig: HomeConfig = {
  * @throws Error if configuration is invalid
  */
 export function loadHomeConfig(): HomeConfig {
-  return loadConfig(homeConfigData, homeConfigSchema, 'home.yml');
+  const parsed = loadConfig(homeConfigData, homeConfigSchema, 'home.yml');
+  return parsed as HomeConfig;
 }
 
 /**

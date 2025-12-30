@@ -108,7 +108,8 @@ export const defaultProfileConfig: ProfileConfig = {
  * @throws Error if configuration is invalid
  */
 export function loadProfileConfig(): ProfileConfig {
-  return loadConfig(profileConfigData, profileConfigSchema, 'profile.yml');
+  const parsed = loadConfig(profileConfigData, profileConfigSchema, 'profile.yml');
+  return parsed as ProfileConfig;
 }
 
 /**
