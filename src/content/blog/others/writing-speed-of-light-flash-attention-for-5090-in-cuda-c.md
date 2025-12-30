@@ -11,7 +11,7 @@ source:
   title: gau-nernst.github.io
   url: 'https://gau-nernst.github.io/fa-5090/'
 updated: '2025-08-23'
-cover: /images/others/others-fa-5090/001-d8f57fc4.svg
+cover: /images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/001-d8f57fc4.svg
 lang: zh
 translatedFrom: en
 ---
@@ -136,13 +136,13 @@ void global_to_shared(uint32_t dst, const nv_bfloat16 *src, int src_stride, int 
 }
 ```
 
-![全局到共享数据传输](/images/others/others-fa-5090/001-d8f57fc4.svg)
+![全局到共享数据传输](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/001-d8f57fc4.svg)
 
 从全局内存到共享内存的2D块复制。
 
 我们将使用内联汇编编写`cp.async.cg.shared.global`。此PTX执行16字节传输，或每个CUDA线程8个BF16元素（`num_elems = 16 / sizeof(nv_bfloat16)`）。为确保合并内存访问，连续线程将负责连续的8xBF16组。
 
-![合并内存访问](/images/others/others-fa-5090/002-b5fea70a.svg)
+![合并内存访问](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/002-b5fea70a.svg)
 
 连续线程负责连续的8xBF16组。
 
@@ -178,7 +178,7 @@ __syncthreads();
 
 在进行全局到共享内存的数据传输时，我们以线程块瓦片和单个CUDA线程为单位来思考。对于共享内存到寄存器的数据传输，由于这是为了服务后续的MMA指令，我们以warp瓦片/MMA瓦片和warp为单位来思考。遵循Flash Attention 2（第3.3节），我们让线程块中的每个warp处理一部分`tile_Q`，沿Q序列长度维度进行分割。这意味着不同的warp将索引到`tile_Q`的不同块，但它们都索引到KV序列长度循环中相同的`tile_K`和`tile_V`块。
 
-![Flash Attention warp分区](/images/others/others-fa-5090/003-ba293e9f.svg)
+![Flash Attention warp分区](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/003-ba293e9f.svg)
 
 Flash Attention 2中的warp分区。
 
@@ -191,7 +191,7 @@ Flash Attention 2中的warp分区。
 
 要使用`ldmatrix`，每个线程提供一行的地址。线程0-7选择第1个8x8瓦片，线程8-15选择第2个8x8瓦片，依此类推。[官方PTX文档中A的布局](https://docs.nvidia.com/cuda/parallel-thread-execution/#warp-level-matrix-fragment-mma-16816-float)可能看起来令人困惑。但更容易（至少对我来说）关注MMA瓦片内8x8瓦片的顺序。
 
-![MMA布局的ldmatrix](/images/others/others-fa-5090/004-182a0351.svg)
+![MMA布局的ldmatrix](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/004-182a0351.svg)
 
 中`ldmatrix`瓦片的顺序`mma.m16n8k16`。
 
@@ -223,7 +223,7 @@ for (int mma_id_q = 0; mma_id_q < WARP_Q / MMA_M; mma_id_q++)
 
 时的行优先/列优先布局。无论是否使用`ldmatrix`修饰符，每个线程仍然提供8x8瓦片中每行的行地址。`.trans`只改变`.trans`结果的**寄存器布局**。`ldmatrix`使用转置版本的
 
-![K和V的ldmatrix](/images/others/others-fa-5090/005-7d5699b1.svg)
+![K和V的ldmatrix](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/005-7d5699b1.svg)
 
 用于V。`ldmatrix`一个判断是否使用转置版本的
 
@@ -476,7 +476,7 @@ tile_O /= sumexp.unsqueeze(-1)
 
 当将其翻译为CUDA C++时，最棘手的部分是理解MMA布局。让我们从`tile_S`开始。
 
-![MMA m16n8k16输出布局](/images/others/others-fa-5090/006-c90e5d1a.png)
+![MMA m16n8k16输出布局](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/006-c90e5d1a.png)
 
 MMA m16n8k16输出的线程和寄存器布局。来源：[NVIDIA PTX文档](https://docs.nvidia.com/cuda/parallel-thread-execution/#warp-level-matrix-fragment-mma-16816-float)。
 
@@ -488,7 +488,7 @@ float S_rmem[WARP_Q / MMA_M][BLOCK_KV / MMA_N][4];
 
 `4`意味着`c0,c1,c2,c3`在上图中，即每个线程持有来自2行的2个连续元素。要在行内（MMA输出瓦片的行）进行归约，我们对线程持有的2个连续元素进行归约，然后在4个线程的组内进行归约，即`T0-T3`、`T4-T7`等等。然而，行归约实际上是在整个`tile_S`内进行的，因此我们还需要循环`BLOCK_KV / MMA_N`的`S_rmem`。这可以与线程级归约在4线程归约之前结合。
 
-![行归约](/images/others/others-fa-5090/007-9e2fcb2f.svg)
+![行归约](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/007-9e2fcb2f.svg)
 
 在MMA输出上执行行归约。
 
@@ -535,7 +535,7 @@ for (int kv_idx = 0; kv_idx < num_kv_iters; kv_idx++) {
 
 在典型的归约内核中，当只剩下32个活动线程时，我们可以使用warp shuffle[\_\_shfl_down_sync()](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#warp-shuffle-functions)将数据从较高通道复制到较低通道，最终结果存储在线程0中。在这种情况下，由于我们需要最大值在组内的4个线程之间共享（用于后续的最大值减法），我们可以使用`__shfl_xor_sync()`来避免额外的广播步骤。
 
-![蝶形归约](/images/others/others-fa-5090/008-f1f2f566.svg)
+![蝶形归约](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/008-f1f2f566.svg)
 
 使用\_\_shfl_xor_sync()在4个线程内进行蝶形归约。
 
@@ -577,7 +577,7 @@ uint32_t P_rmem[WARP_Q / MMA_M][BLOCK_KV / MMA_K][4];  // m16k16
 
 再次在 PTX 文档中查找 MMA 被乘数 A 和输出 C/D 的线程/寄存器布局。幸运的是，布局完全相同 - 在 8x8 图块内，元素的排列是相同的。
 
-![MMA m16n8k16 的寄存器布局](/images/others/others-fa-5090/009-fe1cdc5e.svg)
+![MMA m16n8k16 的寄存器布局](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/009-fe1cdc5e.svg)
 
 被乘数 A 的左半部分与累加器具有相同的布局。来源：[NVIDIA PTX 文档](https://docs.nvidia.com/cuda/parallel-thread-execution/#warp-level-matrix-fragment-mma-16816-float)。
 
@@ -661,7 +661,7 @@ Nsight Compute 可以在 macOS 上运行，通过 SSH 访问另一台配备 NVID
 
 让我们用 Nsight Compute 进行一次性能分析，并查看 **Warp State Statistics** 部分。
 
-![v1 的 Warp 状态统计](/images/others/others-fa-5090/010-0e73a50b.png)
+![v1 的 Warp 状态统计](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/010-0e73a50b.png)
 
 内核 v1 的 Warp 状态统计。
 
@@ -669,7 +669,7 @@ Nsight Compute 可以在 macOS 上运行，通过 SSH 访问另一台配备 NVID
 
 我们可以通过查看 **Memory Workload Analysis** 来再次确认，这揭示了几个问题。
 
-![v1 的内存分析](/images/others/others-fa-5090/011-2b867178.png)
+![v1 的内存分析](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/011-2b867178.png)
 
 内核 v1 的内存分析。
 
@@ -681,13 +681,13 @@ NVIDIA GPU 的共享内存由 32 个存储体支持。连续的 4 字节内存�
 
 考虑一个形状为8x64、数据类型为BF16的2D图块，位于共享内存中。
 
-![Bank conflicts](/images/others/others-fa-5090/012-a7a0793c.svg)
+![Bank conflicts](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/012-a7a0793c.svg)
 
 共享内存中8x64 BF16图块的内存bank分布。
 
 从上图可知，当我们加载8x8`ldmatrix`图块时，相同的4个bank 0-3服务所有32个线程，导致8路bank冲突。我不确定为什么Nsight Compute报告如上所示的16路bank冲突。我尝试查阅[matmul blogposts with swizzling](https://alexarmbr.github.io/2024/08/10/How-To-Write-A-Fast-Matrix-Multiplication-From-Scratch-With-Tensor-Cores.html)和[NVIDIA forum threads](https://forums.developer.nvidia.com/t/ncu-detects-bank-conflicts-in-matrix-transposition-after-padding/239100/6)，发现另一种检查bank冲突的方法是转到Nsight Compute的**Source**选项卡并检查**L1 Wavefronts Shared**和**L1 Wavefronts Shared Ideal**（我必须手动启用这两列，因为默认情况下它们没有显示）。
 
-![Bank conflicts in ldmatrix](/images/others/others-fa-5090/013-f80df431.png)
+![Bank conflicts in ldmatrix](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/013-f80df431.png)
 
 内核v1中`ldmatrix`的实际和理想L1 Wavefronts Shared。
 
@@ -762,7 +762,7 @@ for (int mma_id_kv = 0; mma_id_kv < BLOCK_KV / MMA_N; mma_id_kv++)
 
 ## 版本3 - 2级流水线
 
-![Warp state statistics of v2](/images/others/others-fa-5090/014-e3f53ee7.png)
+![Warp state statistics of v2](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/014-e3f53ee7.png)
 
 内核v2的Warp状态统计。
 
@@ -885,7 +885,7 @@ for (int kv_id = 0; kv_id < num_kv_iter; kv_id++) {
 
 版本3：[attention_v3.cu](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/attention_v3.cu)。
 
-![v3的Warp状态统计](/images/others/others-fa-5090/015-f8b68c26.png)
+![v3的Warp状态统计](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/015-f8b68c26.png)
 
 内核v3的Warp状态统计。
 
@@ -902,7 +902,7 @@ Stall Long Scoreboard现在已从Warp状态统计中消失。我还必须将`BLO
 
 之前，我们使用`ldmatrix.x2`用于K和V，因为它自然适合`n8k16`MMA瓦片。然而，既然我们无论如何都在处理更大的瓦片，我们可以直接使用`ldmatrix.x4`来发出更少的指令。有两个选项：加载`n16k16`瓦片，或`n8k32`瓦片。
 
-![为B使用ldmatrix.x4](/images/others/others-fa-5090/016-78fcfc89.svg)
+![为B使用ldmatrix.x4](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/016-78fcfc89.svg)
 
 为被乘数B使用ldmatrix.x4的可能选项。
 
