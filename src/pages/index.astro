@@ -6,23 +6,28 @@ import PostList from '../components/PostList.astro';
 import { getPublishedPosts } from '../lib/content/posts';
 import { normalizeBase } from '../lib/slug';
 import { getPaginationPages } from '../lib/ui/pagination';
+import { getHomeConfig, getSiteConfig } from '../config/loaders';
 
 const posts = await getPublishedPosts();
-const PAGE_SIZE = 5;
+const homeConfig = getHomeConfig();
+const siteConfig = getSiteConfig();
+const PAGE_SIZE = homeConfig.pagination.pageSize;
 const currentPage = 1;
 const totalPages = Math.max(1, Math.ceil(posts.length / PAGE_SIZE));
 const pagePosts = posts.slice(0, PAGE_SIZE);
 const BASE = normalizeBase(import.meta.env.BASE_URL);
 const paginationPages =
-  totalPages > 1 ? getPaginationPages({ currentPage, totalPages, windowSize: 5 }) : [];
+  totalPages > 1 ? getPaginationPages({ currentPage, totalPages, windowSize: homeConfig.pagination.windowSize }) : [];
 ---
 
-<Layout title="Yuanle Liu‘s Blog">
+<Layout title={siteConfig.siteName}>
   <Header />
   <main class="container mx-auto px-4 py-8 max-w-4xl">
     <div class="flex flex-col gap-2 mb-6">
-      <h2 class="text-2xl font-bold">Recent Posts</h2>
-      <p class="text-sm text-gray-500">{posts.length} published posts</p>
+      <h2 class="text-2xl font-bold">{homeConfig.title}</h2>
+      {homeConfig.showPostCount && (
+        <p class="text-sm text-gray-500">{posts.length} {homeConfig.postCountText}</p>
+      )}
     </div>
     <PostList posts={pagePosts} />
 
@@ -35,7 +40,7 @@ const paginationPages =
               class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
               aria-label="Go to previous page"
             >
-              ← Newer
+              {homeConfig.navigation.newerText}
             </a>
           ) : (
             <span
@@ -43,7 +48,7 @@ const paginationPages =
               aria-disabled="true"
               aria-label="No previous page"
             >
-              ← Newer
+              {homeConfig.navigation.newerText}
             </span>
           )}
 
@@ -57,7 +62,7 @@ const paginationPages =
                 <span
                   class="px-3 py-2 rounded bg-blue-500 text-white font-semibold"
                   aria-current="page"
-                  aria-label={`Page ${page}, current page`}
+                  aria-label={`${homeConfig.navigation.pageLabel} ${page}, current page`}
                 >
                   {page}
                 </span>
@@ -79,7 +84,7 @@ const paginationPages =
               class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
               aria-label="Go to next page"
             >
-              Older →
+              {homeConfig.navigation.olderText}
             </a>
           ) : (
             <span
@@ -87,7 +92,7 @@ const paginationPages =
               aria-disabled="true"
               aria-label="No next page"
             >
-              Older →
+              {homeConfig.navigation.olderText}
             </span>
           )}
         </nav>

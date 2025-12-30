@@ -1,0 +1,18 @@
+# Home Page Configuration
+# Settings for the blog homepage and post listing
+
+# Title and description for the home page
+title: "Recent Posts"
+showPostCount: true
+postCountText: "published posts"
+
+# Pagination settings
+pagination:
+  pageSize: 5
+  windowSize: 5
+  
+# Navigation text
+navigation:
+  newerText: "← Newer"
+  olderText: "Older →"
+  pageLabel: "Page"

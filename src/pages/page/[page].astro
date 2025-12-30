@@ -6,9 +6,13 @@ import PostList from '../../components/PostList.astro';
 import { getPublishedPosts } from '../../lib/content/posts';
 import { normalizeBase } from '../../lib/slug';
 import { getPaginationPages } from '../../lib/ui/pagination';
+import { getHomeConfig, getSiteConfig } from '../../config/loaders';
+
+const homeConfig = getHomeConfig();
 
 export async function getStaticPaths() {
-  const PAGE_SIZE = 5;
+  const homeConfig = getHomeConfig();
+  const PAGE_SIZE = homeConfig.pagination.pageSize;
   const posts = await getPublishedPosts();
   const totalPages = Math.max(1, Math.ceil(posts.length / PAGE_SIZE));
   return Array.from({ length: totalPages }, (_, i) => {
@@ -20,15 +24,16 @@ export async function getStaticPaths() {
 
 const { slice, page, totalPages } = Astro.props;
 const BASE = normalizeBase(import.meta.env.BASE_URL);
-const paginationPages = getPaginationPages({ currentPage: page, totalPages, windowSize: 5 });
+const siteConfig = getSiteConfig();
+const paginationPages = getPaginationPages({ currentPage: page, totalPages, windowSize: homeConfig.pagination.windowSize });
 ---
 
-<Layout title={`Page ${page} | Yuanle Liu‘s Blog`}>
+<Layout title={`${homeConfig.navigation.pageLabel} ${page} | ${siteConfig.siteName}`}>
   <Header />
   <main class="container mx-auto px-4 py-8 max-w-4xl">
     <div class="flex flex-col gap-2 mb-6">
-      <h2 class="text-2xl font-bold">Posts</h2>
-      <p class="text-sm text-gray-500">Page {page} / {totalPages}</p>
+      <h2 class="text-2xl font-bold">{homeConfig.title}</h2>
+      <p class="text-sm text-gray-500">{homeConfig.navigation.pageLabel} {page} / {totalPages}</p>
     </div>
     <PostList posts={slice} />
 
@@ -40,7 +45,7 @@ const paginationPages = getPaginationPages({ currentPage: page, totalPages, wind
             class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             aria-label="Go to previous page"
           >
-            ← Newer
+            {homeConfig.navigation.newerText}
           </a>
         ) : (
           <span
@@ -48,7 +53,7 @@ const paginationPages = getPaginationPages({ currentPage: page, totalPages, wind
             aria-disabled="true"
             aria-label="No previous page"
           >
-            ← Newer
+            {homeConfig.navigation.newerText}
           </span>
         )
       }
@@ -64,7 +69,7 @@ const paginationPages = getPaginationPages({ currentPage: page, totalPages, wind
               <span
                 class="px-3 py-2 rounded bg-blue-500 text-white font-semibold"
                 aria-current="page"
-                aria-label={`Page ${pageNum}, current page`}
+                aria-label={`${homeConfig.navigation.pageLabel} ${pageNum}, current page`}
               >
                 {pageNum}
               </span>
@@ -88,7 +93,7 @@ const paginationPages = getPaginationPages({ currentPage: page, totalPages, wind
             class="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             aria-label="Go to next page"
           >
-            Older →
+            {homeConfig.navigation.olderText}
           </a>
         ) : (
           <span
@@ -96,7 +101,7 @@ const paginationPages = getPaginationPages({ currentPage: page, totalPages, wind
             aria-disabled="true"
             aria-label="No next page"
           >
-            Older →
+            {homeConfig.navigation.olderText}
           </span>
         )
       }

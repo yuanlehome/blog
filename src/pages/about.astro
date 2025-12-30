@@ -2,14 +2,15 @@
 import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
-import aboutData from '../data/about.yml';
+import { getProfileConfig, getSiteConfig } from '../config/loaders';
 import { normalizeBase } from '../lib/slug';
 
-const { name, bio, socialLinks, whatIDo, techStack, journey } = aboutData;
+const profile = getProfileConfig();
+const siteConfig = getSiteConfig();
 const BASE = normalizeBase(import.meta.env.BASE_URL);
 ---
 
-<Layout title={`About ${name} - Yuanle Liu‘s Blog`}>
+<Layout title={`About ${profile.name} - ${siteConfig.siteName}`}>
   <Header />
   <main class="container mx-auto px-4 py-12 max-w-4xl">
     <section class="flex flex-col md:flex-row items-center gap-12 mb-16">
@@ -19,7 +20,7 @@ const BASE = normalizeBase(import.meta.env.BASE_URL);
         >
         </div>
         <img
-          src={`${BASE}placeholder-social.jpg`}
+          src={`${BASE}${siteConfig.socialImage}`}
           alt="Profile"
           class="relative w-full h-full object-cover rounded-full border-4 border-white dark:border-gray-800 shadow-xl"
         />
@@ -28,14 +29,14 @@ const BASE = normalizeBase(import.meta.env.BASE_URL);
         <h1
           class="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400"
         >
-          Hi, I'm {name}
+          Hi, I'm {profile.name}
         </h1>
         <p class="text-xl text-gray-600 dark:text-gray-300 mb-6 max-w-lg mx-auto md:mx-0">
-          {bio}
+          {profile.bio}
         </p>
         <div class="flex gap-4 justify-center md:justify-start">
           {
-            socialLinks.map((link: any) => (
+            profile.socialLinks.map((link) => (
               <a
                 href={link.url}
                 target="_blank"
@@ -55,10 +56,10 @@ const BASE = normalizeBase(import.meta.env.BASE_URL);
       >
         <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
           <span>🚀</span>
-          {whatIDo.title}
+          {profile.whatIDo.title}
         </h2>
         <p class="text-gray-600 dark:text-gray-300 leading-relaxed">
-          {whatIDo.description}
+          {profile.whatIDo.description}
         </p>
       </div>
       <div
@@ -66,11 +67,11 @@ const BASE = normalizeBase(import.meta.env.BASE_URL);
       >
         <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
           <span>🛠️</span>
-          {techStack.title}
+          {profile.techStack.title}
         </h2>
         <div class="flex flex-wrap gap-2">
           {
-            techStack.skills.map((tech: string) => (
+            profile.techStack.skills.map((tech) => (
               <span class="px-3 py-1 bg-white dark:bg-gray-700 rounded-lg text-sm font-medium shadow-sm">
                 {tech}
               </span>
@@ -81,10 +82,10 @@ const BASE = normalizeBase(import.meta.env.BASE_URL);
     </section>
 
     <section class="prose dark:prose-invert max-w-none">
-      <h2 class="text-3xl font-bold mb-6 text-center">{journey.title}</h2>
+      <h2 class="text-3xl font-bold mb-6 text-center">{profile.journey.title}</h2>
       <div class="relative border-l-2 border-gray-200 dark:border-gray-700 ml-4 space-y-8">
         {
-          journey.items.map((item: any) => (
+          profile.journey.items.map((item) => (
             <div class="ml-6 relative rounded-xl border border-gray-200/70 bg-white/80 p-4 shadow-[0_10px_30px_rgb(15_23_42/0.03)] transition duration-200 ease-out hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_14px_32px_rgb(59_130_246/0.12)] dark:border-gray-800/70 dark:bg-gray-900/60 dark:shadow-[0_14px_30px_rgb(0_0_0/0.4)] dark:hover:border-blue-500/35 dark:hover:shadow-[0_16px_34px_rgb(59_130_246/0.16)]">
               <div
                 class={`absolute -left-[31px] top-1 w-4 h-4 rounded-full border-4 border-white dark:border-gray-900 ${item.color || 'bg-gray-300 dark:bg-gray-600'}`}
