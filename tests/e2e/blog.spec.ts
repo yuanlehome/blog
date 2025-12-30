@@ -316,9 +316,9 @@ test.describe('Blog smoke journey', () => {
     await firstLink.click();
     await expect(page.locator('[data-article]')).toBeVisible();
 
-    // Ensure all images are loaded
-    await page.waitForLoadState('networkidle');
-
+    // Wait for page to be fully loaded (DOM ready, not network idle due to Giscus)
+    await page.waitForLoadState('domcontentloaded');
+    
     const stack = page.locator('[data-floating-action-stack]');
     await expect(stack).toBeVisible();
 
@@ -377,8 +377,8 @@ test.describe('Blog smoke journey', () => {
     await firstLink.click();
     await expect(page.locator('[data-article]')).toBeVisible();
 
-    // Wait for page to load
-    await page.waitForLoadState('networkidle');
+    // Wait for page to be fully loaded (DOM ready, not network idle due to Giscus)
+    await page.waitForLoadState('domcontentloaded');
 
     const stack = page.locator('[data-floating-action-stack]');
     const bottomButton = stack.locator('[data-action="bottom"]');
@@ -427,7 +427,8 @@ test.describe('Blog smoke journey', () => {
     await firstLink.click();
     await expect(page.locator('[data-article]')).toBeVisible();
 
-    await page.waitForLoadState('networkidle');
+    // Wait for page to be fully loaded (DOM ready, not network idle due to Giscus)
+    await page.waitForLoadState('domcontentloaded');
 
     const stack = page.locator('[data-floating-action-stack]');
     const bottomButton = stack.locator('[data-action="bottom"]');
