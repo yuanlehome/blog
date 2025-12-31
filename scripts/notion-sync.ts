@@ -10,6 +10,7 @@ import crypto from 'crypto';
 import { slugFromTitle, ensureUniqueSlug } from '../src/lib/slug';
 import { NOTION_CONTENT_DIR, NOTION_PUBLIC_IMG_DIR, ensureDir } from '../src/config/paths';
 import { processMarkdownForImport } from './markdown/index.js';
+import { processMarkdownForNotionSync, cleanInvisibleCharacters } from './lib/markdown/pipeline.js';
 import { createScriptLogger, now, duration } from './logger-helpers.js';
 
 dotenv.config({ path: '.env.local' });
@@ -368,8 +369,21 @@ export async function sync() {
         const mdblocks = await n2m.pageToMarkdown(pageId);
         const mdString = await n2m.toMarkdownString(mdblocks);
 
-        // Construct Frontmatter
-        const frontmatter = {
+        // Step 1: Get raw markdown content from Notion
+        const rawMarkdown = mdString.parent || '';
+
+        // Step 2: Clean invisible characters from raw content
+        const { cleaned: cleanedRawMarkdown } = cleanInvisibleCharacters(rawMarkdown);
+
+        // Step 3: Read existing file content if it exists (for frontmatter merge)
+        const filePath = path.join(NOTION_CONTENT_DIR, `${slug}.md`);
+        let existingContent: string | undefined;
+        if (fs.existsSync(filePath)) {
+          existingContent = fs.readFileSync(filePath, 'utf-8');
+        }
+
+        // Step 4: Construct new frontmatter from Notion data
+        const newFrontmatter = {
           title,
           slug,
           date,
@@ -382,9 +396,45 @@ export async function sync() {
           notion: { id: pageId },
         };
 
-        let fileContent = matter.stringify(mdString.parent || '', frontmatter);
+        // Step 5: Process through the unified pipeline (merges frontmatter + normalizes content)
+        let fileContent: string;
+        let pipelineDiagnostics: {
+          invisibleCharsRemoved?: number;
+          duplicateFrontmatterKeysRemoved?: number;
+        } = {};
 
-        // Apply markdown enhancements (translation, code fence fix, etc.)
+        try {
+          const pipelineResult = await processMarkdownForNotionSync(
+            cleanedRawMarkdown,
+            newFrontmatter,
+            existingContent,
+          );
+
+          fileContent = pipelineResult.markdown;
+          pipelineDiagnostics = pipelineResult.diagnostics;
+
+          // Log pipeline diagnostics
+          if (
+            pipelineResult.diagnostics.invisibleCharsRemoved > 0 ||
+            pipelineResult.diagnostics.duplicateFrontmatterKeysRemoved > 0
+          ) {
+            logger.debug('Pipeline cleaned content', {
+              slug,
+              invisibleCharsRemoved: pipelineResult.diagnostics.invisibleCharsRemoved,
+              duplicateFrontmatterKeysRemoved:
+                pipelineResult.diagnostics.duplicateFrontmatterKeysRemoved,
+            });
+          }
+        } catch (pipelineError) {
+          // Fallback to original approach if pipeline fails
+          logger.warn('Pipeline failed, using fallback approach', {
+            slug,
+            error: String(pipelineError),
+          });
+          fileContent = matter.stringify(cleanedRawMarkdown, newFrontmatter);
+        }
+
+        // Step 6: Apply additional markdown enhancements (translation, code fence fix, etc.)
         try {
           const processed = await processMarkdownForImport(
             { markdown: fileContent, slug, source: 'notion' },
@@ -408,16 +458,20 @@ export async function sync() {
               codeFencesFixed: processed.diagnostics.codeFencesFixed,
               imageCaptionsFixed: processed.diagnostics.imageCaptionsFixed,
               mathDelimitersFixed: processed.diagnostics.mathDelimitersFixed,
+              invisibleCharsRemoved: pipelineDiagnostics.invisibleCharsRemoved,
             });
           }
         } catch (error) {
-          logger.warn('Failed to enhance markdown, using original', {
+          logger.warn('Failed to enhance markdown, using pipeline output', {
             slug,
             error: String(error),
           });
         }
 
-        const filePath = path.join(NOTION_CONTENT_DIR, `${slug}.md`);
+        // Step 7: Write to disk (ensure trailing newline)
+        if (!fileContent.endsWith('\n')) {
+          fileContent += '\n';
+        }
         fs.writeFileSync(filePath, fileContent);
         logger.debug('Saved markdown file', { slug, filePath });
 
