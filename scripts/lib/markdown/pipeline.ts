@@ -135,41 +135,45 @@ export interface ProcessMarkdownResult {
   };
 }
 
+// Pre-compiled regexes for performance
+const BIDI_PATTERN = new RegExp(`[${BIDI_CONTROL_CHARS.join('')}]`, 'g');
+const INVISIBLE_PATTERN = new RegExp(`[${INVISIBLE_CHARS.join('')}]`, 'g');
+const SPECIAL_SPACE_PATTERN = new RegExp(`[${Object.keys(SPECIAL_SPACES).join('')}]`, 'g');
+
 /**
- * Clean invisible and control characters from text
- * Preserves normal text, Chinese characters, and emoji
+ * Clean invisible and control characters from text.
+ * Preserves normal text, Chinese characters, and emoji.
+ *
+ * @example
+ * // Remove zero-width and bidi chars
+ * cleanInvisibleCharacters('Hello\u200BWorld\u202A!');
+ * // => { cleaned: 'HelloWorld!', count: 2 }
+ *
+ * @example
+ * // Normalize special spaces
+ * cleanInvisibleCharacters('Hello\u00A0World');
+ * // => { cleaned: 'Hello World', count: 0 }
  */
 export function cleanInvisibleCharacters(text: string): { cleaned: string; count: number } {
   let cleaned = text;
   let count = 0;
 
-  // Remove bidi control characters
-  for (const char of BIDI_CONTROL_CHARS) {
-    const regex = new RegExp(char, 'g');
-    const matches = cleaned.match(regex);
-    if (matches) {
-      count += matches.length;
-      cleaned = cleaned.replace(regex, '');
-    }
+  // Remove bidi control characters (single pass with pre-compiled regex)
+  const bidiMatches = cleaned.match(BIDI_PATTERN);
+  if (bidiMatches) {
+    count += bidiMatches.length;
+    cleaned = cleaned.replace(BIDI_PATTERN, '');
   }
 
-  // Remove zero-width/invisible characters
-  for (const char of INVISIBLE_CHARS) {
-    const regex = new RegExp(char, 'g');
-    const matches = cleaned.match(regex);
-    if (matches) {
-      count += matches.length;
-      cleaned = cleaned.replace(regex, '');
-    }
+  // Remove zero-width/invisible characters (single pass with pre-compiled regex)
+  const invisibleMatches = cleaned.match(INVISIBLE_PATTERN);
+  if (invisibleMatches) {
+    count += invisibleMatches.length;
+    cleaned = cleaned.replace(INVISIBLE_PATTERN, '');
   }
 
   // Normalize special spaces to regular spaces
-  for (const [char, replacement] of Object.entries(SPECIAL_SPACES)) {
-    const regex = new RegExp(char, 'g');
-    if (cleaned.includes(char)) {
-      cleaned = cleaned.replace(regex, replacement);
-    }
-  }
+  cleaned = cleaned.replace(SPECIAL_SPACE_PATTERN, ' ');
 
   return { cleaned, count };
 }

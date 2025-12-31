@@ -147,7 +147,7 @@ describe('mergeFrontmatter', () => {
     expect(merged.author).toBe('John');
   });
 
-  it('should preserve existing preserve fields not in source', () => {
+  it('should preserve existing fields not in source', () => {
     const source = { title: 'New Title' };
     const existing = { title: 'Old Title', description: 'Existing description' };
 

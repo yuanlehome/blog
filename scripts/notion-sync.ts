@@ -427,9 +427,11 @@ export async function sync() {
           }
         } catch (pipelineError) {
           // Fallback to original approach if pipeline fails
+          const errorMessage =
+            pipelineError instanceof Error ? pipelineError.message : String(pipelineError);
           logger.warn('Pipeline failed, using fallback approach', {
             slug,
-            error: String(pipelineError),
+            error: errorMessage,
           });
           fileContent = matter.stringify(cleanedRawMarkdown, newFrontmatter);
         }
