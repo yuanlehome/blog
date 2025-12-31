@@ -1,11 +1,13 @@
 ---
 title: Context Parallel 技术解析
 slug: context-parallel
-date: '2025-12-28'
+date: '2025-12-31'
 tags: []
 status: published
 cover: /images/notion/context-parallel/2cd22dca-4210-8065-8a1a-e0bf7582b90e.png
-lastEditedTime: '2025-12-28T06:59:00.000Z'
+lastEditedTime: '2025-12-31T12:56:00.000Z'
+updated: '2025-12-31T12:56:00.000Z'
+source: notion
 notion:
   id: 2cd22dca-4210-81ec-89e2-f27eefb312e5
 ---
@@ -14,7 +16,7 @@ notion:
 
 ## 学习链接
 
-- [[并行训练]Context Parallelism的原理与代码浅析 - 知乎](https://zhuanlan.zhihu.com/p/698447429?share_code=WwUutv3avJIE&utm_psn=1983881801186444490)
+- [\[并行训练\]Context Parallelism的原理与代码浅析 - 知乎](https://zhuanlan.zhihu.com/p/698447429?share_code=WwUutv3avJIE&utm_psn=1983881801186444490)
 - [ring attention + flash attention：超长上下文之路 - 知乎](https://zhuanlan.zhihu.com/p/683714620)
 - [大模型训练之序列并行双雄：DeepSpeed Ulysses & Ring-Attention - 知乎](https://zhuanlan.zhihu.com/p/689067888)
 - [图解序列并行云台28将（上篇） - 知乎](https://zhuanlan.zhihu.com/p/707204903)
@@ -29,8 +31,6 @@ notion:
 ---
 
 上下文并行（Context Parallel, CP）是一种面向大语言模型推理的并行策略，其核心思想是在序列（sequence length）维度上对输入和 KV Cache 进行分片来实现并行处理。与传统并行方式在每个设备上完整复制 Key–Value（KV）缓存不同，Context Parallel 将上下文 token 的 KV 缓存分布到多个设备上（通常采用交错分布），使每个设备仅存储并处理一部分 KV 缓存。在注意力计算过程中，各设备基于本地 KV 计算部分注意力贡献，并通过集合通信对结果进行聚合，从而在不改变注意力语义的前提下显著降低单卡的 KV 缓存显存开销，特别适用于长上下文解码场景。该设计以增加通信为代价，显著降低了单设备的 KV 缓存内存需求，并保持了注意力计算的数值一致性。
-
-上下文并行（Context Parallel, CP）是一类面向大语言模型长上下文推理的并行技术，其目标是在**不改变注意力语义与数值结果**的前提下，把注意力计算中最昂贵、最占显存的“上下文维度工作量”（尤其是 **KV cache 的存储与访问**）分摊到多张 GPU 上。与传统张量并行（TP）按头切分不同，CP 主要沿 **sequence / context 维度**组织并行：将上下文 token 对应的 KV 表示按序列位置切分并分布到多个设备（可采用交错或块状布局），使单卡仅持有全局 KV 的一个子集，从而显著降低长上下文场景下单卡 KV cache 的显存占用。
 
 在计算层面，CP 的关键在于将注意力 Softmax 重写为可分片、可合并的形式：每个设备仅基于本地 KV 分片计算局部的注意力统计量与部分输出（可理解为对 **(**$m, l, o$**)** 三元组的局部贡献，其中 $m$ 为局部最大值、$l$ 为指数和、$o$ 为未归一化的加权和值），再通过跨设备通信将这些局部贡献按稳定的 Max–Sum / LSE 规则合并，最终得到与单卡全量 KV 注意力**严格一致**的输出。
 
@@ -48,7 +48,7 @@ $Score(i, j) = Qi ⋅ K_j^T,$
 
 $\text{AttnOutput}_{i} = \sum_{j}^{}\text{Softmax}\left( \text{Score}_{i} \right)_{j} \cdot V_{j}$
 
-上述过程即单头注意力计算的数学原理。多头注意力（Multi-Head Attention）则是将隐藏维度拆分成多个头并行计算，然后将各头的输出拼接。**KV 缓存（Key-Value Cache，KV 缓存）**是在解码阶段保存历史生成的 $K$、$V$ 张量，以避免重复计算。每生成一个新 token，其查询向量将与缓存中的所有键进行计算，从而关注到先前的上下文信息。常规自注意力在单块 GPU 上的计算流程：所有的 Q、K、V 全部在同一设备上处理，输出完整的注意力结果 _O，每个查询向量与同一序列中的所有键值进行计算_。
+上述过程即单头注意力计算的数学原理。多头注意力（Multi-Head Attention）则是将隐藏维度拆分成多个头并行计算，然后将各头的输出拼接。\*\*KV 缓存（Key-Value Cache，KV 缓存）\*\*是在解码阶段保存历史生成的 $K$、$V$ 张量，以避免重复计算。每生成一个新 token，其查询向量将与缓存中的所有键进行计算，从而关注到先前的上下文信息。常规自注意力在单块 GPU 上的计算流程：所有的 Q、K、V 全部在同一设备上处理，输出完整的注意力结果 _O，每个查询向量与同一序列中的所有键值进行计算_。
 
 这时计算的时间复杂度为 $O(\text{seq\_len}^2 \cdot d_{\text{model}})$（序列长度平方级），因此当序列长度 $T$ 很大时，自注意力的计算和内存开销会**急剧增长**。在推理中，若直接在单卡上处理超长序列，上述 $T^2$ 复杂度将成为主要瓶颈。这正是引出“上下文并行（Context Parallel）”技术的背景：如何在保证注意力精确等价的前提下，将长序列的注意力计算分摊到多张卡上，以突破单卡内存和算力限制。
 
@@ -74,7 +74,7 @@ LLM 推理过程分为两个阶段：**预填充阶段（Prefill 阶段）**和*
 
 具体而言，假设张量并行使用了 $N_{\text{TP}}$ 张卡（模型按头分在这些卡上）。我们可以选择一个 **DCP 大小** $N_{\text{DCP}}$（满足 $1 \le N_{\text{DCP}} \le \frac{N_{\text{TP}}}{H}$），将每卡需存储的 KV 长度减少到原来的 $\frac{1}{N_{\text{DCP}}}$，从而将 KV 缓存进一步均匀分布到 $N_{\text{TP}} \times N_{\text{DCP}}$ 张卡上。实际上，vLLM 的实现是让 DCP 在 TP 域内部形成分组：每组 TP 内的 $N_{\text{DCP}}$ 张卡负责共享原本属于该组的 KV 缓存。这样设置 `-dcp N` 后，并没有增加需要启动的 GPU 总数，而是**降低了每卡持有的 KV 缓存份量**，减少了 KV 重复。DCP 大小越大，每份KV缓存重复的次数越少，节省显存越多，但同时**注意力计算的跨卡通信开销增加**。因此，最佳的 DCP 配置需要在内存和通信开销间折中，通常先尽量增大 TP 直到受限，再逐步提高 DCP 大小以去除剩余复制。
 
-**KV 缓存的切分策略：**vLLM 采用**交错分片（interleaving）**将上下文 token 按顺序交错地分配到不同 GPU 的 KV 缓存段中。对于 token 索引 t，将其存储在 t % dcp_size == dcp_rank 的设备上。例如有 2 卡 DCP，序列位置奇数 token 的 KV 存一张卡，偶数 token 存另一张卡。交错方式保证当序列增长时，新 token 能自然地按轮转附加到各卡的缓存后面，无需重新分片。这种方法最早由 Chao Hong 等人在 Helix Parallelism 中提出（Helix是一种解码加速并行策略，稍后会简述）。
+\*\*KV 缓存的切分策略：**vLLM 采用**交错分片（interleaving）\*\*将上下文 token 按顺序交错地分配到不同 GPU 的 KV 缓存段中。对于 token 索引 t，将其存储在 t % dcp_size == dcp_rank 的设备上。例如有 2 卡 DCP，序列位置奇数 token 的 KV 存一张卡，偶数 token 存另一张卡。交错方式保证当序列增长时，新 token 能自然地按轮转附加到各卡的缓存后面，无需重新分片。这种方法最早由 Chao Hong 等人在 Helix Parallelism 中提出（Helix是一种解码加速并行策略，稍后会简述）。
 
 **多卡注意力计算：**使用 DCP 后，每步解码时每张 GPU 仅持有整个 KV 缓存的一部分（比如一半 token 的 KV）。但为了正确计算注意力，每个新查询向量需要“看见”全局的所有键和值。vLLM 巧妙地通过算法在多卡上并行完成等价的计算，而无需真的将完整 KV 集中到一张卡上。过程如下：每张 GPU 基于本地 KV 分片计算**部分注意力输出**，然后在 GPU 组内通过通信**合并**这些部分输出，重构出与单卡计算完全一致的结果。
 
@@ -84,10 +84,10 @@ LLM 推理过程分为两个阶段：**预填充阶段（Prefill 阶段）**和*
    - logits 的局部最大值；
    - 局部指数和；
    - 局部加权输出向量。
-2. 跨设备规约（Collective Communication）通过 CP group 内的集合通信操作完成：
+1. 跨设备规约（Collective Communication）通过 CP group 内的集合通信操作完成：
    - 全局最大值的规约（用于数值稳定的 softmax）；
    - 全局归一化因子的规约。
-3. 输出合成
+1. 输出合成
    - 各设备基于全局归一化因子对局部输出进行归一化，并通过求和恢复与单设备 attention 完全一致的结果。
 
 该流程确保 attention 的数学语义保持不变，拆分仅发生在计算过程层面。下面再用伪代码和公式分步说明其机制：
@@ -248,9 +248,11 @@ $\text{attn\_out}=\frac{o}{l},\qquad \text{LSE}=m+\log l$
    - 当前指数和 `l = 0`
    - 当前未归一化输出向量 `o = 0`
 
-2. **每一轮 ring step（处理一个 KV 分片）**
+1. **每一轮 ring step（处理一个 KV 分片）**
    - 使用本地的 `Q_local` 与当前收到的 `K_block` 计算 score
+
    - 得到该分片上的局部最大值 `m_block`
+
    - 将 `(m, l, o)` 与当前分片的结果通过 **Max-Sum 规则**合并：
 
      ```python
@@ -260,9 +262,10 @@ $\text{attn\_out}=\frac{o}{l},\qquad \text{LSE}=m+\log l$
      ```
 
    - 更新 `(m, l, o)`
+
    - 同时将当前的 KV 分片发送给 ring 中的下一个 GPU，并接收新的 KV 分片
 
-3. **流水线执行**
+1. **流水线执行**
 
    通信与计算是重叠的：当一个 KV 分片在网络中传输时，GPU 已经开始对上一个分片进行 attention 计算，从而将通信延迟隐藏在计算中。
 
@@ -376,11 +379,9 @@ $\text{chunks} = \{0, 1, \dots, 2N-1\}$
 
 然后令第 $r$ 个 rank 负责：
 
-$$
-\text{chunks}(r)
-=
-\{\, r,\; 2N-1-r \,\}
-$$
+# \$\text{chunks}(r)
+
+{, r,; 2N-1-r ,}\$
 
 也就是说：
 
@@ -395,7 +396,7 @@ $$
 
 - Block 粒度调节
 
-      工程上会选择 block size，使得：
+  工程上会选择 block size，使得：
 
   $$
   T_{\text{compute}}(\text{block})
@@ -431,7 +432,7 @@ $$
 
 - **兼容性与优化**
 
-  vLLM 的上下文并行兼容常见的注意力变种如 **多查询注意力（Multi-Query Attention）**、**分组查询注意力（Grouped-Query Attention，GQA）** 以及 **单头潜在注意力（Multi-Head Latent Attention, MLA）** 模型。这些模型有效减少了 KV 头的数量（降低 $H$），使得较小的 TP 并行度即可无重复地切分 KV 缓存。但对于极大模型（如数百亿参数以上），TP 往往需要开到远超 $H$ 才能利用足够 GPU，此时 DCP 依然有用武之地。此外，vLLM 还支持将 DCP 与**多 Token 并行解码（MTP, Multi-Token Prediction）**结合，在生成多个 token 时同时并行多个解码步，以进一步加速长上下文生成。
+  vLLM 的上下文并行兼容常见的注意力变种如 **多查询注意力（Multi-Query Attention）**、**分组查询注意力（Grouped-Query Attention，GQA）** 以及 **单头潜在注意力（Multi-Head Latent Attention, MLA）** 模型。这些模型有效减少了 KV 头的数量（降低 $H$），使得较小的 TP 并行度即可无重复地切分 KV 缓存。但对于极大模型（如数百亿参数以上），TP 往往需要开到远超 $H$ 才能利用足够 GPU，此时 DCP 依然有用武之地。此外，vLLM 还支持将 DCP 与\*\*多 Token 并行解码（MTP, Multi-Token Prediction）\*\*结合，在生成多个 token 时同时并行多个解码步，以进一步加速长上下文生成。
 
 综上，vLLM通过上下文并行技术，实现了对超长上下文请求的高效支持。在预填充阶段，PCP 大幅缩短了处理长 Prompt 的延迟，优化了用户等待时间；在解码阶段，DCP 突破了单卡 KV 缓存瓶颈，提升了吞吐和并发能力。上下文并行与其它并行手段（数据并行、张量并行等）相结合，为大模型提供了**可伸缩**的部署方案。对于实际使用者，一般建议：**在满足精度前提下尽量提高张量并行以加速前馈计算，然后使用上下文并行来应对 KV 缓存的长序列问题**。凭借上下文并行，vLLM 能够在不损失准确性的情况下，服务**百千 Token 级上下文**的请求并保持实时的响应速度。这一技术创新为长上下文大模型的实用化铺平了道路，使得交互式AI可以在“记忆”海量内容的同时，依然快速地回答用户的每一个问题。
 
@@ -439,42 +440,44 @@ $$
 
 ## 参考链接
 
-1. [2507.07120] Helix Parallelism: Rethinking Sharding Strategies for Interactive Multi-Million-Token LLM Decoding
+1. \[2507.07120] Helix Parallelism: Rethinking Sharding Strategies for Interactive Multi-Million-Token LLM Decoding
 
-   [https://ar5iv.labs.arxiv.org/html/2507.07120](https://ar5iv.labs.arxiv.org/html/2507.07120)
+   <https://ar5iv.labs.arxiv.org/html/2507.07120>
 
-2. [Feature]: Context Parallelism · Issue #7519 · vllm-project/vllm · GitHub
+1. \[Feature]: Context Parallelism · Issue #7519 · vllm-project/vllm · GitHub
 
-   [https://github.com/vllm-project/vllm/issues/7519](https://github.com/vllm-project/vllm/issues/7519)
+   <https://github.com/vllm-project/vllm/issues/7519>
 
-3. Helix: Serving Large Language Models over Heterogeneous GPUs and Network via Max-Flow
+1. Helix: Serving Large Language Models over Heterogeneous GPUs and Network via Max-Flow
 
-   [https://arxiv.org/html/2406.01566v2](https://arxiv.org/html/2406.01566v2)
+   <https://arxiv.org/html/2406.01566v2>
 
-4. Context_Parallelism_Presentation
+1. Context_Parallelism_Presentation
 
-   [https://mlsys.org/media/mlsys-2025/Slides/3255.pdf](https://mlsys.org/media/mlsys-2025/Slides/3255.pdf)
+```json
+[https://mlsys.org/media/mlsys-2025/Slides/3255.pdf](https://mlsys.org/media/mlsys-2025/Slides/3255.pdf)
+```
 
-5. Context Parallel Deployment - vLLM
+1. Context Parallel Deployment - vLLM
 
-   [https://docs.vllm.ai/en/latest/serving/context_parallel_deployment/](https://docs.vllm.ai/en/latest/serving/context_parallel_deployment/)
+   <https://docs.vllm.ai/en/latest/serving/context_parallel_deployment/>
 
-6. [RFC]: Support Prefill Context Parallel (PCP) · Issue #25749 · vllm-project/vllm · GitHub
+1. \[RFC]: Support Prefill Context Parallel (PCP) · Issue #25749 · vllm-project/vllm · GitHub
 
-   [https://github.com/vllm-project/vllm/issues/25749](https://github.com/vllm-project/vllm/issues/25749)
+   <https://github.com/vllm-project/vllm/issues/25749>
 
-7. block_table - vLLM
+1. block_table - vLLM
 
-   [https://docs.vllm.ai/en/latest/api/vllm/v1/worker/gpu/block_table/](https://docs.vllm.ai/en/latest/api/vllm/v1/worker/gpu/block_table/)
+   <https://docs.vllm.ai/en/latest/api/vllm/v1/worker/gpu/block_table/>
 
-8. [Feature] Implement Decode Context Parallel in SGLang · Issue #12196 · sgl-project/sglang · GitHub
+1. \[Feature] Implement Decode Context Parallel in SGLang · Issue #12196 · sgl-project/sglang · GitHub
 
-   [https://github.com/sgl-project/sglang/issues/12196](https://github.com/sgl-project/sglang/issues/12196)
+   <https://github.com/sgl-project/sglang/issues/12196>
 
-9. [PDF] DCP: Addressing Input Dynamism In Long-Context Training ...
+1. \[PDF] DCP: Addressing Input Dynamism In Long-Context Training ...
 
-   [https://www.semanticscholar.org/paper/DCP%3A-Addressing-Input-Dynamism-In-Long-Context-via-Jiang-Cai/5f3dd2fd7b80dad7b73a7d09464ecc078ce12035](https://www.semanticscholar.org/paper/DCP%3A-Addressing-Input-Dynamism-In-Long-Context-via-Jiang-Cai/5f3dd2fd7b80dad7b73a7d09464ecc078ce12035)
+   <https://www.semanticscholar.org/paper/DCP%3A-Addressing-Input-Dynamism-In-Long-Context-via-Jiang-Cai/5f3dd2fd7b80dad7b73a7d09464ecc078ce12035>
 
-10. [PDF] Learning to Shard: RL for Co-optimizing the Parallelism Degrees ...
+1. \[PDF] Learning to Shard: RL for Co-optimizing the Parallelism Degrees ...
 
-    [https://www.arxiv.org/pdf/2509.00217](https://www.arxiv.org/pdf/2509.00217)
+   <https://www.arxiv.org/pdf/2509.00217>
