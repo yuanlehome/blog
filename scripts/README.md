@@ -1,52 +1,35 @@
 # Scripts 使用说明
 
-本文档是 **scripts 的权威说明文档**，包含所有脚本的功能、参数、使用场景。
+本文档是 **scripts 目录的权威说明**，包含所有脚本的功能、参数和使用场景。
 
-> **关于 CI / Workflow**：请参见 [docs/ci-workflow.md](../docs/ci-workflow.md)  
-> **关于仓库架构设计**：请参见 [docs/architecture.md](../docs/architecture.md)
+> **相关文档**
+>
+> - CI 工作流 → [docs/ci-workflow.md](../docs/ci-workflow.md)
+> - 仓库架构 → [docs/architecture.md](../docs/architecture.md)
+> - 站点配置 → [docs/configuration.md](../docs/configuration.md)
 
 ---
 
-## 一、Scripts 在仓库中的定位
+## 一、Scripts 目录结构
 
-### 1.1 Scripts 是什么
-
-Scripts 是 **内容获取与预处理工具**，运行在 Astro 构建之外，负责：
-
-- 从外部数据源（Notion API、网页）获取内容
-- 下载并本地化图片资源
-- 转换内容为 Markdown/MDX 格式
-- 修正常见格式问题（数学公式、不可见字符）
-- 管理 slug 唯一性，避免冲突
-
-### 1.2 Scripts 不是什么
-
-- **不是 runtime 代码**：不会被 `src/` 中的 Astro 代码 import
-- **不参与页面渲染**：仅负责内容准备，不涉及 HTML 生成
-- **不是构建工具**：不替代 `astro build`，仅生成输入数据
-
-### 1.3 Scripts 与仓库其它模块的关系
-
-**与 Runtime 的关系**：
-
-- Scripts 写入的文件（`src/content/blog/`、`public/images/`）是 Runtime 的数据输入
-- Scripts 可以导入 `src/config/paths.ts` 和 `src/lib/slug/` 中的共享配置和工具
-- Runtime **不得** 导入 `scripts/` 中的任何代码
-
-**与 CI / Workflow 的关系**：
-
-- Scripts 被 GitHub Actions workflow 调用（通过 `npm run` 命令）
-- Workflow 负责触发时机、环境配置、PR 创建
-- Scripts 负责具体的内容获取逻辑
-
-> **详细的 Workflow 说明**：参见 [docs/ci-workflow.md](../docs/ci-workflow.md)
-
-**与 Architecture 的关系**：
-
-- Scripts 是"内容获取层"，位于架构的最上游
-- Scripts 输出是 Runtime 的输入（单向数据流）
-
-> **详细的架构设计**：参见 [docs/architecture.md](../docs/architecture.md)
+```text
+scripts/
+├── notion-sync.ts       # Notion 内容同步
+├── content-import.ts    # 外部文章导入
+├── delete-article.ts    # 文章删除
+├── config-audit.ts      # 配置审计
+├── utils.ts             # 共享工具函数
+├── logger-helpers.ts    # 日志辅助工具
+├── import/              # 导入适配器
+│   └── adapters/        # 平台适配器（zhihu、wechat、medium、others）
+├── markdown/            # Markdown 处理管线
+│   ├── index.ts         # 入口
+│   ├── translator.ts    # 翻译接口
+│   ├── deepseek-translator.ts  # DeepSeek 翻译器
+│   ├── language-detector.ts    # 语言检测
+│   └── code-fence-fixer.ts     # 代码块修复
+└── logger/              # 日志工具
+```
 
 ---
 
@@ -54,927 +37,237 @@ Scripts 是 **内容获取与预处理工具**，运行在 Astro 构建之外，
 
 ### 2.1 `notion-sync.ts`
 
-#### 功能
+**功能**：从 Notion 数据库同步已发布页面到博客。
 
-从 Notion 数据库同步已发布页面到博客，转换为 Markdown 文件并下载所有图片。
+**npm 命令**：`npm run notion:sync`
 
-#### 使用场景
+**环境变量（必需）**：
 
-- 在 Notion 中撰写或更新文章
-- 将文章状态设为"Published"
-- 运行此脚本同步到博客仓库
+| 变量名               | 说明             |
+| -------------------- | ---------------- |
+| `NOTION_TOKEN`       | Notion API token |
+| `NOTION_DATABASE_ID` | Notion 数据库 ID |
 
-#### 输入
+**环境变量（可选）**：
 
-**环境变量（必需）**:
+| 变量名                        | 默认值     | 说明                |
+| ----------------------------- | ---------- | ------------------- |
+| `MARKDOWN_TRANSLATE_ENABLED`  | `0`        | 启用翻译（`1`/`0`） |
+| `MARKDOWN_TRANSLATE_PROVIDER` | `identity` | 翻译提供商          |
+| `DEEPSEEK_API_KEY`            | —          | DeepSeek API key    |
 
-- `NOTION_TOKEN`：Notion API 集成 token
-  - 获取方式：在 [Notion Integrations](https://www.notion.so/my-integrations) 创建集成
-- `NOTION_DATABASE_ID`：Notion 数据库 ID
-  - 获取方式：数据库 URL 中的 32 字符串（`notion.so/` 后面）
+**输出**：
 
-**环境变量（可选，用于翻译）**：
+- Markdown 文件：`src/content/blog/notion/<slug>.md`
+- 图片文件：`public/images/notion/<slug>/<imageId>.<ext>`
 
-- `MARKDOWN_TRANSLATE_ENABLED`：启用 Markdown 翻译（`1` 启用，`0` 禁用，默认 `0`）
-- `MARKDOWN_TRANSLATE_PROVIDER`：翻译提供商（`identity` 不翻译，`deepseek` 使用 DeepSeek，默认 `identity`）
-- `DEEPSEEK_API_KEY`：DeepSeek API 密钥（仅当 provider 为 `deepseek` 时需要）
-
-> 💡 **Workflow 使用提示**：在 GitHub Actions 手动触发 `sync-notion.yml` 时，可通过界面选择是否启用翻译及翻译提供商。
-> 这些设置会被映射为上述环境变量。参见 [docs/ci-workflow.md](../docs/ci-workflow.md)。
-
-**Notion 数据库要求**：
-
-- 必须包含 `status` 属性（类型为 `select` 或 `status`）
-- 只同步 status = "Published" 的页面
-- 页面必须有标题
-
-#### 输出目录
-
-- **Markdown 文件**：`src/content/blog/notion/<slug>.md`
-- **图片文件**：`public/images/notion/<pageId>/<imageId>.<ext>`
-
-#### 参数
-
-**无命令行参数**，仅通过环境变量配置。
-
-#### 使用方法
-
-```bash
-# 确保 .env.local 中配置了 NOTION_TOKEN 和 NOTION_DATABASE_ID
-npm run notion:sync
-```
-
-#### 执行流程
+**执行流程**：
 
 1. 连接 Notion API，查询 status = "Published" 的页面
-2. 遍历每个页面：
-   - 生成 slug（基于标题，检测冲突）
-   - 下载封面图和正文中的所有图片
-   - 使用 `notion-to-md` 转换为 Markdown
-   - 通过 markdown pipeline 自动处理（翻译、代码语言检测、数学公式修正等）
-   - 写入 `src/content/blog/notion/<slug>.md`
-3. 运行 `npm run lint` 格式化生成的文件
+2. 生成 slug（基于标题，检测冲突）
+3. 下载封面图和正文图片
+4. 使用 `notion-to-md` 转换为 Markdown
+5. 通过 markdown 管线处理（翻译、代码修复、数学公式修正）
+6. 写入文件，运行 `npm run lint` 格式化
 
-#### 幂等性
+**幂等性**：可安全多次运行，已存在的文件会被覆盖。
 
-- 可安全地多次运行
-- 已存在的 Notion 文件会被覆盖（基于 slug）
-- 其他来源（wechat、others、本地文件）不受影响
-
-⚠️ **重要**：不要手动编辑 `src/content/blog/notion/` 中的文件，下次同步会覆盖。应在 Notion 中编辑。
+**CI 调用** → [sync-notion.yml](../docs/ci-workflow.md#23-sync-notionyml--notion-同步)
 
 ---
 
 ### 2.2 `content-import.ts`
 
-#### 功能
+**功能**：从外部 URL 导入文章，支持知乎、微信、Medium 等平台。
 
-从外部 URL（知乎专栏、微信公众号、Medium 等）导入文章，转换为 MDX 文件并下载所有图片。使用可扩展的 **Adapter 架构**支持多平台。
+**npm 命令**：`npm run import:content`
 
-#### 使用场景
+**命令行参数**：
 
-- 导入知乎专栏文章
-- 导入微信公众号文章
-- 导入 Medium 文章
-- 导入其他平台的 HTML 文章
-
-#### 支持的平台（Adapters）
-
-通过可扩展的 adapter 架构，`content-import` 支持以下平台：
-
-1. **Zhihu (知乎专栏)** - `zhuanlan.zhihu.com/p/*`
-   - 自动提取作者和发布日期
-   - 支持数学公式（LaTeX）
-   - 多次重试机制（应对反爬虫）
-   - 被拦截检测（登录页/验证码）
-   - URL 参数清理（去除追踪参数）
-
-2. **WeChat (微信公众号)** - `mp.weixin.qq.com/s/*`
-   - 处理懒加载图片（data-src 等）
-   - 图片占位符检测与过滤
-   - 重试机制（最多 5 次）
-   - Playwright 浏览器回退下载
-
-3. **Medium** - `*.medium.com/*`
-   - 提取作者和发布时间
-   - 保留平台特定元数据
-
-4. **Others (通用)** - 任何其他 URL
-   - 使用 Readability 算法提取正文
-   - 自动检测标题、作者、日期
-   - 作为兜底策略
-
-#### Adapter 架构说明
-
-所有平台适配器实现统一接口：
-
-```typescript
-interface Adapter {
-  id: 'zhihu' | 'medium' | 'wechat' | 'others';
-  name: string;
-  canHandle(url: string): boolean; // URL 匹配规则
-  fetchArticle(input): Promise<Article>; // 统一抓取接口
-}
-```
-
-**优先级**：Zhihu → Medium → WeChat → Others（兜底）
-
-**扩展性**：新增平台只需实现 `Adapter` 接口并注册到 registry。
-
-#### 输入
-
-**必需参数**：
-
-- `--url`：文章的完整 URL
-
-**可选参数**：
-
-- `--allow-overwrite`：允许覆盖已存在的同 slug 文章（默认：不覆盖，会报错）
-- `--dry-run`：预览模式，不实际写入文件，仅输出将要执行的操作
-- `--use-first-image-as-cover`：如果文章没有封面，使用正文第一张图片作为封面（默认：`false`）
+| 参数                         | 类型    | 必需 | 默认值  | 说明           |
+| ---------------------------- | ------- | ---- | ------- | -------------- |
+| `--url`                      | string  | ✓    | —       | 文章 URL       |
+| `--allow-overwrite`          | boolean | ✗    | `false` | 覆盖已存在文章 |
+| `--dry-run`                  | boolean | ✗    | `false` | 预览模式       |
+| `--use-first-image-as-cover` | boolean | ✗    | `false` | 首图作为封面   |
 
 **环境变量**（可替代命令行参数）：
 
-- `URL`：等同于 `--url`
-- `ALLOW_OVERWRITE`：`true` / `false`
-- `DRY_RUN`：`true` / `false`
-- `USE_FIRST_IMAGE_AS_COVER`：`true` / `false`
+| 变量名                     | 对应参数                     |
+| -------------------------- | ---------------------------- |
+| `URL`                      | `--url`                      |
+| `ALLOW_OVERWRITE`          | `--allow-overwrite`          |
+| `DRY_RUN`                  | `--dry-run`                  |
+| `USE_FIRST_IMAGE_AS_COVER` | `--use-first-image-as-cover` |
 
-**环境变量（可选，用于翻译）**：
+**环境变量（翻译，可选）**：
 
-- `MARKDOWN_TRANSLATE_ENABLED`：启用 Markdown 翻译（`1` 启用，`0` 禁用，默认 `0`）
-- `MARKDOWN_TRANSLATE_PROVIDER`：翻译提供商（`identity` 不翻译，`deepseek` 使用 DeepSeek，默认 `identity`）
-- `DEEPSEEK_API_KEY`：DeepSeek API 密钥（仅当 provider 为 `deepseek` 时需要）
+| 变量名                        | 默认值     | 说明             |
+| ----------------------------- | ---------- | ---------------- |
+| `MARKDOWN_TRANSLATE_ENABLED`  | `0`        | 启用翻译         |
+| `MARKDOWN_TRANSLATE_PROVIDER` | `identity` | 翻译提供商       |
+| `DEEPSEEK_API_KEY`            | —          | DeepSeek API key |
 
-> 💡 **Workflow 使用提示**：在 GitHub Actions 手动触发 `import-content.yml` 时，可通过界面选择是否启用翻译及翻译提供商。
-> 这些设置会被映射为上述环境变量。参见 [docs/ci-workflow.md](../docs/ci-workflow.md)。
+**支持的平台**：
 
-#### 输出目录
+| 平台   | URL 模式                 | 输出目录                   |
+| ------ | ------------------------ | -------------------------- |
+| 知乎   | `zhuanlan.zhihu.com/p/*` | `src/content/blog/zhihu/`  |
+| 微信   | `mp.weixin.qq.com/s/*`   | `src/content/blog/wechat/` |
+| Medium | `*.medium.com/*`         | `src/content/blog/medium/` |
+| 其他   | 任意 URL                 | `src/content/blog/others/` |
 
-- **Markdown 文件**：`src/content/blog/<adapter-id>/<slug>.md`
-  - `<adapter-id>` 根据 URL 自动识别：`zhihu`、`wechat`、`medium`、`others`
-- **图片文件**：`public/images/<adapter-id>/<slug>/<imageId>.<ext>`
-
-#### 使用方法
+**使用示例**：
 
 ```bash
-# 导入知乎专栏文章（推荐使用示例）
+# 导入知乎文章
 npm run import:content -- --url="https://zhuanlan.zhihu.com/p/668888063"
-
-# 导入微信公众号文章
-npm run import:content -- --url="https://mp.weixin.qq.com/s/Pe5rITX7srkWOoVHTtT4yw"
-
-# 导入 Medium 文章
-npm run import:content -- --url="https://medium.com/@user/article-title"
-
-# 导入任意网站文章（通用）
-npm run import:content -- --url="https://example.com/article"
 
 # 覆盖已存在的文章
 npm run import:content -- --url="<URL>" --allow-overwrite
 
-# 预览模式（不实际写入）
+# 预览模式
 npm run import:content -- --url="<URL>" --dry-run
-
-# 使用首图作为封面
-npm run import:content -- --url="<URL>" --use-first-image-as-cover
 ```
 
-#### 执行流程
-
-1. **URL 解析**：根据 URL 自动选择最佳 adapter
-2. **浏览器启动**：Playwright 无头浏览器访问目标 URL
-3. **内容提取**：adapter 执行平台特定的提取逻辑
-4. **HTML→Markdown**：统一转换为 Markdown（保留结构）
-5. **图片下载**：下载并本地化所有图片
-6. **后处理**：通过 markdown pipeline 增强
-   - 语言检测与翻译（可选）
-   - 代码块语言推断
-   - 图片 caption 规范化（斜体文本）
-   - 数学公式修正
-   - 格式清理
-7. **文件生成**：写入 `src/content/blog/<adapter-id>/<slug>.md`
-8. **格式化**：自动运行 `npm run lint`
-
-#### 平台特性详解
-
-##### 知乎专栏（Zhihu）
-
-**URL 模式**：`https://zhuanlan.zhihu.com/p/<article-id>`
-
-**关键特性**：
-
-- 多 selector 容错提取（`.Post-RichText`, `.RichText`, `article` 等）
-- URL 参数清理（去除 `utm_*`, `share_code` 等追踪参数）
-- 反爬虫应对：
-  - 登录页检测
-  - 验证码检测
-  - 自动重试（最多 3 次，指数退避）
-- 数学公式支持：
-  - `<span class="ztext-math">` → `$...$` 或 `$$...$$`
-  - LaTeX 公式保持不变
-- 图片处理：
-  - 提取真实 URL（data-original/data-actualsrc/srcset）
-  - 禁止生成 HTML `<figure>` 标签
-  - Caption 使用 Markdown 斜体文本（`*图1：...*`）
-
-**验收样例**：`https://zhuanlan.zhihu.com/p/668888063`
-
-##### 微信公众号（WeChat）
-
-**URL 模式**：`https://mp.weixin.qq.com/s/*`
-
-**关键特性**：
-
-- 懒加载图片处理（优先级：data-src → data-original → data-backup-src → src）
-- 占位符检测：
-  - 文件大小阈值（< 60KB）
-  - 图片尺寸阈值（< 200x150px）
-  - Sharp 图片元数据验证
-- 重试机制（最多 5 次，指数退避）
-- Playwright 浏览器回退下载（应对防盗链）
-- 并发限制（最多 2 个并发请求）
-- 随机延迟（150-400ms）
-
-##### Medium
-
-**URL 模式**：`*.medium.com/*`
-
-**关键特性**：
-
-- 等待 `article` 元素加载
-- 提取作者元数据（meta[name="author"]）
-- 提取发布时间（meta[property="article:published_time"]）
-
-##### 其他平台（Others）
-
-**URL 模式**：任意 URL（兜底）
-
-**关键特性**：
-
-- Readability 算法提取正文
-- 自动检测主内容区域
-- 去除噪声元素（导航、页脚、评论、广告）
-- 智能提取 `title`, `author`, `published`, `updated`
-
-#### 图片 Caption 策略
-
-**重要**：所有 adapter 统一使用 **Markdown 原生格式** 表达图片 caption，不生成 HTML `<figure>` 标签。
-
-**原因**：HTML figure 标签可能导致 Astro 渲染崩溃，影响页面可用性。
-
-**格式**：
-
-```markdown
-![图片描述](image-url)
-
-_图1：这是图片说明文字_
-```
-
-**实现**：
-
-- 在 `markdown-processor.ts` 的 `fixImageCaptions` 函数中统一处理
-- 检测图片后紧跟的短文本（≤ 120 字符）
-- 自动转换为 `emphasis` 节点（Markdown 斜体）
-
-#### 常见问题
-
-**Q1：为什么知乎文章导入失败？**
-
-A：可能原因：
-
-- 知乎反爬虫拦截（需要重试）
-- 文章需要登录查看（无法导入）
-- DOM 结构变化（联系维护者更新 selector）
-
-**Q2：微信图片下载失败怎么办？**
-
-A：自动启用 Playwright 浏览器回退下载，无需手动干预。如仍失败，可能是：
-
-- 防盗链策略更新
-- 图片已被删除
-- 网络问题
-
-**Q3：如何添加新平台支持？**
-
-A：实现 `Adapter` 接口并注册：
-
-```typescript
-// scripts/import/adapters/my-platform.ts
-export const myPlatformAdapter: Adapter = {
-  id: 'my-platform',
-  name: 'My Platform',
-  canHandle: (url) => url.includes('myplatform.com'),
-  fetchArticle: async (input) => {
-    // 平台特定抓取逻辑
-    return { title, markdown, canonicalUrl, source: 'my-platform', ... };
-  }
-};
-
-// scripts/import/adapters/index.ts
-import { myPlatformAdapter } from './my-platform.js';
-adapterRegistry.register(myPlatformAdapter);
-```
-
-⚠️ **重要**：
-
-- 导入的文章应在原平台编辑，或使用 `--allow-overwrite` 本地编辑后覆盖
-- 重新导入会覆盖本地修改（除非不使用 `--allow-overwrite`）
-- 所有 adapter 必须输出 Markdown 格式，不要输出 HTML figure 标签
+**CI 调用** → [import-content.yml](../docs/ci-workflow.md#24-import-contentyml--导入外部文章)
 
 ---
 
 ### 2.3 `delete-article.ts`
 
-#### 功能
+**功能**：删除指定文章及其关联图片目录。
 
-删除指定文章及其关联的图片目录。
+**npm 命令**：`npm run delete:article`
 
-#### 使用场景
+**命令行参数**：
 
-- 删除不再需要的文章
-- 清理重复或错误导入的文章
-- 同时清理文章关联的图片资源
-
-#### 输入
-
-**必需参数**：
-
-- `--target`：文章的 slug 或文件路径
-
-**可选参数**：
-
-- `--delete-images`：同时删除文章关联的图片目录（默认：不删除）
-- `--dry-run`：预览模式，不实际删除（默认：不启用）
+| 参数              | 类型    | 必需 | 默认值  | 说明             |
+| ----------------- | ------- | ---- | ------- | ---------------- |
+| `--target`        | string  | ✓    | —       | slug 或文件路径  |
+| `--delete-images` | boolean | ✗    | `false` | 删除关联图片目录 |
+| `--dry-run`       | boolean | ✗    | `false` | 预览模式         |
 
 **环境变量**（可替代命令行参数）：
 
-- `TARGET`：等同于 `--target`
-- `DELETE_IMAGES`：`true` / `false`
-- `DRY_RUN`：`true` / `false`
+| 变量名          | 对应参数          |
+| --------------- | ----------------- |
+| `TARGET`        | `--target`        |
+| `DELETE_IMAGES` | `--delete-images` |
+| `DRY_RUN`       | `--dry-run`       |
 
-#### 输出目录
-
-**删除的文件**：
-
-- 文章文件：`src/content/blog/**/<slug>.md`
-- 图片目录（如果启用 `--delete-images`）：
-  - 从 frontmatter `cover` 提取的图片目录
-  - 匹配 slug 的图片目录（在 `public/images/` 下）
-
-#### 参数详解（100% 与源码一致）
-
-根据源码 `scripts/delete-article.ts` 第 155-184 行：
-
-| 参数名称          | 源码位置   | 类型    | 默认值  | 说明                           |
-| ----------------- | ---------- | ------- | ------- | ------------------------------ |
-| `--target`        | 行 157-165 | string  | 无      | 文章的 slug 或相对路径（必填） |
-| `--delete-images` | 行 166-167 | boolean | `false` | 是否同时删除关联图片目录       |
-| `--dry-run`       | 行 168-169 | boolean | `false` | 预览模式，不实际删除文件       |
-
-#### 使用方法
+**使用示例**：
 
 ```bash
-# 通过 slug 删除文章
+# 通过 slug 删除
 npm run delete:article -- --target=my-article-slug
 
-# 通过路径删除文章
-npm run delete:article -- --target=src/content/blog/wechat/my-article.mdx
+# 通过路径删除
+npm run delete:article -- --target=src/content/blog/wechat/my-article.md
 
-# 删除文章并清理图片
-npm run delete:article -- --target=my-article-slug --delete-images
+# 删除文章及图片
+npm run delete:article -- --target=my-slug --delete-images
 
-# 预览模式（查看将删除什么）
-npm run delete:article -- --target=my-article-slug --delete-images --dry-run
+# 预览模式
+npm run delete:article -- --target=my-slug --delete-images --dry-run
 ```
 
-#### 执行流程
+**安全机制**：
 
-1. 解析 `target` 参数：
-   - 如果包含 `/` 或以 `.md` 结尾 → 视为文件路径
-   - 否则 → 视为 slug
-2. 根据 slug 或路径查找文章文件
-3. 如果启用 `--delete-images`：
-   - 提取文章 frontmatter 中的 `cover` 字段
-   - 查找匹配的图片目录
-   - 最多匹配 20 个目录（防止误删）
-4. 删除文章文件
-5. 删除图片目录（如果启用）
-6. 输出删除日志
+- 只能删除 `src/content/blog/` 内的文件
+- 如果多个文件匹配 slug，会提示选择
+- 最多匹配 20 个图片目录（防止误删）
 
-#### 安全机制
-
-- **路径限制**：只能删除 `src/content/blog/` 内的文件
-- **slug 冲突保护**：如果多个文件匹配同一 slug，会提示选择
-- **批量删除保护**：如果匹配超过 20 个图片目录，需要确认
-- **dry-run 模式**：预览将要删除的文件，不实际执行
-
-⚠️ **重要**：
-
-- 删除操作不可逆，建议先使用 `--dry-run` 预览
-- 图片目录匹配基于 slug 和 cover 路径，可能不完全准确
+**CI 调用** → [delete-article.yml](../docs/ci-workflow.md#25-delete-articleyml--删除文章)
 
 ---
 
-### 2.5 Markdown 导入增强：翻译与格式化
+### 2.4 `config-audit.ts`
 
-#### 功能
+**功能**：检查 YAML 配置项的生效状态。
 
-自动增强导入/同步的 Markdown 文章，包括：
+**npm 命令**：`npm run config:audit`
 
-- **自动翻译**：检测英文文章并翻译为中文（同时修复数学公式）
-- **代码块语言标注**：自动推断并补齐缺失的语言标识符
-- **图片 caption 规范化**：转换为标准 HTML figure 结构
-- **格式清理**：压缩多余空行、统一换行符
+**输出**：配置项生效性报告，退出码 0 表示所有配置有效，1 表示发现问题。
 
-#### 使用场景
-
-- 导入英文技术文章时自动翻译（翻译过程中同时修复数学公式）
-- 修复从 Notion 或其他平台导入的格式问题
-- 统一文章格式规范
-
-#### 何时触发
-
-**自动触发**：集成在以下脚本中，无需手动调用
-
-- `notion-sync.ts`：Notion 同步时自动应用
-- `content-import.ts`：内容导入时自动应用
-
-#### 配置
-
-**环境变量**：
-
-- `MARKDOWN_TRANSLATE_ENABLED`：是否启用翻译功能
-  - `1`：启用翻译（默认）
-  - `0` 或未设置：禁用翻译
-- `MARKDOWN_TRANSLATE_PROVIDER`：翻译提供商
-  - `mock`：测试用翻译器（默认）
-  - `identity`/`none`：不翻译，保持原文
-  - `deepseek`：使用 DeepSeek 真实翻译（需配置 API key）
-
-**配置示例**：
-
-```bash
-# .env.local - 测试环境
-MARKDOWN_TRANSLATE_ENABLED=1
-MARKDOWN_TRANSLATE_PROVIDER=mock
-
-# .env.local - 生产环境（使用 DeepSeek）
-MARKDOWN_TRANSLATE_ENABLED=1
-MARKDOWN_TRANSLATE_PROVIDER=deepseek
-DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxx
-```
-
-#### DeepSeek 翻译提供商
-
-**功能特性**：
-
-- 使用 DeepSeek 最先进模型进行高质量翻译
-- AST + JSON patch 策略，严格保护代码和 URL
-- 自动分批处理长文档
-- 并发控制和超时保护
-- 失败自动降级（保留原文）
-- 可选的文件缓存（避免重复翻译）
-
-**环境变量配置**：
-
-| 变量名                        | 必需 | 默认值                      | 说明                               |
-| ----------------------------- | ---- | --------------------------- | ---------------------------------- |
-| `DEEPSEEK_API_KEY`            | 是   | 无                          | DeepSeek API 密钥                  |
-| `DEEPSEEK_MODEL`              | 否   | `deepseek-chat`             | DeepSeek 模型名称                  |
-| `DEEPSEEK_BASE_URL`           | 否   | `https://api.deepseek.com`  | DeepSeek API 基础 URL              |
-| `DEEPSEEK_REQUEST_TIMEOUT_MS` | 否   | `60000`                     | 请求超时时间（毫秒）               |
-| `DEEPSEEK_MAX_BATCH_CHARS`    | 否   | `6000`                      | 单批次最大字符数                   |
-| `DEEPSEEK_MAX_CONCURRENCY`    | 否   | `2`                         | 最大并发请求数                     |
-| `DEEPSEEK_CACHE_ENABLED`      | 否   | `1`                         | 是否启用缓存（`1` 启用，`0` 禁用） |
-| `DEEPSEEK_CACHE_DIR`          | 否   | `.cache/markdown-translate` | 缓存目录路径                       |
-
-**使用方法**：
-
-```bash
-# 1. 配置环境变量（.env.local）
-MARKDOWN_TRANSLATE_ENABLED=1
-MARKDOWN_TRANSLATE_PROVIDER=deepseek
-DEEPSEEK_API_KEY=sk-your-api-key-here
-DEEPSEEK_MODEL=deepseek-chat
-
-# 2. 导入或同步内容（自动使用 DeepSeek 翻译）
-npm run notion:sync
-# 或
-npm run import:content -- --url="https://example.com/article"
-
-# 3. 查看翻译诊断信息（输出示例）
-Enhanced my-article:
-  - Translated from en (provider: deepseek, model: deepseek-chat)
-  - Batches: 3, Success: 3, Failed: 0, Cache hits: 0
-  - Fixed 2 code fences
-  - Fixed 1 image captions
-```
-
-**翻译策略**：
-
-DeepSeek 翻译器遵循严格的翻译规则：
-
-1. **严格 JSON 输出**：要求模型返回 `{"patches": {"node-id": "译文", ...}}` 格式
-2. **保护代码和特殊内容**：
-   - 不翻译代码块、行内代码
-   - 不翻译 URL、路径、变量名、函数名
-   - 保留 frontmatter 不变
-3. **技术术语处理**：首次出现使用"中文（English）"，后续只用中文
-4. **失败降级**：任何批次失败都回退为原文，不影响其他部分
-5. **缓存优化**：相同内容不重复翻译，节省 API 费用
-
-**安全性**：
-
-- API key 不会在日志中打印
-- 日志只包含 provider、model、批次数、失败原因（不含文章内容）
-- 缓存文件存储在本地 `.cache/` 目录（已加入 `.gitignore`）
-
-**注意事项**：
-
-- **CI/测试环境**：默认不使用 DeepSeek（避免产生 API 费用），使用 `mock` 翻译器
-- **本地开发**：需手动配置 `DEEPSEEK_API_KEY` 才能使用
-- **网络依赖**：DeepSeek 翻译需要互联网连接，若请求失败会自动降级
-- **成本控制**：启用缓存（默认启用）可避免重复翻译相同内容
-- **模型选择**：`deepseek-chat` 为推荐模型，成本和质量平衡较好
-
-#### 功能详解
-
-##### A. 语言检测
-
-- 自动分析文章主体语言（英文/中文）
-- 排除代码块、URL、行内代码的干扰
-- 英文字符占比 ≥ 60% 时触发翻译
-
-##### B. 翻译（仅在检测到英文时）
-
-- 只翻译自然语言内容：标题、段落、列表文本
-- 严格保护：代码块、行内代码、URL、图片链接、frontmatter 不翻译
-- 使用 AST + patch 策略确保结构稳定
-- 失败降级：翻译失败时保留原文并继续其他修复
-
-##### C. 代码块语言标注
-
-支持自动检测的语言（15+ 种）：
-
-- **Shebang 检测**：Python、Bash、Node.js
-- **关键字检测**：
-  - `python`：def, class, import, from...import
-  - `bash`：echo, cd, if [[, ${}
-  - `cpp`：#include, std::, namespace
-  - `dockerfile`：FROM, RUN, COPY, CMD
-  - `yaml`：结构化 key-value（包括 GitHub Actions）
-  - `json`：JSON 结构
-
-##### D. 翻译器中的数学公式修复（Translator Math Fixing）
-
-**功能特性**：
-
-- 数学公式修复已集成到 LLM 翻译器（DeepSeek）中
-- 翻译和数学修复在同一次 LLM 调用中完成
-- 对无法修复的数学块安全降级（转换为代码块）
-
-**工作方式**：
-
-1. **统一处理**：翻译器同时接收文本节点和数学节点
-2. **LLM 修复**：使用 LLM（DeepSeek）修复数学块中的 LaTeX 语法问题
-3. **严格验证**：修复后的数学块必须通过验证（无 `$`、括号配对等）
-4. **确定性兜底**：验证失败的数学块自动转为 `tex` 代码块
-
-**可修复的问题类型**：
-
-1. **数学块被错误拆断**：
-   - 示例：`$$内容 $$ 更多$$` → 移除内部的 `$$`
-   - 原因：导入时格式错误，导致数学块中间出现额外的 `$$` 分隔符
-
-2. **嵌套的 inline `$` 分隔符**（关键修复）：
-   - 示例：`$\displaystyle\sum_{i}$` → `\displaystyle\sum_{i}`
-   - 这是最常见的坏样本，在 block math 内部错误使用了 inline math 分隔符
-   - **必须删除所有 `$` 符号**
-
-3. **括号/花括号不闭合**：
-   - LLM 自动补齐缺失的 `{}`、`[]`、`()`
-   - 示例：`\frac{a}{b` → `\frac{a}{b}`
-
-4. **跨行命令断裂**：
-   - 修复 `\colorbox{color}{content}` 等命令的花括号配对问题
-   - 确保命令的两层花括号都正确闭合
-
-**LLM Prompt 要求**：
-
-系统提示词中包含明确的数学修复规则：
-
-- 严格禁止输出任何 `$` 或 `$$`（block math 已在外部包裹）
-- 严格禁止输出 `\[` 或 `\]`
-- 必须修复以下坏样本模式：
-
-  ```text
-  \displaystyle\exp(m_{[0,L)}-m_{[0,L+1)})$}\colorbox{orange}{$\displaystyle...
-  ```
-
-  应变为（删除所有 `$`）：
-
-  ```text
-  \displaystyle\exp(m_{[0,L)}-m_{[0,L+1)})}\\colorbox{orange}{\displaystyle...
-  ```
-
-**降级策略**：
-
-对于无法自动修复的数学块（置信度低或验证失败）：
-
-```markdown
-\`\`\`tex
-原始 LaTeX 内容
-\`\`\`
-
-_Note: Math block could not be automatically fixed (原因). Showing as code._
-```
-
-**验证机制**：
-
-修复后的数学块必须通过以下验证：
-
-- 不包含任何 `$` 或 `$$` 分隔符
-- 不包含 `\[` 或 `\]` 分隔符
-- 不包含 HTML 标签
-- 括号配对平衡（`{}`、`[]`、`()`）
-
-**关键优势**：
-
-- **单次调用**：翻译 + 数学修复在一个 LLM 请求中完成
-- **上下文感知**：LLM 可以理解数学内容的上下文
-- **智能修复**：比纯规则更灵活，可处理复杂情况
-- **确定性兜底**：验证失败时自动降级，保证页面不崩溃
-
-**示例**：
-
-导入前（知乎文章）：
-
-```markdown
-$$
-\sum_{l\in[0,L+1)}\exp(s_l-m_{[0,L+1)}) = \colorbox{red}{
-$$
-
-\displaystyle\exp(m*{[0,L)}-m*{[0,L+1)})$}\colorbox{orange}{$\displaystyle\sum*{l\in[0,L)}\exp(s_l-m*{[0,L)})$}
-$$
-```
-
-修复后（由翻译器处理）：
-
-```markdown
-$$
-\sum_{l\in[0,L+1)}\exp(s_l-m_{[0,L+1)}) = \colorbox{red}{\displaystyle\exp(m_{[0,L)}-m_{[0,L+1)})\colorbox{orange}{\displaystyle\sum_{l\in[0,L)}\exp(s_l-m_{[0,L)})}}
-$$
-```
-
-##### E. 图片 caption 处理
-
-- 识别图片后紧跟的短文本（≤ 120 字符）作为 caption
-- 转换为 HTML `<figure>` 结构：
-
-  ```html
-  <figure>
-    <img src="..." alt="..." />
-    <figcaption>caption text</figcaption>
-  </figure>
-  ```
-
-- 误判保护：
-  - 超长段落不作为 caption
-  - 标题、列表、代码块不作为 caption
-  - 避免破坏文档结构
-
-##### F. Markdown 格式清理
-
-- 压缩 3+ 连续空行为 2 行
-- 统一为 LF 换行符（`\n`）
-- 规范标题和代码块间距
-
-##### G. Frontmatter 增强
-
-翻译后自动添加元数据：
-
-```yaml
-lang: zh
-translatedFrom: en
-```
-
-#### 诊断输出
-
-增强完成后会输出诊断信息：
-
-```text
-Enhanced my-article:
-  - Translated from en
-  - Fixed 3 code fences
-  - Fixed 2 image captions
-  - Patched 1 math blocks via translator
-  - Degraded 0 math blocks to code fence
-```
-
-#### 模块架构
-
-实现位于 `scripts/markdown/`：
-
-- `language-detector.ts`：语言检测
-- `translator.ts`：翻译接口与实现（包含数学修复支持）
-- `deepseek-translator.ts`：DeepSeek LLM 翻译器（同时处理文本翻译和数学修复）
-- `code-fence-fixer.ts`：代码语言检测
-- `markdown-processor.ts`：主处理管线
-- `index.ts`：导出接口
-
-#### 编程接口
-
-可在其他脚本中使用：
-
-```typescript
-import { processMarkdownForImport } from './markdown';
-
-const result = await processMarkdownForImport(
-  { markdown: content, slug: 'my-article', source: 'notion' },
-  {
-    enableTranslation: true, // 启用翻译
-    enableCodeFenceFix: true, // 修复代码块
-    enableImageCaptionFix: true, // 修复图片 caption
-    enableMarkdownCleanup: true, // 清理格式
-    enableMathDelimiterFix: true, // 修复数学公式分隔符（如 `$ x $` → `$x$`）
-    enableMathFix: true, // 修复数学块内容问题
-  },
-);
-
-console.log(result.diagnostics); // 查看修改统计
-```
-
-#### 注意事项
-
-- **测试环境**：默认使用 `mock` 翻译器，不依赖外部 API
-- **生产环境**：需要配置真实翻译提供商（未来支持）
-- **翻译质量**：Mock 翻译器仅用于测试，生产环境需使用真实 LLM
-- **失败降级**：任何步骤失败都不会中断流程，会继续其他修复
+> **详细说明** → [docs/config-audit.md](../docs/config-audit.md)
 
 ---
 
-## 三、`scripts/utils.ts` 的定位
+## 三、Markdown 处理管线
 
-### 3.1 为什么存在 `utils.ts`
+导入和同步时自动应用的 Markdown 增强功能。
 
-Scripts 需要共享一些通用的文件操作和字符串处理逻辑，但这些逻辑：
+### 3.1 功能列表
 
-- **不属于 Runtime**（不应在 `src/lib/` 中）
-- **不适合放在单个 script 中**（会重复代码）
-- **非常简单，不需要复杂的模块结构**（不需要 `scripts/lib/`）
+| 功能              | 说明                            |
+| ----------------- | ------------------------------- |
+| 语言检测          | 分析文章主体语言（英文/中文）   |
+| 翻译              | 英文文章翻译为中文（可选）      |
+| 代码块语言标注    | 自动推断并补齐缺失的语言标识符  |
+| 图片 caption 处理 | 转换为 Markdown 斜体格式        |
+| 数学公式修复      | 修正 `$ x $` → `$x$` 等格式问题 |
+| 格式清理          | 压缩多余空行、统一换行符        |
 
-因此，使用 **单个文件** `scripts/utils.ts` 作为 scripts 的共享工具层。
+### 3.2 翻译提供商
 
-### 3.2 `utils.ts` 放什么
+| Provider   | 说明                     |
+| ---------- | ------------------------ |
+| `identity` | 不翻译，保持原文（默认） |
+| `deepseek` | 使用 DeepSeek API 翻译   |
 
-**适合放入 `utils.ts` 的内容**：
+**DeepSeek 环境变量**：
 
-- 文件系统操作封装（`ensureDir`、`processFile`、`processDirectory`）
-- 字符串处理工具（`normalizeInvisibleCharacters`、数学公式修正）
-- 进程执行辅助函数（`runMain`）
-- 被 2 个及以上 script 使用的工具函数
-
-**示例函数**（当前已存在）：
-
-```typescript
-// 目录操作
-export function ensureDir(dir: string): void;
-
-// 文件处理
-export function processFile(filePath: string, processFn: (text: string) => string): void;
-
-export function processDirectory(
-  dirPath: string,
-  filterFn: (filename: string) => boolean,
-  processFn: (text: string) => string,
-): void;
-
-// 错误处理
-export function runMain(mainFn: () => Promise<void>): void;
-
-// Markdown 处理
-export function processMdFiles(text: string): string;
-export function normalizeInvisibleCharacters(text: string): string;
-export function splitCodeFences(text: string): {
-  frontmatter: string;
-  segments: Array<{ type: 'code' | 'text'; content: string }>;
-};
-```
-
-### 3.3 `utils.ts` 不放什么
-
-**不适合放入 `utils.ts` 的内容**：
-
-- **业务逻辑**：slug 生成 → `src/lib/slug/`
-- **Runtime 转换**：Markdown 插件 → `src/lib/markdown/`
-- **配置**：路径定义 → `src/config/paths.ts`
-- **单个 script 特有的逻辑**：应保留在对应 script 中
-
-### 3.4 为什么不用 `scripts/lib/` 目录
-
-**设计决策**：使用单个 `utils.ts` 而不是 `scripts/lib/` 目录
-
-**原因**：
-
-1. **Scripts 是入口，不是库**：每个 script 是独立的命令行工具，不需要复杂的模块结构
-2. **防止过度抽象**：单文件迫使我们思考是否真的需要抽象，避免过早优化
-3. **清晰的边界**：`scripts/utils.ts` 明确表示"仅供 scripts 使用的工具"
-4. **易于维护**：一个文件，易于查看所有工具函数，减少查找成本
-
-**何时考虑拆分**：
-
-- 如果 `utils.ts` 超过 500 行
-- 如果出现多个独立的工具类别（如网络请求、图片处理）
-
-当前的复杂度下，单文件足够。
+| 变量名                   | 必需 | 默认值                     |
+| ------------------------ | ---- | -------------------------- |
+| `DEEPSEEK_API_KEY`       | 是   | —                          |
+| `DEEPSEEK_MODEL`         | 否   | `deepseek-chat`            |
+| `DEEPSEEK_BASE_URL`      | 否   | `https://api.deepseek.com` |
+| `DEEPSEEK_CACHE_ENABLED` | 否   | `1`                        |
 
 ---
 
-## 四、Scripts 与 Runtime 的边界
+## 四、Scripts 与仓库模块的关系
 
-### 4.1 明确的边界规则
+### 4.1 可导入的模块
 
-| 方向                    | 是否允许 | 说明                                                 |
-| ----------------------- | -------- | ---------------------------------------------------- |
-| Scripts import Runtime  | ✅ 部分  | 只能 import `src/config/paths.ts` 和 `src/lib/slug/` |
-| Runtime import Scripts  | ❌ 禁止  | Runtime 不得依赖 scripts                             |
-| Scripts import utils.ts | ✅ 允许  | Scripts 的共享工具层                                 |
-| Runtime import utils.ts | ❌ 禁止  | `utils.ts` 仅供 scripts 使用                         |
+| 模块                  | 用途            |
+| --------------------- | --------------- |
+| `src/config/paths.ts` | 路径配置        |
+| `src/lib/slug/`       | Slug 生成与验证 |
 
-### 4.2 共享模块的选择
+### 4.2 依赖边界
 
-**可被 Scripts 和 Runtime 共同使用**：
+- ✅ Scripts → `src/config/paths.ts`、`src/lib/slug/`
+- ❌ Runtime → Scripts（禁止）
+- ✅ Scripts → `scripts/utils.ts`（内部共享）
 
-- `src/config/paths.ts`：路径配置（单一数据源）
-- `src/lib/slug/`：slug 生成与验证（保证 URL 一致性）
+### 4.3 与 CI 的关系
 
-**仅供 Runtime 使用**：
+| Workflow             | 调用的 Script               |
+| -------------------- | --------------------------- |
+| `sync-notion.yml`    | `scripts/notion-sync.ts`    |
+| `import-content.yml` | `scripts/content-import.ts` |
+| `delete-article.yml` | `scripts/delete-article.ts` |
 
-- `src/lib/content/`、`src/lib/markdown/`、`src/lib/site/`、`src/lib/ui/`
-
-**仅供 Scripts 使用**：
-
-- `scripts/utils.ts`
-
-### 4.3 违反边界的后果
-
-如果 Runtime 导入 Scripts：
-
-- 破坏单向数据流
-- 引入不必要的依赖（Playwright、Notion SDK 等）
-- 增大构建产物体积
-- 混淆职责边界
-
-如果 Scripts 导入过多 Runtime 代码：
-
-- 耦合过紧，难以独立演进
-- 增加测试复杂度
+> **详细 CI 说明** → [docs/ci-workflow.md](../docs/ci-workflow.md)
 
 ---
 
 ## 五、添加新 Script 的指南
 
-### 5.1 创建新脚本的步骤
+### 5.1 步骤
 
-1. **在 `scripts/` 目录创建新文件**（如 `scripts/my-script.ts`）
-
-2. **导入必要的模块**：
+1. 创建 `scripts/<script-name>.ts`
+2. 导入必要模块：
 
    ```typescript
-   import { ensureDir } from './utils';
-   import { BLOG_CONTENT_DIR, PUBLIC_IMAGES_DIR } from '../src/config/paths';
+   import { BLOG_CONTENT_DIR } from '../src/config/paths';
    import { slugFromTitle } from '../src/lib/slug';
    ```
 
-3. **实现主函数**：
-
-   ```typescript
-   async function main() {
-     // 脚本逻辑
-   }
-   ```
-
-4. **添加命令行参数解析**（如需要）：
-
-   ```typescript
-   function parseArgs() {
-     const target = process.argv
-       .find((arg) => arg.startsWith('--target='))
-       ?.slice('--target='.length);
-     // ...
-     return { target };
-   }
-   ```
-
-5. **使用 `runMain` 包装**（可选，统一错误处理）：
-
-   ```typescript
-   import { runMain } from './utils';
-   runMain(main);
-   ```
-
-6. **在 `package.json` 添加 npm script**：
+3. 实现主函数和参数解析
+4. 在 `package.json` 添加 npm script：
 
    ```json
    {
@@ -984,94 +277,32 @@ export function splitCodeFences(text: string): {
    }
    ```
 
-7. **在本文档中添加说明**（本 README.md）
+5. 在本文档中添加说明
 
-### 5.2 脚本设计原则
+### 5.2 设计原则
 
 - **单一职责**：每个脚本只做一件事
-- **幂等性**：可安全地多次运行
+- **幂等性**：可安全多次运行
 - **错误处理**：清晰的错误信息，适当的退出码
-- **参数验证**：检查必需参数，提供有用的帮助信息
-- **日志输出**：输出进度和结果，便于调试
-- **文件安全**：使用 `ensureDir` 创建目录，避免覆盖重要文件
-
-### 5.3 何时添加到 `utils.ts`
-
-当满足以下条件时，考虑将逻辑提取到 `utils.ts`：
-
-- 被 2 个及以上 script 使用
-- 是纯函数（无副作用）或封装的文件操作
-- 与特定业务逻辑无关
-- 不超过 50 行代码
-
-**不要**：
-
-- 将单个 script 的主逻辑放入 `utils.ts`
-- 将 Runtime 逻辑放入 `utils.ts`
+- **参数验证**：检查必需参数，提供帮助信息
+- **日志输出**：输出进度和结果
 
 ---
 
 ## 六、常见问题
 
-### Q1：为什么 Notion sync 会覆盖我的本地修改？
+### Q1：为什么 Notion sync 会覆盖本地修改？
 
-**A**：Notion sync 将 Notion 视为单一数据源，每次同步会重写 `src/content/blog/notion/` 中的所有文件。
+Notion sync 将 Notion 视为单一数据源。如需本地编辑，将文章移出 `notion/` 目录。
 
-**解决方案**：
+### Q2：如何避免导入重复文章？
 
-- 在 Notion 中编辑内容，不要本地编辑
-- 如果需要本地编辑，将文章移出 `notion/` 目录
+默认不覆盖同 slug 文章。如需覆盖，使用 `--allow-overwrite`。
 
-### Q2：如何避免导入重复的文章？
+### Q3：删除文章后能否恢复？
 
-**A**：默认情况下，`content-import.ts` 不会覆盖已存在的同 slug 文章。
+删除不可逆，建议先用 `--dry-run` 预览，或通过 Git 回滚。
 
-**如需覆盖**：使用 `--allow-overwrite` 参数
+### Q4：Scripts 可以在本地运行吗？
 
-### Q3：数学公式格式为什么需要修正？
-
-**A**：Notion 导出的 Markdown 中，数学公式可能包含多余空格（`$ x $`），导致 KaTeX 无法正确渲染。
-
-**修正后**：`$x$` 可以正确渲染。
-
-### Q4：删除文章后能否恢复？
-
-**A**：删除操作不可逆，建议：
-
-- 先使用 `--dry-run` 预览
-- 确保有 Git 提交记录，可以通过 Git 回滚
-
-### Q5：Scripts 可以在本地运行吗？
-
-**A**：可以。Scripts 设计为本地可运行：
-
-- 配置 `.env.local` 中的环境变量
-- 运行 `npm run <script-name>`
-
----
-
-## 七、后续维护指南
-
-### 修改现有 Script
-
-1. **修改源码**（在 `scripts/` 目录）
-2. **更新本文档中的对应章节**（参数说明必须与源码一致）
-3. **如有必要，更新调用该 script 的 workflow**（参见 [docs/ci-workflow.md](../docs/ci-workflow.md)）
-4. **本地测试**：确保修改不破坏现有功能
-
-### 删除废弃 Script
-
-1. 从 `scripts/` 目录删除文件
-2. 从 `package.json` 删除对应的 npm script
-3. 从本文档删除说明
-4. 检查是否有 workflow 调用该 script，如有则一并删除
-
-### 重构 Scripts
-
-如果 scripts 复杂度增加，考虑：
-
-- 将 `utils.ts` 拆分为多个模块（如 `utils/fs.ts`、`utils/markdown.ts`）
-- 引入专门的 CLI 参数解析库（如 `commander`）
-- 添加单元测试（在 `tests/unit/scripts/` 中）
-
-**当前阶段**：保持简单，单文件 `utils.ts` 足够。
+可以。配置 `.env.local` 中的环境变量，然后运行 `npm run <script-name>`。

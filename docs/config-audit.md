@@ -1,5 +1,15 @@
 # 配置生效性审计报告 (Config Effectiveness Audit Report)
 
+本文档包含配置审计结果与治理规范。
+
+> **相关文档**
+>
+> - 站点配置指南 → [configuration.md](./configuration.md)
+> - 仓库架构 → [architecture.md](./architecture.md)
+> - CI 工作流 → [ci-workflow.md](./ci-workflow.md)
+
+---
+
 生成时间: 2025-12-30T14:13:24.521Z
 
 ## 一、审计摘要 (Summary)
