@@ -22,6 +22,9 @@ scripts/
 ├── logger-helpers.ts    # 日志辅助工具
 ├── import/              # 导入适配器
 │   └── adapters/        # 平台适配器（zhihu、wechat、medium、others）
+├── lib/                 # 通用库
+│   └── markdown/        # 统一 Markdown 管线
+│       └── pipeline.ts  # AST 解析与序列化
 ├── markdown/            # Markdown 处理管线
 │   ├── index.ts         # 入口
 │   ├── translator.ts    # 翻译接口
@@ -198,7 +201,23 @@ npm run delete:article -- --target=my-slug --delete-images --dry-run
 
 导入和同步时自动应用的 Markdown 增强功能。
 
-### 3.1 功能列表
+### 3.1 统一管线 (`scripts/lib/markdown/pipeline.ts`)
+
+Notion 同步使用基于 AST（抽象语法树）的统一管线，确保输出的 Markdown 语法合法、可渲染：
+
+| 功能             | 说明                                      |
+| ---------------- | ----------------------------------------- |
+| 不可见字符清理   | 移除 bidi 控制字符、零宽字符、BOM         |
+| Frontmatter 合并 | 解析-合并-序列化，保证 key 唯一           |
+| 重复 key 处理    | 自动检测并移除重复的 frontmatter 键       |
+| AST 解析与序列化 | 基于 remark-parse/stringify，保证语法正确 |
+| 代码块稳定化     | 使用 fenced 格式，处理嵌套反引号          |
+| URL 规范化       | 编码空格或使用尖括号语法                  |
+| 空行压缩         | 3+ 连续空行压缩为 2                       |
+
+**使用方式**：Notion 同步自动调用，无需手动配置。
+
+### 3.2 增强功能列表
 
 | 功能              | 说明                            |
 | ----------------- | ------------------------------- |
@@ -209,7 +228,7 @@ npm run delete:article -- --target=my-slug --delete-images --dry-run
 | 数学公式修复      | 修正 `$ x $` → `$x$` 等格式问题 |
 | 格式清理          | 压缩多余空行、统一换行符        |
 
-### 3.2 翻译提供商
+### 3.3 翻译提供商
 
 | Provider   | 说明                     |
 | ---------- | ------------------------ |
