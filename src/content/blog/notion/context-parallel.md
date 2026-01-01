@@ -1,12 +1,12 @@
 ---
 title: Context Parallel 技术解析
 slug: context-parallel
-date: '2025-12-31'
+date: '2026-01-01'
 tags: []
 status: published
 cover: /images/notion/context-parallel/2cd22dca-4210-8065-8a1a-e0bf7582b90e.png
-lastEditedTime: '2025-12-31T12:56:00.000Z'
-updated: '2025-12-31T12:56:00.000Z'
+lastEditedTime: '2025-12-31T13:25:00.000Z'
+updated: '2025-12-31T13:25:00.000Z'
 source: notion
 notion:
   id: 2cd22dca-4210-81ec-89e2-f27eefb312e5
@@ -404,7 +404,7 @@ $\text{chunks} = \{0, 1, \dots, 2N-1\}$
       T_{\text{comm}}(\text{block})
   $$
 
-  ，以保证每一轮 ring step 都能高效 overlap。
+  以保证每一轮 ring step 都能高效 overlap。
 
 - Batch 内按 token 总量而非请求数切分
 
@@ -440,14 +440,8 @@ $\text{chunks} = \{0, 1, \dots, 2N-1\}$
 
 ## 参考链接
 
-1. \[2507.07120] Helix Parallelism: Rethinking Sharding Strategies for Interactive Multi-Million-Token LLM Decoding
-
-   <https://ar5iv.labs.arxiv.org/html/2507.07120>
-
-1. \[Feature]: Context Parallelism · Issue #7519 · vllm-project/vllm · GitHub
-
-   <https://github.com/vllm-project/vllm/issues/7519>
-
+1. \[2507.07120] Helix Parallelism: Rethinking Sharding Strategies for Interactive Multi-Million-Token LLM Decoding <https://ar5iv.labs.arxiv.org/html/2507.07120>
+1. \[Feature]: Context Parallelism · Issue #7519 · vllm-project/vllm · GitHub <https://github.com/vllm-project/vllm/issues/7519>
 1. Helix: Serving Large Language Models over Heterogeneous GPUs and Network via Max-Flow
 
    <https://arxiv.org/html/2406.01566v2>
