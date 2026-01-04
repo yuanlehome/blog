@@ -1,11 +1,13 @@
 ---
 title: Long Context 推理优化技术梳理
 slug: long-context
-date: '2025-12-28'
+date: '2026-01-04'
 tags: []
 status: published
 cover: /images/notion/long-context/2d222dca-4210-80e1-ac42-f75500bbf908.png
-lastEditedTime: '2025-12-28T06:30:00.000Z'
+lastEditedTime: '2026-01-04T14:28:00.000Z'
+updated: '2026-01-04T14:28:00.000Z'
+source: notion
 notion:
   id: 1fa22dca-4210-8019-9f72-ec95b62c0c39
 ---
@@ -14,7 +16,7 @@ notion:
 
 ## 优质博客
 
-- [[LLM性能优化] 聊聊长文本推理性能优化方向 - 知乎](https://zhuanlan.zhihu.com/p/698308542)
+- [\[LLM性能优化\] 聊聊长文本推理性能优化方向 - 知乎](https://zhuanlan.zhihu.com/p/698308542)
 - [Deploying DeepSeek with PD Disaggregation and Large-Scale Expert Parallelism on 96 H100 GPUs | LMSYS Org](https://lmsys.org/blog/2025-05-05-large-scale-ep/)
 - [Implement Flash Attention Backend in SGLang - Basics and KV Cache · Biao's Blog](https://hebiao064.github.io/fa3-attn-backend-basic)
 - [Unleashing the Power of Long Context in Large Language Models | by Aakash Tomar | Medium](https://medium.com/@263akash/unleashing-the-power-of-long-context-in-large-language-models-10c106551bdd)
@@ -33,15 +35,15 @@ notion:
    - **Prefill（全量前向）阶段**：计算复杂度约 $O(L^2 \cdot D)$，因为需要计算 $QK^T$ 的完整矩阵并 softmax 后乘以 $V$
    - **Decode（自回归解码）阶段**：每生成一个新 token，需要计算与所有已有 $L$ 个 token 的注意力，复杂度约 $O(L \cdot D)$。虽然单步是线性，但由于需要迭代 $L$ 步生成，且每一步都依赖完整的 KV 缓存，这使解码总体计算仍非常庞大。
 
-2. **KV Cache 显存占用爆炸**
+1. **KV Cache 显存占用爆炸**
 
    为了避免重复计算，自注意力会缓存每层过往的 Key/Value（KV Cache）。KV 缓存大小近似 $2 \times L \times H \times D_{\text{head}}$（2表示 Key 和 Value 两部分），随上下文长度线性增长。对于 128K 甚至 1M 长度的上下文，单层 KV 缓存就需要数 GB 显存！例如，对 LLaMA-70B 模型（80层，64头，头维 128）处理 128K 长度序列时，KV缓存总占用约 **80GB**（单层约 1GB）——几乎耗尽一张 A100 80GB 卡的容量。
 
-3. **Decode 阶段访存瓶颈**
+1. **Decode 阶段访存瓶颈**
 
    在自回归生成每个新 token 时，模型需要从每层的 KV Cache 中读取所有历史 $L$ 个token的 Key/Value 用于 Attention 计算。这意味着每一步**解码都要扫描一遍历史 KV**，导致计算变成 **memory-bound**（受限于显存带宽）和 **communication-bound**（多卡时受限于通信）。即使 Attention 算子本身算力足够强，这种频繁的大内存访问和多 GPU 通信也严重拖慢了解码速度。
 
-4. **解码延迟挑战**
+1. **解码延迟挑战**
 
    由于 decode 阶段严格的自回归顺序，每个 token 生成都在等待前一个完成，无法并行。这使得长上下文下的输出延迟（latency）飙升。如果没有特别优化，长上下文模型往往 TTFT（首字延迟）和逐 token 延迟都不可接受，难以满足交互式应用需求。
 
@@ -76,9 +78,9 @@ notion:
 - **KV Cache 分块分页（Paged KV Cache）**
 
   这是 **vLLM** 系统的基石设计，被称为“PagedAttention”。其做法是**不再按每个请求序列连续存储 KV**，而是把 KV 拆分为小块（pages）分散管理。类似操作系统的虚拟内存分页，vLLM 引入了 KV 缓存管理器，将每个请求的 KV 按需分配若干固定大小的块，允许**动态增长和回收**，并通过“页表”映射实现逻辑上连续。这种设计带来多重收益：
-  - **消除显存碎片：**传统连贯分配 KV 会造成严重的内外碎片。Paged KV 让每块 KV 可放置于任意闲置内存，避免预留长连续区，极大减少了内存碎片和“Swiss cheese”现象。
+  - \*\*消除显存碎片：\*\*传统连贯分配 KV 会造成严重的内外碎片。Paged KV 让每块 KV 可放置于任意闲置内存，避免预留长连续区，极大减少了内存碎片和“Swiss cheese”现象。
   - **支持变长和并发：**因为每请求按块动态分配 KV，不同请求的上下文长度可以不同，不再需要为最长序列预留统一大缓冲。未用完的块可立即用于其他请求，实现**更高的批处理并发**和显存利用率。实际测算显示，以前系统 KV 缓存有 60%-80% 内存浪费，而 vLLM 的 PagedAttention 把浪费降到不到 4%。
-  - **解锁超长上下文：**Paged KV 配合其它并行技术，可以轻松支持 128K 甚至 1M 长度的上下文，在总显存固定的前提下存储如此海量的 KV 成为可能。
+  - \*\*解锁超长上下文：\*\*Paged KV 配合其它并行技术，可以轻松支持 128K 甚至 1M 长度的上下文，在总显存固定的前提下存储如此海量的 KV 成为可能。
 
   简单来说，Paged KV类似于把KV缓存“虚拟化”了：**按块管理，灵活调度**。这也是 vLLM 名字中“virtual LLM”的由来之一。
 
@@ -88,7 +90,7 @@ notion:
 
 - **KV Cache Offload（异构存储卸载）**
 
-  当上下文特别长或并发很多时，即使有分页和量化，KV 缓存总量仍可能超出 GPU 显存。这时可以考虑**将冷门的 KV 缓存转移到 GPU 外**。典型策略是：**“热 KV 留 GPU，冷 KV 转 CPU/NVMe”**。比如最近的一些系统（如 _LMCache_）支持将不活跃会话或较久之前的 token 的 KV 通过 PCIe/NVLink 转移到 CPU 内存，甚至NVMe SSD。当需要用到时再预取回来。这样可以**释放宝贵的 GPU 显存**，显著提高单机能支持的上下文数量或长度上限。当然，Offload 的代价是每次取回会有额外延迟，所以一般在用户停顿、长时间不用的情况下才做，或者配合异步 IO 和流水线隐藏这部分延迟。总之，KV Offload 通过利用**更廉价的大容量存储（CPU 内存/磁盘）**来扩展 KV 容量，是实现超长上下文和多会话共存的关键技术之一。
+  当上下文特别长或并发很多时，即使有分页和量化，KV 缓存总量仍可能超出 GPU 显存。这时可以考虑**将冷门的 KV 缓存转移到 GPU 外**。典型策略是：**“热 KV 留 GPU，冷 KV 转 CPU/NVMe”**。比如最近的一些系统（如 _LMCache_）支持将不活跃会话或较久之前的 token 的 KV 通过 PCIe/NVLink 转移到 CPU 内存，甚至NVMe SSD。当需要用到时再预取回来。这样可以**释放宝贵的 GPU 显存**，显著提高单机能支持的上下文数量或长度上限。当然，Offload 的代价是每次取回会有额外延迟，所以一般在用户停顿、长时间不用的情况下才做，或者配合异步 IO 和流水线隐藏这部分延迟。总之，KV Offload 通过利用\*\*更廉价的大容量存储（CPU 内存/磁盘）\*\*来扩展 KV 容量，是实现超长上下文和多会话共存的关键技术之一。
 
 ### 2.3 上下文并行（Context Parallel，CP）
 
@@ -100,7 +102,7 @@ notion:
   - **PCP（Prefill Context Parallel）：** 用于提示的前向阶段。当输入序列极长时，可以将序列等分成 $N$ 段，分给 $N$ 张 GPU 分别并行计算每段的 $Q,K,V$ 表示。最简单策略是“部分 Query，全量 KV”：每卡算自己那段 token 的 Q、K、V，然后所有卡汇集 K/V，再各自完成对本段 Q 的注意力输出。这样总计算量几乎平均分摊，大幅加快了 Prefill 处理长输入的速度。如果序列过长连 K/V 也放不下一整份，可以更激进地采用“部分 Query，部分 KV”策略，借助**环形通信（Ring Attention）**逐块交换 KV 计算。PCP 的收益在于降低单卡计算和显存占用，并将 Prefill 的长序列计算延迟**按长度切分并行化**，显著缩短 TTFT。
   - **DCP（Decode Context Parallel）：** 用于生成解码阶段。当单卡 KV 缓存放不下整个长历史时，采用 DCP 可以**沿序列长度维度将 KV 缓存切分到多卡**。例如有 $H$ 个注意力头，一个请求已有 $T$ 个token，那么原本每卡需存 $H \times T$ 个 KV 条目；现在如果有 2 卡 DCP，每卡各存一半 token 的 KV，即每卡存 $\frac{H \times T}{2}$ 条。更一般地，DCP 大小 $d$ 表示每张卡只保存 $\frac{1}{d}$ 的历史 KV。这样**单卡 KV 显存需求降为原来的** $1/d$，等价于多卡共同提供更大 KV 存储容量。解码时，各卡并行对自己那部分 KV 计算注意力分值，然后通过 All-Reduce 汇总结果，保证最终语义与单卡计算完全等价。DCP 的直接效果是**显著降低解码时 KV 内存压力**，从而解锁超长上下文（如 128K/1M）的解码可能性。代价则是需要额外的通信：每步解码的注意力输出需要跨卡同步，以及某些非注意力层计算需要全局聚合。因此 DCP 通常配合高带宽通信（NVLink/NVSwitch/RDMA）以及高效Attention kernel（如 FlashAttention 的 Online softmax 版本）才能发挥最佳效果。目前 vLLM、SGLang 等开源推理引擎都已深度支持上下文并行。
 
-✏️ **小结：** 上下文并行的引入，使得**“单卡放不下，多卡拆着放”**成为可能：Prefill 通过 PCP 并行加速长输入处理，Decode 通过 DCP 分担 KV 存储压力。这两者结合，让 128K 乃至更长上下文的推理在 GPU 集群上成为现实方案。
+✏️ **小结：** 上下文并行的引入，使得\*\*“单卡放不下，多卡拆着放”\*\*成为可能：Prefill 通过 PCP 并行加速长输入处理，Decode 通过 DCP 分担 KV 存储压力。这两者结合，让 128K 乃至更长上下文的推理在 GPU 集群上成为现实方案。
 
 ### 2.4 Decode 阶段专项优化（降低生成延迟）
 
@@ -112,7 +114,7 @@ notion:
 
   _Grouped-Query Attention (GQA)_ 则是介于 MHA 和 MQA 之间的一种折中：把 $H$ 个注意力头划分成 $g$ 组，每组共享一套 K/V（等价于 K/V 头数变为 $g$）。当 $g < H$ 时，就减小了 KV 缓存和访存。GQA 在一些模型（如 Llama2-chat 版）中有使用，其在尽量保证精度的前提下降低 KV 开销，被视为比 MQA 更平衡的方案。
 
-  总的来说，MQA/GQA 可以视为**“用更少的 K/V 头完成注意力”**。它们对**解码阶段优化尤为显著**，因为这时 KV 缓存的读写和存储是主要瓶颈。实际效果方面，据报告采用 MQA 的模型在相同硬件上解码吞吐可提升 1.3-2 倍左右，而对模型准确度的影响很小（但纯 MQA 有时略降精度，GQA 可平衡）。
+  总的来说，MQA/GQA 可以视为\*\*“用更少的 K/V 头完成注意力”**。它们对**解码阶段优化尤为显著\*\*，因为这时 KV 缓存的读写和存储是主要瓶颈。实际效果方面，据报告采用 MQA 的模型在相同硬件上解码吞吐可提升 1.3-2 倍左右，而对模型准确度的影响很小（但纯 MQA 有时略降精度，GQA 可平衡）。
 
 - **推测解码（Speculative Decoding）**
 
@@ -142,7 +144,7 @@ notion:
 
   ![SGLang 中的 Prefill-Decode 解耦示意。左侧“Prefill Server”负责计算完整输入的前向并产生 KV 缓存，右侧“Decode Server”预先分配好 KV 空间，二者通过高速网络建立连接（RDMA 队列对），Prefill 算完后将 KV 数据直接传输给 Decode 服务器，后者随即开始迭代生成输出。这种架构让两阶段各自利用最优硬件资源，互不打扰。](/images/notion/long-context/2d222dca-4210-80fa-94c7-da329dca8b22.png)
 
-  PD分离的实现需要解决 **KV 缓存传输**问题——这通常通过 **RDMA** 等技术实现零拷贝高速传送。例如 SGLang 的实现中，Prefill 端通过 RDMA 把 KV 缓存直接写入 Decode 端 GPU 内存，采用后台线程异步传输以不阻塞主计算流程。NVidia 的 TensorRT-LLM 也提供了类似的 Disaggregated Serving 模式，并支持将 KV 传输与计算重叠以进一步提高效率。实际效果方面，PD 分离在高并发场景下大幅提高了吞吐延迟表现，据报道相比传统单引擎可提升 1.7~2 倍性能。需要注意 PD 分离在低并发短上下文时未必有优势，部署时需评估开销平衡。
+  PD分离的实现需要解决 **KV 缓存传输**问题——这通常通过 **RDMA** 等技术实现零拷贝高速传送。例如 SGLang 的实现中，Prefill 端通过 RDMA 把 KV 缓存直接写入 Decode 端 GPU 内存，采用后台线程异步传输以不阻塞主计算流程。NVidia 的 TensorRT-LLM 也提供了类似的 Disaggregated Serving 模式，并支持将 KV 传输与计算重叠以进一步提高效率。实际效果方面，PD 分离在高并发场景下大幅提高了吞吐延迟表现，据报道相比传统单引擎可提升 1.7\~2 倍性能。需要注意 PD 分离在低并发短上下文时未必有优势，部署时需评估开销平衡。
 
   总的来说，Prefill-Decode 分离为长上下文模型的服务部署提供了更灵活的**异构伸缩**手段——我们可以**独立扩展 Prefill 算力**或**增加 Decode 内存节点**，并通过高效互连让它们协同完成同一请求。
 

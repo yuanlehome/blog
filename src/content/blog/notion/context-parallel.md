@@ -1,12 +1,12 @@
 ---
 title: Context Parallel 技术解析
 slug: context-parallel
-date: '2026-01-01'
+date: '2026-01-04'
 tags: []
 status: published
 cover: /images/notion/context-parallel/2cd22dca-4210-8065-8a1a-e0bf7582b90e.png
-lastEditedTime: '2025-12-31T13:25:00.000Z'
-updated: '2025-12-31T13:25:00.000Z'
+lastEditedTime: '2026-01-04T14:28:00.000Z'
+updated: '2026-01-04T14:28:00.000Z'
 source: notion
 notion:
   id: 2cd22dca-4210-81ec-89e2-f27eefb312e5
@@ -388,7 +388,7 @@ $\text{chunks} = \{0, 1, \dots, 2N-1\}$
 - 每个 rank **同时拿到一个前段 chunk（轻）**
 - 以及一个对称的后段 chunk（重）
 
-从而使 **每个 rank 的总 attention FLOPs 接近一致**。
+从而使**每个 rank 的总 attention FLOPs 接近一致**。
 
 ### 6.5 进一步负载均衡细节
 
@@ -440,38 +440,12 @@ $\text{chunks} = \{0, 1, \dots, 2N-1\}$
 
 ## 参考链接
 
-1. \[2507.07120] Helix Parallelism: Rethinking Sharding Strategies for Interactive Multi-Million-Token LLM Decoding <https://ar5iv.labs.arxiv.org/html/2507.07120>
-1. \[Feature]: Context Parallelism · Issue #7519 · vllm-project/vllm · GitHub <https://github.com/vllm-project/vllm/issues/7519>
-1. Helix: Serving Large Language Models over Heterogeneous GPUs and Network via Max-Flow
-
-   <https://arxiv.org/html/2406.01566v2>
-
-1. Context_Parallelism_Presentation
-
-```json
-[https://mlsys.org/media/mlsys-2025/Slides/3255.pdf](https://mlsys.org/media/mlsys-2025/Slides/3255.pdf)
-```
-
-1. Context Parallel Deployment - vLLM
-
-   <https://docs.vllm.ai/en/latest/serving/context_parallel_deployment/>
-
-1. \[RFC]: Support Prefill Context Parallel (PCP) · Issue #25749 · vllm-project/vllm · GitHub
-
-   <https://github.com/vllm-project/vllm/issues/25749>
-
-1. block_table - vLLM
-
-   <https://docs.vllm.ai/en/latest/api/vllm/v1/worker/gpu/block_table/>
-
-1. \[Feature] Implement Decode Context Parallel in SGLang · Issue #12196 · sgl-project/sglang · GitHub
-
-   <https://github.com/sgl-project/sglang/issues/12196>
-
-1. \[PDF] DCP: Addressing Input Dynamism In Long-Context Training ...
-
-   <https://www.semanticscholar.org/paper/DCP%3A-Addressing-Input-Dynamism-In-Long-Context-via-Jiang-Cai/5f3dd2fd7b80dad7b73a7d09464ecc078ce12035>
-
-1. \[PDF] Learning to Shard: RL for Co-optimizing the Parallelism Degrees ...
-
-   <https://www.arxiv.org/pdf/2509.00217>
+1. [\[2507.07120\] Helix Parallelism: Rethinking Sharding Strategies for Interactive Multi-Million-Token LLM Decoding](https://ar5iv.labs.arxiv.org/html/2507.07120)
+1. [\[Feature\]: Context Parallelism · Issue #7519 · vllm-project/vllm · GitHub](https://github.com/vllm-project/vllm/issues/7519)
+1. [Helix: Serving Large Language Models over Heterogeneous GPUs and Network via Max-Flow](https://arxiv.org/html/2406.01566v2)
+1. [Context Parallel Deployment - vLLM](https://docs.vllm.ai/en/latest/serving/context_parallel_deployment/)
+1. [\[RFC\]: Support Prefill Context Parallel (PCP) · Issue #25749 · vllm-project/vllm · GitHub](https://github.com/vllm-project/vllm/issues/25749)
+1. [block_table - vLLM](https://docs.vllm.ai/en/latest/api/vllm/v1/worker/gpu/block_table/)
+1. [\[Feature\] Implement Decode Context Parallel in SGLang · Issue #12196 · sgl-project/sglang · GitHub](https://github.com/sgl-project/sglang/issues/12196)
+1. [\[PDF\] DCP: Addressing Input Dynamism In Long-Context Training ...](https://www.semanticscholar.org/paper/DCP%3A-Addressing-Input-Dynamism-In-Long-Context-via-Jiang-Cai/5f3dd2fd7b80dad7b73a7d09464ecc078ce12035)
+1. [\[PDF\] Learning to Shard: RL for Co-optimizing the Parallelism Degrees ...](https://www.arxiv.org/pdf/2509.00217)

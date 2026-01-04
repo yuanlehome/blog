@@ -1,11 +1,13 @@
 ---
 title: RoPE 究竟是怎么计算的
 slug: rope
-date: '2025-12-28'
+date: '2026-01-04'
 tags: []
 status: published
 cover: ''
-lastEditedTime: '2025-12-28T07:15:00.000Z'
+lastEditedTime: '2026-01-04T14:28:00.000Z'
+updated: '2026-01-04T14:28:00.000Z'
+source: notion
 notion:
   id: 2d322dca-4210-8074-95ce-ec86131a7787
 ---
@@ -30,12 +32,12 @@ RoPE 做的是把 **Q/K 先旋转**：
 
 对每个 position $p$，对某一对维度 $(u,v)$ 做旋转：
 
-$$
-\begin{bmatrix}
-x'_u \\
-x'_v
+\$\begin{bmatrix}
+x'\_u \\
+x'\_v
 \end{bmatrix}
-=
+=============
+
 \begin{bmatrix}
 \cos\theta & -\sin\theta \\
 \sin\theta & \cos\theta
@@ -43,8 +45,7 @@ x'_v
 \begin{bmatrix}
 x_u \\
 x_v
-\end{bmatrix}
-$$
+\end{bmatrix}\$
 
 工程实现常写成统一模板：
 
@@ -241,15 +242,13 @@ q4 =  x4 * c0 + x0 * s0
 
 这是标准二维旋转：
 
-$$
-\begin{bmatrix}q0\\q4\end{bmatrix}
-=
+# \$\begin{bmatrix}q0\q4\end{bmatrix}
+
 \begin{bmatrix}
 \cos\theta_0 & -\sin\theta_0 \\
 \sin\theta_0 & \cos\theta_0
 \end{bmatrix}
-\begin{bmatrix}x0\\x4\end{bmatrix}
-$$
+\begin{bmatrix}x0\x4\end{bmatrix}\$
 
 其他同理：
 

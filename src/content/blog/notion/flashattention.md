@@ -1,11 +1,13 @@
 ---
 title: FlashAttention 原理与实现
 slug: flashattention
-date: '2025-12-28'
+date: '2026-01-04'
 tags: []
 status: published
 cover: /images/notion/flashattention/2d022dca-4210-80ec-a195-c3adbd923096.png
-lastEditedTime: '2025-12-28T06:59:00.000Z'
+lastEditedTime: '2026-01-04T14:34:00.000Z'
+updated: '2026-01-04T14:34:00.000Z'
+source: notion
 notion:
   id: 1fb22dca-4210-80cd-a96e-e32787cfd674
 ---
@@ -98,13 +100,11 @@ $m_{\text{new}}=\max(m_{\text{old}}, m_{\text{blk}})$
 
 关键在于：$\ell$ 的基准从旧的 $m_{\text{old}}$ 切换到了新的 $m_{\text{new}}$，所以要对旧的累积指数和做一次“重标定（rescale）”：
 
-$$
-\ell_{\text{new}}
-=
-\ell_{\text{old}} \cdot e^{m_{\text{old}}-m_{\text{new}}}
-+
-\ell_{\text{blk}} \cdot e^{m_{\text{blk}}-m_{\text{new}}}
-$$
+# \$\ell\_{\text{new}}
+
+\ell\_{\text{old}} \cdot e^{m\_{\text{old}}-m\_{\text{new}}}
+\+
+\ell\_{\text{blk}} \cdot e^{m\_{\text{blk}}-m\_{\text{new}}}\$
 
 这一条就是 Online Softmax 的核心：**你不需要保存任何历史 logits，只要保存** $(m,\ell)$**，就能把新的块稳定地合并进去。**
 
@@ -119,19 +119,13 @@ Softmax 的最终输出是：$O = \frac{\sum_t e^{S_t} V_t}{\sum_t e^{S_t}}$
 对第 $j$ 块，先算局部未归一化权重：$P^{(j)} = e^{S^{(j)} - m_{\text{new}}}$，然后做两件事：
 
 1. 把旧的累计分子从基准 $m_{\text{old}}$ 切到 $m_{\text{new}}$（同样 rescale）
-2. 加上当前块的贡献 $P^{(j)}V^{(j)}$
+1. 加上当前块的贡献 $P^{(j)}V^{(j)}$
 
-写成公式就是：
+# 写成公式就是：\$Acc\_{\text{new}}
 
-$$
-Acc_{\text{new}}
-=
-Acc_{\text{old}} \cdot e^{m_{\text{old}}-m_{\text{new}}}
-+
-\left(P^{(j)} V^{(j)}\right)
-$$
-
-，最终输出在所有块结束后一次性归一化：$O = \frac{Acc}{\ell}$。
+Acc\_{\text{old}} \cdot e^{m\_{\text{old}}-m\_{\text{new}}}
+\+
+\left(P^{(j)} V^{(j)}\right)$，最终输出在所有块结束后一次性归一化：$O = \frac{Acc}{\ell}\$。
 
 ```python
 def online_softmax_blocked(Q_block, K, V, Bc):
@@ -206,7 +200,7 @@ NVIDIA Hopper 架构（如 H100 GPU）引入了若干新特性：Warp 级并行 
 
 ### **4.1 异步计算与流水线重叠**
 
-传统注意力计算流程中，矩阵乘法（GEMM）和 Softmax 是串行的：必须先算完所有 $QK^T$ 得到注意力得分，再计算 Softmax，再乘 $V$。然而在 H100上，**GEMM 和 Softmax 两类操作可以并行重叠**执行。原因在于它们使用 GPU 上不同的计算单元（Tensor Core vs. 标量单元），例如 H100 的 FP16 Tensor Core 峰值 989 TFLOPs，而执行指数的标量单元仅 ~3.9 TFLOPs，相差达 256 倍。Softmax 尽管 FLOPs 占比不高，但因为速度慢，如果串行执行会占用总时间约一半。理想状况下，我们希望**在 Tensor Core 做矩阵乘法的同时，利用其他单元并行计算Softmax**。
+传统注意力计算流程中，矩阵乘法（GEMM）和 Softmax 是串行的：必须先算完所有 $QK^T$ 得到注意力得分，再计算 Softmax，再乘 $V$。然而在 H100上，**GEMM 和 Softmax 两类操作可以并行重叠**执行。原因在于它们使用 GPU 上不同的计算单元（Tensor Core vs. 标量单元），例如 H100 的 FP16 Tensor Core 峰值 989 TFLOPs，而执行指数的标量单元仅 \~3.9 TFLOPs，相差达 256 倍。Softmax 尽管 FLOPs 占比不高，但因为速度慢，如果串行执行会占用总时间约一半。理想状况下，我们希望**在 Tensor Core 做矩阵乘法的同时，利用其他单元并行计算Softmax**。
 
 ![图 5：FlashAttention-3 中跨 Warp 组的 Ping-Pong 异步调度。Warp 组 1（上方）和 Warp 组 2（下方）交替执行矩阵乘 GEMM 和 Softmax 操作：当一组等待矩阵乘结果时，另一组利用空闲执行 Softmax。虚线分隔不同迭代，彩色块表示 GEMM 或 Softmax 所占用的时间段。这样实现两类操作重叠并行，提高了硬件利用率。](/images/notion/flashattention/2d022dca-4210-8058-95fe-d57ccd03d3b6.png)
 
@@ -224,7 +218,7 @@ FlashAttention-3 针对 H100 的新指令做了专门优化。例如使用 **WGM
 
 除了速度，FlashAttention-3 还探索了**更低精度计算**以提高效率。FP8 精度下 Tensor Core 吞吐可翻倍，但直接将注意力降到 FP8 会引入较大数值误差。模型激活常出现“outlier”离群值，用低位表示会造成严重量化误差。为此，FlashAttention-3 引入了**失相干处理（incoherent processing）技术：对** $Q,K$ **每个 head 乘以一个随机正交矩阵（如 Hadamard 变换），将少数大值“扩散”到各维度。这样做可降低量化误差，而且 Hadamard 变换本身是线性操作，可以与其他操作（如 RoPE 位置编码）融合而几乎无额外代价。实验表明，对于模拟含 0.1% 大幅值的输入，失相干处理将 FP8 量化误差降低了2.6倍**。借助对 outlier 的特殊处理，FlashAttention-3 在 FP8 模式下达到与 FP16 几乎相当的准确率损失：RMSE 误差仅为普通 FP8 实现的约 1/2.6。因此，FlashAttention-3 **在不牺牲准确率的前提下**成功利用 FP8 把速度再次提升约 1.3 倍。
 
-综合来说，FlashAttention-3 针对**新硬件的异步并行**和**低精度技巧**实现了显著性能突破。在 H100 上，其 FP16 推理和训练速度比 FlashAttention-2 提高约 1.5～2 倍，达到 ~75% 理论 FLOPs 利用；FP8 模式下更是达到了近 1.2 PFLOPs 的前所未有速度。这些优化证明：充分发掘硬件并行特性和结合算法创新，仍能在 Transformer 这样成熟的算子上取得大幅改进。这也为未来进一步优化 LLM 推理、以及在其它硬件上移植类似技术指明了方向。
+综合来说，FlashAttention-3 针对**新硬件的异步并行**和**低精度技巧**实现了显著性能突破。在 H100 上，其 FP16 推理和训练速度比 FlashAttention-2 提高约 1.5～2 倍，达到 \~75% 理论 FLOPs 利用；FP8 模式下更是达到了近 1.2 PFLOPs 的前所未有速度。这些优化证明：充分发掘硬件并行特性和结合算法创新，仍能在 Transformer 这样成熟的算子上取得大幅改进。这也为未来进一步优化 LLM 推理、以及在其它硬件上移植类似技术指明了方向。
 
 ---
 
@@ -238,8 +232,8 @@ FlashAttention-3 针对 H100 的新指令做了专门优化。例如使用 **WGM
 为此，Tri Dao 等人提出了 **Flash-Decoding** 技术。它借鉴 FlashAttention 的思路，但新增**沿 KV 长度的并行**来充分利用 GPU，即**对键/值序列进行拆分并行处理**。核心思想如下：
 
 1. **切分 KV 缓存：**将全部过往 Tokens 的键、值 $K, V$ 矩阵按序列长度方向分割成若干较小的**块（chunk）**。例如总长度 $N$ 分成 $M$ 个 chunk，每个大小约 $N/M$。这些块仅是对原 $K,V$ 在内存中的视图，不需要真实拷贝。
-2. **并行计算局部注意力：**为每个 chunk 启动一个 FlashAttention 内核，计算**当前查询与该 chunk** 的注意力输出**部分** $O^{(j)}$，同时计算该 chunk 局部的 $\text{log-sum-exp}$ 值（对应 Softmax 分母的一部分）并存储。这一步相当于并行执行多次“查询与子序列”的注意力，产生各自归一化的局部结果和一个缩放系数。
-3. **跨块归并输出：**在上述并行计算完成后，再启动一个小 kernel 将各 chunk 的部分输出 $O^{(j)}$ 合并成完整输出 。合并时利用每个 chunk 提供的 $\log\text{-sum-exp}$ 信息，按概率正确加权叠加各部分。这相当于执行一次**全局 Softmax 归一化**：把各块之前局部 Softmax 得到的值按照它们占全局分母的比例进行缩放和累加。
+1. **并行计算局部注意力：**为每个 chunk 启动一个 FlashAttention 内核，计算**当前查询与该 chunk** 的注意力输出**部分** $O^{(j)}$，同时计算该 chunk 局部的 $\text{log-sum-exp}$ 值（对应 Softmax 分母的一部分）并存储。这一步相当于并行执行多次“查询与子序列”的注意力，产生各自归一化的局部结果和一个缩放系数。
+1. **跨块归并输出：**在上述并行计算完成后，再启动一个小 kernel 将各 chunk 的部分输出 $O^{(j)}$ 合并成完整输出 。合并时利用每个 chunk 提供的 $\log\text{-sum-exp}$ 信息，按概率正确加权叠加各部分。这相当于执行一次**全局 Softmax 归一化**：把各块之前局部 Softmax 得到的值按照它们占全局分母的比例进行缩放和累加。
 
 通过上述过程，Flash-Decoding 实现了**两级在线 Softmax**：每个 chunk 内部用了 FlashAttention 的在线算法计算局部 Softmax，chunk 之间再通过一次归并完成全局 Softmax。关键在于，第二步的多 kernel 完全并行使得 GPU 所有 SM 都被利用来处理不同段的 $K,V$。只要上下文长度足够大划分出足够 chunk，即使 batch=1，GPU 也可以**满载运行**注意力计算。这使得推理时注意力耗时基本只随显存带宽线性增长，而不像以前随序列长度急剧恶化。
 
@@ -274,34 +268,11 @@ FlashAttention-3 针对 H100 的新指令做了专门优化。例如使用 **WGM
 
 ## 参考链接
 
-- From Online Softmax to FlashAttention
-
-  [https://courses.cs.washington.edu/courses/cse599m/23sp/notes/flashattn.pdf](https://courses.cs.washington.edu/courses/cse599m/23sp/notes/flashattn.pdf)
-
-- Online Softmax to Flash Attention — and Why it Matters | by Matthew Gunton | Data Science Collective | Medium
-
-  [https://medium.com/data-science-collective/online-softmax-to-flash-attention-and-why-it-matters-9d676e7c50a8](https://medium.com/data-science-collective/online-softmax-to-flash-attention-and-why-it-matters-9d676e7c50a8)
-
-- FlashAttention 2: making Transformers 800% faster w/o approximation - with Tri Dao of Together AI
-
-  [https://www.latent.space/p/flashattention](https://www.latent.space/p/flashattention)
-
-- FlashAttention by hand - DEV Community
-
-  [https://dev.to/lewis_won/flashattention-by-hand-34im](https://dev.to/lewis_won/flashattention-by-hand-34im)
-
-- Aman's AI Journal • Primers • FlashAttention
-
-  [https://aman.ai/primers/ai/flashattention/](https://aman.ai/primers/ai/flashattention/)
-
-- FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision | Tri Dao
-
-  [https://tridao.me/blog/2024/flash3/](https://tridao.me/blog/2024/flash3/)
-
-- **Flash-Decoding for long-context inference**
-
-  [https://crfm.stanford.edu/2023/10/12/flashdecoding.html](https://crfm.stanford.edu/2023/10/12/flashdecoding.html)
-
-- FlashDecoding++: Faster Large Language Model Inference with Asynchronization, Flat GEMM Optimization, and Heuristics
-
-  [https://proceedings.mlsys.org/paper_files/paper/2024/file/5321b1dabcd2be188d796c21b733e8c7-Paper-Conference.pdf](https://proceedings.mlsys.org/paper_files/paper/2024/file/5321b1dabcd2be188d796c21b733e8c7-Paper-Conference.pdf)
+- [From Online Softmax to FlashAttention](https://courses.cs.washington.edu/courses/cse599m/23sp/notes/flashattn.pdf)
+- [Online Softmax to Flash Attention — and Why it Matters | by Matthew Gunton | Data Science Collective | Medium](https://medium.com/data-science-collective/online-softmax-to-flash-attention-and-why-it-matters-9d676e7c50a8)
+- [FlashAttention 2: making Transformers 800% faster w/o approximation - with Tri Dao of Together AI](https://www.latent.space/p/flashattention)
+- [FlashAttention by hand - DEV Community](https://dev.to/lewis_won/flashattention-by-hand-34im)
+- [Aman's AI Journal • Primers • FlashAttention](https://aman.ai/primers/ai/flashattention/)
+- [FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision | Tri Dao](https://tridao.me/blog/2024/flash3/)
+- [Flash-Decoding for long-context inference](https://crfm.stanford.edu/2023/10/12/flashdecoding.html)
+- [FlashDecoding++: Faster Large Language Model Inference with Asynchronization, Flat GEMM Optimization, and Heuristics](https://proceedings.mlsys.org/paper_files/paper/2024/file/5321b1dabcd2be188d796c21b733e8c7-Paper-Conference.pdf)
