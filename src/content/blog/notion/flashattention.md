@@ -5,8 +5,8 @@ date: '2026-01-04'
 tags: []
 status: published
 cover: /images/notion/flashattention/2d022dca-4210-80ec-a195-c3adbd923096.png
-lastEditedTime: '2026-01-04T14:34:00.000Z'
-updated: '2026-01-04T14:34:00.000Z'
+lastEditedTime: '2026-01-04T14:57:00.000Z'
+updated: '2026-01-04T14:57:00.000Z'
 source: notion
 notion:
   id: 1fb22dca-4210-80cd-a96e-e32787cfd674
@@ -74,7 +74,7 @@ $\mathrm{softmax}(S_i)_t = \frac{e^{S_{it}}}{\sum_{u} e^{S_{iu}}}$
 
 如果我们把 $K,V$ 沿序列维分成多个块（block），那么每次只看到 logits 的一个子向量 $S_i^{(j)}$。想要不 materialize 全量 $S_i$，就必须支持“**看到一块就更新一次 Softmax 的归一化信息**”。
 
-FlashAttention 的做法是：为每个 query 行维护两类 **可增量合并** 的稳定统计量：
+FlashAttention 的做法是：为每个 query 行维护两类**可增量合并**的稳定统计量：
 
 - $m_i$：到目前为止见过的 logits 的**运行最大值**（running max）
 - $\ell_i$：到目前为止见过的 logits 的**稳定指数和**（running exp-sum），也可以理解为 $\exp$ 空间的分母，但总是以 $(\cdot - m_i)$ 的形式存储
@@ -100,11 +100,7 @@ $m_{\text{new}}=\max(m_{\text{old}}, m_{\text{blk}})$
 
 关键在于：$\ell$ 的基准从旧的 $m_{\text{old}}$ 切换到了新的 $m_{\text{new}}$，所以要对旧的累积指数和做一次“重标定（rescale）”：
 
-# \$\ell\_{\text{new}}
-
-\ell\_{\text{old}} \cdot e^{m\_{\text{old}}-m\_{\text{new}}}
-\+
-\ell\_{\text{blk}} \cdot e^{m\_{\text{blk}}-m\_{\text{new}}}\$
+$\ell_{\text{new}} = \ell_{\text{old}} \cdot e^{m_{\text{old}}-m_{\text{new}}} + \ell_{\text{blk}} \cdot e^{m_{\text{blk}}-m_{\text{new}}}$
 
 这一条就是 Online Softmax 的核心：**你不需要保存任何历史 logits，只要保存** $(m,\ell)$**，就能把新的块稳定地合并进去。**
 
@@ -121,11 +117,7 @@ Softmax 的最终输出是：$O = \frac{\sum_t e^{S_t} V_t}{\sum_t e^{S_t}}$
 1. 把旧的累计分子从基准 $m_{\text{old}}$ 切到 $m_{\text{new}}$（同样 rescale）
 1. 加上当前块的贡献 $P^{(j)}V^{(j)}$
 
-# 写成公式就是：\$Acc\_{\text{new}}
-
-Acc\_{\text{old}} \cdot e^{m\_{\text{old}}-m\_{\text{new}}}
-\+
-\left(P^{(j)} V^{(j)}\right)$，最终输出在所有块结束后一次性归一化：$O = \frac{Acc}{\ell}\$。
+写成公式就是：$Acc_{\text{new}} = Acc_{\text{old}} \cdot e^{m_{\text{old}} - m_{\text{new}}} + \left(P^{(j)} V^{(j)}\right)$，最终输出在所有块结束后一次性归一化：$O = \frac{Acc}{\ell}$。
 
 ```python
 def online_softmax_blocked(Q_block, K, V, Bc):

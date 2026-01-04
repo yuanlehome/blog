@@ -5,8 +5,8 @@ date: '2026-01-04'
 tags: []
 status: published
 cover: /images/notion/context-parallel/2cd22dca-4210-8065-8a1a-e0bf7582b90e.png
-lastEditedTime: '2026-01-04T14:28:00.000Z'
-updated: '2026-01-04T14:28:00.000Z'
+lastEditedTime: '2026-01-04T14:47:00.000Z'
+updated: '2026-01-04T14:47:00.000Z'
 source: notion
 notion:
   id: 2cd22dca-4210-81ec-89e2-f27eefb312e5
@@ -371,7 +371,7 @@ $$
 
 ### 6.4 工程解法：对称切分
 
-vLLM 在 PCP + Ring Attention 相关设计中，采用了一种**极其工程化但非常有效**的负载均衡策略，通常称为 **对称切分（mirror / symmetric partition）**。
+vLLM 在 PCP + Ring Attention 相关设计中，采用了一种**极其工程化但非常有效**的负载均衡策略，通常称为**对称切分（mirror / symmetric partition）**。
 
 设 PCP 并行度为 $N$，将整个序列切分为 $2N$ **个连续 chunk**：
 
@@ -379,9 +379,7 @@ $\text{chunks} = \{0, 1, \dots, 2N-1\}$
 
 然后令第 $r$ 个 rank 负责：
 
-# \$\text{chunks}(r)
-
-{, r,; 2N-1-r ,}\$
+$\text{chunks}(r) = \{\, r,\; 2N-1-r \,\}$
 
 也就是说：
 
