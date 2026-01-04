@@ -42,6 +42,19 @@ const ANTI_SPIDER_ERROR_MESSAGE =
   'Wait some time and refresh the storageState by running npm run zhihu:auth locally.';
 
 /**
+ * Generate a unique run identifier for artifact directories
+ */
+function generateRunId(): string {
+  if (process.env.GITHUB_RUN_ID) {
+    return process.env.GITHUB_RUN_ID;
+  }
+  // Generate unique ID for local runs: timestamp + random suffix
+  const timestamp = Date.now().toString();
+  const randomSuffix = Math.random().toString(36).substring(2, 9);
+  return `${timestamp}-${randomSuffix}`;
+}
+
+/**
  * Save debug artifacts (HTML and screenshot) when scraping fails
  */
 async function saveZhihuDebugArtifacts(
@@ -51,7 +64,7 @@ async function saveZhihuDebugArtifacts(
   logger?: Logger,
 ): Promise<void> {
   try {
-    const runId = process.env.GITHUB_RUN_ID || Date.now().toString();
+    const runId = generateRunId();
     const artifactsDir = path.join(ZHIHU_ARTIFACTS_DIR, runId);
     fs.mkdirSync(artifactsDir, { recursive: true });
 

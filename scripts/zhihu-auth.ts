@@ -63,7 +63,10 @@ async function main() {
 
     await promptForEnter('');
 
-    // Verify login by checking if we're on a logged-in page
+    // Verify login by checking for Zhihu authentication cookies
+    // z_c0: Main session token that indicates a logged-in user
+    // KLBRSID: Session identifier used for request tracking
+    // Note: Zhihu's cookie names may change; if this validation fails but login works, update these names
     const currentUrl = page.url();
     const cookies = await context.cookies();
     const hasZhihuCookies = cookies.some(
