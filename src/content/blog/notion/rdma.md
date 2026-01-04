@@ -1,20 +1,22 @@
 ---
 title: RDMA 在大模型推理框架中的应用
 slug: rdma
-date: '2025-12-25'
+date: '2026-01-04'
 tags: []
 status: published
 cover: ''
-lastEditedTime: '2025-12-25T18:13:00.000Z'
+lastEditedTime: '2026-01-04T14:33:00.000Z'
+updated: '2026-01-04T14:33:00.000Z'
+source: notion
 notion:
   id: 2d022dca-4210-8002-8300-ff0fc62fb73a
 ---
 
-## [极简] RDMA 在大模型推理框架中的应用
+## \[极简] RDMA 在大模型推理框架中的应用
 
 ---
 
-在现代大规模 LLM 推理系统中，**多 GPU / 多节点推理已成为必然**。无论是模型本身的体积（70B/405B/1T+）还是长上下文（128k~1M tokens），都远超单节点能力。
+在现代大规模 LLM 推理系统中，**多 GPU / 多节点推理已成为必然**。无论是模型本身的体积（70B/405B/1T+）还是长上下文（128k\~1M tokens），都远超单节点能力。
 
 为保证吞吐和延迟，推理框架需要极为高效的跨 GPU / 跨节点通信，而 **RDMA（Remote Direct Memory Access）** 由于具备：
 
@@ -40,7 +42,7 @@ notion:
 
 ### **为什么依赖 RDMA？**
 
-- **极高的调用频率**：一个 80 层模型、1 token decode → 150~200+ 次 All-Reduce。
+- **极高的调用频率**：一个 80 层模型、1 token decode → 150\~200+ 次 All-Reduce。
 - **对延迟极敏感**：任何一次通信阻塞都会显著提高 token latency。
 - **显存到显存直连（GPUDirect RDMA）** 让数据无需经过 CPU 内存，延迟从 ms → μs。
 
@@ -84,7 +86,7 @@ Prefill（prompt 计算）与 Decode（逐 token 生成）具有不同的计算�
 
 ### **场景描述**
 
-每个 token 会被路由到 k 个不同的 Expert（通常 top-k=2~4）。
+每个 token 会被路由到 k 个不同的 Expert（通常 top-k=2\~4）。
 
 专家分布在不同 GPU / 不同节点上，就会发生：
 
@@ -109,8 +111,8 @@ Prefill（prompt 计算）与 Decode（逐 token 生成）具有不同的计算�
 
 模型按层切分：
 
-- Node A 的 GPU0：Layer 0~14
-- Node B 的 GPU4：Layer 15~30
+- Node A 的 GPU0：Layer 0\~14
+- Node B 的 GPU4：Layer 15\~30
 
   每层之间需要传递 activations。
 
@@ -139,13 +141,13 @@ Prefill（prompt 计算）与 Decode（逐 token 生成）具有不同的计算�
 
 ## **场景总览表**
 
-| 场景                    | 通信模式                | 数据对象               | 带宽需求               | 延迟敏感度 | RDMA 使用程度 | 备注                    |
-| ----------------------- | ----------------------- | ---------------------- | ---------------------- | ---------- | ------------- | ----------------------- |
-| **Tensor Parallel**     | All-Reduce / All-Gather | Attention/MLP 局部结果 | 中–高                  | **极高**   | ★★★★★         | 推理中最核心            |
-| **Prefill–Decode 解耦** | P2P                     | KV Cache               | **极高（GB~几十 GB）** | 高         | ★★★★★         | SGLang 重度依赖         |
-| **MoE 路由**            | All-to-All              | Token→Expert 数据      | 高                     | 高         | ★★★★★         | DeepSeek/Mixtral 等模型 |
-| **Pipeline Parallel**   | Send/Recv               | Activations            | 中                     | 中–高      | ★★★★☆         | 超大模型必要            |
-| **模型权重加载**        | RDMA/NVMe-oF            | Weights                | 极高                   | 低         | ★★★★☆         | 加速冷启动              |
+| 场景                    | 通信模式                | 数据对象               | 带宽需求                | 延迟敏感度 | RDMA 使用程度 | 备注                    |
+| ----------------------- | ----------------------- | ---------------------- | ----------------------- | ---------- | ------------- | ----------------------- |
+| **Tensor Parallel**     | All-Reduce / All-Gather | Attention/MLP 局部结果 | 中–高                   | **极高**   | ★★★★★         | 推理中最核心            |
+| **Prefill–Decode 解耦** | P2P                     | KV Cache               | **极高（GB\~几十 GB）** | 高         | ★★★★★         | SGLang 重度依赖         |
+| **MoE 路由**            | All-to-All              | Token→Expert 数据      | 高                      | 高         | ★★★★★         | DeepSeek/Mixtral 等模型 |
+| **Pipeline Parallel**   | Send/Recv               | Activations            | 中                      | 中–高      | ★★★★☆         | 超大模型必要            |
+| **模型权重加载**        | RDMA/NVMe-oF            | Weights                | 极高                    | 低         | ★★★★☆         | 加速冷启动              |
 
 ---
 
@@ -198,7 +200,7 @@ RDMA 所依赖的底层网络可以有不同实现。**InfiniBand (IB)** 是原�
 
 ### 2.2 Expert Parallel（混合专家 MoE）通信
 
-在 **Mixture-of-Experts (MoE)** 大模型中，有许多“专家网络”仅对部分 token 激活。这种模型的推理需要一个路由机制：每个 token 由门控路由到某几个专家执行前向计算。多个专家模块往往分布在不同的 GPU 甚至不同机器上，所以一次推理过程中，各节点需要进行**大规模的 all-to-all 通信**：将属于自己专家的 token 数据从各其他节点收集过来，同时把本节点不属于自己专家的 token 发送出去。此通信模式具有**强非均匀和动态**特点——不同 token 批次，不同专家之间的数据量差别很大，无法预先确定通信模式。传统做法可以用 MPI/NCCL 的 AlltoAll 来一次交换所有节点的数据，但 AlltoAll 接口通常要求各节点提供相同大小的缓冲（必须按最大可能量对齐），这在 MoE 场景下会导致大量空数据传输和低效。例如某实例中使用 DP=64、EP=64（64 路数据并行 ×64 个专家）时，如果用 collective AlltoAll 通信，需要为最坏情况预留 **64 倍**于平均的消息大小，几乎都是无效填充。因此，高效的做法是**点对点按需传输**：每个节点只向那些实际有 token 要给的专家节点发送数据，且发送的字节量正好等于这些 token 的表示大小。RDMA 非常适合实现这种**稀疏高效的数据路由**：通过单边 Write 或 Send/Recv，可以直接将 token 小批数据写入目标专家节点缓冲区，而无需按最大上限填充。DeepSeek 团队的 DeepEP 是一套专门优化 Expert Parallel 通信的开源库。据报道，在NVIDIA H800 GPU + ConnectX-7 400 Gb/s InfiniBand 网络环境下，DeepEP 的“normal 模式”专家通信可以达到每节点 **50~60 GB/s** 的跨机带宽，端到端延迟 100~200 微秒量级（以 8 到 32 个专家并行时测得）。而 DeepEP 的“低延迟模式”通过纯 RDMA 管道进一步降低了延迟，在 8 个专家时单次调度仅 77µs、带宽达 98 GB/s（不过随着专家数增加，每专家数据变少导致带宽利用率下降）。这些结果表明，针对 MoE 的通信模式定制 RDMA 方案能充分发挥网络带宽，同时将微秒级的调度和数据传输延迟控制在可接受范围。
+在 **Mixture-of-Experts (MoE)** 大模型中，有许多“专家网络”仅对部分 token 激活。这种模型的推理需要一个路由机制：每个 token 由门控路由到某几个专家执行前向计算。多个专家模块往往分布在不同的 GPU 甚至不同机器上，所以一次推理过程中，各节点需要进行**大规模的 all-to-all 通信**：将属于自己专家的 token 数据从各其他节点收集过来，同时把本节点不属于自己专家的 token 发送出去。此通信模式具有**强非均匀和动态**特点——不同 token 批次，不同专家之间的数据量差别很大，无法预先确定通信模式。传统做法可以用 MPI/NCCL 的 AlltoAll 来一次交换所有节点的数据，但 AlltoAll 接口通常要求各节点提供相同大小的缓冲（必须按最大可能量对齐），这在 MoE 场景下会导致大量空数据传输和低效。例如某实例中使用 DP=64、EP=64（64 路数据并行 ×64 个专家）时，如果用 collective AlltoAll 通信，需要为最坏情况预留 **64 倍**于平均的消息大小，几乎都是无效填充。因此，高效的做法是**点对点按需传输**：每个节点只向那些实际有 token 要给的专家节点发送数据，且发送的字节量正好等于这些 token 的表示大小。RDMA 非常适合实现这种**稀疏高效的数据路由**：通过单边 Write 或 Send/Recv，可以直接将 token 小批数据写入目标专家节点缓冲区，而无需按最大上限填充。DeepSeek 团队的 DeepEP 是一套专门优化 Expert Parallel 通信的开源库。据报道，在NVIDIA H800 GPU + ConnectX-7 400 Gb/s InfiniBand 网络环境下，DeepEP 的“normal 模式”专家通信可以达到每节点 **50\~60 GB/s** 的跨机带宽，端到端延迟 100\~200 微秒量级（以 8 到 32 个专家并行时测得）。而 DeepEP 的“低延迟模式”通过纯 RDMA 管道进一步降低了延迟，在 8 个专家时单次调度仅 77µs、带宽达 98 GB/s（不过随着专家数增加，每专家数据变少导致带宽利用率下降）。这些结果表明，针对 MoE 的通信模式定制 RDMA 方案能充分发挥网络带宽，同时将微秒级的调度和数据传输延迟控制在可接受范围。
 
 MoE 通信的工程挑战还包括：**通信与计算重叠**（例如 DeepEP 引入了 Hook 机制，使 RDMA 传输在 GPU 计算同时异步进行，不占用 SM 资源），以及**容错和弹性**（当某个专家节点故障时如何快速重路由 token）。Mooncake 平台为此提供了**弹性专家并行**支持：自动检测故障 GPU 并与其搭配的负载均衡模块（EPLB）协作，将 tokens 动态转发到健康专家上。这套机制背后依赖 RDMA 网络的快速通知和重连能力，使在推理过程中替换专家节点成为可能，从而提高服务稳定性。
 
@@ -213,7 +215,7 @@ MoE 通信的工程挑战还包括：**通信与计算重叠**（例如 DeepEP �
 “上下文并行”是一种**面向超长文本**推理的并行技术，用于将一个请求的计算分布到多张 GPU 上加速。随着 LLM 的上下文长度迅速增长到十万甚至百万级 token，把这么长的序列完全交给单卡处理会导致预填充阶段延迟巨大、且显存放不下全部 KV 缓存。上下文并行通过切分序列，将不同段落分配给不同 GPU，各 GPU 各自计算自己段落的 Q/K/V 张量，并通过通信使每个 GPU 都能获取全序列范围的注意力信息。例如，Meta 提出了两种 Ring Attention 实现：
 
 - **Pass-KV 模式**：将输入序列按 token 位置等分到 N 个GPU，每个 GPU 计算自己那段的新 token 的 Q、K、V，然后各 GPU 之间**交换各自算得的 K/V** 张量，使每个 GPU 最终拥有完整序列长度的 K/V（虽然 Q 仅有自己那段）。然后每个 GPU 用完整 K/V 对自己段落的 Q 做注意力计算，得到对应输出。这种模式下通信量主要是广播 K/V 张量，总规模 ≈(N-1)/N 倍的全序列 K/V 大小。
-- **Pass-Q 模式**：类似地，各 GPU 先计算各自段落的 Q/K/V，然后**交换 Q 张量**，使每个GPU获得全序列所有 Q；接着每个 GPU 用自己的那份 K/V 对所有 Q 做局部 attention 计算，最后再汇总各 GPU 的 partial 结果得到完整输出[[69]](https://engineering.fb.com/2025/10/17/ai-research/scaling-llm-inference-innovations-tensor-parallelism-context-parallelism-expert-parallelism/#:~:text=%2A%20Pass,tensors%20are%20exchanged%20between%20ranks)。Pass-Q 通信需要广播 Q，量约为全序列 Q 大小的 (N-1)/N 倍。
+- **Pass-Q 模式**：类似地，各 GPU 先计算各自段落的 Q/K/V，然后**交换 Q 张量**，使每个GPU获得全序列所有 Q；接着每个 GPU 用自己的那份 K/V 对所有 Q 做局部 attention 计算，最后再汇总各 GPU 的 partial 结果得到完整输出[\[69\]](https://engineering.fb.com/2025/10/17/ai-research/scaling-llm-inference-innovations-tensor-parallelism-context-parallelism-expert-parallelism/#:~:text=%2A%20Pass,tensors%20are%20exchanged%20between%20ranks)。Pass-Q 通信需要广播 Q，量约为全序列 Q 大小的 (N-1)/N 倍。
 
 无论哪种，上下文并行都涉及**多轮的 GPU 互联通信**，而且序列越长通信开销越大。为将长文本推理提速到可用范围，必须依赖 RDMA 级别的网络性能：只有当跨节点通信延迟和带宽足够好时，多机并行才能线性扩展长序列处理。例如 Meta 报告中提到，他们结合高效 attention 内核和两种 CP 模式，实现了**接近线性扩展**的惊人效果：单机 H100 上处理 100 万 token 预填充需不到 1 分钟；在 Llama 3 405B 模型上，16 节点完成 128k token 预填充仅 3.8 秒。这背后需要强大的通信支持——实际上文中也指出“**通信延迟会随着跨多主机并行而增加**”，是长上下文扩展的一大挑战。
 
@@ -286,54 +288,16 @@ Mooncake 是 Moonshot AI 推出的开源 LLM 推理加速平台。它以 **KVCac
 
 ## 参考链接
 
-- 大语言模型系统中RDMA通信的一些探索
-
-  [https://abcdabcd987.com/2025/11/09/rdma-p2p-for-llm/](https://abcdabcd987.com/2025/11/09/rdma-p2p-for-llm/)
-
-- Virtual RDMA Device Driver Implementation (Part II): Building a Kernel-Recognizable RDMA Device from Scratch | by DatenLord | Medium
-
-  [https://medium.com/@datenlord/virtual-rdma-device-driver-implementation-part-ii-building-a-kernel-recognizable-rdma-device-07fed0b9d2ec](https://medium.com/@datenlord/virtual-rdma-device-driver-implementation-part-ii-building-a-kernel-recognizable-rdma-device-07fed0b9d2ec)
-
-- 使用 NVIDIA DOCA GPUNetIO 解锁 GPU 加速的 RDMA - NVIDIA 技术博客
-
-  [https://developer.nvidia.cn/blog/unlocking-gpu-accelerated-rdma-with-nvidia-doca-gpunetio/](https://developer.nvidia.cn/blog/unlocking-gpu-accelerated-rdma-with-nvidia-doca-gpunetio/)
-
-- Scalable Inference with RDMA and Tiered KV Caching | by Nadeem Khan(NK) | LearnWithNK | Nov, 2025 | Medium
-
-  [https://medium.com/learnwithnk/scalable-inference-with-rdma-and-tiered-kv-caching-9d7e494a863b](https://medium.com/learnwithnk/scalable-inference-with-rdma-and-tiered-kv-caching-9d7e494a863b)
-
-- RDMA over Converged Ethernet (RoCE) - NVIDIA Docs
-
-  [https://docs.nvidia.com/networking/display/MLNXOFEDv497100LTS/RDMA+over+Converged+Ethernet+(RoCE)](<https://docs.nvidia.com/networking/display/MLNXOFEDv497100LTS/RDMA+over+Converged+Ethernet+(RoCE)>)
-
-- Scaling LLM Inference: Innovations in Tensor Parallelism, Context Parallelism, and Expert Parallelism - Engineering at Meta
-
-  [https://engineering.fb.com/2025/10/17/ai-research/scaling-llm-inference-innovations-tensor-parallelism-context-parallelism-expert-parallelism/](https://engineering.fb.com/2025/10/17/ai-research/scaling-llm-inference-innovations-tensor-parallelism-context-parallelism-expert-parallelism/)
-
-- FlowKV: A Disaggregated Inference Framework with Low-Latency KV Cache Transfer and Load-Aware Scheduling
-
-  [https://arxiv.org/html/2504.03775v1](https://arxiv.org/html/2504.03775v1)
-
-- Ulysses: Unlocking Low-Latency, High-Throughput Inference for ...
-
-  [https://www.snowflake.com/en/engineering-blog/ulysses-low-latency-llm-inference/](https://www.snowflake.com/en/engineering-blog/ulysses-low-latency-llm-inference/)
-
-- [RFC]: Implement disaggregated prefilling using Mooncake · Issue #10727 · vllm-project/vllm · GitHub
-
-  [https://github.com/vllm-project/vllm/issues/10727](https://github.com/vllm-project/vllm/issues/10727)
-
-- [PDF] Efficient Memory Management for Large Language Model Serving ...
-
-  [https://arxiv.org/pdf/2309.06180](https://arxiv.org/pdf/2309.06180)
-
-- [PDF] An Efficient KV Cache Layer for Enterprise-Scale LLM Inference
-
-  [https://lmcache.ai/tech_report.pdf](https://lmcache.ai/tech_report.pdf)
-
-- Prefill/Decode Disaggregation - llm-d
-
-  [http://llm-d.ai/docs/guide/Installation/pd-disaggregation](http://llm-d.ai/docs/guide/Installation/pd-disaggregation)
-
-- Explorations of RDMA in LLM Systems
-
-  [https://le.qun.ch/en/blog/2025/11/09/rdma-p2p-for-llm/](https://le.qun.ch/en/blog/2025/11/09/rdma-p2p-for-llm/)
+- [大语言模型系统中RDMA通信的一些探索](https://abcdabcd987.com/2025/11/09/rdma-p2p-for-llm/)
+- [Virtual RDMA Device Driver Implementation (Part II): Building a Kernel-Recognizable RDMA Device from Scratch | by DatenLord | Medium](https://medium.com/@datenlord/virtual-rdma-device-driver-implementation-part-ii-building-a-kernel-recognizable-rdma-device-07fed0b9d2ec)
+- [使用 NVIDIA DOCA GPUNetIO 解锁 GPU 加速的 RDMA - NVIDIA 技术博客](https://developer.nvidia.cn/blog/unlocking-gpu-accelerated-rdma-with-nvidia-doca-gpunetio/)
+- [Scalable Inference with RDMA and Tiered KV Caching | by Nadeem Khan(NK) | LearnWithNK | Nov, 2025 | Medium](https://medium.com/learnwithnk/scalable-inference-with-rdma-and-tiered-kv-caching-9d7e494a863b)
+- [RDMA over Converged Ethernet (RoCE) - NVIDIA Docs](<https://docs.nvidia.com/networking/display/MLNXOFEDv497100LTS/RDMA+over+Converged+Ethernet+(RoCE)>)
+- [Scaling LLM Inference: Innovations in Tensor Parallelism, Context Parallelism, and Expert Parallelism - Engineering at Meta](https://engineering.fb.com/2025/10/17/ai-research/scaling-llm-inference-innovations-tensor-parallelism-context-parallelism-expert-parallelism/)
+- [FlowKV: A Disaggregated Inference Framework with Low-Latency KV Cache Transfer and Load-Aware Scheduling](https://arxiv.org/html/2504.03775v1)
+- [Ulysses: Unlocking Low-Latency, High-Throughput Inference for ...](https://www.snowflake.com/en/engineering-blog/ulysses-low-latency-llm-inference/)
+- [\[RFC\]: Implement disaggregated prefilling using Mooncake · Issue #10727 · vllm-project/vllm · GitHub](https://github.com/vllm-project/vllm/issues/10727)
+- [\[PDF\] Efficient Memory Management for Large Language Model Serving ...](https://arxiv.org/pdf/2309.06180)
+- [\[PDF\] An Efficient KV Cache Layer for Enterprise-Scale LLM Inference](https://lmcache.ai/tech_report.pdf)
+- [Prefill/Decode Disaggregation - llm-d](http://llm-d.ai/docs/guide/Installation/pd-disaggregation)
+- [Explorations of RDMA in LLM Systems](https://le.qun.ch/en/blog/2025/11/09/rdma-p2p-for-llm/)
