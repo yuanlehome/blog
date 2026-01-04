@@ -69,8 +69,15 @@ async function main() {
     // Note: Zhihu's cookie names may change; if this validation fails but login works, update these names
     const currentUrl = page.url();
     const cookies = await context.cookies();
+
+    // Check for Zhihu domain cookies - validate exact domain match to prevent domain spoofing
+    const isZhihuDomain = (domain: string): boolean => {
+      const normalizedDomain = domain.toLowerCase().replace(/^\./, '');
+      return normalizedDomain === 'zhihu.com' || normalizedDomain.endsWith('.zhihu.com');
+    };
+
     const hasZhihuCookies = cookies.some(
-      (c) => c.domain.includes('zhihu.com') && (c.name === 'z_c0' || c.name === 'KLBRSID'),
+      (c) => isZhihuDomain(c.domain) && (c.name === 'z_c0' || c.name === 'KLBRSID'),
     );
 
     if (!hasZhihuCookies) {
