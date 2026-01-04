@@ -5,8 +5,8 @@ date: '2026-01-04'
 tags: []
 status: published
 cover: /images/notion/tp-sp-ep/2b222dca-4210-80d9-98fb-cf78ef53eb91.jpeg
-lastEditedTime: '2026-01-04T14:34:00.000Z'
-updated: '2026-01-04T14:34:00.000Z'
+lastEditedTime: '2026-01-04T14:41:00.000Z'
+updated: '2026-01-04T14:41:00.000Z'
 source: notion
 notion:
   id: 2a122dca-4210-805b-ae7e-fb6b09a2e44f
@@ -160,12 +160,10 @@ notion:
 
 **两次** **`all2all`\*\*\*\*（Dispatch / Combine）：**
 
-```text
-EP 的本质是：**按专家维度切参数，但按 token 路由把激活在卡间重排**。因此每个 MoE 层固定两次集合通信。
+> EP 的本质是：**按专家维度切参数，但按 token 路由把激活在卡间重排**。因此每个 MoE 层固定两次集合通信。
 
 - **Dispatch**：把 token 送到“持有目标专家”的 GPU
 - **Combine**：把专家输出送回“token 所在的 GPU”，并按权重聚合
-```
 
 **MoE 输入的 SP 排布：**
 
