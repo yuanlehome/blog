@@ -4,6 +4,9 @@
  * Handles article import from Zhihu Column (zhuanlan.zhihu.com)
  */
 
+import type { Page } from '@playwright/test';
+import fs from 'fs';
+import path from 'path';
 import type { Adapter, Article, FetchArticleInput } from './types.js';
 import { htmlToMdx } from '../../content-import.js';
 import type { Logger } from '../../logger/types.js';
@@ -16,6 +19,81 @@ const MAX_BACKOFF_MS = 10000;
 const JS_INITIALIZATION_DELAY = 2000;
 const MIN_CONTENT_LENGTH = 100;
 const CONTENT_WAIT_TIMEOUT = 30000;
+
+// Artifacts directory for debug output
+const ZHIHU_ARTIFACTS_DIR = '.artifacts/zhihu';
+
+/**
+ * Actionable error message for login detection
+ */
+const LOGIN_ERROR_MESSAGE =
+  'Zhihu requires login (login page detected). ' +
+  'Provide Playwright storageState via ZHIHU_STORAGE_STATE_PATH or zhihu-storage-state.json (may be expired). ' +
+  'Re-run npm run zhihu:auth locally and update the GitHub secret ZHIHU_STORAGE_STATE_B64.';
+
+const CAPTCHA_ERROR_MESSAGE =
+  'Zhihu requires captcha verification. ' +
+  'The current session may be rate-limited or flagged. ' +
+  'Try again later or refresh the storageState by running npm run zhihu:auth locally.';
+
+const ANTI_SPIDER_ERROR_MESSAGE =
+  'Zhihu anti-spider protection triggered. ' +
+  'The request was blocked. ' +
+  'Wait some time and refresh the storageState by running npm run zhihu:auth locally.';
+
+/**
+ * Save debug artifacts (HTML and screenshot) when scraping fails
+ */
+async function saveZhihuDebugArtifacts(
+  page: Page,
+  url: string,
+  blockReason: string,
+  logger?: Logger,
+): Promise<void> {
+  try {
+    const runId = process.env.GITHUB_RUN_ID || Date.now().toString();
+    const artifactsDir = path.join(ZHIHU_ARTIFACTS_DIR, runId);
+    fs.mkdirSync(artifactsDir, { recursive: true });
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const prefix = `${timestamp}`;
+
+    // Save HTML
+    const htmlPath = path.join(artifactsDir, `${prefix}_page.html`);
+    const html = await page.content().catch(() => '<html>Failed to get page content</html>');
+    fs.writeFileSync(htmlPath, html);
+    logger?.info('Debug HTML saved', { path: htmlPath });
+
+    // Save screenshot
+    const screenshotPath = path.join(artifactsDir, `${prefix}_screenshot.png`);
+    await page
+      .screenshot({ path: screenshotPath, fullPage: true })
+      .then(() => {
+        logger?.info('Debug screenshot saved', { path: screenshotPath });
+      })
+      .catch((e) => {
+        logger?.warn('Failed to save debug screenshot', { error: String(e) });
+      });
+
+    // Save metadata
+    const metadataPath = path.join(artifactsDir, `${prefix}_metadata.json`);
+    const metadata = {
+      url,
+      blockReason,
+      timestamp: new Date().toISOString(),
+      runId,
+      currentUrl: page.url(),
+    };
+    fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
+    logger?.info('Debug metadata saved', { path: metadataPath });
+
+    console.log(`\n[zhihu] Debug artifacts saved to: ${artifactsDir}`);
+    console.log(`[zhihu] Upload these artifacts to diagnose the issue.`);
+  } catch (error) {
+    logger?.warn('Failed to save debug artifacts', { error: String(error) });
+    console.error('[zhihu] Failed to save debug artifacts:', error);
+  }
+}
 
 /**
  * Check if URL is from Zhihu domain
@@ -55,9 +133,10 @@ function sanitizeZhihuUrl(url: string): string {
 }
 
 /**
- * Detect if the page is a login/captcha/blocked page
+ * Detect if the page is a login/captcha/blocked page.
+ * Returns an actionable error message if blocked, null otherwise.
  */
-async function detectBlockedPage(page: any): Promise<string | null> {
+async function detectBlockedPage(page: Page): Promise<string | null> {
   try {
     const pageContent = await page.content();
     const title = await page.title();
@@ -69,18 +148,18 @@ async function detectBlockedPage(page: any): Promise<string | null> {
       url.includes('/signin') ||
       url.includes('/login')
     ) {
-      return 'Zhihu blocked request (login page detected)';
+      return LOGIN_ERROR_MESSAGE;
     }
 
     if (
       /验证|captcha|security.?check|human.?verification/i.test(title) ||
       /验证|captcha|security.?check/i.test(pageContent)
     ) {
-      return 'Zhihu blocked request (captcha/security check detected)';
+      return CAPTCHA_ERROR_MESSAGE;
     }
 
     if (/安全验证|反作弊|access.?denied/i.test(pageContent)) {
-      return 'Zhihu blocked request (anti-spider protection)';
+      return ANTI_SPIDER_ERROR_MESSAGE;
     }
 
     return null;
@@ -93,7 +172,7 @@ async function detectBlockedPage(page: any): Promise<string | null> {
  * Wait for content with retry strategy
  */
 async function waitForContent(
-  page: any,
+  page: Page,
   selectors: string[],
   options: { minTextLength?: number; timeout?: number } = {},
 ): Promise<void> {
@@ -130,7 +209,7 @@ async function waitForContent(
  * Enhanced Zhihu extraction with retry logic
  */
 async function extractZhihuWithRetry(
-  page: any,
+  page: Page,
   url: string,
   maxRetries = MAX_RETRIES,
   logger?: Logger,
@@ -162,6 +241,12 @@ async function extractZhihuWithRetry(
           reason: blockReason,
           blockedDetected: true,
         });
+
+        // Save debug artifacts for diagnosis (only on last attempt to avoid duplicates)
+        if (attempt === maxRetries) {
+          await saveZhihuDebugArtifacts(page, url, blockReason, logger);
+        }
+
         throw new Error(blockReason);
       }
 

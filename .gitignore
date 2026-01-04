@@ -31,6 +31,10 @@ pnpm-debug.log*
 
 # debug artifacts
 artifacts/
+.artifacts/
 
 # Logger output
 .logs/
+
+# Zhihu authentication storage state (contains session data)
+zhihu-storage-state.json

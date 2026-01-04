@@ -132,6 +132,50 @@ npm run import:content -- --url="<URL>" --dry-run
 
 **CI 调用** → [import-content.yml](../docs/ci-workflow.md#24-import-contentyml--导入外部文章)
 
+#### 2.2.1 知乎导入登录态配置
+
+知乎可能需要登录才能访问文章。为了在 CI 中导入知乎文章，需要配置 Playwright storageState。
+
+##### 本地生成 storageState
+
+1. 在本地运行：
+
+   ```bash
+   npm run zhihu:auth
+   ```
+
+2. 浏览器会打开知乎登录页面，请手动完成登录。
+
+3. 登录成功后，在终端按回车键继续。
+
+4. 脚本会在项目根目录生成 `zhihu-storage-state.json` 文件。
+
+##### 配置 GitHub Secret
+
+1. 将生成的文件转为 base64：
+
+   ```bash
+   base64 -w 0 zhihu-storage-state.json > zhihu-storage-state.b64
+   ```
+
+2. 复制 `zhihu-storage-state.b64` 文件内容。
+
+3. 在 GitHub 仓库设置中添加 Secret：
+   - 名称：`ZHIHU_STORAGE_STATE_B64`
+   - 值：步骤 2 复制的 base64 内容
+
+##### 何时需要更新
+
+- 当 CI 导入知乎文章失败并提示"login page detected"时
+- 当知乎登录态过期时（通常几周到几个月）
+- 更新方法：重新运行 `npm run zhihu:auth` 并更新 GitHub Secret
+
+##### 本地使用
+
+- 如果本地存在 `zhihu-storage-state.json`，导入脚本会自动使用
+- 也可以通过环境变量指定路径：`ZHIHU_STORAGE_STATE_PATH=/path/to/state.json`
+- 如果没有 storageState，脚本仍可运行，但遇到登录墙时会失败并给出提示
+
 ---
 
 ### 2.3 `delete-article.ts`

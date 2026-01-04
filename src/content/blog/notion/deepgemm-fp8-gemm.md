@@ -108,7 +108,7 @@ DeepGEMM 为用户提供了简洁的 Python 接口来调用 FP8 GEMM 内核。�
 
 1. **基本 API 调用**
 
-   安装成功后，在 Python 代码中即可通过 import deep_gemm 引入库，并使用其提供的函数完成矩阵乘法计算。例如，要执行一个基本的非分组 FP8 矩阵乘法，可以调用`deep_gemm.fp8_gemm_nt`函数。DeepGEMM 约定以`fp8_gemm_{layout}`命名不同布局的 GEMM 函数，其中`{layout}`表示输入矩阵是否转置的组合（N=不转置, T=转置）。**注意：** 对于 Hopper (SM90) 架构，目前 DeepGEMM **仅支持 NT 内存布局**的内核（即第一个矩阵 A 为行优先未转置，第二个矩阵 B 为列优先，相当于数学上执行 $D = C + A \times B^T$）。因此在 Hopper 上应使用`fp8_gemm_nt`变体；而对于更新架构 (SM100)，DeepGEMM 则提供了 NT、NN、TN、TT 等全布局支持。举例来说，调用：
+   安装成功后，在 Python 代码中即可通过 import deep*gemm 引入库，并使用其提供的函数完成矩阵乘法计算。例如，要执行一个基本的非分组 FP8 矩阵乘法，可以调用`deep_gemm.fp8_gemm_nt`函数。DeepGEMM 约定以`fp8_gemm*{layout}`命名不同布局的 GEMM 函数，其中`{layout}`表示输入矩阵是否转置的组合（N=不转置, T=转置）。**注意：** 对于 Hopper (SM90) 架构，目前 DeepGEMM **仅支持 NT 内存布局**的内核（即第一个矩阵 A 为行优先未转置，第二个矩阵 B 为列优先，相当于数学上执行 $D = C + A \times B^T$）。因此在 Hopper 上应使用`fp8_gemm_nt`变体；而对于更新架构 (SM100)，DeepGEMM 则提供了 NT、NN、TN、TT 等全布局支持。举例来说，调用：
 
    ```python
    D = deep_gemm.fp8_gemm_nt(A_fp8, B_fp8, C_bf16, scaleA)

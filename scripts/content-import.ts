@@ -1135,8 +1135,34 @@ export async function htmlToMdx(
   return { markdown, images };
 }
 
+/**
+ * Get Zhihu storage state path from environment or default location.
+ * Returns the path if a valid storage state file exists, otherwise undefined.
+ */
+function getZhihuStorageStatePath(): string | undefined {
+  // Check environment variable first
+  const envPath = process.env.ZHIHU_STORAGE_STATE_PATH;
+  if (envPath && fs.existsSync(envPath)) {
+    console.log(`Using Zhihu storage state from environment: ${envPath}`);
+    return envPath;
+  }
+
+  // Check default path in project root
+  const defaultPath = path.resolve('zhihu-storage-state.json');
+  if (fs.existsSync(defaultPath)) {
+    console.log(`Using Zhihu storage state from default path: ${defaultPath}`);
+    return defaultPath;
+  }
+
+  return undefined;
+}
+
 async function withBrowser<T>(fn: (context: BrowserContext) => Promise<T>) {
   const browser = await chromium.launch({ headless: true });
+
+  // Load storage state for authenticated sessions (e.g., Zhihu)
+  const storageStatePath = getZhihuStorageStatePath();
+
   const context = await browser.newContext({
     userAgent:
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -1145,6 +1171,7 @@ async function withBrowser<T>(fn: (context: BrowserContext) => Promise<T>) {
     extraHTTPHeaders: {
       'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
     },
+    ...(storageStatePath ? { storageState: storageStatePath } : {}),
   });
   try {
     return await fn(context);
