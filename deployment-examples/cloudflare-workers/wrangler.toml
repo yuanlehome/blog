@@ -1,0 +1,28 @@
+name = "blog-views-api"
+main = "index.js"
+compatibility_date = "2024-01-06"
+
+# KV namespace binding
+[[kv_namespaces]]
+binding = "VIEWS_KV"
+id = "your-kv-namespace-id-here"  # Replace with your actual KV namespace ID
+
+# Environment variables (optional)
+[vars]
+# ALLOWED_ORIGINS = "https://yourblog.com"  # Uncomment to restrict CORS
+
+# Production configuration
+[env.production]
+name = "blog-views-api-production"
+
+[[env.production.kv_namespaces]]
+binding = "VIEWS_KV"
+id = "your-production-kv-namespace-id-here"
+
+# Staging configuration
+[env.staging]
+name = "blog-views-api-staging"
+
+[[env.staging.kv_namespaces]]
+binding = "VIEWS_KV"
+id = "your-staging-kv-namespace-id-here"

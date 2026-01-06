@@ -1,0 +1,82 @@
+---
+/**
+ * Page Views display component
+ * Client-side component that fetches and displays page view count
+ */
+
+interface Props {
+  slug: string;
+  apiEndpoint?: string;
+}
+
+const { slug, apiEndpoint } = Astro.props;
+---
+
+<div class="flex items-center gap-1" data-views-container data-slug={slug} data-api-endpoint={apiEndpoint || ''} title="浏览量">
+  <span aria-hidden="true">👀</span>
+  <span data-views-count>—</span>
+</div>
+
+<script>
+  import { getClientId, createViewsProvider } from '../lib/views';
+
+  // Initialize views on all containers
+  function initViews() {
+    const containers = document.querySelectorAll<HTMLElement>('[data-views-container]');
+
+    containers.forEach((container) => {
+      const slug = container.dataset.slug;
+      const apiEndpoint = container.dataset.apiEndpoint;
+      const countElement = container.querySelector<HTMLElement>('[data-views-count]');
+
+      if (!slug || !countElement) {
+        return;
+      }
+
+      const provider = createViewsProvider(
+        apiEndpoint ? { apiEndpoint } : undefined
+      );
+
+      // First fetch current views
+      const fetchViews = async () => {
+        try {
+          const result = await provider.getViews(slug);
+          countElement.textContent = result.views.toLocaleString();
+        } catch (err) {
+          console.error('Failed to fetch views:', err);
+          // Hide the container on error (graceful degradation)
+          container.style.display = 'none';
+        }
+      };
+
+      // Then increment views (delayed to not block rendering)
+      const incrementViews = async () => {
+        try {
+          const clientId = getClientId();
+          const result = await provider.incrementViews(slug, clientId);
+          countElement.textContent = result.views.toLocaleString();
+        } catch (err) {
+          console.error('Failed to increment views:', err);
+          // Don't hide container here, keep showing the fetched count
+        }
+      };
+
+      // Fetch immediately
+      fetchViews();
+
+      // Increment after idle or timeout
+      if ('requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(() => incrementViews(), { timeout: 2000 });
+      } else {
+        setTimeout(incrementViews, 1000);
+      }
+    });
+  }
+
+  // Run on page load
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initViews);
+  } else {
+    initViews();
+  }
+</script>
