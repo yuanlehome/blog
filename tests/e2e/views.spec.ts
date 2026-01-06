@@ -160,8 +160,11 @@ test.describe('Page Views (PV) Feature', () => {
     });
 
     if (clientId) {
-      // If client ID was created, verify it's a valid UUID format
-      expect(clientId).toMatch(/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i);
+      // If client ID was created, verify it's a valid UUID v4 format
+      // UUID v4: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx where y is [89ab]
+      expect(clientId).toMatch(
+        /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i,
+      );
     }
 
     // Test passes whether or not the mock API triggered client ID creation

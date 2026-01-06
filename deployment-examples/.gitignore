@@ -1,0 +1,24 @@
+# Cloudflare Workers
+.wrangler/
+.dev.vars
+wrangler.toml.local
+
+# Secrets and environment files
+*.env
+*.env.local
+.env.production
+
+# Node modules
+node_modules/
+
+# Build outputs
+dist/
+.output/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db

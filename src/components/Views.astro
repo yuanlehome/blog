@@ -70,7 +70,11 @@ const { slug, apiEndpoint } = Astro.props;
 
       // Increment after idle or timeout
       if ('requestIdleCallback' in window) {
-        (window as any).requestIdleCallback(() => incrementViews(), { timeout: 2000 });
+        (
+          window as Window & {
+            requestIdleCallback: (callback: () => void, options?: { timeout: number }) => void;
+          }
+        ).requestIdleCallback(() => incrementViews(), { timeout: 2000 });
       } else {
         setTimeout(incrementViews, 1000);
       }

@@ -11,7 +11,11 @@ const CLIENT_ID_KEY = 'blog_views_client_id';
 function generateUUID(): string {
   // Use crypto.randomUUID if available (modern browsers)
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
+    try {
+      return crypto.randomUUID();
+    } catch {
+      // Fall through to polyfill
+    }
   }
 
   // Fallback: simple UUID generation

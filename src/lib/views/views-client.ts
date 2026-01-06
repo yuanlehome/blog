@@ -20,7 +20,13 @@ const DEFAULT_TIMEOUT = 5000;
  */
 function createTimeoutSignal(timeout: number): AbortSignal {
   const controller = new AbortController();
-  setTimeout(() => controller.abort(), timeout);
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  // Clean up timeout when signal is aborted
+  controller.signal.addEventListener('abort', () => {
+    clearTimeout(timeoutId);
+  });
+
   return controller.signal;
 }
 
