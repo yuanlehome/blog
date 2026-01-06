@@ -94,7 +94,9 @@ describe('Client ID Generation', () => {
     expect(clientId).toBeTruthy();
     expect(typeof clientId).toBe('string');
     // UUID v4 format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
-    expect(clientId).toMatch(/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i);
+    expect(clientId).toMatch(
+      /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i,
+    );
   });
 
   it('should persist client ID in localStorage', () => {

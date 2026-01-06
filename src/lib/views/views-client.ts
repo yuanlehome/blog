@@ -2,7 +2,12 @@
  * Views API client implementation
  */
 
-import type { ViewsProvider, ViewsProviderConfig, ViewsResponse, ViewsIncrementResponse } from './types';
+import type {
+  ViewsProvider,
+  ViewsProviderConfig,
+  ViewsResponse,
+  ViewsIncrementResponse,
+} from './types';
 import { isValidSlug } from './slug-validator';
 
 /**

@@ -49,6 +49,7 @@ Astro 构建期和浏览器运行期执行的代码。**完全隔离于 scripts*
 | `src/lib/site/`     | 资源 URL 解析                                  |
 | `src/lib/ui/`       | 客户端交互（代码复制、浮动按钮）               |
 | `src/lib/theme/`    | 主题切换逻辑                                   |
+| `src/lib/views/`    | 页面浏览量统计（client-id、API 客户端）        |
 | `src/content/blog/` | 博客文章（notion/、wechat/、others/、本地）    |
 
 ### 2.2 Scripts 层（`scripts/`）
@@ -89,6 +90,7 @@ Astro 构建期和浏览器运行期执行的代码。**完全隔离于 scripts*
 | `ci-workflow.md`   | CI/Workflow 整体工作流       |
 | `configuration.md` | 用户/站点层面配置            |
 | `config-audit.md`  | 配置治理与一致性             |
+| `page-views.md`    | 持久化浏览量 (PV) 功能       |
 
 ---
 
@@ -147,7 +149,7 @@ Astro 构建期和浏览器运行期执行的代码。**完全隔离于 scripts*
 
 **仅供 Runtime 使用**：
 
-- `src/lib/content/`、`src/lib/markdown/`、`src/lib/site/`、`src/lib/ui/`、`src/lib/theme/`
+- `src/lib/content/`、`src/lib/markdown/`、`src/lib/site/`、`src/lib/ui/`、`src/lib/theme/`、`src/lib/views/`
 
 ---
 

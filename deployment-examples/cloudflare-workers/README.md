@@ -62,10 +62,7 @@ curl -X POST "https://your-worker.your-subdomain.workers.dev/api/views/incr?slug
 在 Astro 博客中使用部署的 API：
 
 ```astro
-<Views 
-  slug={post.slug} 
-  apiEndpoint="https://your-worker.your-subdomain.workers.dev" 
-/>
+<Views slug={post.slug} apiEndpoint="https://your-worker.your-subdomain.workers.dev" />
 ```
 
 ## 高级配置
@@ -84,7 +81,7 @@ curl -X POST "https://your-worker.your-subdomain.workers.dev/api/views/incr?slug
 
 ```javascript
 const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://yourblog.com',  // 限制为你的博客域名
+  'Access-Control-Allow-Origin': 'https://yourblog.com', // 限制为你的博客域名
   // ...
 };
 ```
@@ -107,7 +104,7 @@ if (requestCount && parseInt(requestCount) > 100) {
 }
 
 await env.VIEWS_KV.put(rateLimitKey, String(parseInt(requestCount || '0') + 1), {
-  expirationTtl: 3600,  // 1 hour
+  expirationTtl: 3600, // 1 hour
 });
 ```
 
@@ -127,7 +124,7 @@ wrangler tail
 - KV：免费套餐包含 100,000 读取/天，1,000 写入/天
 - 超出部分按使用量计费
 
-详见：https://developers.cloudflare.com/workers/platform/pricing/
+详见：<https://developers.cloudflare.com/workers/platform/pricing/>
 
 ## 故障排查
 

@@ -70,9 +70,11 @@ interface ViewsProvider {
 获取指定文章的浏览量。
 
 **请求参数**：
+
 - `slug`: 文章 slug（必需）
 
 **响应**：
+
 ```json
 {
   "slug": "my-post",
@@ -85,9 +87,11 @@ interface ViewsProvider {
 增加指定文章的浏览量。
 
 **请求参数**：
+
 - `slug`: 文章 slug（必需，query 参数）
 
 **请求体**：
+
 ```json
 {
   "clientId": "uuid-client-id"
@@ -95,6 +99,7 @@ interface ViewsProvider {
 ```
 
 **响应**：
+
 ```json
 {
   "slug": "my-post",
@@ -144,6 +149,7 @@ import Views from '../components/Views.astro';
 #### 方案 A：使用 Mock Provider（默认）
 
 无需配置，组件会自动使用内存存储的 MockViewsProvider。适合：
+
 - 本地开发
 - 测试环境
 - 演示环境
@@ -169,9 +175,9 @@ export default {
 
     if (url.pathname === '/api/views') {
       // GET: 获取浏览量
-      const views = await env.VIEWS_KV.get(slug) || 0;
+      const views = (await env.VIEWS_KV.get(slug)) || 0;
       return new Response(JSON.stringify({ slug, views: parseInt(views) }), {
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
@@ -184,20 +190,20 @@ export default {
 
       let counted = false;
       if (!lastView || now - parseInt(lastView) > 24 * 60 * 60 * 1000) {
-        const currentViews = parseInt(await env.VIEWS_KV.get(slug) || 0);
+        const currentViews = parseInt((await env.VIEWS_KV.get(slug)) || 0);
         await env.VIEWS_KV.put(slug, String(currentViews + 1));
         await env.VIEWS_KV.put(key, String(now), { expirationTtl: 86400 });
         counted = true;
       }
 
-      const views = parseInt(await env.VIEWS_KV.get(slug) || 0);
+      const views = parseInt((await env.VIEWS_KV.get(slug)) || 0);
       return new Response(JSON.stringify({ slug, views, counted }), {
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
     return new Response('Not Found', { status: 404 });
-  }
+  },
 };
 ```
 
@@ -235,7 +241,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const slug = req.query.slug as string;
 
   if (req.method === 'GET') {
-    const views = await kv.get(slug) || 0;
+    const views = (await kv.get(slug)) || 0;
     return res.json({ slug, views: Number(views) });
   }
 
@@ -252,7 +258,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       counted = true;
     }
 
-    const views = await kv.get(slug) || 0;
+    const views = (await kv.get(slug)) || 0;
     return res.json({ slug, views: Number(views), counted });
   }
 
@@ -290,17 +296,17 @@ npm run test:e2e
 
 ### Views 组件 Props
 
-| 属性          | 类型   | 必需 | 默认值     | 说明                    |
-| ------------- | ------ | ---- | ---------- | ----------------------- |
-| `slug`        | string | 是   | -          | 文章 slug               |
-| `apiEndpoint` | string | 否   | undefined  | API 端点，不提供则使用 mock |
+| 属性          | 类型   | 必需 | 默认值    | 说明                        |
+| ------------- | ------ | ---- | --------- | --------------------------- |
+| `slug`        | string | 是   | -         | 文章 slug                   |
+| `apiEndpoint` | string | 否   | undefined | API 端点，不提供则使用 mock |
 
 ### ViewsProvider 配置
 
-| 选项          | 类型   | 默认值 | 说明                  |
-| ------------- | ------ | ------ | --------------------- |
-| `apiEndpoint` | string | -      | API 基础 URL          |
-| `timeout`     | number | 5000   | 请求超时时间（毫秒）  |
+| 选项          | 类型   | 默认值 | 说明                 |
+| ------------- | ------ | ------ | -------------------- |
+| `apiEndpoint` | string | -      | API 基础 URL         |
+| `timeout`     | number | 5000   | 请求超时时间（毫秒） |
 
 ## 扩展指南
 
@@ -322,7 +328,7 @@ export class MyCustomProvider implements ViewsProvider {
 }
 ```
 
-2. 在 `createViewsProvider` 中添加选择逻辑：
+1. 在 `createViewsProvider` 中添加选择逻辑：
 
 ```typescript
 export function createViewsProvider(config?: Partial<ViewsProviderConfig>): ViewsProvider {
@@ -350,11 +356,13 @@ export function createViewsProvider(config?: Partial<ViewsProviderConfig>): View
 ### 问题：浏览量不显示
 
 **可能原因**：
+
 1. API 服务不可用
 2. Slug 格式不正确
 3. 网络请求被阻止
 
 **解决方法**：
+
 - 检查浏览器控制台错误信息
 - 验证 API endpoint 配置
 - 确认 slug 符合格式要求（小写字母、数字、连字符）
@@ -362,11 +370,13 @@ export function createViewsProvider(config?: Partial<ViewsProviderConfig>): View
 ### 问题：浏览量不增加
 
 **可能原因**：
+
 1. 24 小时内重复访问
 2. Client ID 相同
 3. 后端去重逻辑生效
 
 **解决方法**：
+
 - 清除 localStorage 中的 `blog_views_client_id`
 - 使用隐私模式/无痕模式
 - 等待 24 小时后重试
@@ -376,6 +386,7 @@ export function createViewsProvider(config?: Partial<ViewsProviderConfig>): View
 **不应该发生**：Views 组件使用 `requestIdleCallback` 延迟执行，不应阻塞渲染。
 
 **检查**：
+
 - 确认组件正确使用延迟加载
 - 检查 API 响应时间
 - 考虑增加超时时间

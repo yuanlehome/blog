@@ -12,7 +12,13 @@ interface Props {
 const { slug, apiEndpoint } = Astro.props;
 ---
 
-<div class="flex items-center gap-1" data-views-container data-slug={slug} data-api-endpoint={apiEndpoint || ''} title="浏览量">
+<div
+  class="flex items-center gap-1"
+  data-views-container
+  data-slug={slug}
+  data-api-endpoint={apiEndpoint || ''}
+  title="浏览量"
+>
   <span aria-hidden="true">👀</span>
   <span data-views-count>—</span>
 </div>
@@ -33,9 +39,7 @@ const { slug, apiEndpoint } = Astro.props;
         return;
       }
 
-      const provider = createViewsProvider(
-        apiEndpoint ? { apiEndpoint } : undefined
-      );
+      const provider = createViewsProvider(apiEndpoint ? { apiEndpoint } : undefined);
 
       // First fetch current views
       const fetchViews = async () => {

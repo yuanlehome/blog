@@ -1,10 +1,10 @@
 /**
  * Cloudflare Workers implementation for blog page views API
- * 
+ *
  * This worker provides two endpoints:
  * - GET /api/views?slug=<slug> - Get view count for a post
  * - POST /api/views/incr?slug=<slug> - Increment view count
- * 
+ *
  * Features:
  * - Persistent storage using Cloudflare KV
  * - 24-hour deduplication per client
@@ -26,7 +26,8 @@ function isValidSlug(slug) {
   if (slug.length === 0 || slug.length > 200) return false;
   const slugPattern = /^[a-z0-9-/]+$/;
   if (!slugPattern.test(slug)) return false;
-  if (slug.startsWith('-') || slug.endsWith('-') || slug.startsWith('/') || slug.endsWith('/')) return false;
+  if (slug.startsWith('-') || slug.endsWith('-') || slug.startsWith('/') || slug.endsWith('/'))
+    return false;
   if (slug.includes('--') || slug.includes('//')) return false;
   return true;
 }
@@ -53,7 +54,7 @@ async function handleGetViews(request, env) {
       {
         status: 200,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      }
+      },
     );
   } catch (error) {
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
@@ -110,7 +111,7 @@ async function handleIncrementViews(request, env) {
 
       // Store last view timestamp with 24h TTL
       await env.VIEWS_KV.put(dedupeKey, String(now), { expirationTtl: 86400 });
-      
+
       counted = true;
     }
 
@@ -126,7 +127,7 @@ async function handleIncrementViews(request, env) {
       {
         status: 200,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      }
+      },
     );
   } catch (error) {
     return new Response(JSON.stringify({ error: 'Internal server error' }), {

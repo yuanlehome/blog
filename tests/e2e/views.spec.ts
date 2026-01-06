@@ -69,9 +69,9 @@ test.describe('Page Views (PV) Feature', () => {
     const postTitle = page.locator('[data-article] header h1');
     await expect(postTitle).toBeVisible();
 
-    // Verify content is visible
-    const postContent = page.locator('[data-article] .prose');
-    await expect(postContent).toBeVisible();
+    // Verify article is visible (has prose class)
+    const article = page.locator('[data-article].prose');
+    await expect(article).toBeVisible();
   });
 
   test('views counter should have proper accessibility attributes', async ({ page }) => {
@@ -91,7 +91,7 @@ test.describe('Page Views (PV) Feature', () => {
     await expect(page.locator('[data-article]')).toBeVisible();
 
     const viewsContainer = page.locator('[data-views-container]');
-    
+
     // Check for title attribute for accessibility
     const title = await viewsContainer.getAttribute('title');
     expect(title).toBeTruthy();
@@ -112,7 +112,7 @@ test.describe('Page Views (PV) Feature', () => {
     // Get the first post link
     const firstLink = page.locator('#post-list li a').first();
     const postUrl = await firstLink.getAttribute('href');
-    
+
     // Visit the post
     await firstLink.click();
     await expect(page.locator('[data-article]')).toBeVisible();
@@ -130,7 +130,7 @@ test.describe('Page Views (PV) Feature', () => {
     // Views should still be displayed (testing that it doesn't crash on second visit)
     const viewsContainer = page.locator('[data-views-container]');
     const isVisible = await viewsContainer.isVisible().catch(() => false);
-    
+
     // Either visible or gracefully hidden - both are acceptable
     expect(typeof isVisible).toBe('boolean');
   });
@@ -163,7 +163,7 @@ test.describe('Page Views (PV) Feature', () => {
       // If client ID was created, verify it's a valid UUID format
       expect(clientId).toMatch(/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i);
     }
-    
+
     // Test passes whether or not the mock API triggered client ID creation
     // as this depends on API availability
   });
