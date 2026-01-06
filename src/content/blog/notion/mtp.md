@@ -5,8 +5,8 @@ date: '2026-01-06'
 tags: []
 status: published
 cover: ''
-lastEditedTime: '2026-01-06T10:03:00.000Z'
-updated: '2026-01-06T10:03:00.000Z'
+lastEditedTime: '2026-01-06T11:18:00.000Z'
+updated: '2026-01-06T11:18:00.000Z'
 source: notion
 notion:
   id: 2d822dca-4210-8062-81fc-e99d289d0603
@@ -30,7 +30,7 @@ notion:
 
 - 每生成 1 个 token
 - 需要完整执行一次 Target Model 推理
-- 成本固定为 `T_target`
+- 成本固定为 $T_{target}$
 
 MTP 的目标很明确：
 
@@ -46,7 +46,7 @@ MTP 的目标很明确：
 
 $\text{accept\_ratio}_{k} = \frac{N_{\text{accepted}}}{N_{\text{draft}}}$
 
-它表示 Draft Model 在第 (k) 步提出的候选 token 中，有多少比例能被 Target Model 验证通过。
+它表示 Draft Model 在第 $k$ 步提出的候选 token 中，有多少比例能被 Target Model 验证通过。
 
 例如：Draft 预测 100 次，有 90 次被 Target 接受，接受率即为 **90%**
 
@@ -64,7 +64,7 @@ $\text{avg\_accept\_len} = 1 + p_1 + p_1 p_2 + p_1 p_2 p_3 + \dots$
 
 其中：
 
-- (p_k) 是第 (k) 步的接受率
+- $p_k$ 是第 $k$ 步的接受率
 - `1` 表示：无论如何，至少能确认 1 个 token
 
 ### 直觉解释
@@ -105,7 +105,7 @@ $\text{avg\_accept\_len} = 1 + 0.8 + 0.8 \times 0.74 + 0.8 \times 0.74 \times 0.
 
 每生成 1 个 token：
 
-- 成本：`T_target`
+- 成本：$T_{target}$
 
 在固定时间 $T_{total}$ 内：
 
@@ -167,15 +167,15 @@ MTP 模式下，各 step 的统计数据如下：
 
 ### 6.2 Step 1：单步 MTP 的理论与实测
 
-### 平均接受长度
+平均接受长度：
 
 $\text{avg\_accept\_len}_{(1)} = 1 + 0.8 = 1.8$
 
-### 理论加速比
+理论加速比：
 
 $\text{speed\_up}_{(1)} = \frac{76 \times 1.8}{90 + 8} = \frac{136.8}{98}\approx 1.39$
 
-### 结论
+结论：
 
 - 单步 MTP 已显著提升吞吐（≈ **1.39×**）
 - 成本增加有限，收益明显
@@ -183,19 +183,19 @@ $\text{speed\_up}_{(1)} = \frac{76 \times 1.8}{90 + 8} = \frac{136.8}{98}\approx
 
 ### 6.3 Step 2：两步 MTP 的边际收益分析
 
-### 平均接受长度
+平均接受长度：
 
 $\text{avg\_accept\_len}_{(2)} = 1 + 0.8 + 0.8 \times 0.74\approx 2.39$
 
-### 理论加速比（VS Baseline）
+理论加速比（VS Baseline）：
 
 $\text{speed\_up}_{(2)} = \frac{76 \times 2.39}{104 + 14} = \frac{181.6}{118}\approx 1.55$
 
-### 边际加速比（VS Step 1）
+边际加速比（VS Step 1）：
 
 $\frac{\text{speed\_up}_{(2)}}{\text{speed\_up}_{(1)}} = \frac{1.55}{1.39}\approx 1.11$
 
-### 结论
+结论：
 
 - Step 2 仍然带来 **正向边际收益**
 - 但收益增幅已明显低于 Step 1
@@ -203,19 +203,19 @@ $\frac{\text{speed\_up}_{(2)}}{\text{speed\_up}_{(1)}} = \frac{1.55}{1.39}\appro
 
 ### 6.4 Step 3：三步 MTP 的收益拐点
 
-### 平均接受长度
+平均接受长度：
 
 $\text{avg\_accept\_len}_{(3)}=1 + 0.8 + 0.8 \times 0.74 + 0.8 \times 0.74 \times 0.67\approx 2.79$
 
-### 理论加速比（VS Baseline）
+理论加速比（VS Baseline）：
 
 $\text{speed\_up}_{(3)} = \frac{76 \times 2.79}{117 + 22} = \frac{212.0}{139}\approx 1.53$
 
-### 边际加速比（VS Step 2）
+边际加速比（VS Step 2）：
 
 $\frac{\text{speed\_up}_{(3)}}{\text{speed\_up}_{(2)}} = \frac{1.53}{1.55}\approx 0.99$
 
-### 结论
+结论：
 
 - 第三步虽然提升了平均接受长度
 - 但 **Target Verify 与 Draft 成本增长更快**
