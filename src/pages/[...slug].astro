@@ -15,6 +15,7 @@ import FloatingActionStack from '../components/FloatingActionStack.astro';
 import { getDisplayDates } from '../lib/content/dates';
 import { getLayoutConfig } from '../config/loaders';
 import { alignToTextClass, alignToJustifyClass, alignToItemsClass } from '../lib/ui/alignment';
+import BusuanziViews from '../components/BusuanziViews.astro';
 
 export async function getStaticPaths() {
   const posts = await getPublishedPosts();
@@ -103,6 +104,7 @@ const metaJustifyClass = alignToJustifyClass(postMetaAlign);
                   <span aria-hidden="true">⏱️</span>
                   {stats.text}
                 </div>
+                <BusuanziViews />
               </div>
             </div>
 

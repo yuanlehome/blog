@@ -1,0 +1,35 @@
+---
+/**
+ * BusuanziViews component
+ * Displays page view count using Busuanzi (不蒜子) analytics
+ */
+import { isBusuanziEnabled } from '../lib/analytics/busuanzi';
+
+const enabled = isBusuanziEnabled();
+---
+
+{
+  enabled && (
+    <span
+      id="busuanzi_container_page_pv"
+      class="busuanzi-views flex items-center gap-1 text-zinc-500 dark:text-zinc-400"
+      style="display:none"
+      aria-label="页面浏览量"
+    >
+      <span aria-hidden="true">👀</span>
+      <span>
+        阅读{' '}
+        <span id="busuanzi_value_page_pv" class="font-medium">
+          --
+        </span>{' '}
+        次
+      </span>
+    </span>
+  )
+}
+
+<style>
+  .busuanzi-views {
+    transition: opacity 0.3s ease;
+  }
+</style>

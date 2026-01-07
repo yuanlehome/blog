@@ -1,5 +1,43 @@
 import { expect, test } from '@playwright/test';
 
+// Helper to ensure Busuanzi doesn't cause test failures
+const setupBusuanziMock = async (page: any) => {
+  // Mock the Busuanzi script to prevent external network calls in E2E tests
+  await page.route('**/busuanzi**', (route: any) => {
+    // Return a simple mock script that fills in dummy values
+    route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: `
+        (function() {
+          // Mock Busuanzi by filling in dummy values
+          setTimeout(function() {
+            var pagePv = document.getElementById('busuanzi_value_page_pv');
+            var sitePv = document.getElementById('busuanzi_value_site_pv');
+            var siteUv = document.getElementById('busuanzi_value_site_uv');
+            
+            if (pagePv) {
+              pagePv.textContent = '42';
+              var container = document.getElementById('busuanzi_container_page_pv');
+              if (container) container.style.display = '';
+            }
+            if (sitePv) {
+              sitePv.textContent = '1234';
+              var container = document.getElementById('busuanzi_container_site_pv');
+              if (container) container.style.display = '';
+            }
+            if (siteUv) {
+              siteUv.textContent = '567';
+              var container = document.getElementById('busuanzi_container_site_uv');
+              if (container) container.style.display = '';
+            }
+          }, 100);
+        })();
+      `,
+    });
+  });
+};
+
 const ensureHashNavigation = async (page: any, tocSelector: string) => {
   const tocLink = page.locator(`${tocSelector} a`).first();
   await expect(tocLink).toBeVisible();
@@ -20,6 +58,7 @@ const ensureHashNavigation = async (page: any, tocSelector: string) => {
 
 test.describe('Blog smoke journey', () => {
   test('home to article with interactions', async ({ page }) => {
+    await setupBusuanziMock(page);
     await page.goto('/');
     const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
     if (await notFoundHeading.count()) {
@@ -114,6 +153,7 @@ test.describe('Blog smoke journey', () => {
       baseURL,
     });
     const desktopPage = await desktopContext.newPage();
+    await setupBusuanziMock(desktopPage);
     await desktopPage.goto(buildUrl(''));
     const discoveredSlugs = await desktopPage
       .locator('#post-list li a')
@@ -149,6 +189,7 @@ test.describe('Blog smoke journey', () => {
       baseURL,
     });
     const mobilePage = await mobileContext.newPage();
+    await setupBusuanziMock(mobilePage);
     await mobilePage.goto(targetUrl);
     await expect(mobilePage.locator('[data-post-cover]')).toBeHidden();
     await mobileContext.close();
@@ -157,6 +198,7 @@ test.describe('Blog smoke journey', () => {
   test('mobile viewport avoids horizontal overflow on flashattention page', async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 375, height: 812 } });
     const mobilePage = await context.newPage();
+    await setupBusuanziMock(mobilePage);
     await mobilePage.goto('/flashattention/');
 
     const [scrollWidth, clientWidth] = await mobilePage.evaluate(() => [
@@ -171,6 +213,7 @@ test.describe('Blog smoke journey', () => {
   test('mobile toc navigates to heading', async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 375, height: 812 } });
     const page = await context.newPage();
+    await setupBusuanziMock(page);
 
     await page.goto('/');
     const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
@@ -223,6 +266,7 @@ test.describe('Blog smoke journey', () => {
   });
 
   test('search box is noted when available', async ({ page }) => {
+    await setupBusuanziMock(page);
     await page.goto('/');
     const searchInput = page.locator('input[type="search"]');
     if (await searchInput.count()) {
@@ -238,6 +282,7 @@ test.describe('Blog smoke journey', () => {
   }) => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await context.newPage();
+    await setupBusuanziMock(page);
 
     await page.goto('/');
     const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
@@ -302,6 +347,7 @@ test.describe('Blog smoke journey', () => {
   test('bottom button scrolls to true page bottom', async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await context.newPage();
+    await setupBusuanziMock(page);
 
     await page.goto('/');
     const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
@@ -364,6 +410,7 @@ test.describe('Blog smoke journey', () => {
   test('bottom button works correctly with comments enabled', async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await context.newPage();
+    await setupBusuanziMock(page);
 
     await page.goto('/');
     const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
@@ -417,6 +464,7 @@ test.describe('Blog smoke journey', () => {
   test('top button scrolls to article start after bottom scroll', async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await context.newPage();
+    await setupBusuanziMock(page);
 
     await page.goto('/');
     const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
@@ -467,6 +515,7 @@ test.describe('Blog smoke journey', () => {
   });
 
   test('pagination navigation works correctly', async ({ page }) => {
+    await setupBusuanziMock(page);
     await page.goto('/');
     const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
     if (await notFoundHeading.count()) {
