@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import {
   isBusuanziEnabled,
@@ -10,19 +10,39 @@ import {
   resetBusuanziState,
 } from '../../src/lib/analytics/busuanzi';
 
+// Mock the config loader
+vi.mock('../../src/config/loaders', () => {
+  let mockConfig = {
+    busuanzi: {
+      enabled: false,
+      scriptUrl: 'https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js',
+      debug: false,
+    },
+  };
+
+  return {
+    getSiteConfig: vi.fn(() => mockConfig),
+    __setMockConfig: (config: any) => {
+      mockConfig = { ...mockConfig, ...config };
+    },
+  };
+});
+
 describe('Busuanzi Analytics', () => {
   let dom: JSDOM;
   let document: Document;
   let window: Window & typeof globalThis;
-  let originalEnvEnabled: string | undefined;
-  let originalEnvScriptUrl: string | undefined;
-  let originalEnvDebug: string | undefined;
 
-  beforeEach(() => {
-    // Save original env values
-    originalEnvEnabled = import.meta.env.PUBLIC_BUSUANZI_ENABLED;
-    originalEnvScriptUrl = import.meta.env.PUBLIC_BUSUANZI_SCRIPT_URL;
-    originalEnvDebug = import.meta.env.PUBLIC_BUSUANZI_DEBUG;
+  beforeEach(async () => {
+    // Reset mock config
+    const { __setMockConfig } = await import('../../src/config/loaders');
+    __setMockConfig({
+      busuanzi: {
+        enabled: false,
+        scriptUrl: 'https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js',
+        debug: false,
+      },
+    });
 
     // Reset Busuanzi state
     resetBusuanziState();
@@ -37,69 +57,71 @@ describe('Busuanzi Analytics', () => {
     // Set up global objects
     global.document = document;
     global.window = window;
-
-    // Reset env to defaults
-    (import.meta.env as any).PUBLIC_BUSUANZI_ENABLED = '';
-    (import.meta.env as any).PUBLIC_BUSUANZI_SCRIPT_URL = '';
-    (import.meta.env as any).PUBLIC_BUSUANZI_DEBUG = '';
   });
 
   afterEach(() => {
-    // Restore original env values
-    (import.meta.env as any).PUBLIC_BUSUANZI_ENABLED = originalEnvEnabled;
-    (import.meta.env as any).PUBLIC_BUSUANZI_SCRIPT_URL = originalEnvScriptUrl;
-    (import.meta.env as any).PUBLIC_BUSUANZI_DEBUG = originalEnvDebug;
+    vi.clearAllMocks();
   });
 
   describe('isBusuanziEnabled', () => {
-    it('returns false when PUBLIC_BUSUANZI_ENABLED is not set', () => {
+    it('returns false when busuanzi.enabled is false', async () => {
+      const { __setMockConfig } = await import('../../src/config/loaders');
+      __setMockConfig({ busuanzi: { enabled: false } });
       expect(isBusuanziEnabled()).toBe(false);
     });
 
-    it('returns true when PUBLIC_BUSUANZI_ENABLED is "true"', () => {
-      (import.meta.env as any).PUBLIC_BUSUANZI_ENABLED = 'true';
+    it('returns true when busuanzi.enabled is true', async () => {
+      const { __setMockConfig } = await import('../../src/config/loaders');
+      __setMockConfig({ busuanzi: { enabled: true } });
       expect(isBusuanziEnabled()).toBe(true);
     });
 
-    it('returns true when PUBLIC_BUSUANZI_ENABLED is "1"', () => {
-      (import.meta.env as any).PUBLIC_BUSUANZI_ENABLED = '1';
-      expect(isBusuanziEnabled()).toBe(true);
-    });
-
-    it('returns false when PUBLIC_BUSUANZI_ENABLED is "false"', () => {
-      (import.meta.env as any).PUBLIC_BUSUANZI_ENABLED = 'false';
+    it('returns false when busuanzi config is missing', async () => {
+      const { __setMockConfig } = await import('../../src/config/loaders');
+      __setMockConfig({ busuanzi: undefined });
       expect(isBusuanziEnabled()).toBe(false);
     });
   });
 
   describe('getBusuanziScriptUrl', () => {
-    it('returns default URL when PUBLIC_BUSUANZI_SCRIPT_URL is not set', () => {
+    it('returns default URL when not configured', async () => {
+      const { __setMockConfig } = await import('../../src/config/loaders');
+      __setMockConfig({
+        busuanzi: {
+          scriptUrl: 'https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js',
+        },
+      });
       expect(getBusuanziScriptUrl()).toBe(
         'https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js',
       );
     });
 
-    it('returns custom URL when PUBLIC_BUSUANZI_SCRIPT_URL is set', () => {
+    it('returns custom URL when configured', async () => {
       const customUrl = 'https://example.com/busuanzi.js';
-      (import.meta.env as any).PUBLIC_BUSUANZI_SCRIPT_URL = customUrl;
+      const { __setMockConfig } = await import('../../src/config/loaders');
+      __setMockConfig({ busuanzi: { scriptUrl: customUrl } });
       expect(getBusuanziScriptUrl()).toBe(customUrl);
     });
   });
 
   describe('isBusuanziDebugEnabled', () => {
-    it('returns false when PUBLIC_BUSUANZI_DEBUG is not set', () => {
+    it('returns false when debug is false', async () => {
+      const { __setMockConfig } = await import('../../src/config/loaders');
+      __setMockConfig({ busuanzi: { debug: false } });
       expect(isBusuanziDebugEnabled()).toBe(false);
     });
 
-    it('returns true when PUBLIC_BUSUANZI_DEBUG is "true"', () => {
-      (import.meta.env as any).PUBLIC_BUSUANZI_DEBUG = 'true';
+    it('returns true when debug is true', async () => {
+      const { __setMockConfig } = await import('../../src/config/loaders');
+      __setMockConfig({ busuanzi: { debug: true } });
       expect(isBusuanziDebugEnabled()).toBe(true);
     });
   });
 
   describe('loadBusuanzi', () => {
     it('does not load script when Busuanzi is disabled', async () => {
-      (import.meta.env as any).PUBLIC_BUSUANZI_ENABLED = 'false';
+      const { __setMockConfig } = await import('../../src/config/loaders');
+      __setMockConfig({ busuanzi: { enabled: false } });
 
       await loadBusuanzi();
 
@@ -108,7 +130,8 @@ describe('Busuanzi Analytics', () => {
     });
 
     it('loads script when enabled', async () => {
-      (import.meta.env as any).PUBLIC_BUSUANZI_ENABLED = 'true';
+      const { __setMockConfig } = await import('../../src/config/loaders');
+      __setMockConfig({ busuanzi: { enabled: true } });
 
       // Start loading
       const loadPromise = loadBusuanzi();
@@ -130,7 +153,8 @@ describe('Busuanzi Analytics', () => {
     });
 
     it('adds script tag with correct attributes', async () => {
-      (import.meta.env as any).PUBLIC_BUSUANZI_ENABLED = 'true';
+      const { __setMockConfig } = await import('../../src/config/loaders');
+      __setMockConfig({ busuanzi: { enabled: true } });
 
       const loadPromise = loadBusuanzi();
 
@@ -152,7 +176,8 @@ describe('Busuanzi Analytics', () => {
     });
 
     it('handles script load error gracefully without throwing', async () => {
-      (import.meta.env as any).PUBLIC_BUSUANZI_ENABLED = 'true';
+      const { __setMockConfig } = await import('../../src/config/loaders');
+      __setMockConfig({ busuanzi: { enabled: true } });
 
       // Trigger script error by loading, then manually fire onerror
       const loadPromise = loadBusuanzi();
@@ -211,7 +236,8 @@ describe('Busuanzi Analytics', () => {
 
   describe('initBusuanzi', () => {
     it('calls loadBusuanzi when in browser environment and enabled', async () => {
-      (import.meta.env as any).PUBLIC_BUSUANZI_ENABLED = 'true';
+      const { __setMockConfig } = await import('../../src/config/loaders');
+      __setMockConfig({ busuanzi: { enabled: true } });
 
       // Remove any existing scripts from previous tests
       document.querySelectorAll('script[data-busuanzi]').forEach((s) => s.remove());
@@ -231,7 +257,8 @@ describe('Busuanzi Analytics', () => {
     });
 
     it('does not load script when disabled', async () => {
-      (import.meta.env as any).PUBLIC_BUSUANZI_ENABLED = 'false';
+      const { __setMockConfig } = await import('../../src/config/loaders');
+      __setMockConfig({ busuanzi: { enabled: false } });
 
       // Remove any existing scripts from previous tests
       document.querySelectorAll('script[data-busuanzi]').forEach((s) => s.remove());

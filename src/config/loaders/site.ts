@@ -29,6 +29,16 @@ export const siteConfigSchema = z.object({
   enableRSS: z.boolean().default(true),
   enableSitemap: z.boolean().default(true),
 
+  busuanzi: z
+    .object({
+      enabled: z.boolean().default(true),
+      scriptUrl: z
+        .string()
+        .default('https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js'),
+      debug: z.boolean().default(false),
+    })
+    .default({}),
+
   socialImage: z.string().default('placeholder-social.jpg'),
 });
 
@@ -48,6 +58,11 @@ export const defaultSiteConfig: SiteConfig = {
   dateFormat: 'YYYY-MM-DD',
   enableRSS: true,
   enableSitemap: true,
+  busuanzi: {
+    enabled: true,
+    scriptUrl: 'https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js',
+    debug: false,
+  },
   socialImage: 'placeholder-social.jpg',
 };
 

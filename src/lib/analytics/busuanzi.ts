@@ -3,35 +3,33 @@
  * Provides functions to load the Busuanzi script and handle view counts
  */
 
+import { getSiteConfig } from '../../config/loaders';
+
 /**
- * Check if Busuanzi is enabled via environment variable
+ * Check if Busuanzi is enabled via configuration
  */
 export function isBusuanziEnabled(): boolean {
-  const enabled = import.meta.env.PUBLIC_BUSUANZI_ENABLED;
-  if (enabled === undefined || enabled === '') {
-    return false; // Default to disabled if not set
-  }
-  return enabled === 'true' || enabled === '1';
+  const siteConfig = getSiteConfig();
+  return siteConfig.busuanzi?.enabled ?? false;
 }
 
 /**
- * Get the Busuanzi script URL from environment or use default
+ * Get the Busuanzi script URL from configuration
  */
 export function getBusuanziScriptUrl(): string {
-  const customUrl = import.meta.env.PUBLIC_BUSUANZI_SCRIPT_URL;
-  if (customUrl && customUrl.trim()) {
-    return customUrl.trim();
-  }
-  // Default Busuanzi script URL
-  return 'https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js';
+  const siteConfig = getSiteConfig();
+  return (
+    siteConfig.busuanzi?.scriptUrl ??
+    'https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js'
+  );
 }
 
 /**
  * Check if debug mode is enabled
  */
 export function isBusuanziDebugEnabled(): boolean {
-  const debug = import.meta.env.PUBLIC_BUSUANZI_DEBUG;
-  return debug === 'true' || debug === '1';
+  const siteConfig = getSiteConfig();
+  return siteConfig.busuanzi?.debug ?? false;
 }
 
 /**
@@ -150,9 +148,9 @@ export function revealContainers(): void {
       const valueElement = document.getElementById(containerId.replace('_container_', '_value_'));
 
       if (container && valueElement) {
-        // Check if value has been populated (not empty and not default)
+        // Check if value has been populated (not empty and not the default placeholder)
         const value = valueElement.textContent?.trim();
-        if (value && value !== '' && value !== '0') {
+        if (value && value !== '' && value !== '--') {
           container.style.display = '';
           debugLog(`Revealed container: ${containerId}, value: ${value}`);
         } else {

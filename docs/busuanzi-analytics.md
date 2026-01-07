@@ -9,71 +9,73 @@
 - ✅ **文章页 PV 统计**：每篇文章详情页显示"阅读次数"
 - ✅ **纯前端实现**：不需要后端服务器或数据库
 - ✅ **优雅降级**：脚本加载失败时不影响页面显示
-- ✅ **可开关配置**：通过环境变量控制是否启用
+- ✅ **可开关配置**：通过配置文件控制是否启用
 - ✅ **暗黑模式支持**：与博客主题保持一致
 - ✅ **性能优化**：脚本异步加载，不阻塞页面渲染
 
 ## 配置方法
 
-### 1. 环境变量配置
+### 1. 配置文件位置
 
-在项目根目录创建 `.env.local` 文件（可以参考 `.env.local.example`），添加以下配置：
+Busuanzi 的配置位于 `src/config/yaml/site.yml` 文件中。
 
-```bash
-# 启用 Busuanzi 浏览量统计
-PUBLIC_BUSUANZI_ENABLED=true
+### 2. 配置项说明
 
-# 可选：自定义 Busuanzi 脚本地址（不配置则使用默认地址）
-# PUBLIC_BUSUANZI_SCRIPT_URL=https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js
+在 `site.yml` 文件中找到 `busuanzi` 部分：
 
-# 可选：启用调试日志（默认关闭）
-# PUBLIC_BUSUANZI_DEBUG=true
+```yaml
+# Analytics
+# Busuanzi (不蒜子) page view statistics
+busuanzi:
+  enabled: true # 启用/禁用 Busuanzi 浏览量统计
+  scriptUrl: 'https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js' # Busuanzi 脚本地址
+  debug: false # 调试模式
 ```
 
-### 2. 配置说明
-
-| 环境变量                      | 必填 | 默认值                                                         | 说明                                       |
-| ----------------------------- | ---- | -------------------------------------------------------------- | ------------------------------------------ |
-| `PUBLIC_BUSUANZI_ENABLED`     | 否   | `false`                                                        | 是否启用 Busuanzi，设置为 `true` 或 `1`    |
-| `PUBLIC_BUSUANZI_SCRIPT_URL`  | 否   | `https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js` | Busuanzi 脚本地址，可配置为自建或镜像地址 |
-| `PUBLIC_BUSUANZI_DEBUG`       | 否   | `false`                                                        | 是否在浏览器控制台输出调试信息             |
+| 配置项      | 必填 | 默认值                                                            | 说明                                      |
+| ----------- | ---- | ----------------------------------------------------------------- | ----------------------------------------- |
+| `enabled`   | 否   | `true`                                                            | 是否启用 Busuanzi                         |
+| `scriptUrl` | 否   | `https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js` | Busuanzi 脚本地址，可配置为自建或镜像地址 |
+| `debug`     | 否   | `false`                                                           | 是否在浏览器控制台输出调试信息            |
 
 ## 使用示例
 
 ### 启用 Busuanzi
 
-在 `.env.local` 文件中设置：
+在 `src/config/yaml/site.yml` 文件中设置：
 
-```bash
-PUBLIC_BUSUANZI_ENABLED=true
+```yaml
+busuanzi:
+  enabled: true
 ```
 
 ### 禁用 Busuanzi
 
-在 `.env.local` 文件中设置：
+在 `src/config/yaml/site.yml` 文件中设置：
 
-```bash
-PUBLIC_BUSUANZI_ENABLED=false
+```yaml
+busuanzi:
+  enabled: false
 ```
-
-或者删除 `PUBLIC_BUSUANZI_ENABLED` 配置项（默认为禁用）。
 
 ### 使用自定义脚本地址
 
 如果官方 Busuanzi 服务不可用，可以配置自建或第三方镜像：
 
-```bash
-PUBLIC_BUSUANZI_ENABLED=true
-PUBLIC_BUSUANZI_SCRIPT_URL=https://your-cdn.com/busuanzi.js
+```yaml
+busuanzi:
+  enabled: true
+  scriptUrl: 'https://your-cdn.com/busuanzi.js'
 ```
 
 ### 开启调试模式
 
 开发时可以开启调试模式，在浏览器控制台查看 Busuanzi 加载状态：
 
-```bash
-PUBLIC_BUSUANZI_ENABLED=true
-PUBLIC_BUSUANZI_DEBUG=true
+```yaml
+busuanzi:
+  enabled: true
+  debug: true
 ```
 
 ## 显示位置
@@ -82,7 +84,7 @@ PUBLIC_BUSUANZI_DEBUG=true
 
 在文章详情页的元信息区域（标题下方），会显示：
 
-```
+```text
 👀 阅读 123 次
 ```
 
@@ -143,7 +145,7 @@ Busuanzi 是一个第三方统计服务：
 
 A: 请检查：
 
-1. 确认 `.env.local` 中 `PUBLIC_BUSUANZI_ENABLED=true`
+1. 确认 `src/config/yaml/site.yml` 中 `busuanzi.enabled` 为 `true`
 2. 重新构建项目 `npm run build`
 3. 检查浏览器控制台是否有网络错误
 4. 如果使用自定义脚本地址，确认地址可访问
@@ -151,6 +153,16 @@ A: 请检查：
 ### Q: 本地开发时看不到统计数据？
 
 A: 本地开发环境下，Busuanzi 可能无法正常统计。这是正常现象，部署到生产环境后即可正常显示。
+
+### Q: 如何修改配置？
+
+A: 修改 `src/config/yaml/site.yml` 文件后，需要重新构建项目：
+
+```bash
+npm run build
+```
+
+配置会在构建时被加载并应用到生成的静态页面中。
 
 ### Q: 统计数据是否准确？
 
@@ -169,6 +181,8 @@ A: Busuanzi 的统计数据存储在其服务端，无法通过配置重置。�
 
 ## 相关文件
 
+- 配置文件：`src/config/yaml/site.yml`
+- 配置加载器：`src/config/loaders/site.ts`
 - 核心库：`src/lib/analytics/busuanzi.ts`
 - 显示组件：`src/components/BusuanziViews.astro`
 - 布局集成：`src/layouts/Layout.astro`
@@ -182,7 +196,8 @@ A: Busuanzi 的统计数据存储在其服务端，无法通过配置重置。�
 
 - ✅ 初始实现 Busuanzi 集成
 - ✅ 支持文章页 PV 统计
-- ✅ 添加配置选项和环境变量
+- ✅ 将配置从环境变量迁移到 YAML 配置文件
+- ✅ 添加配置选项到 `site.yml`
 - ✅ 实现优雅降级机制
 - ✅ 添加单元测试和 E2E 测试
 - ✅ 支持暗黑模式
