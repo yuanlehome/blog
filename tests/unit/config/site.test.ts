@@ -59,11 +59,6 @@ describe('Site Configuration', () => {
         dateFormat: 'YYYY-MM-DD',
         enableRSS: true,
         enableSitemap: true,
-        busuanzi: {
-          enabled: true,
-          scriptUrl: 'https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js',
-          debug: false,
-        },
         socialImage: 'test.jpg',
       };
 

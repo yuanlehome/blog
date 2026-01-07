@@ -86,15 +86,5 @@ const {
   >
     <slot />
     <script src="../lib/ui/code-blocks.ts"></script>
-    <script>
-      import { initBusuanzi } from '../lib/analytics/busuanzi';
-
-      // Initialize Busuanzi on page load
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initBusuanzi);
-      } else {
-        initBusuanzi();
-      }
-    </script>
   </body>
 </html>
