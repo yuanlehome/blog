@@ -19,12 +19,5 @@ dateFormat: 'YYYY-MM-DD'
 enableRSS: true
 enableSitemap: true
 
-# Analytics
-# Busuanzi (不蒜子) page view statistics
-busuanzi:
-  enabled: true # 启用/禁用 Busuanzi 浏览量统计
-  scriptUrl: 'https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js' # Busuanzi 脚本地址
-  debug: false # 调试模式
-
 # Social meta defaults
 socialImage: 'placeholder-social.jpg'
