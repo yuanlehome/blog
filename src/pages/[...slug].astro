@@ -26,6 +26,8 @@ export async function getStaticPaths() {
 
 const { post, all } = Astro.props;
 const { Content, headings } = await post.render();
+const tocHeadings = headings.filter((heading) => heading.depth >= 2 && heading.depth <= 3);
+const hasToc = tocHeadings.length > 0;
 const stats = getReadingTime(post.body);
 const { prev, next } = findPrevNext(all, post.slug);
 const related = findRelated(all, post);
@@ -45,7 +47,9 @@ const metaJustifyClass = alignToJustifyClass(postMetaAlign);
   <Header />
   <main class="container mx-auto px-4 py-8 max-w-6xl">
     <div
-      class="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-12"
+      class={`flex flex-col gap-6 lg:grid lg:items-start lg:gap-12 ${
+        hasToc ? 'lg:grid-cols-[minmax(0,1fr)_18rem]' : 'lg:grid-cols-1'
+      }`}
       data-post-layout
     >
       <article class="prose dark:prose-invert max-w-none prose-img:rounded-xl min-w-0" data-article>
@@ -159,11 +163,11 @@ const metaJustifyClass = alignToJustifyClass(postMetaAlign);
         {commentsEnabled && <Giscus lang="zh-CN" loading="lazy" />}
         <div id="page-bottom-anchor" aria-hidden="true" style="height: 1px;"></div>
       </article>
-      <TableOfContents headings={headings} />
+      {hasToc && <TableOfContents headings={tocHeadings} />}
     </div>
-    <MobileToc headings={headings} showTrigger={false} />
+    {hasToc && <MobileToc headings={tocHeadings} showTrigger={false} />}
     <FloatingActionStack
-      enableToc={headings.length > 0}
+      enableToc={hasToc}
       enableTop={true}
       enableBottom={true}
       targetSelector="[data-article]"
