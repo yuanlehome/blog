@@ -10,67 +10,69 @@ interface Props {
 
 // Build tree structure supporting multiple H1s
 const tocForest = buildTocForest(Astro.props.headings);
+if (tocForest.length === 0) {
+  return null;
+}
 
 const showTrigger = Astro.props.showTrigger ?? false;
 ---
 
-{
-  tocForest.length > 0 && (
-    <>
-      {showTrigger && (
+<>
+  {
+    showTrigger && (
+      <button
+        type="button"
+        class="fixed bottom-6 right-4 z-40 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-neutral-50/90 px-4 py-2 text-sm font-medium text-zinc-900 shadow-lg backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-sky-200 hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-zinc-800 dark:bg-zinc-900/80 dark:text-zinc-100 dark:hover:border-sky-500/50 dark:hover:text-sky-400 dark:focus-visible:ring-offset-zinc-900 lg:hidden"
+        data-mobile-toc-open
+        aria-haspopup="dialog"
+        aria-expanded="false"
+        aria-controls="mobile-toc-drawer"
+      >
+        📑 目录
+      </button>
+    )
+  }
+
+  <div
+    class="fixed inset-0 z-50 pointer-events-none data-[open=true]:pointer-events-auto lg:hidden"
+    data-mobile-toc
+    data-open="false"
+    aria-hidden="true"
+  >
+    <div
+      class="absolute inset-0 bg-zinc-900/40 opacity-0 transition duration-200 data-[open=true]:opacity-100 dark:bg-black/50"
+      data-mobile-toc-backdrop
+    >
+    </div>
+    <div
+      id="mobile-toc-drawer"
+      role="dialog"
+      aria-modal="true"
+      aria-label="文章目录"
+      class="absolute inset-x-0 bottom-0 translate-y-full rounded-t-2xl border border-zinc-200 bg-neutral-50/95 shadow-2xl ring-1 ring-black/5 transition duration-200 data-[open=true]:translate-y-0 dark:border-zinc-800 dark:bg-zinc-900/95 dark:ring-white/10"
+      data-mobile-toc-drawer
+    >
+      <div class="flex items-center justify-between gap-3 px-4 pt-4 pb-3">
+        <div>
+          <p class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">文章目录</p>
+          <p class="text-xs text-zinc-500 dark:text-zinc-400">点击条目可跳转</p>
+        </div>
         <button
           type="button"
-          class="fixed bottom-6 right-4 z-40 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-neutral-50/90 px-4 py-2 text-sm font-medium text-zinc-900 shadow-lg backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-sky-200 hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-zinc-800 dark:bg-zinc-900/80 dark:text-zinc-100 dark:hover:border-sky-500/50 dark:hover:text-sky-400 dark:focus-visible:ring-offset-zinc-900 lg:hidden"
-          data-mobile-toc-open
-          aria-haspopup="dialog"
-          aria-expanded="false"
-          aria-controls="mobile-toc-drawer"
+          class="rounded-full border border-zinc-200 bg-neutral-50 px-3 py-1 text-sm font-medium text-zinc-800 shadow-sm transition hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:text-sky-400 dark:focus-visible:ring-offset-zinc-900"
+          data-mobile-toc-close
         >
-          📑 目录
+          关闭
         </button>
-      )}
-
-      <div
-        class="fixed inset-0 z-50 pointer-events-none data-[open=true]:pointer-events-auto lg:hidden"
-        data-mobile-toc
-        data-open="false"
-        aria-hidden="true"
-      >
-        <div
-          class="absolute inset-0 bg-zinc-900/40 opacity-0 transition duration-200 data-[open=true]:opacity-100 dark:bg-black/50"
-          data-mobile-toc-backdrop
-        />
-        <div
-          id="mobile-toc-drawer"
-          role="dialog"
-          aria-modal="true"
-          aria-label="文章目录"
-          class="absolute inset-x-0 bottom-0 translate-y-full rounded-t-2xl border border-zinc-200 bg-neutral-50/95 shadow-2xl ring-1 ring-black/5 transition duration-200 data-[open=true]:translate-y-0 dark:border-zinc-800 dark:bg-zinc-900/95 dark:ring-white/10"
-          data-mobile-toc-drawer
-        >
-          <div class="flex items-center justify-between gap-3 px-4 pt-4 pb-3">
-            <div>
-              <p class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">文章目录</p>
-              <p class="text-xs text-zinc-500 dark:text-zinc-400">点击条目可跳转</p>
-            </div>
-            <button
-              type="button"
-              class="rounded-full border border-zinc-200 bg-neutral-50 px-3 py-1 text-sm font-medium text-zinc-800 shadow-sm transition hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:text-sky-400 dark:focus-visible:ring-offset-zinc-900"
-              data-mobile-toc-close
-            >
-              关闭
-            </button>
-          </div>
-          <div class="max-h-[60vh] overflow-y-auto px-4 pb-5" data-mobile-toc-scroll>
-            <ol class="space-y-3 text-sm">
-              <TocTree nodes={tocForest} />
-            </ol>
-          </div>
-        </div>
       </div>
-    </>
-  )
-}
+      <div class="max-h-[60vh] overflow-y-auto px-4 pb-5" data-mobile-toc-scroll>
+        <ol class="space-y-3 text-sm">
+          <TocTree nodes={tocForest} />
+        </ol>
+      </div>
+    </div>
+  </div>
+</>
 
 <script>
   const tocRoot = document.querySelector('[data-mobile-toc]') as HTMLElement | null;
