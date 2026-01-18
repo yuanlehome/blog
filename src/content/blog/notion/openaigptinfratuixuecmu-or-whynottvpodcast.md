@@ -6,8 +6,8 @@ tags: []
 status: published
 cover: >-
   /images/notion/openaigptinfratuixuecmu-or-whynottvpodcast/2ec22dca-4210-80b7-ae83-f6e437b19bf2.png
-lastEditedTime: '2026-01-18T04:28:00.000Z'
-updated: '2026-01-18T04:28:00.000Z'
+lastEditedTime: '2026-01-18T04:30:00.000Z'
+updated: '2026-01-18T04:30:00.000Z'
 source: notion
 notion:
   id: 2ec22dca-4210-8067-b45e-d2b10f5ab93a
@@ -32,4 +32,4 @@ notion:
 1. 在健康的组织里，每个人都可被替换。
 1. 给另外一个人我现在的 context，他也能胜任我的位置。
 1. 非常确信宿命论，世界在演绎必然的确定剧本。
-1. 上帝微观掷骰子、宏观不掷骰子。
+1. 上帝微观掷骰子，宏观不掷骰子。
