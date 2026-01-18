@@ -6,21 +6,21 @@ tags: []
 status: published
 cover: >-
   /images/notion/openaigptinfratuixuecmu-or-whynottvpodcast/2ec22dca-4210-80b7-ae83-f6e437b19bf2.png
-lastEditedTime: '2026-01-18T04:00:00.000Z'
-updated: '2026-01-18T04:00:00.000Z'
+lastEditedTime: '2026-01-18T04:28:00.000Z'
+updated: '2026-01-18T04:28:00.000Z'
 source: notion
 notion:
   id: 2ec22dca-4210-8067-b45e-d2b10f5ab93a
 ---
 
-- 【哔哩哔哩】 <https://b23.tv/wkzOQYj>
+来源：【哔哩哔哩】 <https://b23.tv/wkzOQYj>
 
 ![](/images/notion/openaigptinfratuixuecmu-or-whynottvpodcast/2ec22dca-4210-80b7-ae83-f6e437b19bf2.png)
 
 这位技术大佬很多观点挺有意思，来自在 AI 工程技术方向的视角，很有共鸣，还爆了挺多 OpenAI 内幕 😂。
 
 1. Impact 导向，做开源、工具不是装饰，而是想通过个人能力规模化的帮助更多人。
-1. 信息差是结构性问题，想要打破信息差，做信息平权
+1. 信息差是结构性问题，想要打破信息差，做信息平权。
 1. 如果一个项目从头到尾都能保持一致性，它就是一个好项目。
 1. 很多人共同贡献一个项目，可能一些假设不能很好传递，时间长了就会腐化。
 1. 每家 Infra 都有不同程度的 bug，谁修的 bug 越多，谁模型训的就越好。
