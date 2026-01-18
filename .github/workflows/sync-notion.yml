@@ -59,6 +59,7 @@ jobs:
       - name: Check for changes
         id: changes
         run: |
+          git add -N src/content/blog/notion/ public/images/notion/
           if git diff --quiet --exit-code -- src/content/blog/notion/ public/images/notion/; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "No content changes detected."
