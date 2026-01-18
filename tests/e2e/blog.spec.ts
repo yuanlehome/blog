@@ -18,23 +18,37 @@ const ensureHashNavigation = async (page: any, tocSelector: string) => {
     .toBe(targetHash);
 };
 
+const openFirstPostWithToc = async (page: any) => {
+  await page.goto('/');
+  const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
+  if (await notFoundHeading.count()) {
+    const baseLink = page.locator('a[href="/blog/"]');
+    if (await baseLink.count()) {
+      await baseLink.first().click();
+    }
+  }
+
+  const postLinks = await page
+    .locator('#post-list li a')
+    .evaluateAll((anchors) =>
+      anchors.map((anchor) => anchor.getAttribute('href') || '').filter(Boolean),
+    );
+
+  for (const href of postLinks) {
+    await page.goto(href);
+    await expect(page.locator('[data-article]')).toBeVisible();
+    const tocCount = await page.locator('aside nav[aria-label="文章目录"] a').count();
+    if (tocCount > 0) {
+      return;
+    }
+  }
+
+  throw new Error('No post with headings found for TOC-related tests');
+};
+
 test.describe('Blog smoke journey', () => {
   test('home to article with interactions', async ({ page }) => {
-    await page.goto('/');
-    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
-    if (await notFoundHeading.count()) {
-      const baseLink = page.locator('a[href="/blog/"]');
-      if (await baseLink.count()) {
-        await baseLink.first().click();
-      }
-    }
-
-    const posts = page.locator('#post-list li');
-    expect(await posts.count()).toBeGreaterThan(0);
-
-    const firstLink = page.locator('#post-list li a').first();
-    await firstLink.click();
-    await expect(page.locator('[data-article]')).toBeVisible();
+    await openFirstPostWithToc(page);
 
     await ensureHashNavigation(page, 'aside nav[aria-label="文章目录"]');
 
@@ -172,18 +186,7 @@ test.describe('Blog smoke journey', () => {
     const context = await browser.newContext({ viewport: { width: 375, height: 812 } });
     const page = await context.newPage();
 
-    await page.goto('/');
-    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
-    if (await notFoundHeading.count()) {
-      const baseLink = page.locator('a[href="/blog/"]');
-      if (await baseLink.count()) {
-        await baseLink.first().click();
-      }
-    }
-
-    const firstLink = page.locator('#post-list li a').first();
-    await firstLink.click();
-    await expect(page.locator('[data-article]')).toBeVisible();
+    await openFirstPostWithToc(page);
 
     const tocButton = page.locator('[data-action="toc"]');
     await expect(tocButton).toBeVisible();
@@ -222,6 +225,29 @@ test.describe('Blog smoke journey', () => {
     await context.close();
   });
 
+  test('post without headings hides toc', async ({ browser }) => {
+    const baseURL = test.info().project.use.baseURL;
+    const buildUrl = (value: string) =>
+      baseURL ? new URL(value, baseURL).toString() : `/${value.replace(/^\//, '')}`;
+    const context = await browser.newContext({
+      viewport: { width: 1280, height: 900 },
+      baseURL,
+    });
+    const page = await context.newPage();
+    await page.goto(buildUrl('no-headings/'));
+    await expect(page.locator('[data-article]')).toBeVisible();
+
+    await expect(page.locator('[data-toc-container]')).toHaveCount(0);
+    await expect(page.locator('[data-mobile-toc]')).toHaveCount(0);
+    await expect(page.locator('[data-action="toc"]')).toHaveCount(0);
+
+    const layout = page.locator('[data-post-layout]');
+    await expect(layout).toHaveClass(/lg:grid-cols-1/);
+    await expect(layout).not.toHaveClass(/grid-cols-\[minmax\(0,1fr\)_18rem\]/);
+
+    await context.close();
+  });
+
   test('search box is noted when available', async ({ page }) => {
     await page.goto('/');
     const searchInput = page.locator('input[type="search"]');
@@ -239,18 +265,7 @@ test.describe('Blog smoke journey', () => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await context.newPage();
 
-    await page.goto('/');
-    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
-    if (await notFoundHeading.count()) {
-      const baseLink = page.locator('a[href="/blog/"]');
-      if (await baseLink.count()) {
-        await baseLink.first().click();
-      }
-    }
-
-    const firstLink = page.locator('#post-list li a').first();
-    await firstLink.click();
-    await expect(page.locator('[data-article]')).toBeVisible();
+    await openFirstPostWithToc(page);
 
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
 

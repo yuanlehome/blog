@@ -8,6 +8,9 @@ interface Props {
 
 // Build tree structure supporting multiple H1s
 const tocForest = buildTocForest(Astro.props.headings);
+if (tocForest.length === 0) {
+  return null;
+}
 
 const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) to avoid overlap
 ---
@@ -23,17 +26,11 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
         <p class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">文章目录</p>
         <p class="text-xs text-zinc-500 dark:text-zinc-400">快速跳转到你关心的章节</p>
       </div>
-      {
-        tocForest.length === 0 ? (
-          <p class="text-sm text-zinc-500 dark:text-zinc-400">本文暂无目录。</p>
-        ) : (
-          <nav aria-label="文章目录" class="flex-1 min-h-0 overflow-y-auto pr-1" data-toc-scroll>
-            <ol class="space-y-3 text-sm">
-              <TocTree nodes={tocForest} />
-            </ol>
-          </nav>
-        )
-      }
+      <nav aria-label="文章目录" class="flex-1 min-h-0 overflow-y-auto pr-1" data-toc-scroll>
+        <ol class="space-y-3 text-sm">
+          <TocTree nodes={tocForest} />
+        </ol>
+      </nav>
     </div>
   </aside>
 </div>
