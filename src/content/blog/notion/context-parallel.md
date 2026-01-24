@@ -2,7 +2,7 @@
 title: Context Parallel 技术解析
 slug: context-parallel
 date: '2026-01-04'
-tags: ['Context Parallel', '分布式并行', '长文推理优化']
+tags: ['Context Parallel', 'Distributed Parallel', 'Long Context Optimization']
 status: published
 cover: /images/notion/context-parallel/2cd22dca-4210-8065-8a1a-e0bf7582b90e.png
 lastEditedTime: '2026-01-04T14:47:00.000Z'

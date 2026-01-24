@@ -2,7 +2,7 @@
 title: 'Inside vLLM: Anatomy of a High-Throughput LLM Inference System'
 slug: inside-vllm-anatomy-of-a-high-throughput-llm-inference-system
 date: '2025-12-29'
-tags: ['源码解析', '架构设计']
+tags: ['Source Code Analysis', 'Architecture Design']
 status: published
 source_url: 'https://www.aleksagordic.com/blog/vllm'
 source_author: www.aleksagordic.com

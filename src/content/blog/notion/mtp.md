@@ -2,7 +2,7 @@
 title: MTP 理论加速比分析：从公式到工程决策
 slug: mtp
 date: '2026-01-06'
-tags: ['投机解码']
+tags: ['Speculative Decoding']
 status: published
 cover: ''
 lastEditedTime: '2026-01-06T11:18:00.000Z'
