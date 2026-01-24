@@ -2,7 +2,7 @@
 title: "DeepGEMM 学习指南：面向初学者的\_FP8 GEMM 库解析"
 slug: deepgemm-fp8-gemm
 date: '2026-01-06'
-tags: []
+tags: ['FP8', 'DeepGEMM']
 status: published
 cover: /images/notion/deepgemm-fp8-gemm/2e022dca-4210-803e-8c55-c9cc383313ea.png
 lastEditedTime: '2026-01-06T08:58:00.000Z'

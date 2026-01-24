@@ -2,7 +2,7 @@
 title: 【部分观点记录】翁家翌：OpenAI，GPT，强化学习，Infra，后训练，天授，tuixue，开源，CMU，清华 | WhynotTVPodcast
 slug: openaigptinfratuixuecmu-or-whynottvpodcast
 date: '2026-01-18'
-tags: []
+tags: ['大佬访谈']
 status: published
 cover: >-
   /images/notion/openaigptinfratuixuecmu-or-whynottvpodcast/2ec22dca-4210-80b7-ae83-f6e437b19bf2.png

@@ -2,7 +2,7 @@
 title: CUDA Graph 学习笔记
 slug: cuda-graph
 date: '2025-12-27'
-tags: []
+tags: ['CUDA Graphs']
 status: published
 source_url: 'https://mp.weixin.qq.com/s/9SAW3kgI_G1CzvNM9_aLTg'
 source_author: 平六层

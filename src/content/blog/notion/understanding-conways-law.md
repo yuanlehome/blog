@@ -2,7 +2,7 @@
 title: Understanding Conway’s Law（康威定律）
 slug: understanding-conways-law
 date: '2025-12-25'
-tags: []
+tags: ['康威定律', '软技能']
 status: published
 cover: ''
 lastEditedTime: '2025-12-25T18:15:00.000Z'

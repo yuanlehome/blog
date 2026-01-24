@@ -1,8 +1,8 @@
 ---
-title: 通过零开销逐层权重卸载技术将SGLang Diffusion wan2.2的推理速度加速60%
+title: 通过零开销逐层权重卸载技术将 SGLang Diffusion wan2.2 的推理速度加速 60%
 slug: sglang-diffusion-wan2260percent
 date: '2025-12-28'
-tags: []
+tags: ['Performance']
 status: published
 source_url: 'https://mp.weixin.qq.com/s/Pe5rITX7srkWOoVHTtT4yw'
 source_author: GiantPandaLLM

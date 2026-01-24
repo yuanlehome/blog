@@ -2,7 +2,7 @@
 title: RDMA 在大模型推理框架中的应用
 slug: rdma
 date: '2026-01-13'
-tags: []
+tags: ['RDMA', '通信优化']
 status: published
 cover: ''
 lastEditedTime: '2026-01-12T15:26:00.000Z'

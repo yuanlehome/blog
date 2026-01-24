@@ -2,7 +2,7 @@
 title: RoPE 究竟是怎么计算的
 slug: rope
 date: '2026-01-04'
-tags: []
+tags: ['RoPE']
 status: published
 cover: ''
 lastEditedTime: '2026-01-04T15:00:00.000Z'

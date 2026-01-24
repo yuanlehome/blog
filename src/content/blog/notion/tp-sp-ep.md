@@ -2,7 +2,7 @@
 title: 一种 TP-SP-EP 混合并行策略
 slug: tp-sp-ep
 date: '2026-01-04'
-tags: []
+tags: ['Sequence Parallel', '分布式并行']
 status: published
 cover: /images/notion/tp-sp-ep/2b222dca-4210-80d9-98fb-cf78ef53eb91.jpeg
 lastEditedTime: '2026-01-04T14:41:00.000Z'

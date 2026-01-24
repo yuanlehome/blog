@@ -5,7 +5,7 @@ title: >-
 slug: >-
   code-is-not-only-an-implementation-but-also-a-presentation-of-a-way-of-thinking
 date: '2025-12-26'
-tags: []
+tags: ['编程思维', '软技能']
 status: published
 cover: ''
 lastEditedTime: '2025-12-26T19:47:00.000Z'
