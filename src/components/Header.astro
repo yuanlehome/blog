@@ -12,6 +12,9 @@ const headerAlign = layoutConfig.alignment.headerAlign;
 const justifyClass = alignToJustifyClass(headerAlign);
 const itemsClass = alignToItemsClass(headerAlign);
 
+// Get current path for active link highlighting
+const currentPath = Astro.url.pathname;
+
 // Helper to construct menu item URLs
 function getMenuItemUrl(item: { isExternal: boolean; href: string }): string {
   if (item.isExternal) {
@@ -20,6 +23,21 @@ function getMenuItemUrl(item: { isExternal: boolean; href: string }): string {
   // Remove leading slash from href and append to BASE
   const path = item.href.startsWith('/') ? item.href.slice(1) : item.href;
   return `${BASE}${path}`;
+}
+
+// Helper to check if a menu item is active
+function isMenuItemActive(item: { href: string; isExternal: boolean }): boolean {
+  if (item.isExternal) return false;
+
+  const itemPath = getMenuItemUrl(item);
+  const normalizedCurrent = currentPath.endsWith('/') ? currentPath : `${currentPath}/`;
+  const normalizedItem = itemPath.endsWith('/') ? itemPath : `${itemPath}/`;
+
+  // Exact match or path starts with menu item (for tags/[slug])
+  return (
+    normalizedCurrent === normalizedItem ||
+    (item.href.startsWith('/tags') && normalizedCurrent.startsWith(normalizedItem))
+  );
 }
 ---
 
@@ -32,16 +50,20 @@ function getMenuItemUrl(item: { isExternal: boolean; href: string }): string {
     >
     <nav class={`flex ${itemsClass} gap-3 items-center`}>
       {
-        navConfig.header.menuItems.map((item) => (
-          <a
-            href={getMenuItemUrl(item)}
-            class="hover:underline inline-flex items-center"
-            target={item.openInNewTab ? '_blank' : undefined}
-            rel={item.openInNewTab ? 'noopener noreferrer' : undefined}
-          >
-            {item.label}
-          </a>
-        ))
+        navConfig.header.menuItems.map((item) => {
+          const isActive = isMenuItemActive(item);
+          return (
+            <a
+              href={getMenuItemUrl(item)}
+              class={`hover:underline inline-flex items-center ${isActive ? 'text-sky-600 dark:text-sky-400 font-semibold' : ''}`}
+              target={item.openInNewTab ? '_blank' : undefined}
+              rel={item.openInNewTab ? 'noopener noreferrer' : undefined}
+              aria-current={isActive ? 'page' : undefined}
+            >
+              {item.label}
+            </a>
+          );
+        })
       }
       {
         navConfig.theme.enableToggle && (

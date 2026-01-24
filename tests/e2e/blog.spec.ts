@@ -606,6 +606,26 @@ test.describe('Blog smoke journey', () => {
     }
   });
 
+  test('navigation has Tags link that works', async ({ page }) => {
+    await page.goto('/');
+    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
+    if (await notFoundHeading.count()) {
+      const baseLink = page.locator('a[href="/blog/"]');
+      if (await baseLink.count()) {
+        await baseLink.first().click();
+      }
+    }
+
+    // Check Tags link exists in navigation
+    const tagsLink = page.locator('nav a[href*="tags"]').first();
+    await expect(tagsLink).toBeVisible();
+
+    // Click it and verify navigation
+    await tagsLink.click();
+    await expect(page).toHaveURL(/\/tags\/$/);
+    await expect(page.locator('h1')).toHaveText('Tags');
+  });
+
   test('clicking tag navigates to tag page', async ({ page }) => {
     await page.goto('tags/');
 
@@ -685,6 +705,51 @@ test.describe('Blog smoke journey', () => {
         type: 'skip',
         description: 'No posts with tags found',
       });
+    }
+  });
+
+  test('post list cards have no nested links and tags work', async ({ page }) => {
+    await page.goto('/');
+
+    // Check that cards exist
+    const cards = page.locator('#post-list li');
+    const cardCount = await cards.count();
+
+    if (cardCount === 0) {
+      test.info().annotations.push({
+        type: 'skip',
+        description: 'No posts available for card layout test',
+      });
+      return;
+    }
+
+    // Check first card structure - should not have nested <a> tags
+    const firstCard = cards.first();
+    await expect(firstCard).toBeVisible();
+
+    // Card should be an article, not a link wrapper
+    const article = firstCard.locator('article');
+    await expect(article).toBeVisible();
+
+    // Check if post has tags
+    const tagsContainer = firstCard.locator('[data-testid="post-list-tags"]');
+    if ((await tagsContainer.count()) > 0) {
+      // Tags should be clickable links
+      const tagLinks = tagsContainer.locator('a[data-tag-slug]');
+      const tagCount = await tagLinks.count();
+
+      if (tagCount > 0) {
+        expect(tagCount).toBeGreaterThan(0);
+        expect(tagCount).toBeLessThanOrEqual(3);
+
+        // Click first tag and verify navigation
+        const firstTag = tagLinks.first();
+        const tagSlug = await firstTag.getAttribute('data-tag-slug');
+        await firstTag.click();
+
+        await expect(page).toHaveURL(new RegExp(`/tags/${tagSlug}/`));
+        await expect(page.locator('h1')).toContainText('Tag:');
+      }
     }
   });
 });

@@ -65,7 +65,7 @@ export function slugifyTag(tagName: string): string {
 /**
  * Build tag index from posts
  *
- * Aggregates all tags, counts posts per tag, and generates unique slugs.
+ * Aggregates all tags from post frontmatter only. Does not auto-generate tags.
  * Handles disambiguation for tags that generate the same slug.
  *
  * @param posts - Array of blog posts
@@ -78,17 +78,17 @@ export function slugifyTag(tagName: string): string {
  */
 export function buildTagIndex(posts: CollectionEntry<'blog'>[]) {
   // Group posts by tag name
+  // Tags ONLY come from post.data.tags frontmatter field - no auto-generation
   const tagPostsMap = new Map<string, CollectionEntry<'blog'>[]>();
 
   posts.forEach((post) => {
-    const tags = post.data.tags || [];
-    tags.forEach((tagName) => {
-      const trimmed = tagName.trim();
-      if (!trimmed) return;
+    // Only use tags from frontmatter, filter out empty/invalid tags
+    const tags = (post.data.tags || []).map((tag) => tag.trim()).filter((tag) => tag.length > 0);
 
-      const existing = tagPostsMap.get(trimmed) || [];
+    tags.forEach((tagName) => {
+      const existing = tagPostsMap.get(tagName) || [];
       existing.push(post);
-      tagPostsMap.set(trimmed, existing);
+      tagPostsMap.set(tagName, existing);
     });
   });
 
