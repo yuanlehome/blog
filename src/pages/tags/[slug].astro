@@ -46,20 +46,6 @@ const description = `包含 ${name} 标签的文章列表，共 ${posts.length} 
       <p class="text-zinc-600 dark:text-zinc-400">共 {posts.length} 篇文章</p>
     </div>
 
-    {
-      posts.length > 0 && (
-        <div class="mb-6">
-          <input
-            type="search"
-            placeholder="在该标签下搜索文章..."
-            class="w-full sm:w-96 px-4 py-2 rounded-lg border border-zinc-300 bg-white text-zinc-900 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-400"
-            id="post-search"
-            data-testid="post-search"
-          />
-        </div>
-      )
-    }
-
     <div id="posts-container">
       {
         posts.length > 0 ? (
