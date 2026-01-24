@@ -40,7 +40,7 @@ npm run delete:article -- --target=<slug>  # 删除文章
 npm run check            # Astro/TypeScript 类型检查
 npm run lint             # Prettier + Markdownlint
 npm run test             # Vitest 单元测试
-npm run test:e2e         # Playwright 端到端测试
+npm run test:e2e         # Playwright 端到端测试（首次运行需先安装浏览器：npx playwright install chromium）
 
 # 构建与预览
 npm run build            # 构建静态站点
