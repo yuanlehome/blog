@@ -752,4 +752,41 @@ test.describe('Blog smoke journey', () => {
       }
     }
   });
+
+  test('tag chips are fully clickable including padding area', async ({ page }) => {
+    await page.goto('/');
+
+    // Find a post with tags
+    const tagsContainer = page.locator('[data-testid="post-list-tags"]').first();
+    if ((await tagsContainer.count()) === 0) {
+      test.info().annotations.push({
+        type: 'skip',
+        description: 'No posts with tags found for clickability test',
+      });
+      return;
+    }
+
+    const firstTag = tagsContainer.locator('a[data-tag-slug]').first();
+    await expect(firstTag).toBeVisible();
+
+    // Get the bounding box to test clicking on padding area
+    const box = await firstTag.boundingBox();
+    if (!box) {
+      test.info().annotations.push({
+        type: 'skip',
+        description: 'Could not get bounding box for tag chip',
+      });
+      return;
+    }
+
+    const tagSlug = await firstTag.getAttribute('data-tag-slug');
+
+    // Click on the left padding area (not on text)
+    // Click at 25% from left edge which should be in padding
+    await page.mouse.click(box.x + box.width * 0.25, box.y + box.height / 2);
+
+    // Verify navigation happened
+    await expect(page).toHaveURL(new RegExp(`/tags/${tagSlug}/`));
+    await expect(page.locator('h1')).toContainText('Tag:');
+  });
 });

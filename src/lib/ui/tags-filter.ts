@@ -22,15 +22,15 @@
         (tag) => `
         <a
           href="${base}/tags/${tag.slug}/"
-          class="tag-chip inline-flex items-center gap-1.5 rounded-full border transition-colors duration-200 font-medium text-sm px-3 py-1.5 
+          class="tag-chip inline-flex items-center gap-1.5 rounded-full border transition-colors duration-200 font-medium text-sm px-3 py-1.5 cursor-pointer
             border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 hover:border-sky-300 
             dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300 dark:hover:bg-sky-900 dark:hover:border-sky-700
             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900"
           data-tag-slug="${tag.slug}"
           data-testid="tag-${tag.slug}"
         >
-          <span class="tag-name">${tag.name}</span>
-          <span class="tag-count inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[0.7rem] font-semibold bg-sky-200/50 text-sky-800 dark:bg-sky-800/50 dark:text-sky-200">
+          <span class="tag-name pointer-events-none">${tag.name}</span>
+          <span class="tag-count inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[0.7rem] font-semibold bg-sky-200/50 text-sky-800 dark:bg-sky-800/50 dark:text-sky-200 pointer-events-none">
             ${tag.count}
           </span>
         </a>
