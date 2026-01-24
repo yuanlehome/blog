@@ -2,19 +2,41 @@
 import { getReadingTime } from '../lib/content/readingTime';
 import { resolveAssetUrl } from '../lib/site/assetUrl';
 import { formatDate } from '../lib/content/dates';
-import { buildPostUrl } from '../lib/slug';
+import { buildPostUrl, normalizeBase } from '../lib/slug';
+import { buildTagIndex } from '../lib/content/tags';
+import { getPublishedPosts } from '../lib/content/posts';
 import type { CollectionEntry } from 'astro:content';
 
 interface Props {
   posts: CollectionEntry<'blog'>[];
 }
 
+const BASE = normalizeBase(import.meta.env.BASE_URL);
 const { posts } = Astro.props;
-const enriched = posts.map((post) => ({
-  ...post,
-  stats: getReadingTime(post.body),
-  hasCover: Boolean(post.data.cover),
-}));
+
+// Build tag index to get slugs
+const allPosts = await getPublishedPosts();
+const { tagMap } = buildTagIndex(allPosts);
+
+const enriched = posts.map((post) => {
+  const postTags = (post.data.tags || []).slice(0, 3); // Max 3 tags
+  const remainingCount = (post.data.tags || []).length - 3;
+
+  const tagSlugs = postTags
+    .map((tagName) => {
+      const entry = Object.entries(tagMap).find(([_, data]) => data.name === tagName);
+      return entry ? { name: tagName, slug: entry[0] } : null;
+    })
+    .filter(Boolean) as { name: string; slug: string }[];
+
+  return {
+    ...post,
+    stats: getReadingTime(post.body),
+    hasCover: Boolean(post.data.cover),
+    tagSlugs,
+    remainingTagCount: remainingCount > 0 ? remainingCount : 0,
+  };
+});
 ---
 
 <ul class="grid gap-6" id="post-list">
@@ -48,6 +70,27 @@ const enriched = posts.map((post) => ({
                     ⏱️ {post.stats.text}
                   </span>
                 </div>
+                {post.tagSlugs.length > 0 && (
+                  <div class="flex flex-wrap gap-1.5 items-center" data-testid="post-list-tags">
+                    {post.tagSlugs.map((tag) => (
+                      <a
+                        href={`${BASE}tags/${tag.slug}/`}
+                        class="inline-flex items-center gap-1 rounded-full border text-xs px-2 py-0.5 transition-colors duration-200 font-medium
+                          border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 hover:border-sky-300 
+                          dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300 dark:hover:bg-sky-900 dark:hover:border-sky-700
+                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                        data-tag-slug={tag.slug}
+                      >
+                        {tag.name}
+                      </a>
+                    ))}
+                    {post.remainingTagCount > 0 && (
+                      <span class="text-xs text-zinc-500 dark:text-zinc-400 font-medium">
+                        +{post.remainingTagCount}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

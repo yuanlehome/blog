@@ -1,0 +1,90 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import PostList from '../../components/PostList.astro';
+import { getPublishedPosts } from '../../lib/content/posts';
+import { buildTagIndex, getPostsByTagSlug } from '../../lib/content/tags';
+import { getSiteConfig } from '../../config/loaders';
+import { normalizeBase } from '../../lib/slug';
+
+export async function getStaticPaths() {
+  const posts = await getPublishedPosts();
+  const { tagMap } = buildTagIndex(posts);
+
+  return Object.entries(tagMap).map(([slug, data]) => ({
+    params: { slug },
+    props: { tag: data },
+  }));
+}
+
+const BASE = normalizeBase(import.meta.env.BASE_URL);
+const siteConfig = getSiteConfig();
+const { tag } = Astro.props;
+const { name, slug, posts } = tag;
+
+const title = `${name} | Tags | ${siteConfig.title}`;
+const description = `包含 ${name} 标签的文章列表，共 ${posts.length} 篇`;
+---
+
+<Layout title={title} description={description}>
+  <Header />
+  <main class="container mx-auto px-4 py-8 max-w-4xl">
+    <div class="mb-8">
+      <div class="flex items-center gap-3 mb-4">
+        <a
+          href={`${BASE}tags/`}
+          class="text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 transition-colors flex items-center gap-1"
+          data-testid="back-to-tags"
+        >
+          <span aria-hidden="true">←</span>
+          <span>所有标签</span>
+        </a>
+      </div>
+
+      <h1 class="text-4xl font-bold mb-2">Tag: {name}</h1>
+      <p class="text-zinc-600 dark:text-zinc-400">共 {posts.length} 篇文章</p>
+    </div>
+
+    {
+      posts.length > 0 && (
+        <div class="mb-6">
+          <input
+            type="search"
+            placeholder="在该标签下搜索文章..."
+            class="w-full sm:w-96 px-4 py-2 rounded-lg border border-zinc-300 bg-white text-zinc-900 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-400"
+            id="post-search"
+            data-testid="post-search"
+          />
+        </div>
+      )
+    }
+
+    <div id="posts-container">
+      {
+        posts.length > 0 ? (
+          <PostList posts={posts} />
+        ) : (
+          <p class="text-zinc-500">该标签下暂无文章</p>
+        )
+      }
+    </div>
+
+    {
+      posts.length > 0 && (
+        <script
+          id="posts-data"
+          type="application/json"
+          set:html={JSON.stringify(
+            posts.map((p) => ({
+              slug: p.slug,
+              title: p.data.title,
+            })),
+          )}
+        />
+      )
+    }
+  </main>
+  <Footer />
+  <script src="../../lib/ui/tag-posts-filter.ts"></script>
+</Layout>
