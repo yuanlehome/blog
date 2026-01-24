@@ -32,7 +32,6 @@ describe('Site Configuration', () => {
       expect(typeof config.author).toBe('string');
       expect(typeof config.copyrightYear).toBe('number');
       expect(typeof config.copyrightText).toBe('string');
-      expect(typeof config.enableRSS).toBe('boolean');
       expect(typeof config.enableSitemap).toBe('boolean');
     });
   });
@@ -57,7 +56,6 @@ describe('Site Configuration', () => {
         copyrightText: 'All rights reserved.',
         defaultLanguage: 'en',
         dateFormat: 'YYYY-MM-DD',
-        enableRSS: true,
         enableSitemap: true,
         socialImage: 'test.jpg',
       };
@@ -78,7 +76,6 @@ describe('Site Configuration', () => {
 
       expect(result.copyrightYear).toBeDefined();
       expect(result.copyrightText).toBe('All rights reserved.');
-      expect(result.enableRSS).toBe(true);
       expect(result.enableSitemap).toBe(true);
     });
 
@@ -102,7 +99,6 @@ describe('Site Configuration', () => {
       expect(defaultSiteConfig.copyrightText).toBeDefined();
       expect(defaultSiteConfig.defaultLanguage).toBeDefined();
       expect(defaultSiteConfig.dateFormat).toBeDefined();
-      expect(defaultSiteConfig.enableRSS).toBeDefined();
       expect(defaultSiteConfig.enableSitemap).toBeDefined();
       expect(defaultSiteConfig.socialImage).toBeDefined();
     });

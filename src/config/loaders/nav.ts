@@ -63,7 +63,6 @@ export const defaultNavConfig: NavConfig = {
       { label: 'Home', href: '/', isExternal: false },
       { label: 'Archive', href: '/archive/', isExternal: false },
       { label: 'About', href: '/about/', isExternal: false },
-      { label: 'RSS', href: '/rss.xml', isExternal: false },
     ],
   },
   theme: {

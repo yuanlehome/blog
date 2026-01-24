@@ -45,7 +45,7 @@
 2. `smoke-test` job（依赖 validate）：
    - 启动静态服务器
    - 访问首页、文章页
-   - 验证 RSS、Sitemap
+   - 验证 Sitemap
    - 断言内容正确性
 
 **权限**：`contents: read`
@@ -167,7 +167,7 @@
 **执行内容**：
 
 1. 等待 GitHub Pages 部署生效
-2. 访问首页、文章页、RSS、Sitemap
+2. 访问首页、文章页、Sitemap
 3. 验证响应状态和内容
 
 **权限**：`contents: read`
