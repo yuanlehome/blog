@@ -42,7 +42,6 @@ src/config/yaml/
 | `copyrightText`   | string  | "All rights reserved." | 版权文本        |
 | `defaultLanguage` | string  | "en"                   | 默认语言        |
 | `dateFormat`      | string  | "YYYY-MM-DD"           | 日期格式        |
-| `enableRSS`       | boolean | true                   | 启用 RSS        |
 | `enableSitemap`   | boolean | true                   | 启用站点地图    |
 
 ### 2.2 导航配置（`nav.yml`）

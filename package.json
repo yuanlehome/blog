@@ -28,7 +28,6 @@
   "type": "module",
   "dependencies": {
     "@astrojs/check": "^0.9.6",
-    "@astrojs/rss": "^4.0.14",
     "@astrojs/sitemap": "^3.6.0",
     "@astrojs/tailwind": "^6.0.2",
     "@notionhq/client": "^2.2.15",

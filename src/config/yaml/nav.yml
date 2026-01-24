@@ -19,9 +19,6 @@ header:
     - label: 'About'
       href: '/about/'
       isExternal: false
-    - label: 'RSS'
-      href: '/rss.xml'
-      isExternal: false
 
 # Theme toggle settings
 theme:

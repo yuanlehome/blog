@@ -16,7 +16,6 @@ defaultLanguage: 'en'
 dateFormat: 'YYYY-MM-DD'
 
 # SEO and feeds
-enableRSS: true
 enableSitemap: true
 
 # Social meta defaults

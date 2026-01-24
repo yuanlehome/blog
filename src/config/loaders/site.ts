@@ -26,7 +26,6 @@ export const siteConfigSchema = z.object({
   defaultLanguage: z.string().default('en'),
   dateFormat: z.string().default('YYYY-MM-DD'),
 
-  enableRSS: z.boolean().default(true),
   enableSitemap: z.boolean().default(true),
 
   socialImage: z.string().default('placeholder-social.jpg'),
@@ -46,7 +45,6 @@ export const defaultSiteConfig: SiteConfig = {
   copyrightText: 'All rights reserved.',
   defaultLanguage: 'en',
   dateFormat: 'YYYY-MM-DD',
-  enableRSS: true,
   enableSitemap: true,
   socialImage: 'placeholder-social.jpg',
 };
