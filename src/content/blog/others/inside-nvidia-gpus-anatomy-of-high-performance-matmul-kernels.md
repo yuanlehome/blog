@@ -2,7 +2,7 @@
 title: 'Inside NVIDIA GPUs: Anatomy of high performance matmul kernels'
 slug: inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels
 date: '2025-12-29'
-tags: []
+tags: ['GPU', 'CUDA', 'Performance']
 status: published
 source_url: 'https://www.aleksagordic.com/blog/matmul'
 source_author: www.aleksagordic.com

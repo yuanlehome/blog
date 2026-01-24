@@ -13,6 +13,9 @@ header:
     - label: 'Archive'
       href: '/archive/'
       isExternal: false
+    - label: 'Tags'
+      href: '/tags/'
+      isExternal: false
     - label: 'About'
       href: '/about/'
       isExternal: false

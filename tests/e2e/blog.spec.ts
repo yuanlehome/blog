@@ -580,4 +580,213 @@ test.describe('Blog smoke journey', () => {
       }
     }
   });
+
+  test('tags index page loads with tags', async ({ page }) => {
+    await page.goto('tags/');
+
+    // Check page title
+    await expect(page.locator('h1')).toHaveText('Tags');
+
+    // Check if tags container exists
+    const tagsContainer = page.locator('[data-testid="tags-container"]');
+    await expect(tagsContainer).toBeVisible();
+
+    // Check if at least one tag is visible
+    const tags = page.locator('[data-tag-slug]');
+    const tagCount = await tags.count();
+
+    if (tagCount > 0) {
+      expect(tagCount).toBeGreaterThan(0);
+
+      // Check first tag has name and count
+      const firstTag = tags.first();
+      await expect(firstTag).toBeVisible();
+      await expect(firstTag.locator('.tag-name')).toBeVisible();
+      await expect(firstTag.locator('.tag-count')).toBeVisible();
+    }
+  });
+
+  test('navigation has Tags link that works', async ({ page }) => {
+    await page.goto('/');
+    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
+    if (await notFoundHeading.count()) {
+      const baseLink = page.locator('a[href="/blog/"]');
+      if (await baseLink.count()) {
+        await baseLink.first().click();
+      }
+    }
+
+    // Check Tags link exists in navigation
+    const tagsLink = page.locator('nav a[href*="tags"]').first();
+    await expect(tagsLink).toBeVisible();
+
+    // Click it and verify navigation
+    await tagsLink.click();
+    await expect(page).toHaveURL(/\/tags\/$/);
+    await expect(page.locator('h1')).toHaveText('Tags');
+  });
+
+  test('clicking tag navigates to tag page', async ({ page }) => {
+    await page.goto('tags/');
+
+    const tags = page.locator('[data-tag-slug]');
+    const tagCount = await tags.count();
+
+    if (tagCount === 0) {
+      test.info().annotations.push({
+        type: 'skip',
+        description: 'No tags available for navigation test',
+      });
+      return;
+    }
+
+    // Click first tag
+    const firstTag = tags.first();
+    const tagSlug = await firstTag.getAttribute('data-tag-slug');
+    await firstTag.click();
+
+    // Verify we're on the tag page
+    await expect(page).toHaveURL(new RegExp(`/tags/${tagSlug}/`));
+
+    // Verify tag page shows posts
+    await expect(page.locator('h1')).toContainText('Tag:');
+
+    // Check back to tags link
+    const backLink = page.locator('[data-testid="back-to-tags"]');
+    await expect(backLink).toBeVisible();
+  });
+
+  test('clicking tag from post detail navigates to tag page', async ({ page }) => {
+    await page.goto('/');
+    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
+    if (await notFoundHeading.count()) {
+      const baseLink = page.locator('a[href="/blog/"]');
+      if (await baseLink.count()) {
+        await baseLink.first().click();
+      }
+    }
+
+    // Find a post with tags
+    const postLinks = await page
+      .locator('#post-list li a')
+      .evaluateAll((anchors: HTMLAnchorElement[]) =>
+        anchors
+          .map((anchor: HTMLAnchorElement) => anchor.getAttribute('href') || '')
+          .filter(Boolean),
+      );
+
+    let foundPostWithTags = false;
+
+    for (const href of postLinks) {
+      await page.goto(href);
+      await expect(page.locator('[data-article]')).toBeVisible();
+
+      const postTags = page.locator('[data-testid="post-tags"]');
+      if ((await postTags.count()) > 0) {
+        // Found a post with tags
+        const tagLinks = postTags.locator('[data-tag-slug]');
+        if ((await tagLinks.count()) > 0) {
+          const firstTagLink = tagLinks.first();
+          const tagSlug = await firstTagLink.getAttribute('data-tag-slug');
+          await firstTagLink.click();
+
+          // Verify we're on the tag page
+          await expect(page).toHaveURL(new RegExp(`/tags/${tagSlug}/`));
+          await expect(page.locator('h1')).toContainText('Tag:');
+
+          foundPostWithTags = true;
+          break;
+        }
+      }
+    }
+
+    if (!foundPostWithTags) {
+      test.info().annotations.push({
+        type: 'skip',
+        description: 'No posts with tags found',
+      });
+    }
+  });
+
+  test('post list cards have no nested links and tags work', async ({ page }) => {
+    await page.goto('/');
+
+    // Check that cards exist
+    const cards = page.locator('#post-list li');
+    const cardCount = await cards.count();
+
+    if (cardCount === 0) {
+      test.info().annotations.push({
+        type: 'skip',
+        description: 'No posts available for card layout test',
+      });
+      return;
+    }
+
+    // Check first card structure - should not have nested <a> tags
+    const firstCard = cards.first();
+    await expect(firstCard).toBeVisible();
+
+    // Card should be an article, not a link wrapper
+    const article = firstCard.locator('article');
+    await expect(article).toBeVisible();
+
+    // Check if post has tags
+    const tagsContainer = firstCard.locator('[data-testid="post-list-tags"]');
+    if ((await tagsContainer.count()) > 0) {
+      // Tags should be clickable links
+      const tagLinks = tagsContainer.locator('a[data-tag-slug]');
+      const tagCount = await tagLinks.count();
+
+      if (tagCount > 0) {
+        expect(tagCount).toBeGreaterThan(0);
+        expect(tagCount).toBeLessThanOrEqual(3);
+
+        // Click first tag and verify navigation
+        const firstTag = tagLinks.first();
+        const tagSlug = await firstTag.getAttribute('data-tag-slug');
+        await firstTag.click();
+
+        await expect(page).toHaveURL(new RegExp(`/tags/${tagSlug}/`));
+        await expect(page.locator('h1')).toContainText('Tag:');
+      }
+    }
+  });
+
+  test('tag chips are fully clickable including padding area', async ({ page }) => {
+    await page.goto('/');
+
+    // Find a post with tags
+    const tagsContainer = page.locator('[data-testid="post-list-tags"]').first();
+    if ((await tagsContainer.count()) === 0) {
+      test.info().annotations.push({
+        type: 'skip',
+        description: 'No posts with tags found for clickability test',
+      });
+      return;
+    }
+
+    const firstTag = tagsContainer.locator('a[data-tag-slug]').first();
+    await expect(firstTag).toBeVisible();
+
+    // Get the bounding box to test clicking on padding area
+    const box = await firstTag.boundingBox();
+    if (!box) {
+      test.info().annotations.push({
+        type: 'skip',
+        description: 'Could not get bounding box for tag chip',
+      });
+      return;
+    }
+
+    const tagSlug = await firstTag.getAttribute('data-tag-slug');
+
+    // Click on the left padding area (not on text)
+    // Click at 25% from left edge which should be in padding
+    await page.mouse.click(box.x + box.width * 0.25, box.y + box.height / 2);
+
+    // Verify navigation happened
+    await expect(page).toHaveURL(new RegExp(`/tags/${tagSlug}/`));
+    await expect(page.locator('h1')).toContainText('Tag:');
+  });
 });

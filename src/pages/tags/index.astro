@@ -1,0 +1,82 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import Tag from '../../components/Tag.astro';
+import { getPublishedPosts } from '../../lib/content/posts';
+import { buildTagIndex, sortTags } from '../../lib/content/tags';
+import { getSiteConfig } from '../../config/loaders';
+
+const siteConfig = getSiteConfig();
+const posts = await getPublishedPosts();
+const { allTags } = buildTagIndex(posts);
+
+const title = `Tags | ${siteConfig.title}`;
+const description = `Browse all tags on ${siteConfig.title}. Explore articles by topic.`;
+---
+
+<Layout title={title} description={description}>
+  <Header />
+  <main class="container mx-auto px-4 py-8 max-w-4xl">
+    <div class="mb-8">
+      <h1 class="text-4xl font-bold mb-4">Tags</h1>
+      <p class="text-zinc-600 dark:text-zinc-400">
+        {allTags.length === 0 ? '暂无标签' : `共 ${allTags.length} 个标签`}
+      </p>
+    </div>
+
+    {
+      allTags.length > 0 && (
+        <>
+          <div class="mb-6">
+            <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-4">
+              <input
+                type="search"
+                placeholder="搜索标签..."
+                class="w-full sm:w-64 px-4 py-2 rounded-lg border border-zinc-300 bg-white text-zinc-900 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-400"
+                id="tag-search"
+                data-testid="tag-search"
+              />
+              <select
+                class="px-4 py-2 rounded-lg border border-zinc-300 bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                id="tag-sort"
+                data-testid="tag-sort"
+              >
+                <option value="count">按数量排序</option>
+                <option value="name">按字母排序</option>
+                <option value="recent">按最近使用</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap gap-3" id="tags-container" data-testid="tags-container">
+            {allTags.map((tag) => (
+              <Tag
+                name={tag.name}
+                slug={tag.slug}
+                count={tag.count}
+                size="md"
+                variant="count-badge"
+              />
+            ))}
+          </div>
+
+          <script
+            id="tags-data"
+            type="application/json"
+            set:html={JSON.stringify(
+              allTags.map((t) => ({
+                name: t.name,
+                slug: t.slug,
+                count: t.count,
+                latestDate: t.latestDate.toISOString(),
+              })),
+            )}
+          />
+        </>
+      )
+    }
+  </main>
+  <Footer />
+  <script src="../../lib/ui/tags-filter.ts"></script>
+</Layout>

@@ -15,6 +15,8 @@ import FloatingActionStack from '../components/FloatingActionStack.astro';
 import { getDisplayDates } from '../lib/content/dates';
 import { getLayoutConfig } from '../config/loaders';
 import { alignToTextClass, alignToJustifyClass, alignToItemsClass } from '../lib/ui/alignment';
+import Tag from '../components/Tag.astro';
+import { buildTagIndex } from '../lib/content/tags';
 
 export async function getStaticPaths() {
   const posts = await getPublishedPosts();
@@ -34,6 +36,15 @@ const related = findRelated(all, post);
 const commentsEnabled = post.data.comments ?? true;
 const dates = getDisplayDates(post.data);
 const hasCover = Boolean(post.data.cover);
+const postTags = post.data.tags || [];
+const { tagMap } = buildTagIndex(all);
+const tagSlugs = postTags
+  .map((tagName) => {
+    // Find the slug for this tag name
+    const entry = Object.entries(tagMap).find(([_, data]) => data.name === tagName);
+    return entry ? { name: tagName, slug: entry[0] } : null;
+  })
+  .filter(Boolean) as { name: string; slug: string }[];
 
 // Get post meta alignment from config
 const layoutConfig = getLayoutConfig();
@@ -108,6 +119,20 @@ const metaJustifyClass = alignToJustifyClass(postMetaAlign);
                   {stats.text}
                 </div>
               </div>
+
+              {
+                tagSlugs.length > 0 && (
+                  <div class="flex flex-wrap gap-2 items-center" data-testid="post-tags">
+                    <span class="text-zinc-500 text-sm flex items-center gap-1">
+                      <span aria-hidden="true">🏷️</span>
+                      <span>标签：</span>
+                    </span>
+                    {tagSlugs.map((tag) => (
+                      <Tag name={tag.name} slug={tag.slug} size="sm" />
+                    ))}
+                  </div>
+                )
+              }
             </div>
 
             {
