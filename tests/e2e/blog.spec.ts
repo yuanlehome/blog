@@ -29,7 +29,7 @@ const openFirstPostWithToc = async (page: any) => {
   }
 
   const postLinks = await page
-    .locator('#post-list li a')
+    .locator('#post-list li h3 a')
     .evaluateAll((anchors: HTMLAnchorElement[]) =>
       anchors.map((anchor: HTMLAnchorElement) => anchor.getAttribute('href') || '').filter(Boolean),
     );
@@ -57,7 +57,7 @@ const openFirstPostWithoutToc = async (page: any) => {
   }
 
   const postLinks = await page
-    .locator('#post-list li a')
+    .locator('#post-list li h3 a')
     .evaluateAll((anchors: HTMLAnchorElement[]) =>
       anchors.map((anchor: HTMLAnchorElement) => anchor.getAttribute('href') || '').filter(Boolean),
     );
