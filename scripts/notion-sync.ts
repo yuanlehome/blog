@@ -340,7 +340,7 @@ export async function sync() {
         }
 
         const date = props.date?.date?.start || new Date().toISOString().split('T')[0];
-        const tags = props.tags?.multi_select?.map((t: any) => t.name) || [];
+        const tags = props.tags?.multi_select?.map((t: any) => t.name?.trim?.() ?? '').filter(Boolean) || [];
 
         let cover = '';
         const pageCoverUrl =
