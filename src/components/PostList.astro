@@ -15,6 +15,9 @@ const BASE = normalizeBase(import.meta.env.BASE_URL);
 const { posts } = Astro.props;
 
 // Build tag index to get slugs
+// Note: This builds the tag index for each PostList render. For better performance,
+// consider passing tagMap as a prop if this component is rendered frequently.
+// Current usage (once per page) makes this acceptable trade-off.
 const allPosts = await getPublishedPosts();
 const { tagMap } = buildTagIndex(allPosts);
 

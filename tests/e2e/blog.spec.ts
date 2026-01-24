@@ -582,7 +582,7 @@ test.describe('Blog smoke journey', () => {
   });
 
   test('tags index page loads with tags', async ({ page }) => {
-    await page.goto('/tags/');
+    await page.goto('tags/');
 
     // Check page title
     await expect(page.locator('h1')).toHaveText('Tags');
@@ -607,7 +607,7 @@ test.describe('Blog smoke journey', () => {
   });
 
   test('clicking tag navigates to tag page', async ({ page }) => {
-    await page.goto('/tags/');
+    await page.goto('tags/');
 
     const tags = page.locator('[data-tag-slug]');
     const tagCount = await tags.count();

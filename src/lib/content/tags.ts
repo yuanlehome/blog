@@ -41,7 +41,7 @@ export interface TagMap {
  * @example
  * slugifyTag('AI Infra') // 'ai-infra'
  * slugifyTag('CUDA') // 'cuda'
- * slugifyTag('推理优化/部署') // ''
+ * slugifyTag('推理优化/部署') // '%E6%8E%A8%E7%90%86%E4%BC%98%E5%8C%96-%E9%83%A8%E7%BD%B2'
  * slugifyTag('  Multiple   Spaces  ') // 'multiple-spaces'
  */
 export function slugifyTag(tagName: string): string {
@@ -95,12 +95,12 @@ export function buildTagIndex(posts: CollectionEntry<'blog'>[]) {
   // Generate slugs and handle duplicates
   const slugUsage = new Map<string, string[]>(); // slug -> [tagName1, tagName2, ...]
 
-  tagPostsMap.forEach((_, tagName) => {
+  for (const [tagName] of tagPostsMap.entries()) {
     const slug = slugifyTag(tagName);
     const existing = slugUsage.get(slug) || [];
     existing.push(tagName);
     slugUsage.set(slug, existing);
-  });
+  }
 
   // Create final tag data with unique slugs
   const tagMap: TagMap = {};
