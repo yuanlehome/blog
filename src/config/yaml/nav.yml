@@ -3,7 +3,7 @@
 
 header:
   # Logo/brand text linking to home
-  brandText: "Yuanle Liu's Blog"
+  brandText: 'Yuanle Liu'
 
   # Navigation menu items
   menuItems:
