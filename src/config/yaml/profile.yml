@@ -10,15 +10,15 @@ bio: 'A passionate developer, technical writer, and open source enthusiast build
 socialLinks:
   - name: 'GitHub'
     url: 'https://github.com/yuanlehome'
-    icon: 'github'
     colorClass: 'bg-gray-900 text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100'
+  - name: 'Legacy blog'
+    url: 'https://yuanlehome.github.io/blog_v0/'
+    colorClass: 'bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400'
   - name: 'FastDeploy'
     url: 'https://github.com/PaddlePaddle/FastDeploy'
-    icon: 'fastdeploy'
     colorClass: 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-400'
   - name: 'Paddle'
     url: 'https://github.com/PaddlePaddle/Paddle'
-    icon: 'paddle'
     colorClass: 'bg-sky-600 text-white hover:bg-sky-700 dark:bg-sky-500 dark:hover:bg-sky-400'
 
 # "What I Do" Section
