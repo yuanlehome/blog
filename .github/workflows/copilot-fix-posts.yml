@@ -15,7 +15,7 @@ permissions:
   issues: write
 
 jobs:
-  create_issue_and_assign:
+  create_issue:
     runs-on: ubuntu-latest
     steps:
       - name: Ensure gh is available
@@ -95,15 +95,3 @@ jobs:
           ISSUE_URL="$(gh issue create --repo "${REPO}" --title "${TITLE}" --body-file copilot_issue_body.md)"
           echo "Issue URL: ${ISSUE_URL}"
           echo "ISSUE_URL=${ISSUE_URL}" >> "${GITHUB_ENV}"
-
-      - name: Assign to Copilot
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
-          REPO: ${{ github.repository }}
-        run: |
-          if [ -z "${ISSUE_URL}" ]; then
-            echo "ISSUE_URL is empty" >&2
-            exit 1
-          fi
-          gh issue edit "${ISSUE_URL}" --repo "${REPO}" --add-assignee "@copilot"
-          echo "Assigned ${ISSUE_URL} to @copilot"
