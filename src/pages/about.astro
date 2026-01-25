@@ -34,9 +34,7 @@ const BASE = normalizeBase(import.meta.env.BASE_URL);
         <p class="text-xl text-zinc-600 dark:text-zinc-300 mb-6 max-w-lg mx-auto md:mx-0">
           {profile.bio}
         </p>
-        <div
-          class="grid grid-cols-2 gap-3 sm:grid-cols-4 justify-items-center sm:justify-items-start"
-        >
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {
             profile.socialLinks.map((link) => (
               <a
