@@ -1,141 +1,109 @@
-name: Sync Notion Content
+name: Copilot Fix Imported Posts
 
 on:
-  schedule:
-    - cron: '0 0 * * *' # Daily at midnight UTC
-  workflow_dispatch: # Manual trigger
+  workflow_dispatch:
     inputs:
-      markdown_translate_enabled:
-        description: 'Enable markdown translation'
+      files:
+        description: '要修复的文章路径，逗号分隔（例如 src/content/blog/a.md,src/content/blog/b.md）'
+        required: true
+      issue_title:
+        description: 'Issue 标题'
         required: false
-        type: boolean
-        default: false
-      markdown_translate_provider:
-        description: 'Translation provider to use'
-        required: false
-        type: choice
-        options:
-          - identity
-          - deepseek
-        default: identity
+        default: 'Fix imported translated markdown posts'
 
 permissions:
-  contents: write
-  pull-requests: write
-
-# Prevent concurrent sync runs
-concurrency:
-  group: sync-notion
-  cancel-in-progress: false
+  issues: write
 
 jobs:
-  sync-and-commit:
+  create_issue_and_assign:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Ensure gh is available
+        run: gh --version
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Sync Notion Content
+      - name: Create issue body file
         env:
-          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
-          MARKDOWN_TRANSLATE_ENABLED: ${{ github.event.inputs.markdown_translate_enabled == 'true' && '1' || '0' }}
-          MARKDOWN_TRANSLATE_PROVIDER: ${{ github.event.inputs.markdown_translate_provider || 'identity' }}
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          FILES: ${{ inputs.files }}
+          TITLE: ${{ inputs.issue_title }}
         run: |
-          echo "Translation enabled: $MARKDOWN_TRANSLATE_ENABLED"
-          echo "Translation provider: $MARKDOWN_TRANSLATE_PROVIDER"
-          npm run notion:sync
+          python - <<'PY'
+          import os
 
-      - name: Check for changes
-        id: changes
+          files_raw = os.environ["FILES"].strip()
+          title = os.environ["TITLE"].strip()
+
+          files = [f.strip() for f in files_raw.split(",") if f.strip()]
+          if not files:
+            raise SystemExit("No valid files provided in inputs.files")
+          files_md = "\n".join([f"- `{f}`" for f in files])
+
+          body = f"""
+          你是这个博客仓库的“内容修复机器人 + Markdown/MDX 渲染工程师 + 技术编辑”。
+          请在不改变技术含义前提下，原地修复指定文章的 Markdown 结构、翻译遗漏与渲染问题，并清理非正文的无关内容。
+
+          最终必须保证仓库一次性通过：
+          - `npm run check`
+          - `npm run test`
+          - `npm run test:e2e`
+          - `npm run lint`
+
+          ## 任务范围（只改这些文件）
+          {files_md}
+
+          > 若路径不存在或不是 Markdown/MDX：请在 Issue 评论里报告具体路径与原因，并停止继续修改。
+
+          ## 必须做的事情
+          1) **标题与层级校正**
+          - 整篇仅一个 `#` 主标题；如有 frontmatter `title`，与正文不一致则统一。
+          - `##/###/####` 层级连续不跳级；修复假标题、缺空行等导致目录异常的问题。
+
+          2) **漏翻补翻（中英混杂修复）**
+          - 将遗留英文的自然语言段落/列表项/图注/引用翻译成自然中文。
+          - 不翻译：代码块、命令、日志、API 名称、变量名、路径、配置字段。
+          - 术语一致：首次出现可用“中文（English）”，后续优先中文；专有名词/项目名可保留英文。
+
+          3) **渲染稳定性（Astro/MDX 友好）**
+          - 修复列表缩进、引用块断裂、代码 fence 不闭合、语言标注缺失/错误、段落粘连、图片语法不规范等。
+          - 合理补全 code fence 语言：bash/json/yaml/python/ts/tsx/cpp 等。
+          - 删除页面正文内的子标题导航标签（例如“Table of Contents/目录/页内导航”之类残留块）。
+
+          4) **非正文清理**
+          - 必删：TOC/正文内子标题页内导航/订阅/点赞/分享/关注/捐赠/二维码/页脚导航/转载模板垃圾等。
+          - 可选删：作者 bio/社交链接/重复“原文链接”（保留一个最重要即可）。
+          - 绝不删：技术正文、结论、实验、图表说明、参考（可去重但不能删光）、代码与配置。
+
+          5) **保守润色**
+          - 降低翻译腔但不改变事实含义，不编造来源；保留链接/图片/引用。
+          - 保留技术专业英文术语与表达，不随意改写代码片段与配置示例。
+
+          ## 交付方式
+          - 在 `copilot/` 开头分支提交变更并创建 PR。
+          - PR 描述里按文件列出修复点：标题层级 / 漏翻补翻 / 渲染修复 / 非正文清理。
+          """.strip()
+
+          with open("copilot_issue_body.md", "w", encoding="utf-8") as f:
+            f.write(body + "\n")
+          print(f"Wrote issue body: copilot_issue_body.md (title={title})")
+          PY
+
+      - name: Create issue (capture URL from stdout)
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          REPO: ${{ github.repository }}
+          TITLE: ${{ inputs.issue_title }}
         run: |
-          git add -N src/content/blog/notion/ public/images/notion/
-          if git diff --quiet --exit-code -- src/content/blog/notion/ public/images/notion/; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "No content changes detected."
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            git status --short
+          ISSUE_URL="$(gh issue create --repo "${REPO}" --title "${TITLE}" --body-file copilot_issue_body.md)"
+          echo "Issue URL: ${ISSUE_URL}"
+          echo "ISSUE_URL=${ISSUE_URL}" >> "${GITHUB_ENV}"
+
+      - name: Assign to Copilot
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ -z "${ISSUE_URL}" ]; then
+            echo "ISSUE_URL is empty" >&2
+            exit 1
           fi
-
-      - name: Create Pull Request
-        id: create_pull_request
-        if: steps.changes.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
-          commit-message: 'chore: sync content from Notion'
-          branch: chore/sync-notion-${{ github.run_id }}
-          title: 'chore: sync content from Notion (${{ github.run_id }})'
-          body: |
-            This PR was auto-generated by the Sync Notion Content workflow.
-
-            - Source: ${{ github.workflow }}
-            - Run ID: ${{ github.run_id }}
-            - Timestamp: ${{ github.event.repository.updated_at }}
-          add-paths: |
-            src/content/blog/notion/
-            public/images/notion/
-          delete-branch: true
-
-      - name: Enable auto-merge
-        if: steps.changes.outputs.changed == 'true' && steps.create_pull_request.outputs.pull-request-number != ''
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
-          script: |
-            const prNumber = Number('${{ steps.create_pull_request.outputs.pull-request-number }}');
-            if (!prNumber) {
-              core.setFailed('Pull request number not available for auto-merge.');
-            }
-
-            const { data: pr } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber,
-            });
-
-            const pullRequestId = pr.node_id;
-
-            try {
-              await github.graphql(
-                `mutation($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
-                  enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: $mergeMethod }) {
-                    pullRequest { number autoMergeRequest { enabledAt } }
-                  }
-                }`,
-                {
-                  pullRequestId,
-                  mergeMethod: 'SQUASH',
-                  headers: { Accept: 'application/vnd.github.merge-info-preview+json' },
-                }
-              );
-              core.info(`Auto-merge enabled for PR #${prNumber} with squash.`);
-            } catch (error) {
-              core.warning(`Failed to enable squash auto-merge: ${error.message}`);
-              core.info('Attempting to enable merge-commit auto-merge as fallback.');
-
-              await github.graphql(
-                `mutation($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
-                  enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: $mergeMethod }) {
-                    pullRequest { number autoMergeRequest { enabledAt } }
-                  }
-                }`,
-                {
-                  pullRequestId,
-                  mergeMethod: 'MERGE',
-                  headers: { Accept: 'application/vnd.github.merge-info-preview+json' },
-                }
-              );
-              core.info(`Auto-merge enabled for PR #${prNumber} with merge commit.`);
-            }
+          gh issue edit "${ISSUE_URL}" --repo "${REPO}" --add-assignee "@copilot"
+          echo "Assigned ${ISSUE_URL} to @copilot"
