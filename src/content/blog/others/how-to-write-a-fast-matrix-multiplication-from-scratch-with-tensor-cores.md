@@ -2,7 +2,7 @@
 title: How To Write A Fast Matrix Multiplication From Scratch With Tensor Cores
 slug: how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores
 date: '2024-08-10'
-tags: []
+tags: ['CUDA']
 status: published
 source_url: >-
   https://alexarmbr.github.io/2024/08/10/How-To-Write-A-Fast-Matrix-Multiplication-From-Scratch-With-Tensor-Cores.html
@@ -19,80 +19,6 @@ translatedFrom: en
 ---
 
 # 如何从零开始使用张量核心编写快速矩阵乘法
-
-2024年8月10日
-
-<!-- ---
-layout: post
-title:  "How To Write A Fast Matrix Multiplication From Scratch With NVIDIA Tensor Cores"
-date:   2024-08-10 08:52:08 -0600
-categories: jekyll update
---- -->
-
-- [引言](#introduction)
-
-- [背景](#background)
-  - [内存墙](#the-memory-wall)
-
-  - [屋顶线图](#roofline-charts)
-
-  - [NVIDIA Tesla T4的屋顶线](#rooflines-for-the-nvidia-tesla-t4)
-    - [张量核心 vs. FFMA](#tensor-core-vs-ffma)
-    - [共享内存 vs. L2缓存 vs. 全局内存](#shared-memory-vs-l2-cache-vs-global-memory)
-
-  - [理论算术强度](#theoretical-arithmetic-intensity)
-    - [矩阵乘法 vs 矩阵加法](#matrix-multiplication-vs-matrix-addition)
-
-  - [在简单计算机上可实现的算术强度](#achievable-arithmetic-intensity-on-a-simple-computer)
-    - [最坏情况](#worst-case)
-    - [最佳情况](#best-case)
-    - [实际情况](#realistic-case)
-    - [总结](#in-summary)
-
-  - [GPU上的并行化矩阵乘法](#parallelized-matrix-multiplication-on-a-gpu)
-    - [分层平铺（简单GPU）](#hierarchical-tiling-simple-gpu)
-
-    - [分层平铺（真实GPU）](#hierarchical-tiling-real-gpu)
-
-    - [真实GPU上的性能考量](#performance-considerations-on-a-real-gpu)
-      - [作为平铺维度函数的算术强度](#arithmetic-intensity-as-a-function-of-tile-dimensions)
-      - [计算与数据移动之间的重叠](#overlap-between-compute-and-data-movement)
-      - [最大化内存带宽](#maximizing-memory-bandwidth)
-
-    - [如何使用张量核心](#how-to-use-tensor-cores)
-
-- [内核](#kernels)
-  - [内核1 - 分层平铺](#kernel-1---hierarchical-tiling)
-
-  - [内核2 - 向量化内存复制和循环展开](#kernel-2---vectorized-memory-copy-and-loop-unrolling)
-
-  - [内核3 - 共享内存重排](#kernel-3---shared-memory-swizzling)
-    - [背景：存储体冲突和波前](#background-bank-conflicts-and-wavefronts)
-    - [ldmatrix存储体冲突](#ldmatrix-bank-conflicts)
-    - [填充](#padding)
-    - [重排（玩具示例）](#swizzling-toy-example)
-    - [重排（真实世界）](#swizzling-real-world)
-
-  - [内核4 - 临时异步复制](#kernel-4---makeshift-async-copy)
-    - [GPU占用率（题外话）](#gpu-occupancy-digression)
-
-  - [内核5 - 调整平铺维度](#kernel-5---tune-tile-dimensions)
-    - [调整平铺维度](#tune-tile-dimensions)
-      - [M和N维度 / L2缓存局部性](#m-and-n-dimensions--l2-cache-locality)
-      - [K维度](#k-dimension)
-
-    - [平铺维度 - 更长更薄](#tile-dimensions---longer-and-thinner)
-
-  - [内核5 - 优化索引计算](#kernel-5---optimize-index-calculation)
-
-  - [内核6 - 双缓冲](#kernel-6---double-buffering)
-
-- [结论](#conclusion)
-  - [我未完成的事情](#things-i-didnt-do)
-  - [不同矩阵大小下的性能](#performance-on-different-matrix-sizes)
-  - [经验教训，较新的GPU更好](#lessons-learned-newer-gpus-are-better)
-
-- [资源 / 致谢](#resources--acknowledgements)
 
 # 引言
 
