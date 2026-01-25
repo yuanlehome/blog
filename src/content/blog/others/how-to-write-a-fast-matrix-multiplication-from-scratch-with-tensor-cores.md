@@ -40,7 +40,7 @@ translatedFrom: en
 
 以下是所有内核的性能比较表格：![table6](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/001-ea2647b5.png)
 
-# 背景
+## 背景
 
 ## 内存墙
 
@@ -300,7 +300,7 @@ Tensor core 可通过两种不同方法访问。第一种是通过`wmma` [api](h
 
 我们内核的内循环将包括重复调用`ldmatrix`以将数据从共享内存移动到寄存器内存，然后重复调用`m16n8k8`变体以使用 tensor core 将块相乘。对于此项目，我使用了 Turing 架构 GPU，在 Ampere 上 tensor core API 非常相似，但支持更多矩阵形状。在 Hopper 上，API 大幅扩展，引入了 PTX 指令，允许 128 个线程组异步执行比`mma.sync`大得多的矩阵乘法。`m16n8k8`。
 
-# 内核
+## 内核
 
 在本文的其余部分，我将讨论一系列内核，这些内核使我在 8192x8192 矩阵的 tensor core GEMM 上达到了约 96% 的 cuBLAS 性能水平。每个内核都建立在前一个的基础上，每个的主题是：
 
@@ -713,7 +713,7 @@ The optimized index calcuation, loop unrolling, and adjusted tile dimensions are
 
 ![table_6](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/001-ea2647b5.png)
 
-# 结论
+## 结论
 
 ## 我没有做的事情
 
@@ -740,7 +740,7 @@ The optimized index calcuation, loop unrolling, and adjusted tile dimensions are
 
 这一切都说明，这里讨论的内核针对的是Turing架构，该架构在2018年是最先进的，如果你正在编写针对Ampere或Hopper的内核，你用于隐藏延迟的技术将不同且更容易。我使用Tesla T4 GPU是因为你可以在AWS上以约50美分/小时的价格租用它们，这大约是我愿意在EC2实例上花费的金额。使用较旧的GPU对这个项目来说既是福也是祸，祸在于没有专用硬件支持来隐藏计算索引时的内存延迟，福在于我必须自己完成所有这些工作，这是一次教育经历！
 
-# 资源 / 致谢
+## 资源 / 致谢
 
 大多数这些资源已在本文章的各种地方链接过，但我想将它们全部放在一个地方。这些是一些教育和启发我的资源，没有特定顺序
 
