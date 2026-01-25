@@ -11,7 +11,7 @@ socialLinks:
   - name: 'GitHub'
     url: 'https://github.com/yuanlehome'
     colorClass: 'bg-gray-900 text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100'
-  - name: 'Legacy blog'
+  - name: 'V0 blog'
     url: 'https://yuanlehome.github.io/blog_v0/'
     colorClass: 'bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400'
   - name: 'FastDeploy'
