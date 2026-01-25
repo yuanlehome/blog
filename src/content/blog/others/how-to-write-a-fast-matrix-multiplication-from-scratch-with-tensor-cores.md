@@ -22,79 +22,7 @@ translatedFrom: en
 
 2024年8月10日
 
-<!-- ---
-layout: post
-title:  "How To Write A Fast Matrix Multiplication From Scratch With NVIDIA Tensor Cores"
-date:   2024-08-10 08:52:08 -0600
-categories: jekyll update
---- -->
-
-- [引言](#introduction)
-
-- [背景](#background)
-  - [内存墙](#the-memory-wall)
-
-  - [屋顶线图](#roofline-charts)
-
-  - [NVIDIA Tesla T4的屋顶线](#rooflines-for-the-nvidia-tesla-t4)
-    - [张量核心 vs. FFMA](#tensor-core-vs-ffma)
-    - [共享内存 vs. L2缓存 vs. 全局内存](#shared-memory-vs-l2-cache-vs-global-memory)
-
-  - [理论算术强度](#theoretical-arithmetic-intensity)
-    - [矩阵乘法 vs 矩阵加法](#matrix-multiplication-vs-matrix-addition)
-
-  - [在简单计算机上可实现的算术强度](#achievable-arithmetic-intensity-on-a-simple-computer)
-    - [最坏情况](#worst-case)
-    - [最佳情况](#best-case)
-    - [实际情况](#realistic-case)
-    - [总结](#in-summary)
-
-  - [GPU上的并行化矩阵乘法](#parallelized-matrix-multiplication-on-a-gpu)
-    - [分层平铺（简单GPU）](#hierarchical-tiling-simple-gpu)
-
-    - [分层平铺（真实GPU）](#hierarchical-tiling-real-gpu)
-
-    - [真实GPU上的性能考量](#performance-considerations-on-a-real-gpu)
-      - [作为平铺维度函数的算术强度](#arithmetic-intensity-as-a-function-of-tile-dimensions)
-      - [计算与数据移动之间的重叠](#overlap-between-compute-and-data-movement)
-      - [最大化内存带宽](#maximizing-memory-bandwidth)
-
-    - [如何使用张量核心](#how-to-use-tensor-cores)
-
-- [内核](#kernels)
-  - [内核1 - 分层平铺](#kernel-1---hierarchical-tiling)
-
-  - [内核2 - 向量化内存复制和循环展开](#kernel-2---vectorized-memory-copy-and-loop-unrolling)
-
-  - [内核3 - 共享内存交织](#kernel-3---shared-memory-swizzling)
-    - [背景：存储体冲突和波前](#background-bank-conflicts-and-wavefronts)
-    - [ldmatrix存储体冲突](#ldmatrix-bank-conflicts)
-    - [填充](#padding)
-    - [交织（玩具示例）](#swizzling-toy-example)
-    - [交织（真实世界）](#swizzling-real-world)
-
-  - [内核4 - 临时异步复制](#kernel-4---makeshift-async-copy)
-    - [GPU占用率（题外话）](#gpu-occupancy-digression)
-
-  - [内核5 - 调整平铺维度](#kernel-5---tune-tile-dimensions)
-    - [调整平铺维度](#tune-tile-dimensions)
-      - [M和N维度 / L2缓存局部性](#m-and-n-dimensions--l2-cache-locality)
-      - [K维度](#k-dimension)
-
-    - [平铺维度 - 更长更薄](#tile-dimensions---longer-and-thinner)
-
-  - [内核5 - 优化索引计算](#kernel-5---optimize-index-calculation)
-
-  - [内核6 - 双缓冲](#kernel-6---double-buffering)
-
-- [结论](#conclusion)
-  - [我没做的事情](#things-i-didnt-do)
-  - [不同矩阵大小下的性能](#performance-on-different-matrix-sizes)
-  - [经验教训，较新的GPU更好](#lessons-learned-newer-gpus-are-better)
-
-- [资源 / 致谢](#resources--acknowledgements)
-
-# 引言
+## 引言
 
 这篇文章详细介绍了我在NVIDIA Tesla T4 GPU上使用CUDA和张量核心编写优化矩阵乘法内核的最新努力。目标是尽可能快地计算D=α∗A∗B+β∗C。在这个方程中，D、A、B和C是充满半精度浮点数的大型矩阵，α和β是常数。这个问题通常被称为**H**alf-precision **Ge**neralized **M**atrix **M**ultiply，或简称**HGEMM**。
 
@@ -112,7 +40,7 @@ categories: jekyll update
 
 以下是所有内核的性能比较表格：![table6](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/001-ea2647b5.png)
 
-# 背景
+## 背景
 
 ## 内存墙
 
@@ -134,18 +62,18 @@ Tmax=min(β∗I,τ)
 
 Tmax永远不会超过τ。即使我们对移动到快速内存的每个字节执行无限次操作，我们仍然受限于硬件的峰值浮点吞吐量。τ通常是一个非常大的数字，例如对于T4 GPU，τ等于65,000,000,000,000 FLOP/秒。如果τ是我们的限制因素，我们处于良好状态，这种情况被称为
 
-- 计算受&#x9650;_。_&#x7136;而，Tmax也可能受设备内存带宽乘以算法计算强度的限制。如果τ是无限的，实现的浮点吞吐量将简单地是每秒移动到快速内存的字节数乘以每个移动字节执行的浮点运算次数，即β∗I（注意当你乘以β∗I时，单位抵消得到FLOP/秒）。如果β∗I小于τ，这一项成为Tmax的限制因素，这种情况被称为
-- 内存受&#x9650;_。在这种情况下要做的是重写你的算法以增加I，希望你的算法变得计算受限。_&#x8FD9;是整个情况的图示，注意我们如何通过改变I从内存受限变为计算受限：
+- 计算受限。然而，Tmax也可能受设备内存带宽乘以算法计算强度的限制。如果τ是无限的，实现的浮点吞吐量将简单地是每秒移动到快速内存的字节数乘以每个移动字节执行的浮点运算次数，即β∗I（注意当你乘以β∗I时，单位抵消得到FLOP/秒）。如果β∗I小于τ，这一项成为Tmax的限制因素，这种情况被称为
+- 内存受限。在这种情况下要做的是重写你的算法以增加I，希望你的算法变得计算受限。这是整个情况的图示，注意我们如何通过改变I从内存受限变为计算受限：
 
-Here is the whole thing in a picture, notice how we can go from being memory bound to being compute bound by varying I: ![roofline](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/003-aa102c50.png)
+![roofline](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/003-aa102c50.png)
 
-The red dotted line in this picture is referred to as the “balance point” of the hardware, it is the level of arithmetic intensity in units of (FLOP/byte) that we need to surpass in order to go from being memory bound to being compute bound. If we call this value I∗, then I∗∗β=τ or equivalently I∗=τβ. It is a property of a particular computer, the peak floating point throughput, divided by the memory bandwidth. Because of Moore’s law, arithmetic throughput has been improving much faster than memory bandwidth, the consequence of this is that generally speaking, the newer the computer, the higher the balance point.
+这张图中的红色虚线被称为硬件的"平衡点"，它是以FLOP/字节为单位的算术强度水平，我们需要超过这个水平才能从内存受限变为计算受限。如果我们称这个值为I∗，那么I∗∗β=τ或等价地I∗=τβ。它是特定计算机的一个属性，即峰值浮点吞吐量除以内存带宽。由于摩尔定律，算术吞吐量的提高速度远远快于内存带宽，其结果是，一般来说，计算机越新，平衡点越高。
 
-## Rooflines for the NVIDIA Tesla T4
+## NVIDIA Tesla T4的屋顶线图
 
-Plugging in some numbers specific to the GPU we are using, and looking at the resulting roofline can inform our algorithm design, and give us some perspective on what we are in for. On a real computer, there isn’t just a single τ and β, there are multiple hardware instructions, each with a different peak throughput τ, and different types of memory, each with a different bandwidth β.
+将我们使用的GPU的一些具体数字代入，并查看得到的屋顶线图，可以指导我们的算法设计，并让我们了解将要面对的情况。在真实的计算机上，不仅仅有一个τ和β，有多个硬件指令，每个指令都有不同的峰值吞吐量τ，还有不同类型的内存，每种内存都有不同的带宽β。
 
-### Tensor Core vs. FFMA
+### 张量核心 vs. FFMA
 
 首先，我们需要知道我们设备的全局内存带宽βgmem。NVIDIA规格表报告
 
@@ -372,7 +300,7 @@ Tensor core 可通过两种不同方法访问。第一种是通过`wmma` [api](h
 
 我们内核的内循环将包括重复调用`ldmatrix`以将数据从共享内存移动到寄存器内存，然后重复调用`m16n8k8`变体以使用 tensor core 将块相乘。对于此项目，我使用了 Turing 架构 GPU，在 Ampere 上 tensor core API 非常相似，但支持更多矩阵形状。在 Hopper 上，API 大幅扩展，引入了 PTX 指令，允许 128 个线程组异步执行比`mma.sync`大得多的矩阵乘法。`m16n8k8`。
 
-# 内核
+## 内核
 
 在本文的其余部分，我将讨论一系列内核，这些内核使我在 8192x8192 矩阵的 tensor core GEMM 上达到了约 96% 的 cuBLAS 性能水平。每个内核都建立在前一个的基础上，每个的主题是：
 
@@ -758,9 +686,9 @@ This illustrates the basic principle of efficiently iterating through a swizzled
 
 The optimized index calcuation, loop unrolling, and adjusted tile dimensions are all implemented as part of the same kernel, that achieves a hard fought 1.2x speedup over the last one, and gets us to 86.7% of cuBLAS throughput. ![table5](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/052-4477720d.png)
 
-## Kernel 6 - Double Buffering
+## 内核6 - 双缓冲
 
-Back to the profiler (for the last time). At this point many of the metrics between my kernel and cuBLAS were starting to look somewhat similiar. One thing that jumped out at me was that the threads in my kernel spend more time stalled on `__syncthreads()` than the cuBLAS kernel. At this point my kernel had a CPI (cycles per instruction) of 14, and about 2.6 of these cycles come from sychronization stalling. So this was not an egregious performance issue, but noticeable. A technique called double buffering enables you to remove one of the two `__syncthreads()` in the inner loop. After a bit of pondering I realized that this provides no guaruntee of a proportional decrease in cycles stalled on `__syncthreads()` (if you remove one `__syncthreads()`，线程可能会在另一个上花费两倍的停滞时间）。然而，双缓冲也应该允许主循环内部有更多的指令级并行性，并且它在CUTLASS内核中实现，而且我有共享内存可用，所以为什么不呢。
+回到分析器（最后一次）。此时，我的内核和cuBLAS之间的许多指标开始看起来有些相似。让我注意到的一点是，我的内核中的线程在`__syncthreads()`上停滞的时间比cuBLAS内核更长。此时我的内核的CPI（每指令周期数）为14，其中约2.6个周期来自同步停滞。所以这不是一个严重的性能问题，但很明显。一种称为双缓冲的技术使你能够移除内循环中两个`__syncthreads()`之一。经过一番思考，我意识到这并不能保证停滞在`__syncthreads()`上的周期成比例减少（如果你移除一个`__syncthreads()`，线程可能会在另一个上花费两倍的停滞时间）。然而，双缓冲也应该允许主循环内部有更多的指令级并行性，并且它在CUTLASS内核中实现，而且我有共享内存可用，所以为什么不呢。
 
 我们当前GEMM内核主循环中的数据依赖性需要两个`__syncthreads()`以防止共享内存中的竞争条件![two_syncthreads](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/053-c2fefb1a.png)如果我们移除任何一个，竞争条件就会发生，因为写入共享内存与读取共享内存时的线程到数据映射是不同的。这是因为任何给定线程正在计算的值与它从全局内存获取并写入共享内存的值不同。这意味着需要同步点来防止竞争条件，因为整个线程块必须等待所有线程完成写入共享内存后，任何线程才能开始从共享内存读取。
 
@@ -785,13 +713,13 @@ Back to the profiler (for the last time). At this point many of the metrics betw
 
 ![table_6](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/001-ea2647b5.png)
 
-# 结论
+## 结论
 
 ## 我没有做的事情
 
 这就是我结束的地方！有两个进一步性能改进的途径，但我分配的时间用完了。前者比后者容易得多。
 
-- **优化的尾声**- 提醒一下，GEMM问题是D=α∗A∗B+β∗C。这是两个计算塞进一个内核中。大部分计算在矩阵乘法C∗=A∗B中。一旦我们乘了两个矩阵，然后我们做D=α∗C∗+β∗C，这通常被称为内核尾声。前者是O(N³)问题，后者是O(N²)。当N大时，矩阵乘法主导组合算法的运行时间，当N较小时尾声更重要。文章完全专注于矩阵乘法，因为这是GEMM问题中最有趣和最重要的组成部分。我在所有六个内核中使用的内核尾声是低效的——一旦矩阵乘法完成，结果根据`m16n8k8` MMA布局（见[下方](#appendix)）分散在线程寄存器中，并直接写回内存。这个写入是非合并的，因此达不到理想的带宽和延迟。改进这可能会缩小Kernel 6和cuBLAS之间对于较小矩阵尺寸的差距。
+- **优化的尾声**- 提醒一下，GEMM问题是D=α∗A∗B+β∗C。这是两个计算塞进一个内核中。大部分计算在矩阵乘法C∗=A∗B中。一旦我们乘了两个矩阵，然后我们做D=α∗C∗+β∗C，这通常被称为内核尾声。前者是O(N³)问题，后者是O(N²)。当N大时，矩阵乘法主导组合算法的运行时间，当N较小时尾声更重要。文章完全专注于矩阵乘法，因为这是GEMM问题中最有趣和最重要的组成部分。我在所有六个内核中使用的内核尾声是低效的——一旦矩阵乘法完成，结果根据`m16n8k8` MMA布局分散在线程寄存器中，并直接写回内存。这个写入是非合并的，因此达不到理想的带宽和延迟。改进这可能会缩小内核6和cuBLAS之间对于较小矩阵尺寸的差距。
 - **内循环的手动指令混合调优**- 像[这个](https://github.com/NervanaSystems/maxas/wiki/SGEMM)和[这个](https://github.com/daadaada/turingas)这样的项目使用自定义汇编器匹配/超过cuBLAS的性能，允许他们完全用SASS编写内核。GEMM内核的内循环包括共享内存加载和数学指令。如果太多同一类型的指令分组在一起，硬件管道会过载并导致停滞周期。如果你想像我一样完全用CUDA和PTX编写内核，那么指令调度是编译器的工作，我能够在没有任何内联汇编的情况下获得>90%的cuBLAS性能，这意味着nvcc可能在这方面做得相当好。然而，如果有人真的决心编写一个对于一系列矩阵尺寸与cuBLAS一样快或更快的内核，这个途径可能是必要的。
 
 ## 不同矩阵尺寸上的性能
@@ -800,19 +728,19 @@ Back to the profiler (for the last time). At this point many of the metrics betw
 
 注意，我编写的最快内核与cuBLAS HGEMM之间的差距对于较小矩阵略大，可能是由于我的未优化尾声。也可能是由于cuBLAS选择了专门针对那些矩阵尺寸调优的内核。
 
-## 经验教训，更新的GPU更好
+## 经验教训：更新的GPU更好
 
 考虑到如今有多少人和公司购买NVIDIA GPU几乎完全是为了运行矩阵乘法，似乎在连续架构之间，许多工作投入到改进张量核心的可编程性和性能。张量核心吞吐量随着每个新的SM架构增加一个数量级，内存带宽也增加，但不成比例。
 
-为了使编程这些强大但不平衡的机器更易于管理，较新的Ampere和Hopper架构引入了硬件支持，使GEMM内核的几个重要部分能够相对于SM的其余部分异步运行。Ampere引入了硬件支持用于[异步数据复制](https://docs.nvidia.com/cuda/ampere-tuning-guide/index.html#asynchronous-data-copy-from-global-memory-to-shared-memory)从全局内存到共享内存，我使用额外寄存器在[Kernel 4](#kernel-4---makeshift-async-copy)中实现了一种类似的黑客版本。Hopper架构引入了一种更高级的功能，称为[Tensor Memory Accelerator（张量内存加速器）](https://docs.nvidia.com/cuda/hopper-tuning-guide/index.html#tensor-memory-accelerator)，本质上是一个复制引擎，可以执行索引计算，并相对于SM的其他部分异步启动全局内存传输。因此，为Hopper编写内核的开发人员可能不必担心索引计算的效率（就像我[这里](#kernel-5---optimize-index-calculation)所做的那样），因为这部分被卸载到TMA的专用硬件中。Hopper还具有异步张量核心指令，可以从共享内存而非寄存器读写（参见[这里](https://research.colfax-intl.com/cutlass-tutorial-wgmma-hopper/)）。
+为了使编程这些强大但不平衡的机器更易于管理，较新的Ampere和Hopper架构引入了硬件支持，使GEMM内核的几个重要部分能够相对于SM的其余部分异步运行。Ampere引入了硬件支持用于[异步数据复制](https://docs.nvidia.com/cuda/ampere-tuning-guide/index.html#asynchronous-data-copy-from-global-memory-to-shared-memory)从全局内存到共享内存，我使用额外寄存器在内核4中实现了一种类似的黑客版本。Hopper架构引入了一种更高级的功能，称为[Tensor Memory Accelerator（张量内存加速器）](https://docs.nvidia.com/cuda/hopper-tuning-guide/index.html#tensor-memory-accelerator)，本质上是一个复制引擎，可以执行索引计算，并相对于SM的其他部分异步启动全局内存传输。因此，为Hopper编写内核的开发人员可能不必担心索引计算的效率（就像我在内核5中所做的那样），因为这部分被卸载到TMA的专用硬件中。Hopper还具有异步张量核心指令，可以从共享内存而非寄存器读写（参见[这里](https://research.colfax-intl.com/cutlass-tutorial-wgmma-hopper/)）。
 
-所有这些异步性对于低占用率、寄存器密集的GEMM内核来说是一件好事。正如[这里](#gpu-occupancy-digression)所讨论的，高算术吞吐量意味着我们需要大量快速内存来缓存数据，这意味着每个SM无法运行太多线程，这意味着GPU不会通过上下文切换自动隐藏我们的延迟，这意味着我们程序员需要更多地思考如何隐藏延迟。这就是异步性有帮助的地方。
+所有这些异步性对于低占用率、寄存器密集的GEMM内核来说是一件好事。高算术吞吐量意味着我们需要大量快速内存来缓存数据，这意味着每个SM无法运行太多线程，这意味着GPU不会通过上下文切换自动隐藏我们的延迟，这意味着我们程序员需要更多地思考如何隐藏延迟。这就是异步性有帮助的地方。
 
 所有这些意味着Hopper是一种全新且不同的架构，如果你查看CUTLASS中针对Hopper的GEMM内核，代码结构与所有其他`sm_90`内核不同。Hopper内核使用生产者/消费者模式，其中相对较少的生产者线程使用TMA启动异步数据复制，然后消费者线程管理张量核心。我从未从事过针对Hopper的内核工作，所以目前对此了解不多，[这篇](https://hazyresearch.stanford.edu/blog/2024-05-12-tk)文章提供了关于为Hopper编写内核的用户体验的有趣概述。
 
 这一切都说明，这里讨论的内核针对的是Turing架构，该架构在2018年是最先进的，如果你正在编写针对Ampere或Hopper的内核，你用于隐藏延迟的技术将不同且更容易。我使用Tesla T4 GPU是因为你可以在AWS上以约50美分/小时的价格租用它们，这大约是我愿意在EC2实例上花费的金额。使用较旧的GPU对这个项目来说既是福也是祸，祸在于没有专用硬件支持来隐藏计算索引时的内存延迟，福在于我必须自己完成所有这些工作，这是一次教育经历！
 
-# 资源 / 致谢
+## 资源 / 致谢
 
 大多数这些资源已在本文章的各种地方链接过，但我想将它们全部放在一个地方。这些是一些教育和启发我的资源，没有特定顺序
 
@@ -821,5 +749,3 @@ Back to the profiler (for the last time). At this point many of the metrics betw
 - [另一篇](https://horace.io/brrr_intro.html)关于ML系统视角的优秀博客。这篇文章特别易读地解释了为什么在GPU上训练神经网络时，内存带宽和算术强度等因素很重要。
 - 一篇来自斯坦福大学系统ML实验室的[文章](https://hazyresearch.stanford.edu/blog/2024-05-12-tk)，关于Hopper架构的内核工程。
 - [这是](https://github.com/NVIDIA/cutlass)NVIDIA的CUTLASS项目，提供了一系列抽象，使编写快速内核更容易。
-
-[](/2024/08/10/How-To-Write-A-Fast-Matrix-Multiplication-From-Scratch-With-Tensor-Cores.html)
