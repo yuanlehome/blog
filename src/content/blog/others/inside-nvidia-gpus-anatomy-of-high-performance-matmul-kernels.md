@@ -61,8 +61,6 @@ translatedFrom: en
 
 _图1：NVIDIA Hopper H100 GPU模型_
 
-如果你发现文章中有任何错误，请私信我——欢迎在[X](https://x.com/gordic_aleksa)或[LinkedIn](https://www.linkedin.com/in/aleksagordic/)上给我留言，或通过[匿名反馈](https://docs.google.com/forms/d/1z1fEirrN2xtGxAsJvptpM7yV4ByT5SF25S-XiMPrXNA/edit)。
-
 ## 内存
 
 GPU中的内存系统是高度分层的，类似于CPU架构。
