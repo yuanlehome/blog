@@ -9,10 +9,6 @@ source_author: 平六层
 imported_at: '2025-12-27T22:32:41.224Z'
 ---
 
-**目录**：为什么需要 - 核心抽象 - 生命周期与执行语义 - 静态性 - 性能收益 - torch.compile - 推理系统
-
----
-
 # 为什么需要 CUDA Graph
 
 一个 GPU 程序的执行可以分成两个层面来看：
@@ -95,7 +91,7 @@ CUDA Graph 不是没有代价的。
 
 虽然原理听起来很好，但在框架自动化部署的场景下，CUDA Graph 不是一个可以无脑打开的全局开关。它的收益和代价需要按场景评估，这涉及到静态性约束、参数按值捕获的语义、以及框架为满足这些约束而引入的额外开销。后续会详细讨论这些问题。
 
-# CUDA Graph 的核心抽象
+## CUDA Graph 的核心抽象
 
 CUDA Graph 的设计把定义和执行分成了两个独立的层次。这种分离是 CUDA Graph 能够实现复用的基础，也是理解后续所有机制的起点。
 
@@ -274,7 +270,7 @@ CUDA Graph 提供了多种 ID 用于定位和关联：
 
 实践中的常见用法是：当 instantiate 或 update 返回 error node handle 时，结合 DOT 输出与 nodeId，把错误精确定位到图中的具体节点。
 
-# 生命周期与执行语义
+## 生命周期与执行语义
 
 一张 CUDA Graph 从创建到销毁，会经历几个明确的阶段。理解这些阶段的边界和语义，是正确使用 CUDA Graph 的前提。
 
@@ -304,7 +300,7 @@ CUDA Graph 的生命周期可以分为五个阶段：
 
 来看一个典型的使用流程：
 
-```
+```cpp
 cudaGraph_t graph;
 cudaGraphExec_t exec;
 
@@ -340,7 +336,7 @@ cudaGraphDestroy(graph);
 
 基本流程是：先创建一个空的 Graph，然后逐个添加节点（cudaGraphAddKernelNode、cudaGraphAddMemcpyNode 等），同时指定每个节点的依赖关系。
 
-```
+```cpp
 cudaGraph_t graph;
 cudaGraphCreate(&graph, 0);  // flags 必须为 0
 
@@ -359,7 +355,7 @@ Stream Capture 是另一种构图方式：把一段提交到 stream 的 GPU 工�
 
 基本流程是：调用 cudaStreamBeginCapture 开始录制，然后正常向 stream 提交 kernel、memcpy 等操作，最后调用 cudaStreamEndCapture 结束录制并得到 Graph。
 
-```
+```cpp
 cudaGraph_t graph;
 cudaStreamBeginCapture(stream, cudaStreamCaptureModeGlobal);
 
@@ -381,7 +377,7 @@ Stream Capture 的优点是对已有代码的侵入性小。如果我们已经�
 
 基本模式是：主 stream 开始 capture（Global 模式是一种常见选择），然后在同一个 capture 期间通过 event 的 record/wait 把其他 stream 的工作与主 stream 建立依赖关系，使其被纳入同一个 capture graph。
 
-```
+```cpp
 cudaStreamBeginCapture(stream1, cudaStreamCaptureModeGlobal);
 
 // 在主 stream 上 record 一个 event
@@ -463,7 +459,7 @@ API 是 cudaGraphUpload。它的作用是把 GraphExec 上传到 device，完成
 
 如果我们的应用对延迟抖动敏感（比如追求稳定的 P99 延迟），这种首轮抖动是不可接受的。Upload 提供了一种解决方案：把上传工作提前做好，从关键路径移出去。
 
-```
+```cpp
 // 在关键路径之外预先 upload
 cudaGraphUpload(exec, prepStream);
 cudaStreamSynchronize(prepStream);
@@ -518,7 +514,7 @@ API 是 cudaGraphLaunch。每次调用会把图中描述的所有操作按照依
 
 当 GraphExec 和 Graph 不再需要时，应该显式销毁它们。
 
-```
+```cpp
 cudaGraphExecDestroy(exec);
 cudaGraphDestroy(graph);
 ```
@@ -617,7 +613,7 @@ Launch 的失败原因不止一种。对于工程系统来说，最需要重点�
 
 由于异步错误回传的存在，建议在关键阶段（capture 后、首次执行后、更新后）设置明确同步点，以便把错误更稳定地归因到更接近根因的位置。
 
-# 静态性的三层含义
+## 静态性的三层含义
 
 CUDA Graph 的很多设计决策和使用限制，都源自同一个根本特征：**静态性**。
 
@@ -672,9 +668,9 @@ conditional nodes 提供了一种在图内部表达控制流的能力。条件�
 
 但 conditional nodes 有自己的约束：版本要求较高、与其他节点类型有组合限制（比如不能放在 child graph 里）、条件值必须由 device 侧写入等。
 
-## 第二层：参数形态静态（By-Value Capture）
+## 第二层：参数形态静态（按值捕获）
 
-**By-value capture** 是 CUDA Graph 静态性问题中最容易被低估、也最容易导致问题的一层。
+**按值捕获**（By-value capture）是 CUDA Graph 静态性问题中最容易被低估、也最容易导致问题的一层。
 
 当我们通过 stream capture 或显式构图创建节点时，节点的参数（kernel 参数、memcpy 的源地址和目标地址、大小等）会被按值捕获。也就是说，capture 时这些参数是什么值，就被固化到了图里。
 
@@ -684,7 +680,7 @@ conditional nodes 提供了一种在图内部表达控制流的能力。条件�
 
 考虑这样一个场景：
 
-```
+```cpp
 size_t bytes = 1024;
 dim3 grid(1);
 dim3 block(1);
@@ -707,7 +703,7 @@ cudaMalloc(&buffer, bytes);
 cudaGraphLaunch(exec, stream);
 ```
 
-这就是 by-value capture 的风险：capture/构图时记录的**指针值**，在 replay 时可能已经失效。如果系统没有做额外处理，可能导致 silent corruption（结果错误但不报错）或 crash。
+这就是按值捕获的风险：capture/构图时记录的**指针值**，在 replay 时可能已经失效。如果系统没有做额外处理，可能导致无声损坏（silent corruption，结果错误但不报错）或 crash。
 
 同时也要注意一个常见误解：对指针参数而言，CUDA Graph 记录的是指针值本身；指针指向的内存内容并不会在 capture 时被冻结。因此，只要地址稳定，我们仍然可以在每次 replay 前写入不同的数据内容来改变计算结果。
 
@@ -715,7 +711,7 @@ cudaGraphLaunch(exec, stream);
 
 PyGraph 论文中提到的一个典型案例是 CPU scalar 混入 GPU 计算。
 
-如果一个 Python/NumPy scalar 以 by-value 的形式参与图内计算（例如作为 kernel 参数，或被编译系统内联/特化为常量），它在图里的取值可能会变成被固化的值。如果语义上这个 scalar 应该在每次迭代变化（比如 learning rate 衰减），但图里用的始终是 capture 时的值，就会产生逻辑错误。
+如果一个 Python/NumPy scalar 以按值（by-value）的形式参与图内计算（例如作为 kernel 参数，或被编译系统内联/特化为常量），它在图里的取值可能会变成被固化的值。如果语义上这个 scalar 应该在每次迭代变化（比如 learning rate 衰减），但图里用的始终是 capture 时的值，就会产生逻辑错误。
 
 在 torch.compile 的实际工程路径中，这类情形也常常表现为：由于存在 CPU 侧输入/不安全依赖，整段计算直接 skip cudagraph，或者需要重新编译/重录来反映新值。
 
@@ -723,14 +719,14 @@ PyGraph 论文中提到的一个典型案例是 CPU scalar 混入 GPU 计算。
 
 ### 框架如何应对
 
-面对 by-value capture 的问题，框架通常采用 **placeholder + copy** 的策略：
+面对按值捕获的问题，框架通常采用 **placeholder + copy** 的策略：
 
 1. 在 capture 时，把可变参数替换成指向固定地址的 placeholder
 2. 这样图里记录的是 placeholder 的地址，而不是真实数据的地址
 3. 每次 replay 之前，把真实数据拷贝到 placeholder 指向的地址
 4. 图执行时读取的是 placeholder 上的新值
 
-这个策略解决了 by-value capture 的问题，但引入了新的成本：每次 replay 都需要做数据拷贝。
+这个策略解决了按值捕获的问题，但引入了新的成本：每次 replay 都需要做数据拷贝。
 
 PyGraph 论文的统计数据显示：在其评估的 PyTorch2 CUDA Graph 实现与工作负载中，graph replay 的额外开销里有相当一部分来自参数数据拷贝（文中给出约 60% 的量级）。这是一笔很容易吞噬收益的成本。
 
@@ -778,7 +774,7 @@ CUDA Graph 原生的 alloc node 返回的地址跨 instantiation 和 launches �
 
 **拓扑变化会触发参数问题**
 
-如果我们的工作负载需要频繁改变节点与依赖关系，节点的参数结构也会随之变化，by-value capture 的假设就更难维护。
+如果我们的工作负载需要频繁改变节点与依赖关系，节点的参数结构也会随之变化，按值捕获的假设就更难维护。
 
 **参数形态变化影响地址需求**
 
@@ -852,11 +848,11 @@ capture 期间，allocator 的 bookkeeping 会被正确记账。但 replay 期�
 
 torch.compile 的 Trees 通过 checkpoint allocator state 的机制来处理这个问题，使得 replay 后仍能继续录图，且在共享 pool 情况下避免不安全的内存复用。
 
-# 性能收益与对冲代价
+## 性能收益与对冲代价
 
 CUDA Graph 的性能影响可以用一个简单公式理解：
 
-```
+```text
 净收益 = 省下的控制面开销 - 引入的额外成本
 ```
 
@@ -892,7 +888,7 @@ PyGraph 论文（2025 年 arXiv 预印本）对 PyTorch 2 中 CUDA Graph 的实�
 
 **用 Upload 治理尾延迟**。首次 launch 比后续慢，如果我们的应用对 P99 敏感，可以在关键路径之外提前调用 cudaGraphUpload，把准备成本移出去：
 
-```
+```cpp
 cudaGraphUpload(exec, prepStream);
 cudaStreamSynchronize(prepStream);
 // 关键路径中直接 launch
@@ -903,7 +899,7 @@ cudaGraphLaunch(exec, workStream);
 
 **选择性部署**。不要把 CUDA Graph 当全局开关。对每张图独立评估，有些图值得用、有些图不用更好。torch.compile 提供了 skip reason 日志和计数器，vLLM 提供了 cudagraph_metrics，这些可观测性工具是做出正确决策的基础。
 
-# 主流框架的使用模式：torch.compile
+## 主流框架的使用模式：torch.compile
 
 torch.compile 与 CUDA Graph 的集成不是简单的把整个模型录成一张图。实际的机制要复杂得多。
 
@@ -957,7 +953,7 @@ CUDA Graph 不支持 CPU op、device 拷贝、控制流等。如果图中混有�
 
 排查 skip 的方法：设置环境变量 TORCHINDUCTOR_CUDAGRAPH_OR_ERROR=1，skip 就会变成报错，而不是 silent fallback。
 
-# 主流框架的使用模式：推理系统（vLLM / SGLang）
+## 主流框架的使用模式：推理系统（vLLM / SGLang）
 
 推理系统对 CUDA Graph 的使用与 torch.compile 有显著不同。推理场景的特点是：batch size 变化频繁、延迟敏感、同一模型反复调用。这些特点决定了一套不同的设计模式。
 
