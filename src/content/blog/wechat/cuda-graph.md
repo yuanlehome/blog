@@ -9,7 +9,9 @@ source_author: 平六层
 imported_at: '2025-12-27T22:32:41.224Z'
 ---
 
-# 为什么需要 CUDA Graph
+# CUDA Graph 学习笔记
+
+## 为什么需要 CUDA Graph
 
 一个 GPU 程序的执行可以分成两个层面来看：
 
