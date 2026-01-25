@@ -15,8 +15,8 @@ import siteConfigData from '../yaml/site.yml';
  * Site configuration schema
  */
 export const siteConfigSchema = z.object({
-  siteName: z.string().min(1).default("Yuanle Liu's Blog"),
-  title: z.string().min(1).default("Yuanle Liu's Blog"),
+  siteName: z.string().min(1).default('Yuanle Liu'),
+  title: z.string().min(1).default('Yuanle Liu'),
   description: z.string().default('A minimal Astro blog'),
   author: z.string().default('Yuanle Liu'),
 
@@ -37,8 +37,8 @@ export type SiteConfig = z.infer<typeof siteConfigSchema>;
  * Default site configuration
  */
 export const defaultSiteConfig: SiteConfig = {
-  siteName: "Yuanle Liu's Blog",
-  title: "Yuanle Liu's Blog",
+  siteName: 'Yuanle Liu',
+  title: 'Yuanle Liu',
   description: 'A minimal Astro blog',
   author: 'Yuanle Liu',
   copyrightYear: new Date().getFullYear(),

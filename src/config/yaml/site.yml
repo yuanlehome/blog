@@ -2,8 +2,8 @@
 # This file contains global settings for the entire blog site
 
 # Site identity
-siteName: "Yuanle Liu's Blog"
-title: "Yuanle Liu's Blog"
+siteName: 'Yuanle Liu'
+title: 'Yuanle Liu'
 description: 'A minimal Astro blog'
 author: 'Yuanle Liu'
 

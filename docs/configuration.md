@@ -34,8 +34,8 @@ src/config/yaml/
 
 | 字段              | 类型    | 默认值                 | 说明            |
 | ----------------- | ------- | ---------------------- | --------------- |
-| `siteName`        | string  | "Yuanle Liu's Blog"    | 网站名称        |
-| `title`           | string  | "Yuanle Liu's Blog"    | 网站标题        |
+| `siteName`        | string  | "Yuanle Liu"           | 网站名称        |
+| `title`           | string  | "Yuanle Liu"           | 网站标题        |
 | `description`     | string  | "A minimal Astro blog" | 网站描述（SEO） |
 | `author`          | string  | "Yuanle Liu"           | 作者名称        |
 | `copyrightYear`   | number  | 2025                   | 版权年份        |
