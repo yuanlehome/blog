@@ -747,5 +747,3 @@ WM∗WNWM+WN>?τHMMAβshmem
 - [另一篇](https://horace.io/brrr_intro.html)关于ML系统视角的优秀博客。这篇文章特别易读地解释了为什么在GPU上训练神经网络时，内存带宽和算术强度等因素很重要。
 - 一篇来自斯坦福大学系统ML实验室的[文章](https://hazyresearch.stanford.edu/blog/2024-05-12-tk)，关于Hopper架构的内核工程。
 - [这是](https://github.com/NVIDIA/cutlass)NVIDIA的CUTLASS项目，提供了一系列抽象，使编写快速内核更容易。
-
-[](/2024/08/10/How-To-Write-A-Fast-Matrix-Multiplication-From-Scratch-With-Tensor-Cores.html)
