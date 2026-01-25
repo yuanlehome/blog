@@ -10,9 +10,9 @@ imported_at: '2025-12-28T06:07:35.042Z'
 cover: /images/wechat/sglang-diffusion-wan2260percent/001-85495dc3.png
 ---
 
-# 0x0. 前言
+## 0x0. 前言
 
-最近在优化SGLang对Wan2.2视频生成模型的支持时,发现了一个性能问题: 在使用双Transformer架构时,第1步和第19步的推理速度比正常步骤慢了约7倍。经过深入分析,通过实现**零开销的逐层权重卸载**(Layerwise Weight Offload)技术,最终将整体推理速度提升了**60%**(从149.69秒降至94.22秒)。需要说明的是这个技术的核心代码实现部分从Skywork AI Infra的视频模型优化中修改而来(https\://github.com/sgl-project/sglang/blob/main/python/sglang/multimodal_gen/runtime/utils/layerwise_offload.py[#L8](javascript:;))。
+最近在优化SGLang对Wan2.2视频生成模型的支持时,发现了一个性能问题: 在使用双Transformer架构时,第1步和第19步的推理速度比正常步骤慢了约7倍。经过深入分析,通过实现**零开销的逐层权重卸载**(Layerwise Weight Offload)技术,最终将整体推理速度提升了**60%**(从149.69秒降至94.22秒)。需要说明的是这个技术的核心代码实现部分从Skywork AI Infra的视频模型优化中修改而来(https\://github.com/sgl-project/sglang/blob/main/python/sglang/multimodal_gen/runtime/utils/layerwise_offload.py#L8)。
 
 这个优化不仅带来了性能提升,也突破了Wan2.2模型的显存墙。比如我们现在可以在**24GB显存的4090**上运行wan2.2而不会OOM,具有还不错的实用意义。此外这个优化也可以方便的扩展到其他模型上,比如HunyuanVideo。本文将详细介绍问题的发现、分析和解决过程。
 
@@ -20,9 +20,9 @@ cover: /images/wechat/sglang-diffusion-wan2260percent/001-85495dc3.png
 
 测试环境: 8卡H100
 
-# 0x1. 问题发现:为什么Wan2.2这么慢?
+## 0x1. 问题发现:为什么Wan2.2这么慢?
 
-## 0x1.1 性能瓶颈定位
+### 0x1.1 性能瓶颈定位
 
 在对Wan2.2模型进行完整的profiling之后,发现了一个奇怪的现象:
 
@@ -34,7 +34,7 @@ cover: /images/wechat/sglang-diffusion-wan2260percent/001-85495dc3.png
 
 main分支的数据：
 
-```
+```bash
 sglang generate   --model-path Wan-AI/Wan2.2-T2V-A14B-Diffusers   --text-encoder-cpu-offload   --pin-cpu-memory   --num-gpus 8   --ulysses-degree 8 --attention-backend sage_attn  --enable-torch-compile --prompt "A cat walks on the grass, realistic" --num-frames 81 --height 720 --width 1280 --num-inference-steps 27 --guidance-scale 3.5 --guidance-scale-2 4.0 --perf-dump-path /home/lmsys/bbuf/dump/wan_step_profile_cp8_main.json
 
 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 27/27 [02:28<00:00,  5.52s/it]
@@ -76,7 +76,7 @@ sglang generate   --model-path Wan-AI/Wan2.2-T2V-A14B-Diffusers   --text-encoder
 
 经过本文介绍的优化之后的数据：
 
-```
+```bash
 sglang generate   --model-path Wan-AI/Wan2.2-T2V-A14B-Diffusers   --text-encoder-cpu-offload   --pin-cpu-memory   --num-gpus 8   --ulysses-degree 8 --attention-backend sage_attn  --enable-torch-compile --prompt "A cat walks on the grass, realistic" --num-frames 81 --height 720 --width 1280 --num-inference-steps 27 --guidance-scale 3.5 --guidance-scale-2 4.0 --dit-layerwise-offload true --perf-dump-path /home/lmsys/bbuf/dump/wan_step_profile_cp8_async_offload.json
 
 
@@ -115,7 +115,7 @@ sglang generate   --model-path Wan-AI/Wan2.2-T2V-A14B-Diffusers   --text-encoder
   ],
 ```
 
-## 0x1.2 根因分析
+### 0x1.2 根因分析
 
 通过深入分析代码和profiling结果,找到了问题的根本原因:
 
@@ -126,9 +126,9 @@ sglang generate   --model-path Wan-AI/Wan2.2-T2V-A14B-Diffusers   --text-encoder
 
 这种全模型级别的权重搬运导致了巨大的性能损失。
 
-# 0x2. 解决方案:零开销逐层权重卸载
+## 0x2. 解决方案:零开销逐层权重卸载
 
-## 0x2.1 核心思想
+### 0x2.1 核心思想
 
 传统的`dit_cpu_offload`是将整个模型的权重一次性在CPU和GPU之间搬运,这会导致:
 
@@ -146,13 +146,13 @@ sglang generate   --model-path Wan-AI/Wan2.2-T2V-A14B-Diffusers   --text-encoder
 
 这样可以实现零额外开销:数据传输完全被计算隐藏,不会增加总体推理时间。
 
-## 0x2.2 实现细节
+### 0x2.2 实现细节
 
-### LayerwiseOffloadManager核心类
+#### LayerwiseOffloadManager核心类
 
 实现了一个轻量级的逐层CPU卸载管理器,核心功能包括:
 
-```
+```python
 class LayerwiseOffloadManager:
     """A lightweight layerwise CPU offload manager.
 
@@ -178,9 +178,9 @@ class LayerwiseOffloadManager:
         self._gpu_layers: Dict[int, Set[str]] = {}
 ```
 
-### 初始化:将所有层权重卸载到CPU
+#### 初始化:将所有层权重卸载到CPU
 
-```
+```python
 def initialize(self) -> None:
     ifnot self.enabled:
         return
@@ -199,7 +199,7 @@ def initialize(self) -> None:
 
 这里有个关键点是`_offload_tensor`方法中会将CPU上的tensor进行pin memory操作:
 
-```
+```python
 cpu_weight = tensor.detach().to("cpu")
 if self.pin_cpu_memory:
     cpu_weight = cpu_weight.pin_memory()  # 锁定物理内存
@@ -212,9 +212,9 @@ if self.pin_cpu_memory:
 
 在Wan2.2这种大模型场景下,如果不使用pin memory,异步拷贝会失效,计算和传输就无法overlap,也就谈不上零开销了。
 
-### 异步预取:提前加载下一层
+#### 异步预取:提前加载下一层
 
-```
+```python
 def prefetch_layer(self, layer_idx: int, non_blocking: bool = True) -> None:
     ifnot self.enabled:
         return
@@ -234,9 +234,9 @@ def prefetch_layer(self, layer_idx: int, non_blocking: bool = True) -> None:
         target.data = gpu_weight
 ```
 
-### 层级作用域:优雅的使用方式
+#### 层级作用域:优雅的使用方式
 
-```
+```python
 @contextmanager
 def layer_scope(
     self,
@@ -258,11 +258,11 @@ def layer_scope(
             self.release_layer(release_layer_idx)
 ```
 
-### 在模型forward中使用
+#### 在模型forward中使用
 
 在Wan2.2的Transformer forward中集成:
 
-```
+```python
 offload_mgr = getattr(self, "_layerwise_offload_manager", None)
 if offload_mgr isnotNoneand getattr(offload_mgr, "enabled", False):
     for i, block in enumerate(self.blocks):
@@ -285,11 +285,11 @@ if offload_mgr isnotNoneand getattr(offload_mgr, "enabled", False):
 - 第i层计算完成后,立即释放其显存
 - 数据传输和计算完全overlap,实现零开销
 
-## 0x2.3 使用方式
+### 0x2.3 使用方式
 
 在启动SGLang服务时,添加`--dit-layerwise-offload true`参数。下面是在8卡H100上的测试命令:
 
-```
+```bash
 sglang generate \
   --model-path Wan-AI/Wan2.2-T2V-A14B-Diffusers \
   --text-encoder-cpu-offload \
@@ -312,13 +312,13 @@ sglang generate \
 
 - `--dit-layerwise-offload`不能与`dit_cpu_offload`、`use_fsdp_inference`或`cache-dit`同时使用
 
-# 0x3. 性能提升
+## 0x3. 性能提升
 
-## 0x3.1 主分支 vs PR分支
+### 0x3.1 主分支 vs PR分支
 
 **主分支(使用dit_cpu_offload)**:
 
-```
+```text
 [12-19 08:37:22] [DenoisingStage] average time per step: 5.5156 seconds
 [12-19 08:37:23] [DenoisingStage] finished in 149.6943 seconds
 
@@ -334,7 +334,7 @@ sglang generate \
 
 **PR分支(使用dit_layerwise_offload)**:
 
-```
+```text
 [12-20 02:59:10] [DenoisingStage] average time per step: 3.4553 seconds
 [12-20 02:59:10] [DenoisingStage] finished in 94.2283 seconds
 
@@ -348,7 +348,7 @@ sglang generate \
 ]
 ```
 
-## 0x3.2 性能分析
+### 0x3.2 性能分析
 
 从数据上看:
 
@@ -363,7 +363,7 @@ sglang generate \
 
 从timeline可以看到,**H2D的memcpy操作和kernel执行是完全重叠的**,这就是零开销的体现。异步拷贝在独立的stream中进行,不会阻塞主stream的计算。
 
-# 0x4. 额外优化:All2All预热
+## 0x4. 额外优化:All2All预热
 
 即使解决了权重卸载的问题,我发现无论是否启用torch compile,第1步的性能仍然比后续步骤慢约7倍。通过完整的profiling发现,这是因为**NCCL All2All操作的初始化开销**。
 
@@ -371,7 +371,7 @@ sglang generate \
 
 这个初始化开销不应该在denoise阶段,而应该提前处理。因此实现了专门针对All2All操作的**预热逻辑**。预热之后,不启用compile时第1步的时间几乎与后续步骤相同,启用compile时第1步的时间仅为后续步骤的约2倍(而不是7倍)。NCCL All2All的初始化开销被提前消除,denoise阶段的第1步不再有明显的延迟。
 
-# 0x5. 总结
+## 0x5. 总结
 
 这个优化方案的关键技术点包括:**逐层权重管理**只在需要时加载特定层的权重,避免全模型搬运;使用**独立CUDA Stream**实现异步H2D传输,让当前层计算时下一层权重已在加载;使用**pinned memory**锁定物理内存,这是实现异步拷贝和零开销的前提条件;每层计算完成后立即释放GPU显存。
 
