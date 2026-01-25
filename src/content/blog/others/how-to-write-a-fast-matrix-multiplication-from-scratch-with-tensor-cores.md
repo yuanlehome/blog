@@ -20,7 +20,7 @@ translatedFrom: en
 
 # 如何从零开始使用张量核心编写快速矩阵乘法
 
-# 引言
+## 引言
 
 这篇文章详细介绍了我在NVIDIA Tesla T4 GPU上使用CUDA和张量核心编写优化矩阵乘法内核的最新努力。目标是尽可能快地计算D=α∗A∗B+β∗C。在这个方程中，D、A、B和C是充满半精度浮点数的大型矩阵，α和β是常数。这个问题通常被称为**H**alf-precision **Ge**neralized **M**atrix **M**ultiply，或**HGEMM**的简称。
 
@@ -37,8 +37,6 @@ translatedFrom: en
 本文包含一个背景部分，解释了在思考如何优化矩阵操作内核时有助于理解的一些理论。文章的其余部分解释了我用来使内核尽可能快运行的六种算法技术。代码可以在[这里](https://github.com/alexarmbr/matmul-playground)的github上找到，[这里](https://news.ycombinator.com/item?id=43736739)是一个黑客新闻线程，你可以在那里留下评论。
 
 以下是所有内核性能比较的表格：![table6](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/001-ea2647b5.png)
-
-# 背景
 
 ## 内存墙
 
