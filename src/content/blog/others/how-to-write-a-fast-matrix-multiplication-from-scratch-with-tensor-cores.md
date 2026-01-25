@@ -678,7 +678,6 @@ WM∗WNWM+WN>?τHMMAβshmem
 
 ![swizzled_index_calculation_inneficient](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/050-754fca52.png)
 
-
 在中间列中，每个线程计算了它将要加载的值的地址，以未交错的布局表示。每次迭代时，这些指针向右推进一列，直到到达 warp 分块的末尾，此时我们向下移动到下一组行。如果不是交错布局，我们只需在每次迭代中将指针推进一个位置，即 `thread_row+=1`。然而，由于数据以交错布局存储，将指针推进到下一组 MMA 分块并不仅仅是递增一个位置的问题。
 
 虽然递增一个位置不适用于遍历交错布局，但我们可以通过将每个线程的指针与常量进行 XOR 运算来实现等效效果。![swizzled_index_calculation_efficient](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/051-3f9c84d9.png) 这将每个 `ldmatrix` 之间的索引计算量从约 13 个操作减少到单个 XOR。应用此优化后，执行的指令总数下降到约 90M，略低于 cuBLAS。
