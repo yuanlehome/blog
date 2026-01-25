@@ -10,10 +10,6 @@ on:
         description: 'Issue 标题'
         required: false
         default: 'Fix imported translated markdown posts'
-      aggressive_cleanup:
-        description: '是否更激进清理非正文（true/false）'
-        required: false
-        default: 'false'
 
 permissions:
   issues: write
@@ -77,15 +73,13 @@ jobs:
           - 删除页面正文内的子标题导航标签。
 
           4) **非正文清理**
-          - 必删：订阅/点赞/分享/关注/捐赠/二维码/页脚导航/转载模板垃圾等。
+          - 必删：TOC/正文内子标题页内导航/订阅/点赞/分享/关注/捐赠/二维码/页脚导航/转载模板垃圾等。
           - 可选删：作者 bio/社交链接/重复“原文链接”（保留一个最重要即可）。
           - 绝不删：技术正文、结论、实验、图表说明、参考（可去重但不能删光）、代码与配置。
 
           5) **保守润色**
           - 降低翻译腔但不改变事实含义，不编造来源；保留链接/图片/引用。
-
-          ## 额外开关
-          - aggressive_cleanup = `{aggressive}`（true 可更积极清理明显营销/导航残片；false 更保守）
+          - 保留技术专业英文术语与表达，不随意改写代码片段与配置示例。
 
           ## 交付方式
           - 在 `copilot/` 开头分支提交变更并创建 PR。
