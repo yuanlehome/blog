@@ -21,22 +21,17 @@ jobs:
       - name: Ensure gh is available
         run: gh --version
 
-      - name: Create issue
+      - name: Create issue body file
         env:
           FILES: ${{ inputs.files }}
           TITLE: ${{ inputs.issue_title }}
-          AGGRESSIVE: ${{ inputs.aggressive_cleanup }}
-          REPO: ${{ github.repository }}
         run: |
           python - <<'PY'
-          import os, textwrap, json, subprocess
+          import os
 
           files_raw = os.environ["FILES"].strip()
           title = os.environ["TITLE"].strip()
-          aggressive = os.environ["AGGRESSIVE"].strip().lower()
-          repo = os.environ["REPO"].strip()
 
-          # Normalize files into a bullet list
           files = [f.strip() for f in files_raw.split(",") if f.strip()]
           if not files:
             raise SystemExit("No valid files provided in inputs.files")
@@ -70,7 +65,7 @@ jobs:
           3) **渲染稳定性（Astro/MDX 友好）**
           - 修复列表缩进、引用块断裂、代码 fence 不闭合、语言标注缺失/错误、段落粘连、图片语法不规范等。
           - 合理补全 code fence 语言：bash/json/yaml/python/ts/tsx/cpp 等。
-          - 删除页面正文内的子标题导航标签。
+          - 删除页面正文内的子标题导航标签（例如“Table of Contents/目录/页内导航”之类残留块）。
 
           4) **非正文清理**
           - 必删：TOC/正文内子标题页内导航/订阅/点赞/分享/关注/捐赠/二维码/页脚导航/转载模板垃圾等。
@@ -86,18 +81,24 @@ jobs:
           - PR 描述里按文件列出修复点：标题层级 / 漏翻补翻 / 渲染修复 / 非正文清理。
           """.strip()
 
-          # Create issue and print URL
-          cmd = ["gh", "issue", "create", "--repo", repo, "--title", title, "--body", body, "--json", "url", "-q", ".url"]
-          url = subprocess.check_output(cmd, text=True).strip()
-          print("Issue:", url)
-
-          # Persist for next step
-          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
-            f.write(f"ISSUE_URL={url}\n")
+          with open("copilot_issue_body.md", "w", encoding="utf-8") as f:
+            f.write(body + "\n")
+          print(f"Wrote issue body: copilot_issue_body.md (title={title})")
           PY
+
+      - name: Create issue (capture URL from stdout)
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          REPO: ${{ github.repository }}
+          TITLE: ${{ inputs.issue_title }}
+        run: |
+          ISSUE_URL="$(gh issue create --repo "${REPO}" --title "${TITLE}" --body-file copilot_issue_body.md)"
+          echo "Issue URL: ${ISSUE_URL}"
+          echo "ISSUE_URL=${ISSUE_URL}" >> "${GITHUB_ENV}"
 
       - name: Assign to Copilot
         env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
           REPO: ${{ github.repository }}
         run: |
           if [ -z "${ISSUE_URL}" ]; then
