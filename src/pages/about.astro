@@ -34,15 +34,17 @@ const BASE = normalizeBase(import.meta.env.BASE_URL);
         <p class="text-xl text-zinc-600 dark:text-zinc-300 mb-6 max-w-lg mx-auto md:mx-0">
           {profile.bio}
         </p>
-        <div class="flex gap-4 justify-center md:justify-start">
+        <div
+          class="grid grid-cols-2 gap-3 sm:grid-cols-4 justify-items-center sm:justify-items-start"
+        >
           {
             profile.socialLinks.map((link) => (
               <a
                 href={link.url}
                 target="_blank"
-                class={`px-6 py-2 text-white rounded-full transition-colors ${link.colorClass || 'bg-zinc-700 hover:bg-zinc-600'}`}
+                class={`min-w-0 flex items-center justify-center gap-2 px-6 py-2 text-white rounded-full transition-colors ${link.colorClass || 'bg-zinc-700 hover:bg-zinc-600'}`}
               >
-                {link.name}
+                <span class="truncate">{link.name}</span>
               </a>
             ))
           }
