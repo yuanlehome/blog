@@ -22,79 +22,7 @@ translatedFrom: en
 
 2024年8月10日
 
-<!-- ---
-layout: post
-title:  "How To Write A Fast Matrix Multiplication From Scratch With NVIDIA Tensor Cores"
-date:   2024-08-10 08:52:08 -0600
-categories: jekyll update
---- -->
-
-- [引言](#introduction)
-
-- [背景](#background)
-  - [内存墙](#the-memory-wall)
-
-  - [屋顶线图](#roofline-charts)
-
-  - [NVIDIA Tesla T4的屋顶线](#rooflines-for-the-nvidia-tesla-t4)
-    - [张量核心 vs. FFMA](#tensor-core-vs-ffma)
-    - [共享内存 vs. L2缓存 vs. 全局内存](#shared-memory-vs-l2-cache-vs-global-memory)
-
-  - [理论算术强度](#theoretical-arithmetic-intensity)
-    - [矩阵乘法 vs 矩阵加法](#matrix-multiplication-vs-matrix-addition)
-
-  - [在简单计算机上可实现的算术强度](#achievable-arithmetic-intensity-on-a-simple-computer)
-    - [最坏情况](#worst-case)
-    - [最佳情况](#best-case)
-    - [实际情况](#realistic-case)
-    - [总结](#in-summary)
-
-  - [GPU上的并行化矩阵乘法](#parallelized-matrix-multiplication-on-a-gpu)
-    - [分层平铺（简单GPU）](#hierarchical-tiling-simple-gpu)
-
-    - [分层平铺（真实GPU）](#hierarchical-tiling-real-gpu)
-
-    - [真实GPU上的性能考量](#performance-considerations-on-a-real-gpu)
-      - [作为平铺维度函数的算术强度](#arithmetic-intensity-as-a-function-of-tile-dimensions)
-      - [计算与数据移动之间的重叠](#overlap-between-compute-and-data-movement)
-      - [最大化内存带宽](#maximizing-memory-bandwidth)
-
-    - [如何使用张量核心](#how-to-use-tensor-cores)
-
-- [内核](#kernels)
-  - [内核1 - 分层平铺](#kernel-1---hierarchical-tiling)
-
-  - [内核2 - 向量化内存复制和循环展开](#kernel-2---vectorized-memory-copy-and-loop-unrolling)
-
-  - [内核3 - 共享内存交织](#kernel-3---shared-memory-swizzling)
-    - [背景：存储体冲突和波前](#background-bank-conflicts-and-wavefronts)
-    - [ldmatrix存储体冲突](#ldmatrix-bank-conflicts)
-    - [填充](#padding)
-    - [交织（玩具示例）](#swizzling-toy-example)
-    - [交织（真实世界）](#swizzling-real-world)
-
-  - [内核4 - 临时异步复制](#kernel-4---makeshift-async-copy)
-    - [GPU占用率（题外话）](#gpu-occupancy-digression)
-
-  - [内核5 - 调整平铺维度](#kernel-5---tune-tile-dimensions)
-    - [调整平铺维度](#tune-tile-dimensions)
-      - [M和N维度 / L2缓存局部性](#m-and-n-dimensions--l2-cache-locality)
-      - [K维度](#k-dimension)
-
-    - [平铺维度 - 更长更薄](#tile-dimensions---longer-and-thinner)
-
-  - [内核5 - 优化索引计算](#kernel-5---optimize-index-calculation)
-
-  - [内核6 - 双缓冲](#kernel-6---double-buffering)
-
-- [结论](#conclusion)
-  - [我没做的事情](#things-i-didnt-do)
-  - [不同矩阵大小下的性能](#performance-on-different-matrix-sizes)
-  - [经验教训，较新的GPU更好](#lessons-learned-newer-gpus-are-better)
-
-- [资源 / 致谢](#resources--acknowledgements)
-
-# 引言
+## 引言
 
 这篇文章详细介绍了我在NVIDIA Tesla T4 GPU上使用CUDA和张量核心编写优化矩阵乘法内核的最新努力。目标是尽可能快地计算D=α∗A∗B+β∗C。在这个方程中，D、A、B和C是充满半精度浮点数的大型矩阵，α和β是常数。这个问题通常被称为**H**alf-precision **Ge**neralized **M**atrix **M**ultiply，或简称**HGEMM**。
 
@@ -730,31 +658,32 @@ WM∗WNWM+WN>?τHMMAβshmem
 
 此时，我的性能大约是 cuBLAS 的 70%，我使用 NSight Compute 的主要策略是比较我的内核和 cuBLAS HGEMM 内核之间的内核指标。虽然 NVIDIA 没有发布 cuBLAS HGEMM 实现的源代码，但查看 NSight Compute 收集的指标可以让我们深入了解 NVIDIA 的聪明人在编写它时可能使用的优化技术类型。
 
-The one thing that jumped out at me was that the total number of executed instructions of cuBLAS HGEMM was 94,175,232, whereas Kernel 4 was executing 216,227,840, over twice as many instructions as compared to Kernel 4. While Kernel 4 partly compensates for this by having a lower cycles per instruction ratio (8ish, vs 12ish for cuBLAS), this is certainly worth looking into.
+让我印象深刻的一点是，cuBLAS HGEMM 执行的指令总数为 94,175,232，而内核 4 执行了 216,227,840 条指令，是内核 4 的两倍多。虽然内核 4 通过较低的每指令周期比（约 8，而 cuBLAS 约 12）部分弥补了这一点，但这确实值得研究。
 
-So I wondered, why is my kernel executing twice as many instructions? Expanding the instruction mix section in NSight Compute gives us more information. ![instruction_mix_comparison](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/047-0086fb98.png) The answer is that Kernel 4 is performing way more index calcuation related instructions than the cuBLAS kernel. The `LOP`, `IADD3`, and `SHF` instructions are integer and logical instructions, these are different pipelines from the tensor core and can execute concurrently with floating point math happening elsewhere on the chip. However, each warp scheduler on a streaming multiprocessor can only issue a single instruction per cycle, and so the large number of index calculation instructions is likely crowding out the issuing of the `HMMA` instructions, these are the tensor core instructions doing the heavy lifting. So what are these integer and logical instructions doing, and why are there so many of them?
+因此我想知道，为什么我的内核执行了两倍的指令？在 NSight Compute 中展开指令混合部分可以提供更多信息。![instruction_mix_comparison](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/047-0086fb98.png) 答案是内核 4 执行了比 cuBLAS 内核多得多的索引计算相关指令。`LOP`、`IADD3` 和 `SHF` 指令是整数和逻辑指令，它们与张量核心使用不同的流水线，可以与芯片其他地方进行的浮点数学运算并发执行。然而，流多处理器上的每个 warp 调度器每个周期只能发出一条指令，因此大量的索引计算指令可能会挤占 `HMMA` 指令的发出，而这些张量核心指令才是真正完成繁重工作的。那么这些整数和逻辑指令在做什么，为什么会有这么多？
 
 According to NSight Compute, 92% of the total instructions executed by Kernel 4 are in the loop nest where each warp loads its region of data from shared memory into register memory, and then performs an outer product over local matrices stored in register memory with a series of `HMMA` instructions. The three nested loops that map the `HMMA` instructions to their position are all fully unrolled, so there isn’t any runtime index calculation required there.
 
-However, the `HMMA` instructions operate on 8 by 8 tiles stored in registers, and before the compute phase the threads in each warp work collaboratively to load all of these tiles from swizzled shared memory into register memory using the `ldmatrix` PTX instruction (see [here](#how-to-use-tensor-cores)) for an explanation of `ldmatrix`. Since at this point we are all the down at the bottom level of the tile hierarchy, the tiles are very small, and consequently we are doing this index calculation _lots_ of times (O(N38)), and it involves multiplying by a bunch of strides, computing a modulo WRT the thread index, and several logical operations to apply the swizzling function, all of which happens at runtime.
+然而，`HMMA` 指令操作存储在寄存器中的 8×8 的分块，在计算阶段之前，每个 warp 中的线程协作使用 `ldmatrix` PTX 指令从交错的共享内存中将所有这些分块加载到寄存器内存中（关于 `ldmatrix` 的解释请参见[此处](#how-to-use-tensor-cores)）。由于此时我们已经处于分块层次结构的最底层，分块非常小，因此我们需要进行大量的索引计算（O(N³⁄₈)），这涉及乘以一堆步长、计算关于线程索引的模运算，以及应用交织函数的几个逻辑操作，所有这些都在运行时发生。
 
 ![index_calculation_inneficient](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/048-29c14961.png)
 
-In order to make this more performant, we should move as much of this calculation as possible to happen at compile time, and whatever needs to happen at runtime should be as streamlined as possible. In the index calculation code shown above, fundamentally there are three distinct and dependent steps
+为了提高性能，我们应该将尽可能多的计算移到编译时进行，并且在运行时需要发生的任何事情都应该尽可能简化。在上面显示的索引计算代码中，基本上有三个不同且相互依赖的步骤：
 
-1. First each warp computes the memory address of the top left corner of the mma tile
-1. Each thread calculates the memory address of the element it will load, relative to (1)
-1. Because our shared memory layout is swizzled, each thread applies the swizzle function to the address computued in (2) in order to get the correct memory address in the swizzled layout.
+1. 首先，每个 warp 计算 MMA 分块左上角的内存地址
+2. 每个线程计算它将加载的元素的内存地址，相对于 (1)
+3. 因为我们的共享内存布局是交错的，所以每个线程对在 (2) 中计算的地址应用交织函数，以获得交错布局中的正确内存地址
 
-All three steps are done for each of the 8x8 MMA tiles. Below is a visualization of this, the diagram below is a mini example where each MMA tile is four rows and one column, and each warp tile has 2x8 MMA tiles (using simpler examples like this allows us to make all the details as explicit as possible, and the ![:smiling_imp:](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/049-29582309.png ':smiling_imp:') is in the details).
+所有三个步骤都针对每个 8×8 MMA 分块完成。下面是这个过程的可视化，下图是一个迷你示例，其中每个 MMA 分块有四行一列，每个 warp 分块有 2×8 个 MMA 分块（使用这样简单的示例可以使所有细节尽可能明确，![:smiling_imp:](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/049-29582309.png ':smiling_imp:') 细节决定成败）。
 
 ![swizzled_index_calculation_inneficient](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/050-754fca52.png)
 
-In the middle column, each thread has calculated the address of the value it is going to load, in the unswizzled layout. Each iteration, these pointers are advanced to the right by one column, until we get to the end of the warp tile at which point we go down to the next set of rows. If it weren’t for the swizzled layout, we could just advance the pointers by one each iteration, i.e. `thread_row+=1`. However, because the data is stored in a swizzled layout, advancing the pointers over to the next group of MMA tiles is not simply a matter of incrementing by one.
 
-While incrementing by one will not work for iterating over a swizzled layout, we can achieve the equivalent effect by XORing each threads pointer with a constant. ![swizzled_index_calculation_efficient](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/051-3f9c84d9.png) This reduces the amount of index calculation from \~13 operations in between each `ldmatrix`, down to a single XOR. After applying this optimization, the total number of instructions executed goes down to \~90M, which is slightly less than cuBLAS.
+在中间列中，每个线程计算了它将要加载的值的地址，以未交错的布局表示。每次迭代时，这些指针向右推进一列，直到到达 warp 分块的末尾，此时我们向下移动到下一组行。如果不是交错布局，我们只需在每次迭代中将指针推进一个位置，即 `thread_row+=1`。然而，由于数据以交错布局存储，将指针推进到下一组 MMA 分块并不仅仅是递增一个位置的问题。
 
-This illustrates the basic principle of efficiently iterating through a swizzled data layout. In the [actual code](https://github.com/alexarmbr/matmul-playground/blob/main/src/kernel5.cu#L10), it is a bit more complicated because the swizzle function is more complicated, and we need to iterate through the tiles of A and B which have different dimensions from each other. Also the loops containing the `ldmatrix` instructions are manually unrolled, this makes the XORing easier, and also might allow the compiler to do a better job of interleaving the `ldmatrix` and `mma.sync` instructions to balance load between the two different pipelines.
+虽然递增一个位置不适用于遍历交错布局，但我们可以通过将每个线程的指针与常量进行 XOR 运算来实现等效效果。![swizzled_index_calculation_efficient](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/051-3f9c84d9.png) 这将每个 `ldmatrix` 之间的索引计算量从约 13 个操作减少到单个 XOR。应用此优化后，执行的指令总数下降到约 90M，略低于 cuBLAS。
+
+这说明了高效遍历交错数据布局的基本原理。在[实际代码](https://github.com/alexarmbr/matmul-playground/blob/main/src/kernel5.cu#L10)中，情况稍微复杂一些，因为交织函数更复杂，我们需要遍历 A 和 B 的分块，它们的维度彼此不同。此外，包含 `ldmatrix` 指令的循环是手动展开的，这使得 XOR 操作更容易，并且还可能允许编译器更好地交错 `ldmatrix` 和 `mma.sync` 指令，以在两个不同的流水线之间平衡负载。
 
 The optimized index calcuation, loop unrolling, and adjusted tile dimensions are all implemented as part of the same kernel, that achieves a hard fought 1.2x speedup over the last one, and gets us to 86.7% of cuBLAS throughput. ![table5](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/052-4477720d.png)
 
@@ -821,5 +750,3 @@ Back to the profiler (for the last time). At this point many of the metrics betw
 - [另一篇](https://horace.io/brrr_intro.html)关于ML系统视角的优秀博客。这篇文章特别易读地解释了为什么在GPU上训练神经网络时，内存带宽和算术强度等因素很重要。
 - 一篇来自斯坦福大学系统ML实验室的[文章](https://hazyresearch.stanford.edu/blog/2024-05-12-tk)，关于Hopper架构的内核工程。
 - [这是](https://github.com/NVIDIA/cutlass)NVIDIA的CUTLASS项目，提供了一系列抽象，使编写快速内核更容易。
-
-[](/2024/08/10/How-To-Write-A-Fast-Matrix-Multiplication-From-Scratch-With-Tensor-Cores.html)
