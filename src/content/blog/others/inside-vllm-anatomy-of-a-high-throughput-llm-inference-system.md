@@ -18,7 +18,7 @@ translatedFrom: en
 
 # 深入 vLLM：剖析一个高吞吐量 LLM 推理系统
 
-## 从分页注意力（paged attention）、连续批处理（continuous batching）、前缀缓存（prefix caching）、推测解码（specdec）等，到多 GPU、多节点的动态大规模服务
+**从分页注意力（paged attention）、连续批处理（continuous batching）、前缀缓存（prefix caching）、推测解码（specdec）等，到多 GPU、多节点的动态大规模服务**
 
 2025年8月29日
 
@@ -30,11 +30,11 @@ translatedFrom: en
 
 本文分为五个部分：
 
-1. [LLM 引擎与引擎核心](#cpt1)：vLLM 的基础（调度、分页注意力（paged attention）、连续批处理（continuous batching）等）
-1. [高级功能](#cpt2)：分块预填充（chunked prefill）、前缀缓存（prefix caching）、引导与推测解码（guided & speculative decoding）、解耦的 P/D（disaggregated P/D）
-1. [扩展规模](#cpt3)：从单 GPU 到多 GPU 执行
-1. [服务层](#cpt4)：分布式/并发网络框架
-1. [基准测试与自动调优](#cpt5)：测量延迟和吞吐量
+1. [LLM 引擎与引擎核心](#llm-引擎与引擎核心)：vLLM 的基础（调度、分页注意力（paged attention）、连续批处理（continuous batching）等）
+1. [高级功能](#高级功能--扩展核心引擎逻辑)：分块预填充（chunked prefill）、前缀缓存（prefix caching）、引导与推测解码（guided & speculative decoding）、解耦的 P/D（disaggregated P/D）
+1. [扩展规模](#从uniprocexecutor到multiprocexecutor)：从单 GPU 到多 GPU 执行
+1. [服务层](#分布式系统服务vllm)：分布式/并发网络框架
+1. [基准测试与自动调优](#基准测试和自动调优---延迟与吞吐量)：测量延迟和吞吐量
 
 📝笔记
 
@@ -194,7 +194,7 @@ KV 缓存管理器维护一个 `free_block_queue`——一个可用的 KV 缓存
 1. **预填充**请求——对所有提示令牌的前向传递。这些通常是**计算受限**（阈值取决于硬件和提示长度）。最后，我们从最终令牌位置的概率分布中采样一个令牌。
 1. **解码**请求——仅对最近令牌的前向传递。所有早期的KV向量已缓存。这些是**内存带宽受限**，因为我们仍需要加载所有LLM权重（和KV缓存）来计算一个令牌。
 
-在[基准测试部分](#cpt5)，我们将分析GPU性能的所谓屋顶线模型。这将更详细地探讨预填充/解码性能概况。
+在[基准测试部分](#基准测试和自动调优---延迟与吞吐量)，我们将分析GPU性能的所谓屋顶线模型。这将更详细地探讨预填充/解码性能概况。
 
 V1调度器可以在同一步骤中混合两种类型的请求，这得益于更智能的设计选择。相比之下，V0引擎一次只能处理预填充或解码。
 
@@ -497,7 +497,7 @@ if __name__ == "__main__":
 
 我之前已经暗示过解耦P/D（预填充/解码）背后的动机。
 
-预填充和解码具有非常不同的性能特征（计算密集型与内存带宽密集型），因此分离它们的执行是一个合理的设计。这提供了对延迟的更严格控制——包括`TFTT`（首令牌时间）和`ITL`（令牌间延迟）——更多细节将在[基准测试](#cpt5)部分讨论。
+预填充和解码具有非常不同的性能特征（计算密集型与内存带宽密集型），因此分离它们的执行是一个合理的设计。这提供了对延迟的更严格控制——包括`TFTT`（首令牌时间）和`ITL`（令牌间延迟）——更多细节将在[基准测试](#基准测试和自动调优---延迟与吞吐量)部分讨论。
 
 在实践中，我们运行`N`vLLM预填充实例和`M`vLLM解码实例，根据实时请求混合自动扩展它们。预填充工作器将KV写入专用的KV缓存服务；解码工作器从中读取。这隔离了长而突发的预填充与稳定、对延迟敏感的解码。
 
@@ -913,14 +913,14 @@ vLLM 还包括我跳过的专门处理。例如：
 
 ## 参考文献
 
-1. vLLM <https://github.com/vllm-project/vllm>
-1. 《Attention Is All You Need》，<https://arxiv.org/abs/1706.03762>
-1. 《Efficient Memory Management for Large Language Model Serving with PagedAttention》，<https://arxiv.org/abs/2309.06180>
-1. 《DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model》，<https://arxiv.org/abs/2405.04434>
-1. 《Jenga: Effective Memory Management for Serving LLM with Heterogeneity》，<https://arxiv.org/abs/2503.18292>
-1. 《Orca: A Distributed Serving System for Transformer-Based Generative Models》，<https://www.usenix.org/conference/osdi22/presentation/yu>
-1. 《XGrammar: Flexible and Efficient Structured Generation Engine for Large Language Models》，<https://arxiv.org/abs/2411.15100>
-1. 《Accelerating Large Language Model Decoding with Speculative Sampling》，<https://arxiv.org/abs/2302.01318>
-1. 《EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty》，<https://arxiv.org/abs/2401.15077>
-1. 《Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads》，<https://arxiv.org/abs/2401.10774>
-1. LMCache，<https://github.com/LMCache/LMCache>
+1. <span id="ref-1"></span> vLLM <https://github.com/vllm-project/vllm>
+1. <span id="ref-2"></span> 《Attention Is All You Need》，<https://arxiv.org/abs/1706.03762>
+1. <span id="ref-3"></span> 《Efficient Memory Management for Large Language Model Serving with PagedAttention》，<https://arxiv.org/abs/2309.06180>
+1. <span id="ref-4"></span> 《DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model》，<https://arxiv.org/abs/2405.04434>
+1. <span id="ref-5"></span> 《Jenga: Effective Memory Management for Serving LLM with Heterogeneity》，<https://arxiv.org/abs/2503.18292>
+1. <span id="ref-6"></span> 《Orca: A Distributed Serving System for Transformer-Based Generative Models》，<https://www.usenix.org/conference/osdi22/presentation/yu>
+1. <span id="ref-7"></span> 《XGrammar: Flexible and Efficient Structured Generation Engine for Large Language Models》，<https://arxiv.org/abs/2411.15100>
+1. <span id="ref-8"></span> 《Accelerating Large Language Model Decoding with Speculative Sampling》，<https://arxiv.org/abs/2302.01318>
+1. <span id="ref-9"></span> 《EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty》，<https://arxiv.org/abs/2401.15077>
+1. <span id="ref-10"></span> 《Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads》，<https://arxiv.org/abs/2401.10774>
+1. <span id="ref-11"></span> LMCache，<https://github.com/LMCache/LMCache>
