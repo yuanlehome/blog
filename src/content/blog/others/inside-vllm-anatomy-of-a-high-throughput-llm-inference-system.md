@@ -20,8 +20,6 @@ translatedFrom: en
 
 **从分页注意力（paged attention）、连续批处理（continuous batching）、前缀缓存（prefix caching）、推测解码（specdec）等，到多 GPU、多节点的动态大规模服务**
 
-2025年8月29日
-
 在这篇文章中，我将逐步介绍构成现代高吞吐量 LLM 推理系统的所有核心系统组件和高级功能。特别是，我将详细剖析 vLLM [\[1\]](#ref-1) 的工作原理。
 
 这是系列文章的第一篇。它从宏观开始，然后层层深入细节（采用倒金字塔方法），以便您能形成对整个系统准确的高层次心智模型，而不会淹没在细枝末节中。
@@ -31,10 +29,10 @@ translatedFrom: en
 本文分为五个部分：
 
 1. [LLM 引擎与引擎核心](#llm-引擎与引擎核心)：vLLM 的基础（调度、分页注意力（paged attention）、连续批处理（continuous batching）等）
-1. [高级功能](#高级功能--扩展核心引擎逻辑)：分块预填充（chunked prefill）、前缀缓存（prefix caching）、引导与推测解码（guided & speculative decoding）、解耦的 P/D（disaggregated P/D）
-1. [扩展规模](#从uniprocexecutor到multiprocexecutor)：从单 GPU 到多 GPU 执行
-1. [服务层](#分布式系统服务vllm)：分布式/并发网络框架
-1. [基准测试与自动调优](#基准测试和自动调优---延迟与吞吐量)：测量延迟和吞吐量
+2. [高级功能](#高级功能--扩展核心引擎逻辑)：分块预填充（chunked prefill）、前缀缓存（prefix caching）、引导与推测解码（guided & speculative decoding）、解耦的 P/D（disaggregated P/D）
+3. [扩展规模](#从uniprocexecutor到multiprocexecutor)：从单 GPU 到多 GPU 执行
+4. [服务层](#分布式系统服务vllm)：分布式/并发网络框架
+5. [基准测试与自动调优](#基准测试和自动调优---延迟与吞吐量)：测量延迟和吞吐量
 
 📝笔记
 

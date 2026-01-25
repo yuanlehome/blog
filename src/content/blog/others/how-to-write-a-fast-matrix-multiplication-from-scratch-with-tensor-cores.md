@@ -2,7 +2,7 @@
 title: How To Write A Fast Matrix Multiplication From Scratch With Tensor Cores
 slug: how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores
 date: '2024-08-10'
-tags: []
+tags: ['CUDA']
 status: published
 source_url: >-
   https://alexarmbr.github.io/2024/08/10/How-To-Write-A-Fast-Matrix-Multiplication-From-Scratch-With-Tensor-Cores.html
