@@ -1,0 +1,114 @@
+name: Copilot Fix Imported Posts
+
+on:
+  workflow_dispatch:
+    inputs:
+      files:
+        description: '要修复的文章路径，逗号分隔（例如 src/content/blog/a.md,src/content/blog/b.md）'
+        required: true
+      issue_title:
+        description: 'Issue 标题'
+        required: false
+        default: 'Fix imported translated markdown posts'
+      aggressive_cleanup:
+        description: '是否更激进清理非正文（true/false）'
+        required: false
+        default: 'false'
+
+permissions:
+  issues: write
+
+jobs:
+  create_issue_and_assign:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure gh is available
+        run: gh --version
+
+      - name: Create issue
+        env:
+          FILES: ${{ inputs.files }}
+          TITLE: ${{ inputs.issue_title }}
+          AGGRESSIVE: ${{ inputs.aggressive_cleanup }}
+          REPO: ${{ github.repository }}
+        run: |
+          python - <<'PY'
+          import os, textwrap, json, subprocess
+
+          files_raw = os.environ["FILES"].strip()
+          title = os.environ["TITLE"].strip()
+          aggressive = os.environ["AGGRESSIVE"].strip().lower()
+          repo = os.environ["REPO"].strip()
+
+          # Normalize files into a bullet list
+          files = [f.strip() for f in files_raw.split(",") if f.strip()]
+          if not files:
+            raise SystemExit("No valid files provided in inputs.files")
+          files_md = "\n".join([f"- `{f}`" for f in files])
+
+          body = f"""
+          你是这个博客仓库的“内容修复机器人 + Markdown/MDX 渲染工程师 + 技术编辑”。
+          请在不改变技术含义前提下，原地修复指定文章的 Markdown 结构、翻译遗漏与渲染问题，并清理非正文的无关内容。
+
+          最终必须保证仓库一次性通过：
+          - `npm run check`
+          - `npm run test`
+          - `npm run test:e2e`
+          - `npm run lint`
+
+          ## 任务范围（只改这些文件）
+          {files_md}
+
+          > 若路径不存在或不是 Markdown/MDX：请在 Issue 评论里报告具体路径与原因，并停止继续修改。
+
+          ## 必须做的事情
+          1) **标题与层级校正**
+          - 整篇仅一个 `#` 主标题；如有 frontmatter `title`，与正文不一致则统一。
+          - `##/###/####` 层级连续不跳级；修复假标题、缺空行等导致目录异常的问题。
+
+          2) **漏翻补翻（中英混杂修复）**
+          - 将遗留英文的自然语言段落/列表项/图注/引用翻译成自然中文。
+          - 不翻译：代码块、命令、日志、API 名称、变量名、路径、配置字段。
+          - 术语一致：首次出现可用“中文（English）”，后续优先中文；专有名词/项目名可保留英文。
+
+          3) **渲染稳定性（Astro/MDX 友好）**
+          - 修复列表缩进、引用块断裂、代码 fence 不闭合、语言标注缺失/错误、段落粘连、图片语法不规范等。
+          - 合理补全 code fence 语言：bash/json/yaml/python/ts/tsx/cpp 等。
+          - 删除页面正文内的子标题导航标签。
+
+          4) **非正文清理**
+          - 必删：订阅/点赞/分享/关注/捐赠/二维码/页脚导航/转载模板垃圾等。
+          - 可选删：作者 bio/社交链接/重复“原文链接”（保留一个最重要即可）。
+          - 绝不删：技术正文、结论、实验、图表说明、参考（可去重但不能删光）、代码与配置。
+
+          5) **保守润色**
+          - 降低翻译腔但不改变事实含义，不编造来源；保留链接/图片/引用。
+
+          ## 额外开关
+          - aggressive_cleanup = `{aggressive}`（true 可更积极清理明显营销/导航残片；false 更保守）
+
+          ## 交付方式
+          - 在 `copilot/` 开头分支提交变更并创建 PR。
+          - PR 描述里按文件列出修复点：标题层级 / 漏翻补翻 / 渲染修复 / 非正文清理。
+          """.strip()
+
+          # Create issue and print URL
+          cmd = ["gh", "issue", "create", "--repo", repo, "--title", title, "--body", body, "--json", "url", "-q", ".url"]
+          url = subprocess.check_output(cmd, text=True).strip()
+          print("Issue:", url)
+
+          # Persist for next step
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
+            f.write(f"ISSUE_URL={url}\n")
+          PY
+
+      - name: Assign to Copilot
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          if [ -z "${ISSUE_URL}" ]; then
+            echo "ISSUE_URL is empty" >&2
+            exit 1
+          fi
+          gh issue edit "${ISSUE_URL}" --repo "${REPO}" --add-assignee "@copilot"
+          echo "Assigned ${ISSUE_URL} to @copilot"
