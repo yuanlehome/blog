@@ -18,13 +18,13 @@ translatedFrom: en
 
 # 深入NVIDIA GPU：高性能矩阵乘法（matmul）内核的剖析
 
-## 从GPU架构和PTX/SASS到warp-tiling和深度异步张量核心（tensor core）流水线
+_从GPU架构和PTX/SASS到warp-tiling和深度异步张量核心（tensor core）流水线_
 
 2025年9月29日
 
 在这篇文章中，我将逐步介绍支撑最先进（SOTA）NVIDIA GPU矩阵乘法（matmul）内核的所有核心硬件概念和编程技术。
 
-**为什么关注矩阵乘法（matmul）？**&#x54;ransformer在训练和推理过程中，大部分浮点运算（FLOPs）都发生在矩阵乘法（matmul）中（如MLP中的线性层、注意力QKV投影、输出投影等）。这些操作具有极高的并行性，天然适合GPU。最后，理解矩阵乘法（matmul）内核的工作原理，能为你提供设计几乎所有其他高性能GPU内核的工具包。
+**为什么关注矩阵乘法（matmul）？** Transformer在训练和推理过程中，大部分浮点运算（FLOPs）都发生在矩阵乘法（matmul）中（如MLP中的线性层、注意力QKV投影、输出投影等）。这些操作具有极高的并行性，天然适合GPU。最后，理解矩阵乘法（matmul）内核的工作原理，能为你提供设计几乎所有其他高性能GPU内核的工具包。
 
 本文分为四个部分：
 
@@ -41,6 +41,8 @@ translatedFrom: en
 - 通过微基准测试实验探索GPU架构
 - 设计SOTA多GPU内核
 - 揭秘内存一致性模型（GPU中的tokenizer等价物：默默支撑系统运行但让大多数开发者困惑的关键组件）
+
+<a id="cpt1"></a>
 
 ## NVIDIA GPU架构基础
 
@@ -361,6 +363,8 @@ Ampere（例如 A100）本身引入了几个关键特性：
 - CUDA任务图，支撑PyTorch中的CUDA图，并减少CPU启动和网格初始化开销。
 - 通过CUDA Cooperative Groups暴露的warp级归约指令（支持warp范围内、整数数据类型的单步归约，无需shuffle模式）。
 
+<a id="cpt2"></a>
+
 ## GPU汇编语言：PTX和SASS
 
 让我们向上移动一个层级到ISA（指令集架构）。ISA简单来说就是处理器（例如，NVIDIA GPU）可以执行的指令集合，包括它们的二进制编码（操作码、操作数等）和行为语义。这些共同定义了程序员如何指导硬件执行有用工作。
@@ -653,6 +657,8 @@ _图23：对应朴素矩阵乘法CUDA内核的SASS代码_
 
 我强烈推荐Simon的优秀[博客文章](https://siboehm.com/articles/22/CUDA-MMM)。它是我最初深入内核的灵感来源。在本章中，我将使用他的[内核10](https://github.com/siboehm/SGEMM_CUDA/blob/master/src/kernels/10_kernel_warptiling.cuh) [\[12\]](#ref-12)代码作为参考。虽然代码本身似乎是基于CUTLASS的（参见[这个](https://developer.nvidia.com/blog/cutlass-linear-algebra-cuda/) [\[13\]](#ref-13)和[这个](https://github.com/NVIDIA/cutlass/blob/b0e09d7cd371eded41f7c1e057caf1593c27ba55/media/docs/efficient_gemm.md) [\[14\]](#ref-14)例如），但我首先分析了Simon的版本——所以这里我将遵循那个版本。
 
+<a id="cpt3"></a>
+
 ## 设计接近SOTA的同步矩阵乘法内核
 
 在本章中，我们将分解一个在以下约束下接近SOTA的fp32内核：
@@ -923,6 +929,8 @@ B += BK * N; // move BK rows down
 我强烈推荐Pranjal的优秀[博客文章（blog post）](https://cudaforfun.substack.com/p/outperforming-cublas-on-h100-a-worklog) [\[15\]](#ref-15)，它读起来更像工作日志。在本章中，我将遵循他工作日志中的内核。与Simon的工作类似，大部分代码似乎受CUTLASS启发（例如，参见这些帖子：CUTLASS[ping pong kernel](https://pytorch.org/blog/cutlass-ping-pong-gemm-kernel/) [\[16\]](#ref-16)和[efficient GEMM](https://github.com/NVIDIA/cutlass/blob/b0e09d7cd371eded41f7c1e057caf1593c27ba55/media/docs/efficient_gemm.md)）。
 
 值得注意的是，细节决定成败，Pranjal成功超越了cuBLAS SOTA——在几个目标矩阵维度上达到约107%的cuBLAS性能。
+
+<a id="cpt4"></a>
 
 ## 在Hopper上设计SOTA异步矩阵乘法内核
 
