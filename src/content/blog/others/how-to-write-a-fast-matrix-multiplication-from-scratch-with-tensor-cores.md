@@ -261,7 +261,7 @@ for i=1...N in steps of size BN:
 
 根据 [非官方基准测试](https://arxiv.org/pdf/1903.07486)T4 上可达到的最佳全局内存带宽约为 220 GB/秒，最佳共享内存带宽约为 3662 GB/秒。然而，未经优化的内核只能达到这些数值的一小部分。首要考虑因素是访问模式；当相邻线程组请求内存时，某些线程到内存中数据的映射比其他映射更高效。实现全局内存与共享内存的硬件功能不同，因此，对于读取共享内存最优的访问模式可能对读取全局内存并非最优。
 
-全局内存访问的主要考虑因素称为合并（coalescing），一句话总结是：当相邻线程访问全局内存中的相邻数据时，可实现最大全局内存带宽（解释[此处](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#device-memory-accesses)）。共享内存将在[后续](#background-bank-conflicts-and-wavefronts)章节中深入探讨。
+全局内存访问的主要考虑因素称为合并（coalescing），一句话总结是：当相邻线程访问全局内存中的相邻数据时，可实现最大全局内存带宽（解释[此处](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#device-memory-accesses)）。共享内存将在[后续](#背景bank冲突和wavefronts)章节中深入探讨。
 
 #### 如何使用张量核心
 
@@ -302,17 +302,17 @@ Tensor core 可通过两种不同方法访问。第一种是通过`wmma` [api](h
 
 在本文的其余部分，我将讨论一系列内核，这些内核使我在 8192x8192 矩阵的 tensor core GEMM 上达到了约 96% 的 cuBLAS 性能水平。每个内核都建立在前一个的基础上，每个的主题是：
 
-1. [分层分块](#kernel-1---hierarchical-tiling)
-1. [向量化/展开的 gmem->smem 传输](#kernel-2---vectorized-memory-copy-and-loop-unrolling)
-1. [共享内存重排](#swizzling)
-1. [临时异步复制](#kernel-4---makeshift-async-copy)
-1. [调整块维度](#tune-tile-dimensions)
-1. [优化索引计算](#kernel-5---optimize-index-calculation)
-1. [双缓冲](#kernel-6---double-buffering)
+1. [分层分块](#内核-1---分层分块)
+1. [向量化/展开的 gmem->smem 传输](#内核-2---向量化内存复制和循环展开)
+1. [共享内存重排](#swizzling玩具示例)
+1. [临时异步复制](#内核4---临时异步复制)
+1. [调整块维度](#调整瓦片尺寸)
+1. [优化索引计算](#内核-5---优化索引计算)
+1. [双缓冲](#内核6---双缓冲)
 
 ## 内核 1 - 分层分块
 
-我编写的第一个内核实现了[上方](#hierarchical-tiling-real-gpu)所示的分层分块结构。以下是执行矩阵乘法的循环结构的伪代码。
+我编写的第一个内核实现了[上方](#分层分块真实gpu)所示的分层分块结构。以下是执行矩阵乘法的循环结构的伪代码。
 
 ```text
 // outer loop over block tiles
@@ -484,7 +484,7 @@ NSight Compute 将告诉我们每次内存访问：
 
 ![row_vs_column_shmem_access](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/029-6e1ae382.png)
 
-这是使用 2D 共享内存块的内核中的常见情况，标准修复方法是在共享内存数组的每行末尾添加一些填充（即空空间）。如果我们以这样的方式添加填充，使得数组的单行不再完美地适应 32 个存储体，列中的相邻值就不再落入同一存储体，这意味着我们可以读取列而没有任何过量波前。这在图片中比在文字中更清晰，这里再次是一个简化案例：一个迷你数组（4 列和 4 行）存储在一个只有 4 个存储体的迷你 GPU 上：![simple_smem_padding](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/030-6cc67e93.png)数组元素按列颜色编码。注意，在无填充情况下，给定列中的所有数组元素落入同一存储体。添加填充列后，给定列中的数组元素分布在所有 4 个存储体上。填充技术可以在这里用于完全消除存储体冲突。由于我们使用[向量化](#kernel-2---vectorized-memory-copy-and-loop-unrolling)写入共享内存，我们每次以 16 字节块写入共享内存，每个块必须[对齐](https://docs.nvidia.com/cuda/cuda-c-programming-guide/#device-memory-accesses)。向共享内存的每行添加 16 字节填充将导致每个 8x8 MMA 块分布在所有 32 个存储体上（说服自己这一点的练习留给读者）。
+这是使用 2D 共享内存块的内核中的常见情况，标准修复方法是在共享内存数组的每行末尾添加一些填充（即空空间）。如果我们以这样的方式添加填充，使得数组的单行不再完美地适应 32 个存储体，列中的相邻值就不再落入同一存储体，这意味着我们可以读取列而没有任何过量波前。这在图片中比在文字中更清晰，这里再次是一个简化案例：一个迷你数组（4 列和 4 行）存储在一个只有 4 个存储体的迷你 GPU 上：![simple_smem_padding](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/030-6cc67e93.png)数组元素按列颜色编码。注意，在无填充情况下，给定列中的所有数组元素落入同一存储体。添加填充列后，给定列中的数组元素分布在所有 4 个存储体上。填充技术可以在这里用于完全消除存储体冲突。由于我们使用[向量化](#内核-2---向量化内存复制和循环展开)写入共享内存，我们每次以 16 字节块写入共享内存，每个块必须[对齐](https://docs.nvidia.com/cuda/cuda-c-programming-guide/#device-memory-accesses)。向共享内存的每行添加 16 字节填充将导致每个 8x8 MMA 块分布在所有 32 个存储体上（说服自己这一点的练习留给读者）。
 
 使用填充技术的缺点在于它要求我们在共享内存中分配额外的、未使用的空间。在Kernel 2中，A的共享内存图块为256x64，B的共享内存图块为128x64。如果我们为两者都添加一个额外的16字节（即8个元素）列，这将使分配的共享内存量增加25%，总计增加6144字节。这种浪费的空间被证明是一个显著的缺点，因为在编写高性能内核时，共享内存是非常宝贵的资源——这一点在使用称为双缓冲的技术时尤其明显，未来内核中的每个线程块最终将在每个SM上使用65536字节共享内存的100%。因此，我们应该思考是否有办法在不浪费任何共享内存空间的情况下消除存储体冲突。事实证明，这是非常可能的！
 
@@ -536,7 +536,7 @@ Swizzling可能是我在这个工作过程中学到的最喜欢的技术。单�
 
 ## 内核4 - 临时异步复制
 
-每个优化都针对前一个内核中性能最差的部分。应用每个优化后，如果有效，内核中性能最差的部分应该会改变。在修复共享内存存储体冲突之前，内循环中的共享内存操作是瓶颈。消除存储体冲突后，内循环变得更加高效，瓶颈再次变为全局内存到共享内存传输的延迟。这在[内核2](#kernel-2---vectorized-memory-copy-and-loop-unrolling)中通过向量化和循环展开得到了解决，但在修复存储体冲突后，NSight Compute告诉我们这里有更多延迟需要隐藏。以下是当前循环嵌套的伪代码，以及需要改进的代码的放大视图：![long_scoreboard_stall_kernel3](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/040-f073e6b6.png)问题再次出现在执行全局内存到共享内存复制的行：
+每个优化都针对前一个内核中性能最差的部分。应用每个优化后，如果有效，内核中性能最差的部分应该会改变。在修复共享内存存储体冲突之前，内循环中的共享内存操作是瓶颈。消除存储体冲突后，内循环变得更加高效，瓶颈再次变为全局内存到共享内存传输的延迟。这在[内核2](#内核-2---向量化内存复制和循环展开)中通过向量化和循环展开得到了解决，但在修复存储体冲突后，NSight Compute告诉我们这里有更多延迟需要隐藏。以下是当前循环嵌套的伪代码，以及需要改进的代码的放大视图：![long_scoreboard_stall_kernel3](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/040-f073e6b6.png)问题再次出现在执行全局内存到共享内存复制的行：
 
 ```text
 dst_float4[dst_index] = src_float4[src_index];
@@ -550,7 +550,7 @@ float4 tmp = src_float4[src_index]; // global memory to register
 dst_float4[dst_index] =  tmp; // register to shared memory
 ```
 
-全局内存到寄存器的传输（第一行）会产生延迟，因为数据来自片外。当需要从寄存器存储到共享内存（第二行）时，硬件检测到从全局内存所需的数据尚未到达`tmp`，执行会停滞直到数据到达。在[内核2](#kernel-2---vectorized-memory-copy-and-loop-unrolling)中，我们通过分摊每次事务移动更多数据的延迟（向量化）和帮助编译器交错多个加载/存储（循环展开）来解决这个性能问题。但NSight Compute告诉我们，即使在这些优化之后，这种停滞（特别是这一行）仍占内核总停滞时钟周期的约20%。
+全局内存到寄存器的传输（第一行）会产生延迟，因为数据来自片外。当需要从寄存器存储到共享内存（第二行）时，硬件检测到从全局内存所需的数据尚未到达`tmp`，执行会停滞直到数据到达。在[内核2](#内核-2---向量化内存复制和循环展开)中，我们通过分摊每次事务移动更多数据的延迟（向量化）和帮助编译器交错多个加载/存储（循环展开）来解决这个性能问题。但NSight Compute告诉我们，即使在这些优化之后，这种停滞（特别是这一行）仍占内核总停滞时钟周期的约20%。
 
 这里的关键观察是，如果我们将`dst[...] = src[...]`行分解为其两个组成部分，我们可以将它们分开，以便在数据从全局内存传输时执行其他有用工作。总体思路是，我们可以将数据从全局内存预取到寄存器存储中，比当前计算的`block_k`提前一个`block_k`。在非常高的层次上，我们希望从这样：
 
@@ -604,7 +604,7 @@ dst_float4[dst_index] =  tmp; // register to shared memory
 
 高性能GEMM核函数通常具有较低的占用率，意味着它们使用更多的共享内存和每个线程的寄存器内存，并且SM上同时驻留的线程较少。这主要是因为需要高算术强度；为了在有限内存带宽下保持计算单元忙碌，内存层次结构低层的每个线程计算越多越好。但低占用率的缺点是GPU通过上下文切换自动隐藏延迟的效果会降低。我们可以通过构建核函数以允许计算和数据移动重叠来处理这种权衡，本章就是一个例子。
 
-两个最新的NVIDIA架构，Ampere尤其是Hopper，引入了专用硬件支持，使我们能够异步执行GEMM核函数的多个组件（更多内容见[结论（conclusion）](#lessons-learned-newer-gpus-are-better)）。这种硬件支持使得编写高效、低占用率的核函数（如这些）变得容易得多。
+两个最新的NVIDIA架构，Ampere尤其是Hopper，引入了专用硬件支持，使我们能够异步执行GEMM核函数的多个组件（更多内容见[结论](#经验教训更新的gpu更好)）。这种硬件支持使得编写高效、低占用率的核函数（如这些）变得容易得多。
 
 ## 核函数5 - 调整瓦片尺寸
 
@@ -618,7 +618,7 @@ dst_float4[dst_index] =  tmp; // register to shared memory
 
 FLOPs performedbytes moved>?τβ
 
-因此，对于左侧，我们需要代入特定于我们核函数的数字，对于右侧，我们需要代入特定于我们硬件的数字。[这个](#arithmetic-intensity-as-a-function-of-tile-dimensions)部分讨论了算术强度如何是瓦片尺寸的函数。具体来说，对于瓦片尺寸BM、BN和BK，我们应预期的算术强度是BM∗BNBM+BN。这里是针对块瓦片级别的复习![intensity_block_tile_dims](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/044-7adbb146.png)注意BK在这个计算中如何被抵消。这意味着在考虑算术强度时，我们沿K维度的瓦片大小是无关的。然而，在考虑性能的其他方面时，它并非无关（稍后详述）。
+因此，对于左侧，我们需要代入特定于我们核函数的数字，对于右侧，我们需要代入特定于我们硬件的数字。[这个](#算术强度作为分块维度的函数)部分讨论了算术强度如何是瓦片尺寸的函数。具体来说，对于瓦片尺寸BM、BN和BK，我们应预期的算术强度是BM∗BNBM+BN。这里是针对块瓦片级别的复习![intensity_block_tile_dims](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/044-7adbb146.png)注意BK在这个计算中如何被抵消。这意味着在考虑算术强度时，我们沿K维度的瓦片大小是无关的。然而，在考虑性能的其他方面时，它并非无关（稍后详述）。
 
 #### M和N维度 / L2缓存局部性
 
@@ -662,7 +662,7 @@ WM∗WNWM+WN>?τHMMAβshmem
 
 根据 NSight Compute，Kernel 4 执行的总指令的 92% 位于循环嵌套中，在这里每个 warp 从共享内存加载其数据区域到寄存器内存，然后通过一系列 `HMMA` 指令对存储在寄存器内存中的局部矩阵执行外积。将 `HMMA` 指令映射到其位置的三个嵌套循环都完全展开了，因此那里不需要任何运行时索引计算。
 
-然而，`HMMA` 指令在存储于寄存器中的 8×8 块上操作，在计算阶段之前，每个 warp 中的线程协作地使用 `ldmatrix` PTX 指令将所有这些块从交错的共享内存加载到寄存器内存中（参见[此处](#how-to-use-tensor-cores)了解 `ldmatrix` 的解释）。由于此时我们处于块层次结构的最底层，块非常小，因此我们要执行这种索引计算_很多次_（O(N38)），它涉及乘以一堆步长、计算相对于线程索引的模、以及多个逻辑操作来应用交错函数，所有这些都在运行时发生。
+然而，`HMMA` 指令在存储于寄存器中的 8×8 块上操作，在计算阶段之前，每个 warp 中的线程协作地使用 `ldmatrix` PTX 指令将所有这些块从交错的共享内存加载到寄存器内存中（参见[此处](#如何使用张量核心)了解 `ldmatrix` 的解释）。由于此时我们处于块层次结构的最底层，块非常小，因此我们要执行这种索引计算*很多次*（O(N38)），它涉及乘以一堆步长、计算相对于线程索引的模、以及多个逻辑操作来应用交错函数，所有这些都在运行时发生。
 
 ![index_calculation_inneficient](/images/others/how-to-write-a-fast-matrix-multiplication-from-scratch-with-tensor-cores/048-29c14961.png)
 
