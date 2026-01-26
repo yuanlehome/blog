@@ -12,27 +12,27 @@ cover: /images/wechat/sglang-diffusion-wan2260percent/001-85495dc3.png
 
 ## 0x0. 前言
 
-最近在优化SGLang对Wan2.2视频生成模型的支持时,发现了一个性能问题: 在使用双Transformer架构时,第1步和第19步的推理速度比正常步骤慢了约7倍。经过深入分析,通过实现**零开销的逐层权重卸载**(Layerwise Weight Offload)技术,最终将整体推理速度提升了**60%**(从149.69秒降至94.22秒)。需要说明的是这个技术的核心代码实现部分从Skywork AI Infra的视频模型优化中修改而来(https\://github.com/sgl-project/sglang/blob/main/python/sglang/multimodal_gen/runtime/utils/layerwise_offload.py#L8)。
+最近在优化 SGLang 对 Wan2.2 视频生成模型的支持时，发现了一个性能问题：在使用双 Transformer 架构时，第 1 步和第 19 步的推理速度比正常步骤慢了约 7 倍。经过深入分析，通过实现**零开销的逐层权重卸载** (Layerwise Weight Offload) 技术，最终将整体推理速度提升了 **60%**（从 149.69 秒降至 94.22 秒）。需要说明的是这个技术的核心代码实现部分从 Skywork AI Infra 的视频模型优化中修改而来（[链接](https://github.com/sgl-project/sglang/blob/main/python/sglang/multimodal_gen/runtime/utils/layerwise_offload.py#L8)）。
 
-这个优化不仅带来了性能提升,也突破了Wan2.2模型的显存墙。比如我们现在可以在**24GB显存的4090**上运行wan2.2而不会OOM,具有还不错的实用意义。此外这个优化也可以方便的扩展到其他模型上,比如HunyuanVideo。本文将详细介绍问题的发现、分析和解决过程。
+这个优化不仅带来了性能提升，也突破了 Wan2.2 模型的显存墙。比如我们现在可以在 **24GB 显存的 4090** 上运行 wan2.2 而不会 OOM，具有还不错的实用意义。此外这个优化也可以方便的扩展到其他模型上，比如 HunyuanVideo。本文将详细介绍问题的发现、分析和解决过程。
 
-相关PR: https\://github.com/sgl-project/sglang/pull/15511
+相关 PR：<https://github.com/sgl-project/sglang/pull/15511>
 
-测试环境: 8卡H100
+测试环境：8 卡 H100
 
-## 0x1. 问题发现:为什么Wan2.2这么慢?
+## 0x1. 问题发现：为什么 Wan2.2 这么慢？
 
 ### 0x1.1 性能瓶颈定位
 
-在对Wan2.2模型进行完整的profiling之后,发现了一个奇怪的现象:
+在对 Wan2.2 模型进行完整的 profiling 之后，发现了一个奇怪的现象：
 
-- 第1步和第19步:耗时约36秒和31秒,异常缓慢
-- 中间步骤(第2-18步):耗时约3.2秒,性能正常,完全达到了从cp4到cp8的2倍加速预期
-- 其他步骤(第20-27步):耗时约3.2秒,性能正常
+- 第 1 步和第 19 步：耗时约 36 秒和 31 秒，异常缓慢
+- 中间步骤（第 2-18 步）：耗时约 3.2 秒，性能正常，完全达到了从 cp4 到 cp8 的 2 倍加速预期
+- 其他步骤（第 20-27 步）：耗时约 3.2 秒，性能正常
 
-第1步和第19步的耗时相当于7个正常步骤,这显然是不可接受的。
+第 1 步和第 19 步的耗时相当于 7 个正常步骤，这显然是不可接受的。
 
-main分支的数据：
+main 分支的数据：
 
 ```bash
 sglang generate   --model-path Wan-AI/Wan2.2-T2V-A14B-Diffusers   --text-encoder-cpu-offload   --pin-cpu-memory   --num-gpus 8   --ulysses-degree 8 --attention-backend sage_attn  --enable-torch-compile --prompt "A cat walks on the grass, realistic" --num-frames 81 --height 720 --width 1280 --num-inference-steps 27 --guidance-scale 3.5 --guidance-scale-2 4.0 --perf-dump-path /home/lmsys/bbuf/dump/wan_step_profile_cp8_main.json
@@ -117,40 +117,40 @@ sglang generate   --model-path Wan-AI/Wan2.2-T2V-A14B-Diffusers   --text-encoder
 
 ### 0x1.2 根因分析
 
-通过深入分析代码和profiling结果,找到了问题的根本原因:
+通过深入分析代码和 profiling 结果，找到了问题的根本原因：
 
-1. Wan2.2使用**双Transformer架构**:模型包含`transformer`和`transformer_2`两个大型Transformer模块
-2. 启用了**dit_cpu_offload**:为了节省GPU显存,模型权重在加载后被放置在CPU上
-3. 第1步的开销:在第一次推理时,需要将`transformer`和`transformer_2`的权重从CPU拷贝到GPU,导致第1步非常慢,并且第一步还有torch compile、nccl初始化等开销
-4. 第19步的开销:在第19步发生了**dual-stream切换**,需要将两个Transformer的权重卸载回CPU,交换它们,然后再拷贝回GPU
+1. Wan2.2 使用**双 Transformer 架构**：模型包含 `transformer` 和 `transformer_2` 两个大型 Transformer 模块
+2. 启用了 **dit_cpu_offload**：为了节省 GPU 显存，模型权重在加载后被放置在 CPU 上
+3. 第 1 步的开销：在第一次推理时，需要将 `transformer` 和 `transformer_2` 的权重从 CPU 拷贝到 GPU，导致第 1 步非常慢，并且第一步还有 torch compile、nccl 初始化等开销
+4. 第 19 步的开销：在第 19 步发生了 **dual-stream 切换**，需要将两个 Transformer 的权重卸载回 CPU，交换它们，然后再拷贝回 GPU
 
 这种全模型级别的权重搬运导致了巨大的性能损失。
 
-## 0x2. 解决方案:零开销逐层权重卸载
+## 0x2. 解决方案：零开销逐层权重卸载
 
 ### 0x2.1 核心思想
 
-传统的`dit_cpu_offload`是将整个模型的权重一次性在CPU和GPU之间搬运,这会导致:
+传统的 `dit_cpu_offload` 是将整个模型的权重一次性在 CPU 和 GPU 之间搬运，这会导致：
 
 - 大量的数据传输时间
-- GPU计算和数据传输无法overlap
-- 在dual-stream切换时需要重新搬运所有权重
+- GPU 计算和数据传输无法 overlap
+- 在 dual-stream 切换时需要重新搬运所有权重
 
-**零开销逐层权重卸载**的核心思想是:
+**零开销逐层权重卸载**的核心思想是：
 
-1. **逐层管理**:只在需要时将某一层的权重从CPU加载到GPU
-2. **异步预取**:使用独立的CUDA Stream提前预取下一层的权重
-3. **计算与传输overlap**:当前层在计算时,下一层的权重已经在异步加载
-4. **及时释放**:当前层计算完成后,立即释放其GPU显存
-5. **Pin Memory优化**:将CPU上的权重pin到物理内存,避免页面交换,这对于实现零开销至关重要
+1. **逐层管理**：只在需要时将某一层的权重从 CPU 加载到 GPU
+2. **异步预取**：使用独立的 CUDA Stream 提前预取下一层的权重
+3. **计算与传输 overlap**：当前层在计算时，下一层的权重已经在异步加载
+4. **及时释放**：当前层计算完成后，立即释放其 GPU 显存
+5. **Pin Memory 优化**：将 CPU 上的权重 pin 到物理内存，避免页面交换，这对于实现零开销至关重要
 
-这样可以实现零额外开销:数据传输完全被计算隐藏,不会增加总体推理时间。
+这样可以实现零额外开销：数据传输完全被计算隐藏，不会增加总体推理时间。
 
 ### 0x2.2 实现细节
 
-#### LayerwiseOffloadManager核心类
+#### LayerwiseOffloadManager 核心类
 
-实现了一个轻量级的逐层CPU卸载管理器,核心功能包括:
+实现了一个轻量级的逐层 CPU 卸载管理器，核心功能包括：
 
 ```python
 class LayerwiseOffloadManager:
@@ -178,17 +178,17 @@ class LayerwiseOffloadManager:
         self._gpu_layers: Dict[int, Set[str]] = {}
 ```
 
-#### 初始化:将所有层权重卸载到CPU
+#### 初始化：将所有层权重卸载到 CPU
 
 ```python
 def initialize(self) -> None:
-    ifnot self.enabled:
+    if not self.enabled:
         return
 
     # 遍历所有参数和buffer
     for name, param in self._named_parameters.items():
         layer_idx = self._match_layer_idx(name)
-        if layer_idx isNoneor layer_idx >= self.num_layers:
+        if layer_idx is None or layer_idx >= self.num_layers:
             continue
         # 卸载到CPU并pin memory
         self._offload_tensor(name, param, layer_idx)
@@ -197,7 +197,7 @@ def initialize(self) -> None:
     self.prefetch_layer(0, non_blocking=False)
 ```
 
-这里有个关键点是`_offload_tensor`方法中会将CPU上的tensor进行pin memory操作:
+这里有个关键点是 `_offload_tensor` 方法中会将 CPU 上的 tensor 进行 pin memory 操作：
 
 ```python
 cpu_weight = tensor.detach().to("cpu")
@@ -205,18 +205,18 @@ if self.pin_cpu_memory:
     cpu_weight = cpu_weight.pin_memory()  # 锁定物理内存
 ```
 
-**Pin memory**的作用是将内存页锁定在物理内存中,避免被操作系统swap到磁盘。这样做有两个好处:
+**Pin memory** 的作用是将内存页锁定在物理内存中，避免被操作系统 swap 到磁盘。这样做有两个好处：
 
-1. **异步拷贝**(non_blocking=True)只对pinned memory有效,否则会退化为同步拷贝
-2. **DMA**(Direct Memory Access)可以直接访问pinned memory,传输速度更快
+1. **异步拷贝**（non_blocking=True）只对 pinned memory 有效，否则会退化为同步拷贝
+2. **DMA**（Direct Memory Access）可以直接访问 pinned memory，传输速度更快
 
-在Wan2.2这种大模型场景下,如果不使用pin memory,异步拷贝会失效,计算和传输就无法overlap,也就谈不上零开销了。
+在 Wan2.2 这种大模型场景下，如果不使用 pin memory，异步拷贝会失效，计算和传输就无法 overlap，也就谈不上零开销了。
 
-#### 异步预取:提前加载下一层
+#### 异步预取：提前加载下一层
 
 ```python
 def prefetch_layer(self, layer_idx: int, non_blocking: bool = True) -> None:
-    ifnot self.enabled:
+    if not self.enabled:
         return
 
     # 等待主stream完成当前计算
@@ -234,7 +234,7 @@ def prefetch_layer(self, layer_idx: int, non_blocking: bool = True) -> None:
         target.data = gpu_weight
 ```
 
-#### 层级作用域:优雅的使用方式
+#### 层级作用域：优雅的使用方式
 
 ```python
 @contextmanager
@@ -246,25 +246,25 @@ def layer_scope(
     non_blocking: bool = True,
 ):
     """在进入时预取下一层,退出时等待拷贝完成并释放当前层"""
-    if self.enabled and prefetch_layer_idx isnotNone:
+    if self.enabled and prefetch_layer_idx is not None:
         self.prefetch_layer(prefetch_layer_idx, non_blocking=non_blocking)
     try:
         yield
     finally:
-        if self.enabled and self.copy_stream isnotNone:
+        if self.enabled and self.copy_stream is not None:
             # 等待异步拷贝完成
             torch.cuda.current_stream().wait_stream(self.copy_stream)
-        if self.enabled and release_layer_idx isnotNone:
+        if self.enabled and release_layer_idx is not None:
             self.release_layer(release_layer_idx)
 ```
 
-#### 在模型forward中使用
+#### 在模型 forward 中使用
 
-在Wan2.2的Transformer forward中集成:
+在 Wan2.2 的 Transformer forward 中集成：
 
 ```python
 offload_mgr = getattr(self, "_layerwise_offload_manager", None)
-if offload_mgr isnotNoneand getattr(offload_mgr, "enabled", False):
+if offload_mgr is not None and getattr(offload_mgr, "enabled", False):
     for i, block in enumerate(self.blocks):
         with offload_mgr.layer_scope(
             prefetch_layer_idx=i + 1,  # 预取下一层
@@ -279,15 +279,15 @@ if offload_mgr isnotNoneand getattr(offload_mgr, "enabled", False):
             )
 ```
 
-通过`layer_scope`上下文管理器:
+通过 `layer_scope` 上下文管理器：
 
-- 在执行第i层时,第i+1层的权重已经在异步加载
-- 第i层计算完成后,立即释放其显存
-- 数据传输和计算完全overlap,实现零开销
+- 在执行第 i 层时，第 i+1 层的权重已经在异步加载
+- 第 i 层计算完成后，立即释放其显存
+- 数据传输和计算完全 overlap，实现零开销
 
 ### 0x2.3 使用方式
 
-在启动SGLang服务时,添加`--dit-layerwise-offload true`参数。下面是在8卡H100上的测试命令:
+在启动 SGLang 服务时，添加 `--dit-layerwise-offload true` 参数。下面是在 8 卡 H100 上的测试命令：
 
 ```bash
 sglang generate \
@@ -308,15 +308,15 @@ sglang generate \
   --guidance-scale-2 4.0
 ```
 
-注意:
+注意：
 
-- `--dit-layerwise-offload`不能与`dit_cpu_offload`、`use_fsdp_inference`或`cache-dit`同时使用
+- `--dit-layerwise-offload` 不能与 `dit_cpu_offload`、`use_fsdp_inference` 或 `cache-dit` 同时使用
 
 ## 0x3. 性能提升
 
-### 0x3.1 主分支 vs PR分支
+### 0x3.1 主分支 vs PR 分支
 
-**主分支(使用dit_cpu_offload)**:
+**主分支（使用 dit_cpu_offload）**：
 
 ```text
 [12-19 08:37:22] [DenoisingStage] average time per step: 5.5156 seconds
@@ -332,7 +332,7 @@ sglang generate \
 ]
 ```
 
-**PR分支(使用dit_layerwise_offload)**:
+**PR 分支（使用 dit_layerwise_offload）**：
 
 ```text
 [12-20 02:59:10] [DenoisingStage] average time per step: 3.4553 seconds
@@ -350,31 +350,31 @@ sglang generate \
 
 ### 0x3.2 性能分析
 
-从数据上看:
+从数据上看：
 
-- **总体加速**: 149.69秒 → 94.22秒, 提升58%
-- **第1步加速**: 36秒 → 7.7秒, 提升78%
-- **第19步加速**: 31秒 → 3.3秒, 提升89%
-- **中间步骤**: 保持在3.2-3.3秒,性能稳定
+- **总体加速**：149.69 秒 → 94.22 秒，提升 58%
+- **第 1 步加速**：36 秒 → 7.7 秒，提升 78%
+- **第 19 步加速**：31 秒 → 3.3 秒，提升 89%
+- **中间步骤**：保持在 3.2-3.3 秒，性能稳定
 
-下面是torch profiler的trace截图,可以清楚地看到memcpy和compute完全overlap,没有额外开销:
+下面是 torch profiler 的 trace 截图，可以清楚地看到 memcpy 和 compute 完全 overlap，没有额外开销：
 
 ![图片](/images/wechat/sglang-diffusion-wan2260percent/001-85495dc3.png)
 
-从timeline可以看到,**H2D的memcpy操作和kernel执行是完全重叠的**,这就是零开销的体现。异步拷贝在独立的stream中进行,不会阻塞主stream的计算。
+从 timeline 可以看到，**H2D 的 memcpy 操作和 kernel 执行是完全重叠的**，这就是零开销的体现。异步拷贝在独立的 stream 中进行，不会阻塞主 stream 的计算。
 
-## 0x4. 额外优化:All2All预热
+## 0x4. 额外优化：All2All 预热
 
-即使解决了权重卸载的问题,我发现无论是否启用torch compile,第1步的性能仍然比后续步骤慢约7倍。通过完整的profiling发现,这是因为**NCCL All2All操作的初始化开销**。
+即使解决了权重卸载的问题，我发现无论是否启用 torch compile，第 1 步的性能仍然比后续步骤慢约 7 倍。通过完整的 profiling 发现，这是因为 **NCCL All2All 操作的初始化开销**。
 
 ![图片](/images/wechat/sglang-diffusion-wan2260percent/002-adaa8024.png)
 
-这个初始化开销不应该在denoise阶段,而应该提前处理。因此实现了专门针对All2All操作的**预热逻辑**。预热之后,不启用compile时第1步的时间几乎与后续步骤相同,启用compile时第1步的时间仅为后续步骤的约2倍(而不是7倍)。NCCL All2All的初始化开销被提前消除,denoise阶段的第1步不再有明显的延迟。
+这个初始化开销不应该在 denoise 阶段，而应该提前处理。因此实现了专门针对 All2All 操作的**预热逻辑**。预热之后，不启用 compile 时第 1 步的时间几乎与后续步骤相同，启用 compile 时第 1 步的时间仅为后续步骤的约 2 倍（而不是 7 倍）。NCCL All2All 的初始化开销被提前消除，denoise 阶段的第 1 步不再有明显的延迟。
 
 ## 0x5. 总结
 
-这个优化方案的关键技术点包括:**逐层权重管理**只在需要时加载特定层的权重,避免全模型搬运;使用**独立CUDA Stream**实现异步H2D传输,让当前层计算时下一层权重已在加载;使用**pinned memory**锁定物理内存,这是实现异步拷贝和零开销的前提条件;每层计算完成后立即释放GPU显存。
+这个优化方案的关键技术点包括：**逐层权重管理**只在需要时加载特定层的权重，避免全模型搬运；使用**独立 CUDA Stream** 实现异步 H2D 传输，让当前层计算时下一层权重已在加载；使用 **pinned memory** 锁定物理内存，这是实现异步拷贝和零开销的前提条件；每层计算完成后立即释放 GPU 显存。
 
-实现的亮点在于数据传输完全被计算隐藏,通过`layer_scope` context manager提供了简洁的API,支持任意具有`blocks`属性的DiT模型,并且与cache-dit等特性互斥避免潜在错误。
+实现的亮点在于数据传输完全被计算隐藏，通过 `layer_scope` context manager 提供了简洁的 API，支持任意具有 `blocks` 属性的 DiT 模型，并且与 cache-dit 等特性互斥避免潜在错误。
 
-这个技术特别适合大型Diffusion模型(如Wan2.2)、显存受限的场景(可以让原本需要80GB显存的模型在24GB显存的4090上运行)、需要在CPU和GPU之间频繁搬运权重的场景,以及具有多层Transformer结构的模型。
+这个技术特别适合大型 Diffusion 模型（如 Wan2.2）、显存受限的场景（可以让原本需要 80GB 显存的模型在 24GB 显存的 4090 上运行）、需要在 CPU 和 GPU 之间频繁搬运权重的场景，以及具有多层 Transformer 结构的模型。
