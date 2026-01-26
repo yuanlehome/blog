@@ -16,183 +16,183 @@ lang: zh
 translatedFrom: en
 ---
 
-# 深入NVIDIA GPU：高性能矩阵乘法（matmul）内核的剖析
+# 深入 NVIDIA GPU：高性能矩阵乘法（matmul）内核的剖析
 
-_从GPU架构和PTX/SASS到warp-tiling和深度异步张量核心（tensor core）流水线_
+_从 GPU 架构和 PTX/SASS 到 warp-tiling 和深度异步张量核心（tensor core）流水线_
 
-2025年9月29日
+2025 年 9 月 29 日
 
-在这篇文章中，我将逐步介绍支撑最先进（SOTA）NVIDIA GPU矩阵乘法（matmul）内核的所有核心硬件概念和编程技术。
+在这篇文章中，我将逐步介绍支撑最先进（SOTA）NVIDIA GPU 矩阵乘法（matmul）内核的所有核心硬件概念和编程技术。
 
-**为什么关注矩阵乘法（matmul）？** Transformer在训练和推理过程中，大部分浮点运算（FLOPs）都发生在矩阵乘法（matmul）中（如MLP中的线性层、注意力QKV投影、输出投影等）。这些操作具有极高的并行性，天然适合GPU。最后，理解矩阵乘法（matmul）内核的工作原理，能为你提供设计几乎所有其他高性能GPU内核的工具包。
+**为什么关注矩阵乘法（matmul）？** Transformer 在训练和推理过程中，大部分浮点运算（FLOPs）都发生在矩阵乘法（matmul）中（如 MLP 中的线性层、注意力 QKV 投影、输出投影等）。这些操作具有极高的并行性，天然适合 GPU。最后，理解矩阵乘法（matmul）内核的工作原理，能为你提供设计几乎所有其他高性能 GPU 内核的工具包。
 
 本文分为四个部分：
 
-1. [NVIDIA GPU架构基础](#cpt1)：全局内存（global memory）、共享内存（shared memory）、L1/L2缓存，功率限制对SOL的影响等。
-1. [GPU汇编语言](#cpt2)：SASS和PTX
-1. [设计接近SOTA的同步矩阵乘法（matmul）内核](#cpt3)：warp-tiling方法
-1. [在Hopper上设计SOTA异步矩阵乘法（matmul）内核](#cpt4)：利用张量核心（tensor cores）、TMA、计算与加载/存储的重叠、Hilbert曲线等。
+1. [NVIDIA GPU 架构基础](#cpt1)：全局内存（global memory）、共享内存（shared memory）、L1/L2 缓存，功率限制对 SOL 的影响等。
+1. [GPU 汇编语言](#cpt2)：SASS 和 PTX
+1. [设计接近 SOTA 的同步矩阵乘法（matmul）内核](#cpt3)：warp-tiling 方法
+1. [在 Hopper 上设计 SOTA 异步矩阵乘法（matmul）内核](#cpt4)：利用张量核心（tensor cores）、TMA、计算与加载/存储的重叠、Hilbert 曲线等。
 
 我的目标是让这篇文章自成一体：足够详细以独立存在，又足够简洁以避免成为教科书。
 
 这是更广泛系列的第一部分。在后续文章中，我（理想地）计划涵盖：
 
-- 在Blackwell GPU上设计SOTA矩阵乘法（matmul）内核
-- 通过微基准测试实验探索GPU架构
-- 设计SOTA多GPU内核
-- 揭秘内存一致性模型（GPU中的tokenizer等价物：默默支撑系统运行但让大多数开发者困惑的关键组件）
+- 在 Blackwell GPU 上设计 SOTA 矩阵乘法（matmul）内核
+- 通过微基准测试实验探索 GPU 架构
+- 设计 SOTA 多 GPU 内核
+- 揭秘内存一致性模型（GPU 中的 tokenizer 等价物：默默支撑系统运行但让大多数开发者困惑的关键组件）
 
 <a id="cpt1"></a>
 
-## NVIDIA GPU架构基础
+## NVIDIA GPU 架构基础
 
-要编写高性能GPU内核，你需要对硬件有坚实的心理模型。随着我们深入硬件架构，这一点将很快变得清晰。
+要编写高性能 GPU 内核，你需要对硬件有坚实的心理模型。随着我们深入硬件架构，这一点将很快变得清晰。
 
-在本文中，我专注于Hopper H100 GPU。如果你深入理解Hopper，将知识适配到未来架构（Blackwell、Rubin）或早期架构（Ampere、Volta）会变得直接。
+在本文中，我专注于 Hopper H100 GPU。如果你深入理解 Hopper，将知识适配到未来架构（Blackwell、Rubin）或早期架构（Ampere、Volta）会变得直接。
 
-[Hopper](https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/) [\[1\]](#ref-1)和[Ampere](https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/) [\[2\]](#ref-2)白皮书是很好的信息来源。
+[Hopper](https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/) [\[1\]](#ref-1) 和 [Ampere](https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/) [\[2\]](#ref-2) 白皮书是很好的信息来源。
 
-在最高层面，GPU执行两个基本任务：
+在最高层面，GPU 执行两个基本任务：
 
 1. 移动和存储数据（内存系统）
 1. 对数据进行有用工作（计算流水线）
 
-下面的H100框图反映了这种划分：蓝色组件代表内存或数据移动，而红色组件是计算（热）单元。
+下面的 H100 框图反映了这种划分：蓝色组件代表内存或数据移动，而红色组件是计算（热）单元。
 
-![图1：NVIDIA Hopper H100 GPU模型](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/001-8ee6a76e.png)
+![图 1：NVIDIA Hopper H100 GPU 模型](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/001-8ee6a76e.png)
 
-_图1：NVIDIA Hopper H100 GPU模型_
+_图 1：NVIDIA Hopper H100 GPU 模型_
 
-如果你发现文章中有任何错误，请私信我——欢迎在[X](https://x.com/gordic_aleksa)或[LinkedIn](https://www.linkedin.com/in/aleksagordic/)上给我留言，或通过[匿名反馈](https://docs.google.com/forms/d/1z1fEirrN2xtGxAsJvptpM7yV4ByT5SF25S-XiMPrXNA/edit)。
+如果你发现文章中有任何错误，请私信我——欢迎在 [X](https://x.com/gordic_aleksa) 或 [LinkedIn](https://www.linkedin.com/in/aleksagordic/) 上给我留言，或通过 [匿名反馈](https://docs.google.com/forms/d/1z1fEirrN2xtGxAsJvptpM7yV4ByT5SF25S-XiMPrXNA/edit)。
 
 ## 内存
 
-GPU中的内存系统是高度分层的，类似于CPU架构。
+GPU 中的内存系统是高度分层的，类似于 CPU 架构。
 
-这种层次结构由物理和电路设计决定：SRAM单元更快但更大（实现其速度的控制电路也增加了面积），而DRAM单元更小/密度更高但更慢。结果是快速内存容量较小且昂贵，而较慢的内存可以提供更大的容量。我们将在后面更详细地介绍DRAM单元/内存。
+这种层次结构由物理和电路设计决定：SRAM 单元更快但更大（实现其速度的控制电路也增加了面积），而 DRAM 单元更小/密度更高但更慢。结果是快速内存容量较小且昂贵，而较慢的内存可以提供更大的容量。我们将在后面更详细地介绍 DRAM 单元/内存。
 
-这种容量和延迟之间的权衡正是缓存层次结构存在的原因。在理想世界中，每个计算单元旁边都会有一大块超快内存。由于这在物理上不可能，GPU设计者妥协：将少量快速内存放置在计算单元附近，并由逐渐更大、更慢的内存池支持。这种组织方式最大化整体系统吞吐量。
+这种容量和延迟之间的权衡正是缓存层次结构存在的原因。在理想世界中，每个计算单元旁边都会有一大块超快内存。由于这在物理上不可能，GPU 设计者妥协：将少量快速内存放置在计算单元附近，并由逐渐更大、更慢的内存池支持。这种组织方式最大化整体系统吞吐量。
 
-GPU内存系统包括：
+GPU 内存系统包括：
 
-1. **设备内存（device memory）**（VRAM）。在CUDA术语中，“设备”内存指片外DRAM——物理上与GPU芯片分离但封装在同一板上——实现为堆叠HBM。它承载全局内存（GMEM）、每线程“本地”内存（寄存器溢出空间）等。
+1. **设备内存（device memory）**（VRAM）。在 CUDA 术语中，“设备”内存指片外 DRAM——物理上与 GPU 芯片分离但封装在同一板上——实现为堆叠 HBM。它承载全局内存（GMEM）、每线程“本地”内存（寄存器溢出空间）等。
 
-1. **L2缓存**。一个大型的k路组关联SRAM缓存。它物理上分为两部分；每个SM直接连接到一个分区，并通过交叉开关间接连接到另一个分区。
+1. **L2 缓存**。一个大型的 k 路组关联 SRAM 缓存。它物理上分为两部分；每个 SM 直接连接到一个分区，并通过交叉开关间接连接到另一个分区。
 
-1. **分布式共享内存（DSMEM）**。物理上接近的一组SM（一个GPC）的池化共享内存（SMEM）。
+1. **分布式共享内存（DSMEM）**。物理上接近的一组 SM（一个 GPC）的池化共享内存（SMEM）。
 
-1. L1缓存和共享内存
-   1. **L1缓存**。一个较小的k路组关联SRAM缓存，每个SM私有。
-   1. **共享内存（SMEM）**。程序员管理的片上内存。SMEM和L1共享相同的物理存储，它们的相对分割可以在软件中配置。
+1. L1 缓存和共享内存
+   1. **L1 缓存**。一个较小的 k 路组关联 SRAM 缓存，每个 SM 私有。
+   1. **共享内存（SMEM）**。程序员管理的片上内存。SMEM 和 L1 共享相同的物理存储，它们的相对分割可以在软件中配置。
 
-1. **寄存器文件（RMEM）**。最快的存储，位于计算单元旁边。寄存器是各个线程私有的。与CPU相比，GPU包含更多寄存器，总RMEM容量与L1/SMEM存储的总和大小相同。
+1. **寄存器文件（RMEM）**。最快的存储，位于计算单元旁边。寄存器是各个线程私有的。与 CPU 相比，GPU 包含更多寄存器，总 RMEM 容量与 L1/SMEM 存储的总和大小相同。
 
-![图2：H100（SXM5）GPU的内存层次结构](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/002-a9f61b85.png)
+![图 2：H100（SXM5）GPU 的内存层次结构](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/002-a9f61b85.png)
 
-_图2：H100（SXM5）GPU的内存层次结构_
+_图 2：H100（SXM5）GPU 的内存层次结构_
 
 📝注意：
 
 还有其他一些较小的指令缓存，以及常量内存等，我将忽略它们，因为它们对我们的理解不重要。
 
-从设备内存向下到寄存器（级别1-5），你可以看到一个清晰的趋势：带宽增加几个数量级，而延迟和容量减少类似的数量级。
+从设备内存向下到寄存器（级别 1-5），你可以看到一个清晰的趋势：带宽增加几个数量级，而延迟和容量减少类似的数量级。
 
 由此得出几个直接含义：
 
 1. 将最频繁访问的数据尽可能靠近计算单元。
 1. 最小化对层次结构较低级别的访问，尤其是设备内存（GMEM）。
 
-另一个值得注意的组件是**张量内存加速器（TMA）**，随Hopper引入。TMA支持全局内存和共享内存之间以及集群内共享内存之间的异步数据传输。它还支持swizzling以减少bank冲突——我们将适时（双关语）介绍这些细节。
+另一个值得注意的组件是**张量内存加速器（TMA）**，随 Hopper 引入。TMA 支持全局内存和共享内存之间以及集群内共享内存之间的异步数据传输。它还支持 swizzling 以减少 bank 冲突——我们将适时（双关语）介绍这些细节。
 
 ## 计算
 
-从内存转向计算，基本单元是**流式多处理器（streaming multiprocessor，SM）**。Hopper H100（SXM5）总共集成了132个SM。
+从内存转向计算，基本单元是**流式多处理器（streaming multiprocessor，SM）**。Hopper H100（SXM5）总共集成了 132 个 SM。
 
-SM被分组为图形处理集群（graphics processing clusters，GPC）：每个GPC包含18个SM，GPU上有8个GPC。四个GPC直接连接到一个L2分区，另外四个连接到第二个分区。
+SM 被分组为图形处理集群（graphics processing clusters，GPC）：每个 GPC 包含 18 个 SM，GPU 上有 8 个 GPC。四个 GPC 直接连接到一个 L2 分区，另外四个连接到第二个分区。
 
 📝备注：
 
-GPC也是支撑CUDA中线程块集群抽象的硬件单元——我们稍后会回到编程模型。
+GPC 也是支撑 CUDA 中线程块集群抽象的硬件单元——我们稍后会回到编程模型。
 
-关于集群的一个要点：之前我说每个GPC有18个SM，所以有8个GPC时，我们预计有144个SM。但SXM/PCIe外形规格暴露了132或114个SM。差异在哪里？这是因为18×8的布局仅适用于完整的GH100芯片——在实际产品中，一些SM被熔断关闭。这直接影响我们编写内核时如何选择集群配置。例如，你不能使用所有SM来跨越超过2个SM的集群。
+关于集群的一个要点：之前我说每个 GPC 有 18 个 SM，所以有 8 个 GPC 时，我们预计有 144 个 SM。但 SXM/PCIe 外形规格暴露了 132 或 114 个 SM。差异在哪里？这是因为 18×8 的布局仅适用于完整的 GH100 芯片——在实际产品中，一些 SM 被熔断关闭。这直接影响我们编写内核时如何选择集群配置。例如，你不能使用所有 SM 来跨越超过 2 个 SM 的集群。
 
-最后，请注意图形处理集群（GPC）中的“图形”是一个遗留术语。在现代服务器级GPU中，这些集群纯粹用作计算/AI加速单元，而不是图形引擎。GPU也是如此，去掉G，它们就是AI加速器。
+最后，请注意图形处理集群（GPC）中的“图形”是一个遗留术语。在现代服务器级 GPU 中，这些集群纯粹用作计算/AI 加速单元，而不是图形引擎。GPU 也是如此，去掉 G，它们就是 AI 加速器。
 
-除了已经提到的L1/SMEM/TMA/RMEM组件（所有这些都物理位于SM内），每个SM还包含：
+除了已经提到的 L1/SMEM/TMA/RMEM 组件（所有这些都物理位于 SM 内），每个 SM 还包含：
 
 1. **张量核心。**&#x6267;行小矩阵块（例如，`64x16 @ 16x256`）上矩阵乘法的专用单元，具有高吞吐量。大型矩阵乘法被分解为许多这样的块操作，因此有效利用它们对于达到峰值性能至关重要。
-1. **CUDA核心和SFU。**&#x6240;谓的“CUDA核心”（营销术语）执行标准浮点运算，如FMA（融合乘加：`c = a * b + c`）。特殊功能单元（SFU）处理超越函数，如`sin`、`cos`、`exp`、`log`，但也处理代数函数，如`sqrt`、`rsqrt`等。
-1. **加载/存储（LD/ST）单元。**&#x670D;务加载和存储指令的电路，与TMA引擎互补。
-1. **Warp调度器。**&#x6BCF;个SM包含调度器，为32个线程的组（在CUDA中称为warp）发出指令。一个warp调度器每个周期可以发出一个warp指令。
+1. **CUDA 核心和 SFU。**&#x6240;谓的“CUDA 核心”（营销术语）执行标准浮点运算，如 FMA（融合乘加：`c = a * b + c`）。特殊功能单元（SFU）处理超越函数，如`sin`、`cos`、`exp`、`log`，但也处理代数函数，如`sqrt`、`rsqrt`等。
+1. **加载/存储（LD/ST）单元。**&#x670D;务加载和存储指令的电路，与 TMA 引擎互补。
+1. **Warp 调度器。**&#x6BCF;个 SM 包含调度器，为 32 个线程的组（在 CUDA 中称为 warp）发出指令。一个 warp 调度器每个周期可以发出一个 warp 指令。
 
-每个SM在物理上分为四个象限，每个象限容纳上述计算单元的一个子集。
+每个 SM 在物理上分为四个象限，每个象限容纳上述计算单元的一个子集。
 
 这引出了以下见解：
 
 📝并行性与并发性
 
-一个SM最多可以同时发出四个warp的指令（即，在给定周期内，真正并行执行128个线程）。
+一个 SM 最多可以同时发出四个 warp 的指令（即，在给定周期内，真正并行执行 128 个线程）。
 
-然而，一个SM可以容纳多达2048个并发线程（64个warp）。这些warp是常驻的，并随时间调度进出，允许硬件隐藏内存/流水线延迟。
+然而，一个 SM 可以容纳多达 2048 个并发线程（64 个 warp）。这些 warp 是常驻的，并随时间调度进出，允许硬件隐藏内存/流水线延迟。
 
-换句话说，指令并行性（有多少线程在给定周期开始执行指令）每个SM一次限制为128个线程（4个32宽的warp指令），而并发性（调度器中跟踪并符合运行条件的线程数）扩展到2048个线程。
+换句话说，指令并行性（有多少线程在给定周期开始执行指令）每个 SM 一次限制为 128 个线程（4 个 32 宽的 warp 指令），而并发性（调度器中跟踪并符合运行条件的线程数）扩展到 2048 个线程。
 
 ## 光速与功率节流
 
-既然我们购买NVIDIA GPU是为了计算，很自然地会问：天花板是什么——GPU的最大计算吞吐量？这通常被称为“光速”（SoL）性能：由芯片物理特性决定的上限。
+既然我们购买 NVIDIA GPU 是为了计算，很自然地会问：天花板是什么——GPU 的最大计算吞吐量？这通常被称为“光速”（SoL）性能：由芯片物理特性决定的上限。
 
-根据数据类型有多个天花板。在LLM训练工作负载中，bfloat16（`bf16`）近年来一直是主导格式，尽管`fp8`和4位格式正变得越来越重要（对于推理，fp8相当标准）。
+根据数据类型有多个天花板。在 LLM 训练工作负载中，bfloat16（`bf16`）近年来一直是主导格式，尽管`fp8`和 4 位格式正变得越来越重要（对于推理，fp8 相当标准）。
 
 峰值吞吐量计算为：`perf = freq_clk_max * num_tc * flop_per_tc_per_clk`
 
-或用文字描述：最大时钟频率 × 张量核心数量 × 每个张量核心每个周期的FLOPs。
+或用文字描述：最大时钟频率 × 张量核心数量 × 每个张量核心每个周期的 FLOPs。
 
 ![Figure 3: H100 SXM5 BF16 speed-of-light derivation](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/003-9cf3af00.png)
 
-_图3：H100 SXM5 BF16光速推导_
+_图 3：H100 SXM5 BF16 光速推导_
 
 📝FLOP vs FLOPs vs FLOPS vs FLOP/s
 
 - FLOP = 单个浮点运算。
 - FLOP/s = 吞吐量单位：每秒浮点运算次数。
-- FLOPs（小写s）= FLOP的复数形式（运算）。
-- FLOPS（全大写）常被误用来表示吞吐量，但严格来说应仅读作“FLOPs”（FLOP的复数形式）。FLOPS用作FLOP/s是马虎的！ :)
+- FLOPs（小写 s）= FLOP 的复数形式（运算）。
+- FLOPS（全大写）常被误用来表示吞吐量，但严格来说应仅读作“FLOPs”（FLOP 的复数形式）。FLOPS 用作 FLOP/s 是马虎的！ :)
 
 我在上图留下了一个提示：“光速”实际上不是恒定的（我猜这是类比失效的地方）。
 
-实际上，峰值吞吐量取决于实际时钟频率，这可能在功率或热节流下变化。如果GPU时钟下降，有效光速也会下降：
+实际上，峰值吞吐量取决于实际时钟频率，这可能在功率或热节流下变化。如果 GPU 时钟下降，有效光速也会下降：
 
 ![Figure 4: Power throttling reduces clock frequency and lowers the effective “speed of light”](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/004-821585f3.png)
 
-_图4：功率节流降低时钟频率并降低有效“光速”_
+_图 4：功率节流降低时钟频率并降低有效“光速”_
 
 📝进一步阅读：
 
-Horace He在他的[博客文章](https://www.thonking.ai/p/strangely-matrix-multiplications) [\[3\]](#ref-3)中更深入地探讨了这一现象。
+Horace He 在他的 [博客文章](https://www.thonking.ai/p/strangely-matrix-multiplications) [\[3\]](#ref-3) 中更深入地探讨了这一现象。
 
 这就是我们目前需要的硬件细节。
 
-接下来，我们将把重点转向CUDA编程模型，然后深入一层硬件，最终上升到CUDA C++领域。
+接下来，我们将把重点转向 CUDA 编程模型，然后深入一层硬件，最终上升到 CUDA C++领域。
 
-## CUDA编程模型
+## CUDA 编程模型
 
-CUDA编程模型自然地映射到GPU硬件和内存层次结构。
+CUDA 编程模型自然地映射到 GPU 硬件和内存层次结构。
 
 关键抽象是：
 
 1. 线程
-1. warp（32个线程）
+1. warp（32 个线程）
 1. 线程块
 1. 线程块集群
 1. 网格（线程块或集群的）
 
 ![Figure 5: CUDA Programming Model: threads, warps, blocks, clusters, grids](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/005-0d49d664.png)
 
-_图5：CUDA编程模型：线程、warp、块、集群、网格_
+_图 5：CUDA 编程模型：线程、warp、块、集群、网格_
 
-每个线程通过变量如`gridDim`、`blockIdx`、`blockDim`和`threadIdx`“感知”其在CUDA层次结构中的位置。内部上，这些存储在特殊寄存器中，并在内核启动时由CUDA运行时初始化。
+每个线程通过变量如`gridDim`、`blockIdx`、`blockDim`和`threadIdx`“感知”其在 CUDA 层次结构中的位置。内部上，这些存储在特殊寄存器中，并在内核启动时由 CUDA 运行时初始化。
 
-这种位置信息使得在GPU上分配工作变得容易。例如，假设我们要处理一个1024×1024的图像。我们可以将其划分为32×32的线程块，每个块包含一个32×32的线程排列。
+这种位置信息使得在 GPU 上分配工作变得容易。例如，假设我们要处理一个 1024×1024 的图像。我们可以将其划分为 32×32 的线程块，每个块包含一个 32×32 的线程排列。
 
 然后每个线程可以计算其全局坐标，例如
 
@@ -205,201 +205,201 @@ const int y = blockIdx.y * blockDim.y + threadIdx.y
 
 以下是这些变量之间的关系：
 
-![图6：CUDA内置变量：线程如何知道自身位置](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/006-a3c6cd90.png)
+![图 6：CUDA 内置变量：线程如何知道自身位置](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/006-a3c6cd90.png)
 
-_图6：CUDA内置变量：线程如何知道自身位置_
+_图 6：CUDA 内置变量：线程如何知道自身位置_
 
 如图所示，在实践中我们主要使用一维或二维的网格/集群/块形状。不过，在内部，它们总是可以根据需要逻辑重组。
 
-例如，如果`threadIdx.x`从0到1023运行（一个包含1024个线程的一维块），我们可以将其拆分为`x = threadIdx.x % 32`和`y = threadIdx.x / 32`，从而有效地将块重塑为32×32的逻辑二维布局。
+例如，如果`threadIdx.x`从 0 到 1023 运行（一个包含 1024 个线程的一维块），我们可以将其拆分为`x = threadIdx.x % 32`和`y = threadIdx.x / 32`，从而有效地将块重塑为 32×32 的逻辑二维布局。
 
-将CUDA模型与硬件联系起来，现在应该清楚一个事实：**一个线程块应至少包含4个warp（即128个线程）。**
+将 CUDA 模型与硬件联系起来，现在应该清楚一个事实：**一个线程块应至少包含 4 个 warp（即 128 个线程）。**
 
 为什么？
 
-1. 一个线程块驻留在单个SM上。
-1. 每个SM有4个warp调度器——因此，为了充分利用硬件，您不希望它们闲置。
+1. 一个线程块驻留在单个 SM 上。
+1. 每个 SM 有 4 个 warp 调度器——因此，为了充分利用硬件，您不希望它们闲置。
 
-📝更多关于4个warp的原因：
+📝更多关于 4 个 warp 的原因：
 
-我们稍后将深入探讨，但请注意，在Hopper架构上，warp组（4个warp）是WGMMA（矩阵乘法）张量核心指令的执行单元。
+我们稍后将深入探讨，但请注意，在 Hopper 架构上，warp 组（4 个 warp）是 WGMMA（矩阵乘法）张量核心指令的执行单元。
 
-此外，对于持久内核（persistent kernels），我们通常每个SM只启动一个线程块，因此重要的是结构化工作，以保持所有warp调度器忙碌。
+此外，对于持久内核（persistent kernels），我们通常每个 SM 只启动一个线程块，因此重要的是结构化工作，以保持所有 warp 调度器忙碌。
 
-掌握了CUDA编程模型的术语后，我们现在可以继续深入GPU架构。
+掌握了 CUDA 编程模型的术语后，我们现在可以继续深入 GPU 架构。
 
-## GMEM模型
+## GMEM 模型
 
-让我们深入GMEM。如前所述，它实现为DRAM层的堆栈，底部是逻辑层（HBM）。但DRAM到底是什么？
+让我们深入 GMEM。如前所述，它实现为 DRAM 层的堆栈，底部是逻辑层（HBM）。但 DRAM 到底是什么？
 
-![图7：DRAM单元内部：晶体管+电容器，字线+位线](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/007-0c5a4437.png)
+![图 7：DRAM 单元内部：晶体管+电容器，字线+位线](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/007-0c5a4437.png)
 
-_图7：DRAM单元内部：晶体管+电容器，字线+位线_
+_图 7：DRAM 单元内部：晶体管+电容器，字线+位线_
 
 现在我们已经理解了单个位是如何存储的，让我们放大到整个内存矩阵。从高层次看，它看起来像这样：
 
-![图8：GMEM模型](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/008-dbb04e9b.png)
+![图 8：GMEM 模型](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/008-dbb04e9b.png)
 
-_图8：GMEM模型_
+_图 8：GMEM 模型_
 
-📝关于HBM的进一步阅读：
+📝关于 HBM 的进一步阅读：
 
-如果您想更深入了解HBM，我发现论文["揭秘高带宽内存（High Bandwidth Memory）在实时系统中的特性"](https://upcommons.upc.edu/server/api/core/bitstreams/b843de39-f32f-4069-8843-48f74c030213/content) [\[21\]](#ref-21)相当有启发性。
+如果您想更深入了解 HBM，我发现论文 ["揭秘高带宽内存（High Bandwidth Memory）在实时系统中的特性"](https://upcommons.upc.edu/server/api/core/bitstreams/b843de39-f32f-4069-8843-48f74c030213/content) [\[21\]](#ref-21) 相当有启发性。
 
-因此我们得出结论：由于DRAM单元的物理特性，访问模式很重要。这里有一个例子：
+因此我们得出结论：由于 DRAM 单元的物理特性，访问模式很重要。这里有一个例子：
 
-![图9：GMEM中访问模式的影响](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/009-9ffead5b.png)
+![图 9：GMEM 中访问模式的影响](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/009-9ffead5b.png)
 
-_图9：GMEM中访问模式的影响_
+_图 9：GMEM 中访问模式的影响_
 
-Stephen Jones的演讲["CUDA编程如何工作"](https://www.nvidia.com/en-us/on-demand/session/gtcfall22-a41101/) [\[4\]](#ref-4)值得一看。
+Stephen Jones 的演讲 ["CUDA 编程如何工作"](https://www.nvidia.com/en-us/on-demand/session/gtcfall22-a41101/) [\[4\]](#ref-4) 值得一看。
 
-如果我们的示例中的矩阵是列优先的，情况会反转：列中的元素将连续存储，因此高效的选择是在内循环中遍历行以避免DRAM惩罚。
+如果我们的示例中的矩阵是列优先的，情况会反转：列中的元素将连续存储，因此高效的选择是在内循环中遍历行以避免 DRAM 惩罚。
 
-所以当人们说“GMEM合并（coalescing）非常重要”时，他们的意思是：线程应访问连续的内存位置，以最小化触及的DRAM行数。
+所以当人们说“GMEM 合并（coalescing）非常重要”时，他们的意思是：线程应访问连续的内存位置，以最小化触及的 DRAM 行数。
 
-接下来，让我们关注SMEM的工作原理。
+接下来，让我们关注 SMEM 的工作原理。
 
-## SMEM模型
+## SMEM 模型
 
-共享内存（SMEM）具有**非常**不同于GMEM的特性。它由SRAM单元而非DRAM构建，这赋予了它根本不同的速度和容量权衡。
+共享内存（SMEM）具有**非常**不同于 GMEM 的特性。它由 SRAM 单元而非 DRAM 构建，这赋予了它根本不同的速度和容量权衡。
 
-SRAM单元的确切设计并不重要——只需知道存储单个位信息需要更多晶体管。您可以随时搜索“SRAM单元”。
+SRAM 单元的确切设计并不重要——只需知道存储单个位信息需要更多晶体管。您可以随时搜索“SRAM 单元”。
 
-SMEM组织为32个bank，每个bank宽32位（4字节）：
+SMEM 组织为 32 个 bank，每个 bank 宽 32 位（4 字节）：
 
-![图10：SMEM模型](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/010-349393f4.png)
+![图 10：SMEM 模型](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/010-349393f4.png)
 
-_图10：SMEM模型_
+_图 10：SMEM 模型_
 
-SMEM可以在单个周期内从所有32个bank（128B）提供数据——但前提是遵守一条规则：
+SMEM 可以在单个周期内从所有 32 个 bank（128B）提供数据——但前提是遵守一条规则：
 
-**一个warp中的线程不得访问同一bank内的不同地址。否则，这些请求将在多个周期内串行化。**
+**一个 warp 中的线程不得访问同一 bank 内的不同地址。否则，这些请求将在多个周期内串行化。**
 
-这种情况被称为**bank冲突（bank conflict）**。如果N个线程访问同一bank的不同地址，结果是N路bank冲突，warp的内存请求需要N个周期完成。
+这种情况被称为**bank 冲突（bank conflict）**。如果 N 个线程访问同一 bank 的不同地址，结果是 N 路 bank 冲突，warp 的内存请求需要 N 个周期完成。
 
-在最坏情况下，所有32个线程针对同一bank的不同地址，吞吐量下降32倍。
+在最坏情况下，所有 32 个线程针对同一 bank 的不同地址，吞吐量下降 32 倍。
 
-为了说明，假设warp大小为5。以下两种访问模式将分别需要3个周期和1个周期来服务：
+为了说明，假设 warp 大小为 5。以下两种访问模式将分别需要 3 个周期和 1 个周期来服务：
 
-![图11：SMEM：良好与不良访问模式](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/011-651002e5.png)
+![图 11：SMEM：良好与不良访问模式](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/011-651002e5.png)
 
-_图11：SMEM：良好与不良访问模式_
+_图 11：SMEM：良好与不良访问模式_
 
-重要的是：如果warp中的多个线程访问同一bank内的相同地址，SMEM可以广播（或多播）该值给所有线程。
+重要的是：如果 warp 中的多个线程访问同一 bank 内的相同地址，SMEM 可以广播（或多播）该值给所有线程。
 
 在下面的示例中，请求在单个周期内服务：
 
-- Bank 1可以向2个线程多播一个值。
-- Bank 2可以向3个线程多播一个值。
+- Bank 1 可以向 2 个线程多播一个值。
+- Bank 2 可以向 3 个线程多播一个值。
 
-![图12：SMEM：多播（在单个周期内服务）](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/012-2c95f4f4.png)
+![图 12：SMEM：多播（在单个周期内服务）](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/012-2c95f4f4.png)
 
-_图12：SMEM：多播（在单个周期内服务）_
+_图 12：SMEM：多播（在单个周期内服务）_
 
-现在，对于硬件拼图的最后一块：L1缓存。
+现在，对于硬件拼图的最后一块：L1 缓存。
 
-这是Axel关于SMEM微基准测试的一篇优秀[博客文章](https://feldmann.nyc/blog/smem-microbenchmarks) [\[5\]](#ref-5)。
+这是 Axel 关于 SMEM 微基准测试的一篇优秀 [博客文章](https://feldmann.nyc/blog/smem-microbenchmarks) [\[5\]](#ref-5)。
 
-## L1模型
+## L1 模型
 
-我们已经看到L1和SMEM共享相同的物理存储，但L1在该存储周围添加了一个硬件管理的脚手架层。
+我们已经看到 L1 和 SMEM 共享相同的物理存储，但 L1 在该存储周围添加了一个硬件管理的脚手架层。
 
-从高层次看，L1缓存的逻辑流程是：
+从高层次看，L1 缓存的逻辑流程是：
 
-1. 一个warp发出内存请求（到SMEM或GMEM）。
-1. 请求进入MIO管道并分发到LSUIN路由器。
-1. 路由器引导请求：SMEM访问立即从数据数组服务，而GMEM访问进入标签比较阶段。
-1. 在标签阶段，GMEM地址标签与目标集合中存储的标签比较，以确定数据是否驻留在L1中。
-1. 在**命中（hit）**&#x65F6;，请求直接从数据数组服务（就像SMEM一样）。
-1. 在**未命中（miss）**&#x65F6;，请求传播到L2（如果需要，进一步到GMEM或对等GPU内存）。当数据返回时，它被缓存在L1中，驱逐现有行，并并行发送回请求warp。
+1. 一个 warp 发出内存请求（到 SMEM 或 GMEM）。
+1. 请求进入 MIO 管道并分发到 LSUIN 路由器。
+1. 路由器引导请求：SMEM 访问立即从数据数组服务，而 GMEM 访问进入标签比较阶段。
+1. 在标签阶段，GMEM 地址标签与目标集合中存储的标签比较，以确定数据是否驻留在 L1 中。
+1. 在**命中（hit）**&#x65F6;，请求直接从数据数组服务（就像 SMEM 一样）。
+1. 在**未命中（miss）**&#x65F6;，请求传播到 L2（如果需要，进一步到 GMEM 或对等 GPU 内存）。当数据返回时，它被缓存在 L1 中，驱逐现有行，并并行发送回请求 warp。
 
 这是我刚刚描述的系统：
 
-![图13：L1缓存模型](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/013-8e982c04.png)
+![图 13：L1 缓存模型](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/013-8e982c04.png)
 
-_图13：L1缓存模型_
+_图 13：L1 缓存模型_
 
 让我们深入一层，详细查看标签阶段和数据阶段：
 
-![图14：k路组关联缓存组织的分解](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/014-c6c094a8.png)
+![图 14：k 路组关联缓存组织的分解](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/014-c6c094a8.png)
 
-_图14：k路组关联缓存组织的分解_
+_图 14：k 路组关联缓存组织的分解_
 
-当GMEM地址进入标签阶段时，命中/未命中逻辑展开如下：
+当 GMEM 地址进入标签阶段时，命中/未命中逻辑展开如下：
 
-1. 标签阶段接收GMEM地址。
+1. 标签阶段接收 GMEM 地址。
 
-1. 提取集合ID位，并检查该集合中的所有缓存行（标签）。
+1. 提取集合 ID 位，并检查该集合中的所有缓存行（标签）。
 
 1. 如果找到标签匹配（潜在缓存命中）：
    - 检查行的有效性标志。
-     - 如果无效→视为缓存未命中（继续步骤4）。
-     - 如果有效→从数据数组获取请求的扇区并传递到warp的寄存器。
+     - 如果无效→视为缓存未命中（继续步骤 4）。
+     - 如果有效→从数据数组获取请求的扇区并传递到 warp 的寄存器。
 
 1. 如果未找到匹配（缓存未命中），请求将被路由到内存层次结构的其余部分（L2 及更高层级）。
-   - 当数据从 L2 返回时，它被存储在集合中，根据替换策略（例如，伪LRU）驱逐现有行，并并行地交付给请求的warp。
+   - 当数据从 L2 返回时，它被存储在集合中，根据替换策略（例如，伪 LRU）驱逐现有行，并并行地交付给请求的 warp。
 
-请注意，L2 与 L1 并无太大不同，除了它是全局的（相对于每个SM）、更大（具有更高的关联度）、划分为两个通过交叉开关连接的切片，并支持更细致的持久性和缓存策略。
+请注意，L2 与 L1 并无太大不同，除了它是全局的（相对于每个 SM）、更大（具有更高的关联度）、划分为两个通过交叉开关连接的切片，并支持更细致的持久性和缓存策略。
 
-至此，我们已经涵盖了理解后续章节所需的关键GPU硬件组件。
+至此，我们已经涵盖了理解后续章节所需的关键 GPU 硬件组件。
 
-📝GPU代际间的梯度：
+📝GPU 代际间的梯度：
 
-我之前提到，理解Hopper是理解NVIDIA GPU未来和过去代际的绝佳基础。
+我之前提到，理解 Hopper 是理解 NVIDIA GPU 未来和过去代际的绝佳基础。
 
-迄今为止最大的代际跃迁是从Ampere → Hopper，引入了：
+迄今为止最大的代际跃迁是从 Ampere → Hopper，引入了：
 
-- 分布式共享内存（DSMEM）：用于在整个GPC的SMEM之间进行直接SM到SM通信，支持加载、存储和原子操作。
+- 分布式共享内存（DSMEM）：用于在整个 GPC 的 SMEM 之间进行直接 SM 到 SM 通信，支持加载、存储和原子操作。
 - TMA：用于异步张量数据移动的硬件单元（GMEM ↔ SMEM, SMEM ↔ SMEM）。
-- 线程块集群：一种新的CUDA编程模型抽象，用于跨SM分组块。
+- 线程块集群：一种新的 CUDA 编程模型抽象，用于跨 SM 分组块。
 - 异步事务屏障：分割屏障，计数事务（字节）而不仅仅是线程。
 
 Ampere（例如 A100）本身引入了几个关键特性：
 
-- Tensor Core中的tf32和bf16支持。
-- 异步复制（GMEM → SMEM），具有两种模式：绕过L1和访问L1。
+- Tensor Core 中的 tf32 和 bf16 支持。
+- 异步复制（GMEM → SMEM），具有两种模式：绕过 L1 和访问 L1。
 - 异步屏障（在共享内存中硬件加速）。
-- CUDA任务图，支撑PyTorch中的CUDA图，并减少CPU启动和网格初始化开销。
-- 通过CUDA Cooperative Groups暴露的warp级归约指令（支持warp范围内、整数数据类型的单步归约，无需shuffle模式）。
+- CUDA 任务图，支撑 PyTorch 中的 CUDA 图，并减少 CPU 启动和网格初始化开销。
+- 通过 CUDA Cooperative Groups 暴露的 warp 级归约指令（支持 warp 范围内、整数数据类型的单步归约，无需 shuffle 模式）。
 
 <a id="cpt2"></a>
 
-## GPU汇编语言：PTX和SASS
+## GPU 汇编语言：PTX 和 SASS
 
-让我们向上移动一个层级到ISA（指令集架构）。ISA简单来说就是处理器（例如，NVIDIA GPU）可以执行的指令集合，包括它们的二进制编码（操作码、操作数等）和行为语义。这些共同定义了程序员如何指导硬件执行有用工作。
+让我们向上移动一个层级到 ISA（指令集架构）。ISA 简单来说就是处理器（例如，NVIDIA GPU）可以执行的指令集合，包括它们的二进制编码（操作码、操作数等）和行为语义。这些共同定义了程序员如何指导硬件执行有用工作。
 
-ISA的人类可读形式被称为**汇编**：程序员使用助记符如`0x1fff…3B`，而不是像`FMA R12, R13, R14, R15`那样编写原始二进制。
+ISA 的人类可读形式被称为**汇编**：程序员使用助记符如`0x1fff…3B`，而不是像`FMA R12, R13, R14, R15`那样编写原始二进制。
 
-在NVIDIA GPU上，原生ISA称为SASS。不幸的是，它的文档很少——尤其是对于最新的GPU代际。一些较旧的代际已被部分或完全逆向工程，但官方文档仍然有限。您可以在此处[here](https://docs.nvidia.com/cuda/cuda-binary-utilities/index.html) [\[6\]](#ref-6)找到文档。
+在 NVIDIA GPU 上，原生 ISA 称为 SASS。不幸的是，它的文档很少——尤其是对于最新的 GPU 代际。一些较旧的代际已被部分或完全逆向工程，但官方文档仍然有限。您可以在此处 [here](https://docs.nvidia.com/cuda/cuda-binary-utilities/index.html) [\[6\]](#ref-6) 找到文档。
 
-PTX是NVIDIA的**虚拟ISA：**&#x4E00;种抽象GPU的指令集。PTX代码不直接执行；而是由`ptxas`编译为原生ISA（SASS）。
+PTX 是 NVIDIA 的**虚拟 ISA：**&#x4E00;种抽象 GPU 的指令集。PTX 代码不直接执行；而是由`ptxas`编译为原生 ISA（SASS）。
 
-PTX的关键优势是前向兼容性。十年前编译为PTX的CUDA程序仍然可以在现代GPU如Blackwell上运行。它可能无法高效利用最新的硬件特性，但会正确执行。
+PTX 的关键优势是前向兼容性。十年前编译为 PTX 的 CUDA 程序仍然可以在现代 GPU 如 Blackwell 上运行。它可能无法高效利用最新的硬件特性，但会正确执行。
 
-这是因为PTX被嵌入到CUDA二进制文件中，与原生SASS一起。当二进制文件在未来GPU上运行时，如果匹配的SASS代码不存在，PTX会被JIT编译为目标架构的SASS：
+这是因为 PTX 被嵌入到 CUDA 二进制文件中，与原生 SASS 一起。当二进制文件在未来 GPU 上运行时，如果匹配的 SASS 代码不存在，PTX 会被 JIT 编译为目标架构的 SASS：
 
 ![Figure 15: CUDA compilation flow: from CUDA C++ → PTX → SASS](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/015-aa3bd47e.png)
 
-_图15：CUDA编译流程：从CUDA C++ → PTX → SASS_
+_图 15：CUDA 编译流程：从 CUDA C++ → PTX → SASS_
 
-为什么关心PTX/SASS？
+为什么关心 PTX/SASS？
 
-因为这是可以找到最后几个百分点性能的地方。在今天的规模下，这些“几个百分点”是巨大的：如果您在30,000个H100上训练LLM，即使将核心内核性能提高1%，也能节省数百万美元。
+因为这是可以找到最后几个百分点性能的地方。在今天的规模下，这些“几个百分点”是巨大的：如果您在 30,000 个 H100 上训练 LLM，即使将核心内核性能提高 1%，也能节省数百万美元。
 
-正如我的朋友[Aroun](https://github.com/ademeure)喜欢说的：在编写大规模训练/推理内核时，我们关心`O(NR)`，而不是`O(N)`。（这里，NR = 核反应堆。）换句话说，可能没有新的渐近复杂度类等待被发现——大的收益（大部分）已经消失。但在数百万GPU上挤出约1%的效率，相当于节省几个SMR（小型模块化反应堆）的能量。
+正如我的朋友 [Aroun](https://github.com/ademeure) 喜欢说的：在编写大规模训练/推理内核时，我们关心`O(NR)`，而不是`O(N)`。（这里，NR = 核反应堆。）换句话说，可能没有新的渐近复杂度类等待被发现——大的收益（大部分）已经消失。但在数百万 GPU 上挤出约 1%的效率，相当于节省几个 SMR（小型模块化反应堆）的能量。
 
-要深入了解SASS，我推荐Aroun的["Introduction to SASS & GPU Microarchitecture"](https://www.youtube.com/watch?v=we3i5VuoPWk) [\[7\]](#ref-7)视频。
+要深入了解 SASS，我推荐 Aroun 的 ["Introduction to SASS & GPU Microarchitecture"](https://www.youtube.com/watch?v=we3i5VuoPWk) [\[7\]](#ref-7) 视频。
 
-理解SASS并不意味着您将开始直接用SASS编写CUDA内核。相反，在编写CUDA C++时，您希望与编译器的输出（PTX/SASS）保持紧密耦合。这可以让您双重检查您的提示（例如，`#pragma unroll`用于展开循环，或向量化加载）是否确实被降低为预期的指令（例如，`LDG.128`）。
+理解 SASS 并不意味着您将开始直接用 SASS 编写 CUDA 内核。相反，在编写 CUDA C++时，您希望与编译器的输出（PTX/SASS）保持紧密耦合。这可以让您双重检查您的提示（例如，`#pragma unroll`用于展开循环，或向量化加载）是否确实被降低为预期的指令（例如，`LDG.128`）。
 
-这些低级细节中隐藏性能的一个很好例子来自现在著名的Citadel论文，["Dissecting the NVIDIA Volta GPU Architecture via Microbenchmarking"](https://arxiv.org/abs/1804.06826) [\[8\]](#ref-8)。作者调整SASS以避免内存bank冲突，并将性能从132 GFLOP/s提升到152 GFLOP/s——提高了15.4%。
+这些低级细节中隐藏性能的一个很好例子来自现在著名的 Citadel 论文，["Dissecting the NVIDIA Volta GPU Architecture via Microbenchmarking"](https://arxiv.org/abs/1804.06826) [\[8\]](#ref-8)。作者调整 SASS 以避免内存 bank 冲突，并将性能从 132 GFLOP/s 提升到 152 GFLOP/s——提高了 15.4%。
 
-还要注意，一些指令在CUDA C++中没有等效项；您只需编写内联PTX！我们将在第4章后面看到这方面的例子。
+还要注意，一些指令在 CUDA C++中没有等效项；您只需编写内联 PTX！我们将在第 4 章后面看到这方面的例子。
 
-现在（希望）我已经说服您PTX/SASS很重要，让我们介绍最简单的matmul内核，它将作为本章剩余部分的运行示例。之后，我们将深入分析其汇编。
+现在（希望）我已经说服您 PTX/SASS 很重要，让我们介绍最简单的 matmul 内核，它将作为本章剩余部分的运行示例。之后，我们将深入分析其汇编。
 
-让我们从最简单的情况开始：一个针对“串行处理器”如CPU的朴素矩阵乘法内核：
+让我们从最简单的情况开始：一个针对“串行处理器”如 CPU 的朴素矩阵乘法内核：
 
 ```c
 for (int m = 0; m < M; m++) {
@@ -413,19 +413,19 @@ for (int m = 0; m < M; m++) {
 }
 ```
 
-我们循环遍历输出矩阵（`m`）的行（`n`）和列（`C`），并在每个位置计算点积（`C[m,n] = dot(a[m,k],b[k,n])`）。这是matmul的教科书定义：
+我们循环遍历输出矩阵（`m`）的行（`n`）和列（`C`），并在每个位置计算点积（`C[m,n] = dot(a[m,k],b[k,n])`）。这是 matmul 的教科书定义：
 
 ![Figure 16: Naive CPU matmul example](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/016-6bf0d586.png)
 
-_图16：朴素CPU matmul示例_
+_图 16：朴素 CPU matmul 示例_
 
-总的来说，矩阵乘法需要`M × N`个点积。每个点积执行`K`次乘加，所以总工作量是`2 × M × N × K` FLOPs（因子2是因为，按照惯例，我们计数FMA = 乘法 + 加法）。
+总的来说，矩阵乘法需要`M × N`个点积。每个点积执行`K`次乘加，所以总工作量是`2 × M × N × K` FLOPs（因子 2 是因为，按照惯例，我们计数 FMA = 乘法 + 加法）。
 
 并行性在哪里？
 
 所有这些点积都是独立的。没有理由计算`C[0,1]`应该等待`C[0,0]`。这种独立性意味着我们可以跨两个外部循环（遍历`m`和`n`）进行并行化。
 
-基于这一见解，让我们看看最简单的GPU内核。我们将使用一个稍微更通用的形式：`C = alpha * A @ B + beta * C`。这是经典的GEMM（通用矩阵乘法）。设置`alpha = 1.0`和`beta = 0.0`可以恢复更简单的`C = A @ B`。
+基于这一见解，让我们看看最简单的 GPU 内核。我们将使用一个稍微更通用的形式：`C = alpha * A @ B + beta * C`。这是经典的 GEMM（通用矩阵乘法）。设置`alpha = 1.0`和`beta = 0.0`可以恢复更简单的`C = A @ B`。
 
 内核代码：
 
@@ -465,22 +465,22 @@ naive_kernel<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
 
 你可以在这里观察到几点：
 
-- 内核是从单个线程的角度编写的。这遵循SIMT（单指令多线程）模型：程序员编写一个线程的工作，而CUDA处理网格、集群和块的启动和初始化。（其他编程模型，如OpenAI的[Triton](https://github.com/triton-lang/triton) [\[22\]](#ref-22)，让你从**tile**的角度编写。）
+- 内核是从单个线程的角度编写的。这遵循 SIMT（单指令多线程）模型：程序员编写一个线程的工作，而 CUDA 处理网格、集群和块的启动和初始化。（其他编程模型，如 OpenAI 的 [Triton](https://github.com/triton-lang/triton) [\[22\]](#ref-22)，让你从**tile**的角度编写。）
 - 每个线程使用其块和线程索引（我们之前讨论的变量）来计算其在`row`中的（`col`，`C`）坐标，并写出相应的点积。
-- 我们使用尽可能多的32×32线程块（1024个线程）来平铺输出矩阵。
-- 如果`M`或`N`不能被32整除，一些线程会落在`C`的有效输出区域之外。这就是为什么我们在代码中包含一个保护条件。
+- 我们使用尽可能多的 32×32 线程块（1024 个线程）来平铺输出矩阵。
+- 如果`M`或`N`不能被 32 整除，一些线程会落在`C`的有效输出区域之外。这就是为什么我们在代码中包含一个保护条件。
 
 最后两点结合导致了一个通常被称为**tile quantization：**
 
 ![Figure 17: Tile quantization](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/017-20e073fb.png)
 
-_图17：Tile quantization_
+_图 17：Tile quantization_
 
-当tile相对于输出矩阵较大时，这种效应尤其明显。在我们的例子中，由于32能整除4096，所以没有问题。但如果矩阵大小是，比如33×33，那么大约75%的线程最终会做无用功。
+当 tile 相对于输出矩阵较大时，这种效应尤其明显。在我们的例子中，由于 32 能整除 4096，所以没有问题。但如果矩阵大小是，比如 33×33，那么大约 75%的线程最终会做无用功。
 
-代码本可以通过传递2D块而不是1D块来更简单地编写。那样的话，我们就不需要硬编码块大小为32，并且可以使用`threadIdx.x`和`threadIdx.y`。在内部，1D结构通过索引算术有效地转换为2D：`threadIdx.x / BLOCKSIZE`和`threadIdx.x % BLOCKSIZE`，所以在实践中差别不大。
+代码本可以通过传递 2D 块而不是 1D 块来更简单地编写。那样的话，我们就不需要硬编码块大小为 32，并且可以使用`threadIdx.x`和`threadIdx.y`。在内部，1D 结构通过索引算术有效地转换为 2D：`threadIdx.x / BLOCKSIZE`和`threadIdx.x % BLOCKSIZE`，所以在实践中差别不大。
 
-我最初从[Simon的博客](https://siboehm.com/articles/22/CUDA-MMM) [\[9\]](#ref-9)改编了这段代码，并专注于对其进行深入的PTX/SASS分析（即将到来），所以我不想重复辛苦工作，因为轻微的代码更改会导致不同的PTX/SASS。
+我最初从 [Simon 的博客](https://siboehm.com/articles/22/CUDA-MMM) [\[9\]](#ref-9) 改编了这段代码，并专注于对其进行深入的 PTX/SASS 分析（即将到来），所以我不想重复辛苦工作，因为轻微的代码更改会导致不同的 PTX/SASS。
 
 让我们更仔细地看看这个内核实际上做了什么。在本文的其余部分，我们将假设`M = N = 4096`。本示例中的所有矩阵都是行主序格式（在一些后续示例中，`B`将是列主序 - 标准约定）。
 
@@ -488,22 +488,22 @@ _图17：Tile quantization_
 
 ![Figure 18: Thread organization in naive matmul kernel](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/018-9c5036fe.png)
 
-_图18：朴素矩阵乘法内核中的线程组织_
+_图 18：朴素矩阵乘法内核中的线程组织_
 
 矩阵乘法逻辑本身如下所示：
 
 ![Figure 19: Naive matmul kernel](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/019-63cad355.png)
 
-_图19：朴素矩阵乘法内核_
+_图 19：朴素矩阵乘法内核_
 
-当我们的GMEM访问是合并的时，硬件中会自动发生一些有趣的优化：
+当我们的 GMEM 访问是合并的时，硬件中会自动发生一些有趣的优化：
 
-- （矩阵A）对于一个warp从`A`读取，32个每线程`LDG.32`指令（全部来自同一地址）合并为一个warp级别的`LDG.32`，其结果广播到warp中的所有线程。
-- （矩阵B）对于一个warp从`B`读取，32个连续的每线程`LDG.32`指令组合为一个128B的warp级别加载。这依赖于线程沿着连续维度读取。如果它们读取列（非连续），硬件将需要发出多个warp级别指令。
+- （矩阵 A）对于一个 warp 从`A`读取，32 个每线程`LDG.32`指令（全部来自同一地址）合并为一个 warp 级别的`LDG.32`，其结果广播到 warp 中的所有线程。
+- （矩阵 B）对于一个 warp 从`B`读取，32 个连续的每线程`LDG.32`指令组合为一个 128B 的 warp 级别加载。这依赖于线程沿着连续维度读取。如果它们读取列（非连续），硬件将需要发出多个 warp 级别指令。
 
-注意，我们总共启动了(4096/32) \* (4096/32) = 16,384个线程块。然而，H100 PCIe（我使用的卡）只有114个SM。
+注意，我们总共启动了 (4096/32) \* (4096/32) = 16,384 个线程块。然而，H100 PCIe（我使用的卡）只有 114 个 SM。
 
-这引出了一个问题：每个SM上可以同时运行多少个块？
+这引出了一个问题：每个 SM 上可以同时运行多少个块？
 
 一般来说，三种资源限制并发性：
 
@@ -511,45 +511,45 @@ _图19：朴素矩阵乘法内核_
 1. 共享内存（SMEM）
 1. 线程/warp
 
-从Nsight Compute分析器（`ncu --set full -o out.ncu-rep naive_kernel`，也见下图），我们看到内核每个线程使用32个寄存器。每个块有1024个线程，那就是每个块1024×32=32,768个寄存器。由于每个SM有65,536个寄存器（你可以在[CUDA C编程指南](https://docs.nvidia.com/cuda/cuda-c-programming-guide/#features-and-technical-specifications-technical-specifications-per-compute-capability) [\[10\]](#ref-10)中找到这些常量），这限制我们每个SM最多2个块。
+从 Nsight Compute 分析器（`ncu --set full -o out.ncu-rep naive_kernel`，也见下图），我们看到内核每个线程使用 32 个寄存器。每个块有 1024 个线程，那就是每个块 1024×32=32,768 个寄存器。由于每个 SM 有 65,536 个寄存器（你可以在 [CUDA C 编程指南](https://docs.nvidia.com/cuda/cuda-c-programming-guide/#features-and-technical-specifications-technical-specifications-per-compute-capability) [\[10\]](#ref-10) 中找到这些常量），这限制我们每个 SM 最多 2 个块。
 
 📝注意：
 
 提示。你也可以在编译时传递`--ptxas-options=-v`让编译器报告寄存器使用情况和其他资源计数。`nvdisasm`也是一个有用的小工具。
 
-在Hopper（计算能力9.0）上，每个SM的最大线程数是2048。每个块有1024个线程，这再次限制我们每个SM最多2个块。
+在 Hopper（计算能力 9.0）上，每个 SM 的最大线程数是 2048。每个块有 1024 个线程，这再次限制我们每个 SM 最多 2 个块。
 
-回想硬件章节，即使内核没有显式使用SMEM，每个块总是有1024B的系统级开销。在默认的SMEM分配为每个SM 8192B（不将拨盘调到228 KiB）的情况下，这将允许最多8个块。
+回想硬件章节，即使内核没有显式使用 SMEM，每个块总是有 1024B 的系统级开销。在默认的 SMEM 分配为每个 SM 8192B（不将拨盘调到 228 KiB）的情况下，这将允许最多 8 个块。
 
 综合起来：`max blocks/SM = min(2,2,8) = 2`。
 
-所以，在任何给定时间，这个内核在GPU上最多可以有114×2 = 228个线程块驻留。
+所以，在任何给定时间，这个内核在 GPU 上最多可以有 114×2 = 228 个线程块驻留。
 
-这意味着我们需要16,384 / 228 = \~71.86个所谓的**waves**来完成矩阵乘法操作。
+这意味着我们需要 16,384 / 228 = \~71.86 个所谓的**waves**来完成矩阵乘法操作。
 
 📝占用率
 
-在CUDA术语中，占用率通常指可以在SM上同时运行的块数。还有一个密切相关的定义：
+在 CUDA 术语中，占用率通常指可以在 SM 上同时运行的块数。还有一个密切相关的定义：
 
-占用率（warp）：活动warp与每个SM最大warp数的比率。
+占用率（warp）：活动 warp 与每个 SM 最大 warp 数的比率。
 
-这里，“活动warp”指线程块在启动时分配资源（寄存器、SMEM等）后的warp。
+这里，“活动 warp”指线程块在启动时分配资源（寄存器、SMEM 等）后的 warp。
 
 ![Figure 20: Nsight Compute: Occupancy, Waves info](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/020-08298cc8.png)
 
-_图20：Nsight Compute：占用率、Waves信息_
+_图 20：Nsight Compute：占用率、Waves 信息_
 
-这里有一个[优秀教程](https://www.youtube.com/watch?v=F_BazucyCMw&ab_channel=GPUMODE) [\[11\]](#ref-11)关于使用Nsight Compute分析器。
+这里有一个 [优秀教程](https://www.youtube.com/watch?v=F_BazucyCMw&ab_channel=GPUMODE) [\[11\]](#ref-11) 关于使用 Nsight Compute 分析器。
 
-值得在这里提到：就像**tile quantization**一样，也有一个**wave quantization**的概念。当wave数量较小时，这种效应尤其明显。
+值得在这里提到：就像**tile quantization**一样，也有一个**wave quantization**的概念。当 wave 数量较小时，这种效应尤其明显。
 
-例如，假设我启动一个内核，有114个块（正好是我的H100 PCIe上的SM数）。并假设我们一次只能运行1个块/SM。每个SM只有一个块，内核在一个wave中完成。现在想象我将启动增加到115个块。突然，执行时间几乎翻倍——因为我们需要两个wave——但第二个wave中的大部分资源闲置，只有一个块运行：
+例如，假设我启动一个内核，有 114 个块（正好是我的 H100 PCIe 上的 SM 数）。并假设我们一次只能运行 1 个块/SM。每个 SM 只有一个块，内核在一个 wave 中完成。现在想象我将启动增加到 115 个块。突然，执行时间几乎翻倍——因为我们需要两个 wave——但第二个 wave 中的大部分资源闲置，只有一个块运行：
 
 ![Figure 21: Wave quantization](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/021-90e8eef8.png)
 
-_图21：Wave quantization_
+_图 21：Wave quantization_
 
-有了对朴素矩阵乘法内核的基本分析，现在让我们转向PTX/SASS视图。以下是我使用的编译设置（[Godbolt](<https://godbolt.org/#g:!((g:!((g:!((h:codeEditor,i:(filename:'1',fontScale:14,fontUsePx:'0',j:1,lang:cuda,selection:(endColumn:42,endLineNumber:16,positionColumn:42,positionLineNumber:16,selectionStartColumn:42,selectionStartLineNumber:16,startColumn:42,startLineNumber:16),source:'//+__global__+keyword+declares+a+GPU+kernel%0A__global__+void+naive_kernel(int+M,+int+N,+int+K,+float+alpha,%0A++++++++++++++++++++++++++++++++++++++++++const+float+*A,+const+float+*B,%0A++++++++++++++++++++++++++++++++++++++++++float+beta,+float+*C)+%7B%0A++int+BLOCKSIZE%3D32%3B%0A%0A++const+int+row+%3D+blockIdx.x+*+BLOCKSIZE+%2B+(threadIdx.x+/+BLOCKSIZE)%3B%0A++const+int+col+%3D+blockIdx.y+*+BLOCKSIZE+%2B+(threadIdx.x+%25+BLOCKSIZE)%3B%0A%0A++if+(row+%3C+M+%26%26+col+%3C+N)+%7B++//+guard+in+case+some+threads+are+outside+the+range%0A++++float+tmp+%3D+0.0%3B%0A++++//+compute+dot+product%0A++++for+(int+i+%3D+0%3B+i+%3C+K%3B+%2B%2Bi)+%7B%0A++++++tmp+%2B%3D+A%5Brow+*+K+%2B+i%5D+*+B%5Bi+*+N+%2B+col%5D%3B%0A++++%7D%0A++++//+GEMM:+C+%3D+alpha+*+A+@+B+%2B+beta+*+C%0A++++C%5Brow+*+N+%2B+col%5D+%3D+alpha+*+tmp+%2B+beta+*+C%5Brow+*+N+%2B+col%5D%3B%0A++%7D%0A%7D'),l:'5',n:'0',o:'CUDA+C%2B%2B+source+%231',t:'0')),header:(),k:31.19733490103861,l:'4',m:100,n:'0',o:'',s:0,t:'0'),(g:!((h:compiler,i:(compiler:nvcc125u1,filters:(b:'0',binary:'1',binaryObject:'1',commentOnly:'0',debugCalls:'1',demangle:'0',directives:'0',execute:'1',intel:'0',libraryCode:'0',trim:'1',verboseDemangling:'0'),flagsViewOpen:'1',fontScale:14,fontUsePx:'0',j:1,lang:cuda,libs:!(),options:'+-O3+-DNDEBUG+--generate-code%3Darch%3Dcompute_90,code%3D%5Bcompute_90,sm_90a%5D+--ptxas-options%3D-v+-std%3Dc%2B%2B17',overrides:!(),selection:(endColumn:1,endLineNumber:1,positionColumn:1,positionLineNumber:1,selectionStartColumn:1,selectionStartLineNumber:1,startColumn:1,startLineNumber:1),source:1),l:'5',n:'0',o:'+NVCC+12.5.1+(Editor+%231)',t:'0')),header:(),k:35.46933176562806,l:'4',n:'0',o:'',s:0,t:'0'),(g:!((h:device,i:(compilerName:'NVCC+12.5.1',device:PTX,editorid:1,fontScale:14,fontUsePx:'0',j:1,selection:(endColumn:1,endLineNumber:1,positionColumn:1,positionLineNumber:1,selectionStartColumn:1,selectionStartLineNumber:1,startColumn:1,startLineNumber:1),treeid:0),l:'5',n:'0',o:'Device+Viewer+NVCC+12.5.1+(Editor+%231,+Compiler+%231)',t:'0')),k:33.33333333333333,l:'4',n:'0',o:'',s:0,t:'0')),l:'2',n:'0',o:'',t:'0')),version:4>)）：
+有了对朴素矩阵乘法内核的基本分析，现在让我们转向 PTX/SASS 视图。以下是我使用的编译设置（[Godbolt](<https://godbolt.org/#g:!((g:!((g:!((h:codeEditor,i:(filename:'1',fontScale:14,fontUsePx:'0',j:1,lang:cuda,selection:(endColumn:42,endLineNumber:16,positionColumn:42,positionLineNumber:16,selectionStartColumn:42,selectionStartLineNumber:16,startColumn:42,startLineNumber:16),source:'//+__global__+keyword+declares+a+GPU+kernel%0A__global__+void+naive_kernel(int+M,+int+N,+int+K,+float+alpha,%0A++++++++++++++++++++++++++++++++++++++++++const+float+*A,+const+float+*B,%0A++++++++++++++++++++++++++++++++++++++++++float+beta,+float+*C)+%7B%0A++int+BLOCKSIZE%3D32%3B%0A%0A++const+int+row+%3D+blockIdx.x+*+BLOCKSIZE+%2B+(threadIdx.x+/+BLOCKSIZE)%3B%0A++const+int+col+%3D+blockIdx.y+*+BLOCKSIZE+%2B+(threadIdx.x+%25+BLOCKSIZE)%3B%0A%0A++if+(row+%3C+M+%26%26+col+%3C+N)+%7B++//+guard+in+case+some+threads+are+outside+the+range%0A++++float+tmp+%3D+0.0%3B%0A++++//+compute+dot+product%0A++++for+(int+i+%3D+0%3B+i+%3C+K%3B+%2B%2Bi)+%7B%0A++++++tmp+%2B%3D+A%5Brow+*+K+%2B+i%5D+*+B%5Bi+*+N+%2B+col%5D%3B%0A++++%7D%0A++++//+GEMM:+C+%3D+alpha+*+A+@+B+%2B+beta+*+C%0A++++C%5Brow+*+N+%2B+col%5D+%3D+alpha+*+tmp+%2B+beta+*+C%5Brow+*+N+%2B+col%5D%3B%0A++%7D%0A%7D'),l:'5',n:'0',o:'CUDA+C%2B%2B+source+%231',t:'0')),header:(),k:31.19733490103861,l:'4',m:100,n:'0',o:'',s:0,t:'0'),(g:!((h:compiler,i:(compiler:nvcc125u1,filters:(b:'0',binary:'1',binaryObject:'1',commentOnly:'0',debugCalls:'1',demangle:'0',directives:'0',execute:'1',intel:'0',libraryCode:'0',trim:'1',verboseDemangling:'0'),flagsViewOpen:'1',fontScale:14,fontUsePx:'0',j:1,lang:cuda,libs:!(),options:'+-O3+-DNDEBUG+--generate-code%3Darch%3Dcompute_90,code%3D%5Bcompute_90,sm_90a%5D+--ptxas-options%3D-v+-std%3Dc%2B%2B17',overrides:!(),selection:(endColumn:1,endLineNumber:1,positionColumn:1,positionLineNumber:1,selectionStartColumn:1,selectionStartLineNumber:1,startColumn:1,startLineNumber:1),source:1),l:'5',n:'0',o:'+NVCC+12.5.1+(Editor+%231)',t:'0')),header:(),k:35.46933176562806,l:'4',n:'0',o:'',s:0,t:'0'),(g:!((h:device,i:(compilerName:'NVCC+12.5.1',device:PTX,editorid:1,fontScale:14,fontUsePx:'0',j:1,selection:(endColumn:1,endLineNumber:1,positionColumn:1,positionLineNumber:1,selectionStartColumn:1,selectionStartLineNumber:1,startColumn:1,startLineNumber:1),treeid:0),l:'5',n:'0',o:'Device+Viewer+NVCC+12.5.1+(Editor+%231,+Compiler+%231)',t:'0')),k:33.33333333333333,l:'4',n:'0',o:'',s:0,t:'0')),l:'2',n:'0',o:'',t:'0')),version:4>)）：
 
 ```text
 compilation settings:
@@ -563,40 +563,40 @@ nvcc 12.5.1
 # --fast-math  # not using, less important for this kernel
 ```
 
-另一个重要设置是`--use_fast_math`。它用速度换取数值精度，主要影响fp32操作。例如，它将标准数学函数替换为快速、近似的内部函数（例如`sinf`
+另一个重要设置是`--use_fast_math`。它用速度换取数值精度，主要影响 fp32 操作。例如，它将标准数学函数替换为快速、近似的内部函数（例如`sinf`
 
 ->
 
 `__sinf`），启用对非规格化数（低于最小“规格化”可表示幅度的极小浮点数）的归零（ftz）等。
 
-以下是上面展示的CUDA C++内核的带注释PTX。我手动解码它以更好地内化ISA。请随意放大并花点时间消化结构（或者直接跳到图表后阅读我的摘要，然后返回图表）：
+以下是上面展示的 CUDA C++内核的带注释 PTX。我手动解码它以更好地内化 ISA。请随意放大并花点时间消化结构（或者直接跳到图表后阅读我的摘要，然后返回图表）：
 
 ![Figure 22: PTX code corresponding to naive matmul CUDA kernel](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/022-6ddbe5f8.png)
 
-_图22：对应朴素矩阵乘法CUDA内核的PTX代码_
+_图 22：对应朴素矩阵乘法 CUDA 内核的 PTX 代码_
 
-总结一下，以下是PTX代码的高级流程：
+总结一下，以下是 PTX 代码的高级流程：
 
 - 计算`row`和`col`变量。有趣的是，编译器使用`bfi`（位域插入）指令来计算`col`，而不是简单地将寄存器`r2`和`r3`相加。这可能是通过将工作路由到利用率较低单元来平衡执行流水线的尝试——但请注意，`bfi`本身并不比加法指令快。
 - 如果此线程超出`C`的有效范围，则提前退出（保护逻辑）。
-- 如果`K < 1`，直接跳转到存储到`C`（`tmp`将为0.0）。
+- 如果`K < 1`，直接跳转到存储到`C`（`tmp`将为 0.0）。
 - 如果`K <= 3`，跳转到尾部循环。
 - 否则，如果`K > 3`：在进入主循环前计算`A`和`B`的基础偏移。
-- 主循环（展开×4）。每次迭代执行4个FMA步骤，与加载和地址算术交错进行。
+- 主循环（展开×4）。每次迭代执行 4 个 FMA 步骤，与加载和地址算术交错进行。
 - 尾部循环（`<= 3`次迭代）。执行剩余的向量点积步骤，不展开。
-- 尾声：加载`C`的输出值，应用GEMM更新（`alpha * A @ B + beta * C`），并使用`st.global.f32`将结果写回全局内存。
+- 尾声：加载`C`的输出值，应用 GEMM 更新（`alpha * A @ B + beta * C`），并使用`st.global.f32`将结果写回全局内存。
 
 这里可以看到一些编译器优化：提前退出、循环展开、分割为主循环和尾部循环，以及看起来像流水线负载平衡（假设我的`bfi`假设正确）。
 
-展开尤其重要，因为它暴露了ILP（指令级并行性）。warp不需要那么快被换出，因为它仍有独立指令可发出——这有助于隐藏延迟。
+展开尤其重要，因为它暴露了 ILP（指令级并行性）。warp 不需要那么快被换出，因为它仍有独立指令可发出——这有助于隐藏延迟。
 
-什么是ILP（指令级并行性）？
+什么是 ILP（指令级并行性）？
 
-指令级并行性（ILP）是单个warp通过连续发出独立指令能同时保持“在飞行中”的工作量。高ILP让warp调度器能在每个周期发出新指令，而较早的指令仍在等待其延迟。
+指令级并行性（ILP）是单个 warp 通过连续发出独立指令能同时保持“在飞行中”的工作量。高 ILP 让 warp 调度器能在每个周期发出新指令，而较早的指令仍在等待其延迟。
 
-考虑这两个指令流（假设FMA需要4个周期）：
+考虑这两个指令流（假设 FMA 需要 4 个周期）：
 
-1\) 低ILP（完全依赖链）
+1\) 低 ILP（完全依赖链）
 
 ```text
 y = a * b + 1.0;     // uses a,b
@@ -604,9 +604,9 @@ z = y * c + 1.0;     // depends on y
 w = z * c + 1.0;     // depends on z
 ```
 
-每个FMA依赖于前一个结果 => 无法并行调度 => 总延迟 = 12（3\*4）个周期。
+每个 FMA 依赖于前一个结果 => 无法并行调度 => 总延迟 = 12（3\*4）个周期。
 
-2\) 高ILP（独立操作）
+2\) 高 ILP（独立操作）
 
 ```text
 c0 = a0 * b0 + 1.0;
@@ -614,67 +614,67 @@ c1 = a1 * b1 + 1.0;
 c2 = a2 * b2 + 1.0;
 ```
 
-三个独立FMA => 调度器可以在连续周期发出它们。在周期0、1、2发出，结果在4、5、6就绪 => 总延迟 = 6个周期。
+三个独立 FMA => 调度器可以在连续周期发出它们。在周期 0、1、2 发出，结果在 4、5、6 就绪 => 总延迟 = 6 个周期。
 
-这就是为什么循环展开/ILP很重要。
+这就是为什么循环展开/ILP 很重要。
 
-对于调试，您可能想禁用循环展开以使PTX/SASS分析更容易。只需添加：`#pragma unroll 1`。
+对于调试，您可能想禁用循环展开以使 PTX/SASS 分析更容易。只需添加：`#pragma unroll 1`。
 
 展开还减少了分支（`bra`）指令的数量，使程序更简洁/高效。
 
 我还观察到一些编译器低效之处，例如：
 
-- 不必要地将变量初始化为0。
+- 不必要地将变量初始化为 0。
 - 过于复杂地计算`A`的地址。
 - 冗余的部分偏移计算，其中两个指令本可合并为一个。
 
-有趣！现在让我们看看对应的SASS代码：
+有趣！现在让我们看看对应的 SASS 代码：
 
 ![Figure 23: SASS code corresponding to naive matmul CUDA kernel](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/023-8a52ed55.png)
 
-_图23：对应朴素矩阵乘法CUDA内核的SASS代码_
+_图 23：对应朴素矩阵乘法 CUDA 内核的 SASS 代码_
 
-我只强调与PTX代码的差异：
+我只强调与 PTX 代码的差异：
 
 - 循环现在展开×16！
-- LDG指令移到循环顶部，将计算与数据加载重叠。FMA大多聚集在每个展开块的末尾。
-- 有2个尾部循环：一个展开8倍，一个展开4倍，最终循环覆盖最后3次迭代。
+- LDG 指令移到循环顶部，将计算与数据加载重叠。FMA 大多聚集在每个展开块的末尾。
+- 有 2 个尾部循环：一个展开 8 倍，一个展开 4 倍，最终循环覆盖最后 3 次迭代。
 
-我在SASS中也发现了有趣的编译器怪癖和低效之处：
+我在 SASS 中也发现了有趣的编译器怪癖和低效之处：
 
 - 程序计数器（`R1`寄存器）被加载但从未使用。原因不明？
 - 冗余的零初始化仍然存在。
-- 一个谓词是空操作：它总是为真，所以跳转到标签`L_x_2`（4倍展开循环）从未执行。
-- 4倍展开循环包含一个多余的`BRA`指令——它永远不会迭代超过一次。
-- 在最终`EXIT`之后，代码陷入无限while循环。是虚假的实现细节还是故障？
+- 一个谓词是空操作：它总是为真，所以跳转到标签`L_x_2`（4 倍展开循环）从未执行。
+- 4 倍展开循环包含一个多余的`BRA`指令——它永远不会迭代超过一次。
+- 在最终`EXIT`之后，代码陷入无限 while 循环。是虚假的实现细节还是故障？
 - 最后（不是故障），代码用`NOPs`填充以实现内存对齐。
 
 有趣！我们感受到了编译器在幕后做了什么。
 
-现在，有了所有这些背景知识，让我们换个档，深入一些SOTA（最先进）内核。
+现在，有了所有这些背景知识，让我们换个档，深入一些 SOTA（最先进）内核。
 
 📝下一章的补充阅读：
 
-我强烈推荐Simon的优秀[博客文章](https://siboehm.com/articles/22/CUDA-MMM)。它是我最初深入内核的灵感来源。在本章中，我将使用他的[内核10](https://github.com/siboehm/SGEMM_CUDA/blob/master/src/kernels/10_kernel_warptiling.cuh) [\[12\]](#ref-12)代码作为参考。虽然代码本身似乎是基于CUTLASS的（参见[这个](https://developer.nvidia.com/blog/cutlass-linear-algebra-cuda/) [\[13\]](#ref-13)和[这个](https://github.com/NVIDIA/cutlass/blob/b0e09d7cd371eded41f7c1e057caf1593c27ba55/media/docs/efficient_gemm.md) [\[14\]](#ref-14)例如），但我首先分析了Simon的版本——所以这里我将遵循那个版本。
+我强烈推荐 Simon 的优秀 [博客文章](https://siboehm.com/articles/22/CUDA-MMM)。它是我最初深入内核的灵感来源。在本章中，我将使用他的 [内核 10](https://github.com/siboehm/SGEMM_CUDA/blob/master/src/kernels/10_kernel_warptiling.cuh) [\[12\]](#ref-12) 代码作为参考。虽然代码本身似乎是基于 CUTLASS 的（参见 [这个](https://developer.nvidia.com/blog/cutlass-linear-algebra-cuda/) [\[13\]](#ref-13) 和 [这个](https://github.com/NVIDIA/cutlass/blob/b0e09d7cd371eded41f7c1e057caf1593c27ba55/media/docs/efficient_gemm.md) [\[14\]](#ref-14) 例如），但我首先分析了 Simon 的版本——所以这里我将遵循那个版本。
 
 <a id="cpt3"></a>
 
-## 设计接近SOTA的同步矩阵乘法内核
+## 设计接近 SOTA 的同步矩阵乘法内核
 
-在本章中，我们将分解一个在以下约束下接近SOTA的fp32内核：
+在本章中，我们将分解一个在以下约束下接近 SOTA 的 fp32 内核：
 
-- 无TMA（张量内存加速器）
+- 无 TMA（张量内存加速器）
 - 无异步内存指令
 - 无张量核心
-- 仅fp32（无bf16）
+- 仅 fp32（无 bf16）
 
-换句话说，这是在Volta前GPU模型下的SOTA（在Volta/Ampere上接近SOTA）：
+换句话说，这是在 Volta 前 GPU 模型下的 SOTA（在 Volta/Ampere 上接近 SOTA）：
 
-- Volta引入了张量核心
-- Ampere引入了异步内存指令
-- Hopper引入了TMA
+- Volta 引入了张量核心
+- Ampere 引入了异步内存指令
+- Hopper 引入了 TMA
 
-我们将研究的技术称为**warp-tiling（warp平铺）**。
+我们将研究的技术称为**warp-tiling（warp 平铺）**。
 
 在深入之前，让我们用一个小修改重新审视之前的内核，看看会发生什么。具体来说，我们将改变`row`和`col`变量的计算方式。
 
@@ -698,15 +698,15 @@ const int col = blockIdx.y * BLOCKSIZE + (threadIdx.x / BLOCKSIZE);
 
 ![Figure 24: New logical organization of row2 and col2 variables](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/024-a1578a89.png)
 
-_图24：row2和col2变量的新逻辑组织_
+_图 24：row2 和 col2 变量的新逻辑组织_
 
 这是修改后内核现在所做的：
 
 ![Figure 25: Naive kernel with uncoalesced GMEM access](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/025-a98a3759.png)
 
-_图25：具有非合并GMEM访问的朴素内核_
+_图 25：具有非合并 GMEM 访问的朴素内核_
 
-这个看似无害的调整使我们的GMEM访问非合并。
+这个看似无害的调整使我们的 GMEM 访问非合并。
 
 在我的 H100 PCIe 卡上，性能从 3171 GFLOP/s 下降到仅 243 GFLOP/s——13 倍的减速。这正是我们在 GMEM 部分（Stephen Jones 的步进式 GMEM 访问实验）中看到的惩罚类型。
 
@@ -797,7 +797,7 @@ _图 28：点积等价于部分点积的和_
 
 _图 30：warp-tiling 算法的高级结构，也称为块瓦片化。_
 
-参考代码[在这里](https://github.com/siboehm/SGEMM_CUDA/blob/master/src/kernels/10_kernel_warptiling.cuh)。我建议从我的图表开始，然后打开代码以连接所有点。
+参考代码 [在这里](https://github.com/siboehm/SGEMM_CUDA/blob/master/src/kernels/10_kernel_warptiling.cuh)。我建议从我的图表开始，然后打开代码以连接所有点。
 
 📝注意：
 
@@ -905,9 +905,9 @@ for (uint dotIdx = 0; dotIdx < BK; ++dotIdx) {  // dotIdx is the outer most loop
 }
 ```
 
-![图33：在As和Bs之间执行矩阵乘法作为一系列线程级外积（warp-tiling + thread-tiling）。](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/033-130a37f6.png)
+![图 33：在 As 和 Bs 之间执行矩阵乘法作为一系列线程级外积（warp-tiling + thread-tiling）。](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/033-130a37f6.png)
 
-_图33：在As和Bs之间执行矩阵乘法作为一系列线程级外积（warp-tiling + thread-tiling）。_
+_图 33：在 As 和 Bs 之间执行矩阵乘法作为一系列线程级外积（warp-tiling + thread-tiling）。_
 
 一旦块被处理，我们再次同步。这防止了竞争条件——如果没有它，一些线程可能开始将下一个块写入`As`和`Bs`，而其他线程仍在处理当前块。
 
@@ -918,62 +918,62 @@ A += BK;     // move BK columns to right
 B += BK * N; // move BK rows down
 ```
 
-最后，一旦循环完成，128个线程将其私有`threadResults`寄存器刷新到矩阵`C`的相应输出瓦片中（现在包含完整的点积！）。
+最后，一旦循环完成，128 个线程将其私有`threadResults`寄存器刷新到矩阵`C`的相应输出瓦片中（现在包含完整的点积！）。
 
-在实践中，您会为特定GPU自动调整此算法的参数。但如前所述，这种内核风格不再是首选方法——现代GPU具有异步内存机制和张量核心（tensor cores），将性能推远超出仅warp-tiling所能提供的水平。
+在实践中，您会为特定 GPU 自动调整此算法的参数。但如前所述，这种内核风格不再是首选方法——现代 GPU 具有异步内存机制和张量核心（tensor cores），将性能推远超出仅 warp-tiling 所能提供的水平。
 
-接下来，让我们转向Hopper上的真正SOTA（state-of-the-art）。
+接下来，让我们转向 Hopper 上的真正 SOTA（state-of-the-art）。
 
 📝下一章的补充阅读：
 
-我强烈推荐Pranjal的优秀[博客文章（blog post）](https://cudaforfun.substack.com/p/outperforming-cublas-on-h100-a-worklog) [\[15\]](#ref-15)，它读起来更像工作日志。在本章中，我将遵循他工作日志中的内核。与Simon的工作类似，大部分代码似乎受CUTLASS启发（例如，参见这些帖子：CUTLASS[ping pong kernel](https://pytorch.org/blog/cutlass-ping-pong-gemm-kernel/) [\[16\]](#ref-16)和[efficient GEMM](https://github.com/NVIDIA/cutlass/blob/b0e09d7cd371eded41f7c1e057caf1593c27ba55/media/docs/efficient_gemm.md)）。
+我强烈推荐 Pranjal 的优秀 [博客文章（blog post）](https://cudaforfun.substack.com/p/outperforming-cublas-on-h100-a-worklog) [\[15\]](#ref-15)，它读起来更像工作日志。在本章中，我将遵循他工作日志中的内核。与 Simon 的工作类似，大部分代码似乎受 CUTLASS 启发（例如，参见这些帖子：CUTLASS[ping pong kernel](https://pytorch.org/blog/cutlass-ping-pong-gemm-kernel/) [\[16\]](#ref-16) 和 [efficient GEMM](https://github.com/NVIDIA/cutlass/blob/b0e09d7cd371eded41f7c1e057caf1593c27ba55/media/docs/efficient_gemm.md)）。
 
-值得注意的是，细节决定成败，Pranjal成功超越了cuBLAS SOTA——在几个目标矩阵维度上达到约107%的cuBLAS性能。
+值得注意的是，细节决定成败，Pranjal 成功超越了 cuBLAS SOTA——在几个目标矩阵维度上达到约 107%的 cuBLAS 性能。
 
 <a id="cpt4"></a>
 
-## 在Hopper上设计SOTA异步矩阵乘法内核
+## 在 Hopper 上设计 SOTA 异步矩阵乘法内核
 
-现在是时候利用所有硬件特性，在Hopper上达到真正SOTA。我们将使用：
+现在是时候利用所有硬件特性，在 Hopper 上达到真正 SOTA。我们将使用：
 
-- TMA同步加载/存储操作（TMA sync load/store operations）
+- TMA 同步加载/存储操作（TMA sync load/store operations）
 - 张量核心（Tensor Cores）
-- bf16精度（bf16 precision）
+- bf16 精度（bf16 precision）
 
-这些硬件特性既显著简化了warp-tiling方法，又将性能提升了近一个数量级——Pranjal报告从32 TFLOP/s增加到317 TFLOP/s，提升了10倍。
+这些硬件特性既显著简化了 warp-tiling 方法，又将性能提升了近一个数量级——Pranjal 报告从 32 TFLOP/s 增加到 317 TFLOP/s，提升了 10 倍。
 
 📝参考代码：
 
-我将以[kernel 2](https://github.com/pranjalssh/fast.cu/blob/main/examples/matmul/matmul_2.cuh) [\[17\]](#ref-17)作为这里的参考（另见我的[PR](https://github.com/pranjalssh/fast.cu/pull/8/files)）。注意符号已从Simon的略有变化：`As`→`sA`和`Bs`→`sB`。
+我将以 [kernel 2](https://github.com/pranjalssh/fast.cu/blob/main/examples/matmul/matmul_2.cuh) [\[17\]](#ref-17) 作为这里的参考（另见我的 [PR](https://github.com/pranjalssh/fast.cu/pull/8/files)）。注意符号已从 Simon 的略有变化：`As`→`sA`和`Bs`→`sB`。
 
-这种简化可行的原因是TMA和张量核心抽象了我们之前处理的许多手动复杂性。
+这种简化可行的原因是 TMA 和张量核心抽象了我们之前处理的许多手动复杂性。
 
-作为迈向Hopper SOTA的第一步，让我们修改warp-tiling基线。
+作为迈向 Hopper SOTA 的第一步，让我们修改 warp-tiling 基线。
 
 我们保持完全相同的程序结构，除了：
 
-- 我们现在每个线程块只需要128个线程（4个warps）。
+- 我们现在每个线程块只需要 128 个线程（4 个 warps）。
 - 瓦片大小设置为`BM = BN = BK = 64`。
 
-![图34：我们保持warp-tiling算法（block-tiling）相同的高级结构。](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/034-5640c629.png)
+![图 34：我们保持 warp-tiling 算法（block-tiling）相同的高级结构。](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/034-5640c629.png)
 
-_图34：我们保持warp-tiling算法（block-tiling）相同的高级结构。_
+_图 34：我们保持 warp-tiling 算法（block-tiling）相同的高级结构。_
 
 💡矩阵格式更改：
 
-重要：A仍为行主序（row-major），但B现在为列主序（column-major）格式。
+重要：A 仍为行主序（row-major），但 B 现在为列主序（column-major）格式。
 
-## 通过TMA异步加载到SMEM
+## 通过 TMA 异步加载到 SMEM
 
-对于第二阶段——将数据加载到SMEM——TMA用更简单的东西替换了复杂的warp级加载模式。我们只需要：
+对于第二阶段——将数据加载到 SMEM——TMA 用更简单的东西替换了复杂的 warp 级加载模式。我们只需要：
 
 - 为`A`和`B`构建张量映射（tensor maps）。
-- 触发TMA操作（由块中的单个线程完成）。
+- 触发 TMA 操作（由块中的单个线程完成）。
 - 使用共享内存屏障（shared-memory barriers）同步。
 
-TMA不仅移动数据，还自动应用swizzling，这解决了我们之前在warp-tiling中看到的存储体冲突（bank conflicts）。（我将在后面的专门部分详细讨论swizzling。）
+TMA 不仅移动数据，还自动应用 swizzling，这解决了我们之前在 warp-tiling 中看到的存储体冲突（bank conflicts）。（我将在后面的专门部分详细讨论 swizzling。）
 
-要形成张量映射，我们使用`cuTensorMapEncodeTiled`（参见[docs](https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__TENSOR__MEMORY.html#group__CUDA__TENSOR__MEMORY_1ga7c7d2aaac9e49294304e755e6f341d7)）。此函数编码了将`A`和`B`的块从GMEM传输到SMEM所需的所有元数据。我们需要每个`A`和`B`一个张量映射，但结构上它们相同。对于`A`，我们指定：
+要形成张量映射，我们使用`cuTensorMapEncodeTiled`（参见 [docs](https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__TENSOR__MEMORY.html#group__CUDA__TENSOR__MEMORY_1ga7c7d2aaac9e49294304e755e6f341d7)）。此函数编码了将`A`和`B`的块从 GMEM 传输到 SMEM 所需的所有元数据。我们需要每个`A`和`B`一个张量映射，但结构上它们相同。对于`A`，我们指定：
 
 - 数据类型：bf16
 - 秩：2（矩阵）
@@ -981,9 +981,9 @@ TMA不仅移动数据，还自动应用swizzling，这解决了我们之前在wa
 - 形状：`(K,M)`（最快步长维度优先）
 - 行步长：`K * sizeof(bf16)`
 - `sA`的形状：`(BK, BM)`
-- Swizzle模式：加载到`sA`
+- Swizzle 模式：加载到`sA`
 
-时使用128B模式
+时使用 128B 模式
 
 ```python
 __shared__ barrier barA;  // SMEM barriers for A and B
@@ -999,11 +999,11 @@ if (threadIdx.x == 0) {
 __syncthreads();  // ensure barriers are visible to all threads
 ```
 
-接下来：`sA`这里我们初始化SMEM屏障，用于同步写入`sB`和
+接下来：`sA`这里我们初始化 SMEM 屏障，用于同步写入`sB`和
 
-。屏障用所有128个线程初始化，因为我们期望块中的每个线程在屏障切换到“就绪”状态前到达。`cde::fence_proxy_async_shared_cta()`调用
+。屏障用所有 128 个线程初始化，因为我们期望块中的每个线程在屏障切换到“就绪”状态前到达。`cde::fence_proxy_async_shared_cta()`调用
 
-是Hopper代理内存模型的一部分。它在CTA（块）范围内排序“异步代理”（TMA）和“通用代理”（正常线程ld/st）之间的可见性。这里我们在初始化后立即发出它，以便异步引擎看到屏障的初始化状态。（异步复制的完成将由mbarrier本身发出信号。）
+是 Hopper 代理内存模型的一部分。它在 CTA（块）范围内排序“异步代理”（TMA）和“通用代理”（正常线程 ld/st）之间的可见性。这里我们在初始化后立即发出它，以便异步引擎看到屏障的初始化状态。（异步复制的完成将由 mbarrier 本身发出信号。）
 
 完全披露：我也不声称完全理解所有内存一致性细节——官方文档也没有确切帮助。这可能值得单独写一篇后续文章。如果有人有关于此主题的好资源——请联系我！`K`在外部
 
@@ -1031,80 +1031,80 @@ for (int block_k_iter = 0; block_k_iter < num_blocks_k; ++block_k_iter) {
 
 循环中：`A`逐步发生了什么（对于`B`和
 
-1. ）：`cp_async_bulk` `_tensor_2d_global_to_shared(...)`线程0启动TMA，使用`sA`，指定SMEM目标（`sB`/
-1. ）、张量映射，以及GMEM偏移指定源GMEM块。`barrier_arrive_tx(bar, 1, sizeof(sX))`它立即调用
+1. ）：`cp_async_bulk` `_tensor_2d_global_to_shared(...)`线程 0 启动 TMA，使用`sA`，指定 SMEM 目标（`sB`/
+1. ）、张量映射，以及 GMEM 偏移指定源 GMEM 块。`barrier_arrive_tx(bar, 1, sizeof(sX))`它立即调用
 1. - ，该函数：
-   - 计数线程到达数（这里为1，来自线程0），并且**用**预期字节数`bar.arrive()`武装屏障，以便它知道异步复制何时完成。
+   - 计数线程到达数（这里为 1，来自线程 0），并且**用**预期字节数`bar.arrive()`武装屏障，以便它知道异步复制何时完成。
      所有其他线程调用
 1. ，贡献它们的到达数（无字节）。`bar.wait(token)`然后每个线程调用
    - 。此等待仅在两个条件都为真时完成：
-   - 所有128个线程都已到达，并且`sizeof(sX)`异步引擎已将全部
+   - 所有 128 个线程都已到达，并且`sizeof(sX)`异步引擎已将全部
 
 字节写入共享内存。
 
-此加载模式是标准的Hopper惯用语——您会在现代内核中到处看到它。**在异步复制期间，TMA还使用**128B swizzle格式
+此加载模式是标准的 Hopper 惯用语——您会在现代内核中到处看到它。**在异步复制期间，TMA 还使用**128B swizzle 格式
 
-对数据进行了swizzling。
+对数据进行了 swizzling。
 
 ## Swizzling
 
 让我们从一个激励性示例开始：
 
-![图35：Swizzling示例](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/035-942f2ad1.png)
+![图 35：Swizzling 示例](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/035-942f2ad1.png)
 
-_图35：Swizzling示例_
+_图 35：Swizzling 示例_
 
 这里发生了什么？
 
-假设我们想从原始GMEM矩阵的第一行加载所有元素。Swizzling后，这仍然很简单：只需从SMEM矩阵读取第一行。那里没有什么特别的。
+假设我们想从原始 GMEM 矩阵的第一行加载所有元素。Swizzling 后，这仍然很简单：只需从 SMEM 矩阵读取第一行。那里没有什么特别的。
 
-现在，假设我们想要原始GMEM矩阵的第一列。注意这些元素现在位于SMEM的对角线上。这意味着我们可以在单个周期内加载它们，因为没有两个线程访问同一个存储体——零存储体冲突。
+现在，假设我们想要原始 GMEM 矩阵的第一列。注意这些元素现在位于 SMEM 的对角线上。这意味着我们可以在单个周期内加载它们，因为没有两个线程访问同一个存储体——零存储体冲突。
 
-如果不进行交织（swizzling），这个访问会将所有列元素映射到同一个存储体但不同地址，产生8路存储体冲突，并将吞吐量降低8倍。
+如果不进行交织（swizzling），这个访问会将所有列元素映射到同一个存储体但不同地址，产生 8 路存储体冲突，并将吞吐量降低 8 倍。
 
 同样的属性适用于任何行或列：经过交织后，它们都可以在单个周期内被服务！
 
-![图36：加载行或列时无存储体冲突](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/036-e56ada57.png)
+![图 36：加载行或列时无存储体冲突](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/036-e56ada57.png)
 
-_图36：加载行或列时无存储体冲突_
+_图 36：加载行或列时无存储体冲突_
 
-同样的属性适用于存储操作。例如，如果你想在SMEM中转置一个矩阵，朴素的方法是：加载一行，然后将其写回为一列。如果不进行交织，这会导致8路存储体冲突。
+同样的属性适用于存储操作。例如，如果你想在 SMEM 中转置一个矩阵，朴素的方法是：加载一行，然后将其写回为一列。如果不进行交织，这会导致 8 路存储体冲突。
 
 启用交织后，我们避免了这个问题，但你必须小心索引。
 
 📝注意
 
-TMA在将数据从SMEM移回GMEM时会自动取消交织（unswizzles）。
+TMA 在将数据从 SMEM 移回 GMEM 时会自动取消交织（unswizzles）。
 
-既然动机已经清楚，让我们提出以下问题：TMA实际上如何生成交织模式？
+既然动机已经清楚，让我们提出以下问题：TMA 实际上如何生成交织模式？
 
-事实证明答案很简单：与特定掩码模式进行XOR运算。
+事实证明答案很简单：与特定掩码模式进行 XOR 运算。
 
-快速回顾XOR，这是真值表：
+快速回顾 XOR，这是真值表：
 
 1. 0, 0 映射到 0
 1. 0, 1 映射到 1
 1. 1, 0 映射到 1
 1. 1, 1 映射到 0
 
-值得注意的是：当其中一个位为1时，XOR会翻转另一个位。
+值得注意的是：当其中一个位为 1 时，XOR 会翻转另一个位。
 
-通常，我们可以在CUTLASS中找到[答案](https://github.com/NVIDIA/cutlass/blob/76c96b0be35cb263debe3e3d8418b80911a544ab/include/cute/swizzle.hpp#L42)。另一位Simon（不是之前那位）也很好地解释了掩码模式是如何[生成](https://veitner.bearblog.dev/understanding-cute-swizzling-the-math-behind-32b-64b-and-128b-patterns/) [\[18\]](#ref-18)的——尽管没有完全说明该模式如何导致我们刚刚看到的特定交织布局。
+通常，我们可以在 CUTLASS 中找到 [答案](https://github.com/NVIDIA/cutlass/blob/76c96b0be35cb263debe3e3d8418b80911a544ab/include/cute/swizzle.hpp#L42)。另一位 Simon（不是之前那位）也很好地解释了掩码模式是如何 [生成](https://veitner.bearblog.dev/understanding-cute-swizzling-the-math-behind-32b-64b-and-128b-patterns/) [\[18\]](#ref-18) 的——尽管没有完全说明该模式如何导致我们刚刚看到的特定交织布局。
 
 因此，两个大问题仍然存在：
 
-1. XOR掩码是如何生成的？
+1. XOR 掩码是如何生成的？
 1. 掩码实际上如何应用以产生交织模式？
 
-## 生成XOR掩码
+## 生成 XOR 掩码
 
-NVIDIA将每个交织模式与特定的“交织函数”关联：
+NVIDIA 将每个交织模式与特定的“交织函数”关联：
 
-- 128B交织模式与`Swizzle<3,4,3>`
-- 64B交织模式与`Swizzle<2,4,3>`
-- 32B交织模式与`Swizzle<1,4,3>`
+- 128B 交织模式与`Swizzle<3,4,3>`
+- 64B 交织模式与`Swizzle<2,4,3>`
+- 32B 交织模式与`Swizzle<1,4,3>`
 
-让我们解析`Swizzle<3,4,3>`。然后我将分享其他模式的XOR掩码。
+让我们解析`Swizzle<3,4,3>`。然后我将分享其他模式的 XOR 掩码。
 
 ```text
 // To improve readability, I'll group bits in 8s with underscores.
@@ -1143,53 +1143,53 @@ output = 0bxxxxxxGH_IWYZxxxx
 // where WYZ = GHI ^ JKL (XOR)
 ```
 
-用简单语言描述：交织函数查看位`GHI`（位置9、8、7，零索引）。如果其中任何一位为1，它会翻转相应的位`JKL`（位置6、5、4）以得到`WYZ`。所有其他位保持不变。
+用简单语言描述：交织函数查看位`GHI`（位置 9、8、7，零索引）。如果其中任何一位为 1，它会翻转相应的位`JKL`（位置 6、5、4）以得到`WYZ`。所有其他位保持不变。
 
 让我们建立一些关于交织函数行为的直觉：
 
-![图37：交织函数直觉](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/037-faf268e7.png)
+![图 37：交织函数直觉](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/037-faf268e7.png)
 
-_图37：交织函数直觉_
+_图 37：交织函数直觉_
 
-对于32B和64B交织模式，交织函数是`0bxxxxxxxx_IxxZxxxx`和`0bxxxxxxxH_IxYZxxxx`。
+对于 32B 和 64B 交织模式，交织函数是`0bxxxxxxxx_IxxZxxxx`和`0bxxxxxxxH_IxYZxxxx`。
 
-这些遵循相同的XOR-with-mask思想，只是使用不同的控制位来驱动哪些低位被翻转。
+这些遵循相同的 XOR-with-mask 思想，只是使用不同的控制位来驱动哪些低位被翻转。
 
 这一切如何与我们开始的动机示例联系起来？
 
 这是链接：
 
-![图38：将交织函数连接到矩阵交织示例](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/038-16982d93.png)
+![图 38：将交织函数连接到矩阵交织示例](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/038-16982d93.png)
 
-_图38：将交织函数连接到矩阵交织示例_
+_图 38：将交织函数连接到矩阵交织示例_
 
-这就是交织的WHY和HOW。 :)
+这就是交织的 WHY 和 HOW。 :)
 
 ## Tensor Cores
 
-回到张量核心（Tensor Cores）。此时，我们已经将`A`和`B`的块从GMEM拉入SMEM中的`sA`和`sB`。它们已经交织，并准备好供张量核心使用。
+回到张量核心（Tensor Cores）。此时，我们已经将`A`和`B`的块从 GMEM 拉入 SMEM 中的`sA`和`sB`。它们已经交织，并准备好供张量核心使用。
 
-NVIDIA公开了几种矩阵乘加（MMA）指令：
+NVIDIA 公开了几种矩阵乘加（MMA）指令：
 
-- `wmma`——warp协作、同步（旧世代）。
-- `mma.sync`——warp协作、同步（Ampere）。
-- `wgmma.mma_async`——warp组协作、异步（Hopper）。
+- `wmma`——warp 协作、同步（旧世代）。
+- `mma.sync`——warp 协作、同步（Ampere）。
+- `wgmma.mma_async`——warp 组协作、异步（Hopper）。
 
 📝注意：
 
-一个**warp组** = 4个warps = CUDA中的128个线程。
+一个**warp 组** = 4 个 warps = CUDA 中的 128 个线程。
 
-我们将专注于`wgmma.mma_async`（[文档](https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#asynchronous-warpgroup-level-matrix-instructions) [\[19\]](#ref-19)），因为它随Hopper引入，是目前最强大的。它是异步的，并利用4个协作的warps一起计算矩阵乘法；这正是我们选择块大小=128的原因。
+我们将专注于`wgmma.mma_async`（[文档](https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#asynchronous-warpgroup-level-matrix-instructions) [\[19\]](#ref-19)），因为它随 Hopper 引入，是目前最强大的。它是异步的，并利用 4 个协作的 warps 一起计算矩阵乘法；这正是我们选择块大小=128 的原因。
 
-对于bf16操作数，`wgmma`支持形状为`m64nNk16`的形式，其中`N ∈ {8, 16, 24, …, 256}`。在我们当前的示例中，我们将使用`m64n64k16`，但一般来说，更大的`N`值性能更高（只要你有足够的寄存器和SMEM来支持它们）。
+对于 bf16 操作数，`wgmma`支持形状为`m64nNk16`的形式，其中`N ∈ {8, 16, 24, …, 256}`。在我们当前的示例中，我们将使用`m64n64k16`，但一般来说，更大的`N`值性能更高（只要你有足够的寄存器和 SMEM 来支持它们）。
 
 📝注意：
 
 `m64n64k16`意味着张量核心一次性计算一个`64×16` × `16×64`的矩阵乘法。
 
-以下是操作数放置规则：`sA`可以驻留在寄存器或SMEM中，`sB`必须驻留在SMEM中，而累加器（`BM x BN`）始终在寄存器中。
+以下是操作数放置规则：`sA`可以驻留在寄存器或 SMEM 中，`sB`必须驻留在 SMEM 中，而累加器（`BM x BN`）始终在寄存器中。
 
-由于这对单个线程来说寄存器太多，累加器在warp组的线程之间分区。
+由于这对单个线程来说寄存器太多，累加器在 warp 组的线程之间分区。
 
 在我们的参考内核中，你会看到它像这样初始化：
 
@@ -1200,9 +1200,9 @@ memset(d, 0, sizeof(d));  // init to all 0s
 
 我们设置`WGMMA_M = WGMMA_N = BM = BN = 64`。这给出：
 
-- warp组中的128个线程
+- warp 组中的 128 个线程
 - 每个线程持有`WGMMA_N/16 × 8`个寄存器
-- 总计：128 × (64/16) × 8 = 64 × 64个寄存器
+- 总计：128 × (64/16) × 8 = 64 × 64 个寄存器
 
 ...这正好匹配累加器大小（`BM × BN = 64 × 64`），只是在组中分布。
 
@@ -1220,21 +1220,21 @@ asm volatile("wgmma.wait_group.sync.aligned %0;" ::"n"(0) : "memory");
 
 📝注意：
 
-- 一些Hopper指令在CUDA C++中未公开，因此我们使用`asm(...);`进入内联PTX。
-- `::: "memory"`是一个内存破坏器，它防止asm语句周围的任何内存优化，它是给编译器的“不要将周围的内存访问移过此点”的提示；禁止编译器围绕此语句重新排列内存操作。
-- `volatile`告诉编译器asm块\*必须不\*被删除或提升，即使它看起来冗余（参见[文档](https://docs.nvidia.com/cuda/inline-ptx-assembly/#incorrect-optimization)）[\[20\]](#ref-20)。
+- 一些 Hopper 指令在 CUDA C++中未公开，因此我们使用`asm(...);`进入内联 PTX。
+- `::: "memory"`是一个内存破坏器，它防止 asm 语句周围的任何内存优化，它是给编译器的“不要将周围的内存访问移过此点”的提示；禁止编译器围绕此语句重新排列内存操作。
+- `volatile`告诉编译器 asm 块\*必须不\*被删除或提升，即使它看起来冗余（参见 [文档](https://docs.nvidia.com/cuda/inline-ptx-assembly/#incorrect-optimization)）[\[20\]](#ref-20)。
 
 让我们首先解析围绕实际矩阵乘法调用的边界指令（`wgmma.fence`、`commit_group`、`wait_group`）。
 
-`wgmma.fence.sync.aligned;`——[文档](https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#asynchronous-warpgroup-level-matrix-instructions-wgmma-fence)解释得很好：“wgmma.fence在先前对任何warpgroup寄存器的访问与后续由wgmma.mma_async指令对相同寄存器的访问之间建立顺序。”
+`wgmma.fence.sync.aligned;`——[文档](https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#asynchronous-warpgroup-level-matrix-instructions-wgmma-fence) 解释得很好：“wgmma.fence 在先前对任何 warpgroup 寄存器的访问与后续由 wgmma.mma_async 指令对相同寄存器的访问之间建立顺序。”
 
-在实践中，warp组的所有四个warps必须在第一个`wgmma.mma_async`之前执行此fence。
+在实践中，warp 组的所有四个 warps 必须在第一个`wgmma.mma_async`之前执行此 fence。
 
-之后，我们就可以开始了。即使累加器寄存器在那些四个wgmma调用中被更新，我们之间不需要更多的fences——对于相同形状并累加到相同寄存器的连续MMAs有一个特殊例外。这正是我们这里的情况。
+之后，我们就可以开始了。即使累加器寄存器在那些四个 wgmma 调用中被更新，我们之间不需要更多的 fences——对于相同形状并累加到相同寄存器的连续 MMAs 有一个特殊例外。这正是我们这里的情况。
 
 这真的只是样板代码。事实上，如果你注释掉它，编译器会悄悄地为你重新插入。
 
-`wgmma.commit_group`——另一个样板操作：来自[文档](https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#asynchronous-warpgroup-level-matrix-instructions-wgmma-commit-group)的“将所有先前未提交的wgmma.mma_async操作提交到一个wgmma-group”。它关闭了我们刚刚启动的所有`wgmma.mma_async`（上面的四个调用）到一个单一的“组”中。
+`wgmma.commit_group`——另一个样板操作：来自 [文档](https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#asynchronous-warpgroup-level-matrix-instructions-wgmma-commit-group) 的“将所有先前未提交的 wgmma.mma_async 操作提交到一个 wgmma-group”。它关闭了我们刚刚启动的所有`wgmma.mma_async`（上面的四个调用）到一个单一的“组”中。
 
 `wgmma.wait_group 0` - 含义：在此点之前的所有组完成之前不要继续。由于我们只启动了一个组，这里只是说“等待那四个 MMA 完成且结果实际驻留在累加器寄存器中”。
 
@@ -1277,7 +1277,7 @@ _图 40：我们正在浪费 TMA 和 TC 周期 - 我们可以做得更好_
 
 自然，这需要协调。我们使用的机制是一个 SMEM 屏障队列，每个队列槽有一个`full[i]`/`empty[i]`对来同步生产者和消费者。
 
-参考：[kernel 4](https://github.com/pranjalssh/fast.cu/blob/main/examples/matmul/matmul_4.cuh#L270)代码。
+参考：[kernel 4](https://github.com/pranjalssh/fast.cu/blob/main/examples/matmul/matmul_4.cuh#L270) 代码。
 
 这是设置：
 
@@ -1423,92 +1423,92 @@ _图 44：朴素调度_
 
 我们能做得更好吗？是的——通过使调度具有缓存感知性：
 
-![图45：块级缓存感知调度](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/045-9f30c858.png)
+![图 45：块级缓存感知调度](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/045-9f30c858.png)
 
-_图45：块级缓存感知调度_
+_图 45：块级缓存感知调度_
 
 但我们能做得更好吗？令人惊讶的是，是的——通过使用空间填充曲线：
 
-![图46：希尔伯特曲线调度](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/046-22c81af3.png)
+![图 46：希尔伯特曲线调度](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/046-22c81af3.png)
 
-_图46：希尔伯特曲线调度_
+_图 46：希尔伯特曲线调度_
 
-我将深入探讨的最后一个想法是利用Hopper新的集群级CUDA执行模型来减少L2/GMEM流量：
+我将深入探讨的最后一个想法是利用 Hopper 新的集群级 CUDA 执行模型来减少 L2/GMEM 流量：
 
-![图47：使用线程块集群减少L2/GMEM加载次数。](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/047-21a30a9b.png)
+![图 47：使用线程块集群减少 L2/GMEM 加载次数。](/images/others/inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels/047-21a30a9b.png)
 
-_图47：使用线程块集群减少L2/GMEM加载次数。_
+_图 47：使用线程块集群减少 L2/GMEM 加载次数。_
 
-关键观察是，集群内的多个SM可以直接共享它们的SMEM（通过DSMEM），这让我们可以将集群视为一种“超级SM”。
+关键观察是，集群内的多个 SM 可以直接共享它们的 SMEM（通过 DSMEM），这让我们可以将集群视为一种“超级 SM”。
 
-从调度角度看，没有根本性变化：不是每个SM处理自己独立的输出瓦片，而是整个集群协作处理一个更大的“超级瓦片”。算法的机制保持不变，但现在这些SM协调加载并重用彼此的数据。
+从调度角度看，没有根本性变化：不是每个 SM 处理自己独立的输出瓦片，而是整个集群协作处理一个更大的“超级瓦片”。算法的机制保持不变，但现在这些 SM 协调加载并重用彼此的数据。
 
-由于希尔伯特曲线遍历已经设计为最大化局部性，超级SM可以遵循相同的遍历模式——只是粒度更粗。
+由于希尔伯特曲线遍历已经设计为最大化局部性，超级 SM 可以遵循相同的遍历模式——只是粒度更粗。
 
-最后，要超越cuBLAS，我们必须收紧同步本身。到目前为止，我们在屏障上的到达/等待调用一直很浪费。
+最后，要超越 cuBLAS，我们必须收紧同步本身。到目前为止，我们在屏障上的到达/等待调用一直很浪费。
 
-例如，消费者线程实际上不需要在`full[qidx]`上发出到达信号。唯一重要的条件是“所有字节都已到达”。丢弃这些冗余到达每次迭代节省256个令牌。类似地，对于`empty[qidx]`：一旦带有`tid==0`的消费者到达，生产者就可以安全地开始填充，因为消费者端（wgmma）在所有线程中同步执行。
+例如，消费者线程实际上不需要在`full[qidx]`上发出到达信号。唯一重要的条件是“所有字节都已到达”。丢弃这些冗余到达每次迭代节省 256 个令牌。类似地，对于`empty[qidx]`：一旦带有`tid==0`的消费者到达，生产者就可以安全地开始填充，因为消费者端（wgmma）在所有线程中同步执行。
 
-一些额外的、低级别的技巧在实践中累积起来（本着O(NR)的精神）：
+一些额外的、低级别的技巧在实践中累积起来（本着 O(NR) 的精神）：
 
-- 重新平衡寄存器：使用`asm volatile("setmaxnreg.{inc,dec}.sync.aligned.u32 %0;\n" : : "n"(RegCount));`将寄存器预算从生产者warp组（轻量级）转移到消费者warp组（wgmma期间的重度用户）。
-- 避免在输出时污染缓存。要么使用`__stwt`绕过L1/L2，或者更好的是，进行异步存储：先溢出到SMEM，然后让TMA异步复制到GMEM。这将写回与计算重叠，就像我们在输入端所做的那样。
-- 跳过冗余初始化：不是清零累加器寄存器，而是调整张量核心序列，使第一个MMA执行`C = A @ B`，后续MMA执行`C = A @ B + C`。
+- 重新平衡寄存器：使用`asm volatile("setmaxnreg.{inc,dec}.sync.aligned.u32 %0;\n" : : "n"(RegCount));`将寄存器预算从生产者 warp 组（轻量级）转移到消费者 warp 组（wgmma 期间的重度用户）。
+- 避免在输出时污染缓存。要么使用`__stwt`绕过 L1/L2，或者更好的是，进行异步存储：先溢出到 SMEM，然后让 TMA 异步复制到 GMEM。这将写回与计算重叠，就像我们在输入端所做的那样。
+- 跳过冗余初始化：不是清零累加器寄存器，而是调整张量核心序列，使第一个 MMA 执行`C = A @ B`，后续 MMA 执行`C = A @ B + C`。
 
-作为参考，以下是性能数字（来自Pranjal的博客），显示每个想法如何叠加在前一个之上：
+作为参考，以下是性能数字（来自 Pranjal 的博客），显示每个想法如何叠加在前一个之上：
 
-| 优化                                           | 优化前性能（TFLOP/s） | 优化后性能（TFLOP/s） |
-| ---------------------------------------------- | --------------------- | --------------------- |
-| 基线（warp-tiling） → 张量核心 + TMA           | 32                    | 317                   |
-| 增加输出瓦片大小                               | 317                   | 423                   |
-| 流水线：重叠TMA加载与TC计算                    | 423                   | 498                   |
-| 瓦片增长：128×128 → 128×256（2个消费者warp组） | 498                   | 610                   |
-| 持久化内核（隐藏存储延迟）                     | 610                   | 660                   |
-| 更快的PTX屏障                                  | 660                   | 704                   |
-| 集群；TMA多播                                  | 704                   | 734                   |
-| 微优化                                         | 734                   | 747                   |
-| TMA异步存储（寄存器 → SMEM → GMEM）            | 747                   | 758                   |
-| 希尔伯特曲线调度                               | 758                   | 764                   |
+| 优化                                              | 优化前性能（TFLOP/s） | 优化后性能（TFLOP/s） |
+| ------------------------------------------------- | --------------------- | --------------------- |
+| 基线（warp-tiling） → 张量核心 + TMA              | 32                    | 317                   |
+| 增加输出瓦片大小                                  | 317                   | 423                   |
+| 流水线：重叠 TMA 加载与 TC 计算                   | 423                   | 498                   |
+| 瓦片增长：128×128 → 128×256（2 个消费者 warp 组） | 498                   | 610                   |
+| 持久化内核（隐藏存储延迟）                        | 610                   | 660                   |
+| 更快的 PTX 屏障                                   | 660                   | 704                   |
+| 集群；TMA 多播                                    | 704                   | 734                   |
+| 微优化                                            | 734                   | 747                   |
+| TMA 异步存储（寄存器 → SMEM → GMEM）              | 747                   | 758                   |
+| 希尔伯特曲线调度                                  | 758                   | 764                   |
 
-此外，Aroun提交了一个[PR](https://github.com/pranjalssh/fast.cu/pull/1)，使用`stmatrix`方法优化了异步存储，又带来了+1%的提升。一些核反应堆被节省了。
+此外，Aroun 提交了一个 [PR](https://github.com/pranjalssh/fast.cu/pull/1)，使用`stmatrix`方法优化了异步存储，又带来了+1%的提升。一些核反应堆被节省了。
 
 ## 尾声
 
-我们首先剖析了GPU本身，重点是内存层次结构——为GMEM、SMEM和L1建立心智模型，然后将它们连接到CUDA编程模型。在此过程中，我们还研究了“光速”，它如何受功率限制——硬件现实渗入我们的模型。
+我们首先剖析了 GPU 本身，重点是内存层次结构——为 GMEM、SMEM 和 L1 建立心智模型，然后将它们连接到 CUDA 编程模型。在此过程中，我们还研究了“光速”，它如何受功率限制——硬件现实渗入我们的模型。
 
-从那里，我们向上移动栈：学习如何通过PTX/SASS与硬件通信，以及如何引导编译器生成我们真正想要的内容。
+从那里，我们向上移动栈：学习如何通过 PTX/SASS 与硬件通信，以及如何引导编译器生成我们真正想要的内容。
 
 我们沿途拾取了关键概念——瓦片和波量化、占用率、ILP、屋顶线模型——并围绕基本等价性建立直觉：点积作为部分外积的和，或作为点积的部分和，以及为什么方形瓦片产生更高的算术强度。
 
-基于这个基础，我们构建了一个接近SOTA的内核（warp tiling），仅从CUDA核心、寄存器和共享内存中榨取性能。
+基于这个基础，我们构建了一个接近 SOTA 的内核（warp tiling），仅从 CUDA 核心、寄存器和共享内存中榨取性能。
 
-最后，我们进入了Hopper的世界：TMA、swizzling、张量核心和`wgmma`指令、异步加载/存储流水线、调度策略如希尔伯特曲线、带TMA多播的集群、更快的PTX屏障等。
+最后，我们进入了 Hopper 的世界：TMA、swizzling、张量核心和`wgmma`指令、异步加载/存储流水线、调度策略如希尔伯特曲线、带 TMA 多播的集群、更快的 PTX 屏障等。
 
 我将以贯穿整个系列的信念结束：**计算机是可以被理解的**。
 
 💡联系我：
 
-如果您发现文章中有任何错误，请私信我——欢迎在[X](https://x.com/gordic_aleksa)或[LinkedIn](https://www.linkedin.com/in/aleksagordic/)上给我留言，或通过[匿名反馈](https://docs.google.com/forms/d/1z1fEirrN2xtGxAsJvptpM7yV4ByT5SF25S-XiMPrXNA/edit)。
+如果您发现文章中有任何错误，请私信我——欢迎在 [X](https://x.com/gordic_aleksa) 或 [LinkedIn](https://www.linkedin.com/in/aleksagordic/) 上给我留言，或通过 [匿名反馈](https://docs.google.com/forms/d/1z1fEirrN2xtGxAsJvptpM7yV4ByT5SF25S-XiMPrXNA/edit)。
 
 ## 致谢
 
-非常感谢[Hyperstack](https://www.hyperstack.cloud/)在过去一年为我提供H100进行实验！
+非常感谢 [Hyperstack](https://www.hyperstack.cloud/) 在过去一年为我提供 H100 进行实验！
 
-感谢我的朋友[Aroun Demeure](https://github.com/ademeure)（Magic的GPU和AI，前Apple和Imagination的GPU架构师），和[Mark Saroufim](https://x.com/marksaroufim)（PyTorch）阅读这篇博客文章的预发布版本并提供反馈！
+感谢我的朋友 [Aroun Demeure](https://github.com/ademeure)（Magic 的 GPU 和 AI，前 Apple 和 Imagination 的 GPU 架构师），和 [Mark Saroufim](https://x.com/marksaroufim)（PyTorch）阅读这篇博客文章的预发布版本并提供反馈！
 
 ## 参考文献
 
-1. NVIDIA Hopper架构深入<https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/>
-1. NVIDIA Ampere架构深入<https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/>
-1. 奇怪的是，GPU上的矩阵乘法在给定“可预测”数据时运行更快！\[简短]<https://www.thonking.ai/p/strangely-matrix-multiplications>
-1. CUDA编程如何工作<https://www.nvidia.com/en-us/on-demand/session/gtcfall22-a41101/>
-1. 关于NVIDIA GPU共享内存库的笔记<https://feldmann.nyc/blog/smem-microbenchmarks>
-1. CUDA二进制工具<https://docs.nvidia.com/cuda/cuda-binary-utilities/index.html>
-1. 第37讲：SASS和GPU微架构简介<https://www.youtube.com/watch?v=we3i5VuoPWk>
-1. 通过微基准测试剖析NVIDIA Volta GPU架构<https://arxiv.org/abs/1804.06826>
-1. 如何优化CUDA矩阵乘法内核以达到类似cuBLAS的性能：工作日志<https://siboehm.com/articles/22/CUDA-MMM>
-1. CUDA C编程指南<https://docs.nvidia.com/cuda/cuda-c-programming-guide/>
-1. 第44讲：NVIDIA性能分析<https://www.youtube.com/watch?v=F_BazucyCMw&ab_channel=GPUMODE>
+1. NVIDIA Hopper 架构深入<https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/>
+1. NVIDIA Ampere 架构深入<https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/>
+1. 奇怪的是，GPU 上的矩阵乘法在给定“可预测”数据时运行更快！\[简短]<https://www.thonking.ai/p/strangely-matrix-multiplications>
+1. CUDA 编程如何工作<https://www.nvidia.com/en-us/on-demand/session/gtcfall22-a41101/>
+1. 关于 NVIDIA GPU 共享内存库的笔记<https://feldmann.nyc/blog/smem-microbenchmarks>
+1. CUDA 二进制工具<https://docs.nvidia.com/cuda/cuda-binary-utilities/index.html>
+1. 第 37 讲：SASS 和 GPU 微架构简介<https://www.youtube.com/watch?v=we3i5VuoPWk>
+1. 通过微基准测试剖析 NVIDIA Volta GPU 架构<https://arxiv.org/abs/1804.06826>
+1. 如何优化 CUDA 矩阵乘法内核以达到类似 cuBLAS 的性能：工作日志<https://siboehm.com/articles/22/CUDA-MMM>
+1. CUDA C 编程指南<https://docs.nvidia.com/cuda/cuda-c-programming-guide/>
+1. 第 44 讲：NVIDIA 性能分析<https://www.youtube.com/watch?v=F_BazucyCMw&ab_channel=GPUMODE>
 1. <https://github.com/siboehm/SGEMM_CUDA/>
 1. CUTLASS：CUDA C++中的快速线性代数<https://developer.nvidia.com/blog/cutlass-linear-algebra-cuda/>
 1. CUDA 中的高效 GEMM（通用矩阵乘法）<https://github.com/NVIDIA/cutlass/blob/b0e09d7cd371eded41f7c1e057caf1593c27ba55/media/docs/efficient_gemm.md>
