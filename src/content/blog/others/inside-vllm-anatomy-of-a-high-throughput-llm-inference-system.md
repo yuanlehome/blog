@@ -153,7 +153,7 @@ KV 缓存管理器维护一个 `free_block_queue`——一个可用的 KV 缓存
 1. 创建唯一的请求ID并捕获其到达时间
 1. 调用输入预处理器，对提示进行分词，并返回一个包含`prompt`、`prompt_token_ids`和`type`（文本、令牌、嵌入等）的字典
 1. 将此信息打包到一个`EngineCoreRequest`中，添加优先级、采样参数和其他元数据
-1. 将请求传递给引擎核心，核心将其包装在一个`Request`对象中，并将其状态设置为`WAITING`。然后此请求被添加到调度器的`waiting`队列中（如果是FCFS则追加，如果是优先级则堆推入）
+1. 将请求传递给引擎核心，核心将其包装在一个`Request`对象中，并将其状态设置为`WAITING`。然后此请求被添加到调度器的`waiting`队列中（如果是 FCFS 则追加，如果是优先级则堆推入）
 
 此时引擎已接收输入，可以开始执行。在同步引擎示例中，这些初始提示是我们将处理的唯一请求——没有机制在运行中注入新请求。相比之下，异步引擎支持此功能（即**连续批处理** [\[6\]](#ref-6)）：在每一步之后，新旧请求都会被考虑。
 
@@ -189,25 +189,25 @@ KV 缓存管理器维护一个 `free_block_queue`——一个可用的 KV 缓存
 
 在[基准测试部分](#基准测试和自动调优---延迟与吞吐量)，我们将分析GPU性能的所谓屋顶线模型。这将更详细地探讨预填充/解码性能概况。
 
-V1调度器可以在同一步骤中混合两种类型的请求，这得益于更智能的设计选择。相比之下，V0引擎一次只能处理预填充或解码。
+V1 调度器可以在同一步骤中混合两种类型的请求，这得益于更智能的设计选择。相比之下，V0 引擎一次只能处理预填充或解码。
 
 调度器优先处理解码请求——即那些已在`running`队列中的请求。对于每个此类请求，它：
 
-1. 计算要生成的新令牌数量（不总是1，由于推测解码和异步调度——稍后详述）。
-1. 调用KV缓存管理器的`allocate_slots`函数（详情如下）。
-1. 通过减去步骤1中的令牌数量来更新令牌预算。
+1. 计算要生成的新令牌数量（不总是 1，由于推测解码和异步调度——稍后详述）。
+1. 调用 KV 缓存管理器的`allocate_slots`函数（详情如下）。
+1. 通过减去步骤 1 中的令牌数量来更新令牌预算。
 
 之后，它处理来自`waiting`队列的预填充请求，它：
 
-1. 检索计算块的数量（如果前缀缓存禁用则返回0——稍后介绍）。
-1. 调用KV缓存管理器的`allocate_slots`函数。
+1. 检索计算块的数量（如果前缀缓存禁用则返回 0——稍后介绍）。
+1. 调用 KV 缓存管理器的`allocate_slots`函数。
 1. 将请求从等待队列弹出并移动到运行队列，将其状态设置为`RUNNING`。
 1. 更新令牌预算。
 
 现在让我们看看`allocate_slots`做什么，它：
 
-1. **计算块数量**——确定需要分配多少新的KV缓存块（`n`）。每个块默认存储16个令牌。例如，如果预填充请求有17个新令牌，我们需要`ceil(17/16) = 2`个块。
-1. **检查可用性**——如果管理器池中没有足够的块，则提前退出。根据是解码还是预填充请求，引擎可能尝试重新计算抢占（V0中支持交换抢占），通过驱逐低优先级请求（调用`kv_cache_manager.free`，将KV块返回到块池），或者可能跳过调度并继续执行。
+1. **计算块数量**——确定需要分配多少新的 KV 缓存块（`n`）。每个块默认存储 16 个令牌。例如，如果预填充请求有 17 个新令牌，我们需要`ceil(17/16) = 2`个块。
+1. **检查可用性**——如果管理器池中没有足够的块，则提前退出。根据是解码还是预填充请求，引擎可能尝试重新计算抢占（V0 中支持交换抢占），通过驱逐低优先级请求（调用`kv_cache_manager.free`，将 KV 块返回到块池），或者可能跳过调度并继续执行。
 1. **分配块**——通过KV缓存管理器的协调器，从块池中获取前`n`个块（之前提到的`free_block_queue`双向链表）。存储到`req_to_blocks`，这是映射每个`request_id`到其KV缓存块列表的字典。
 
 ![KV缓存块](/images/others/inside-vllm-anatomy-of-a-high-throughput-llm-inference-system/003-92ff8d14.png)
@@ -226,12 +226,12 @@ KV缓存块列表
 1. **准备输入**——从CPU→GPU复制缓冲区；计算位置；构建`slot_mapping`（在示例中详述）；构建注意力元数据。
 1. **前向传递**——使用自定义分页注意力内核运行模型。所有序列被展平并连接成一个长的“超级序列”。位置索引和注意力掩码确保每个序列仅关注其自身的令牌，从而实现无需右填充的连续批处理。
 1. **收集最后令牌状态**——提取每个序列最终位置的隐藏状态并计算逻辑值。
-1. **样本** — 根据采样配置（贪婪、温度、top-p、top-k等）从计算出的logits中采样token。
+1. **样本** — 根据采样配置（贪婪、温度、top-p、top-k 等）从计算出的 logits 中采样 token。
 
 前向传播步骤本身有两种执行模式：
 
-1. **Eager模式** — 当启用eager执行时，运行标准的PyTorch前向传播。
-1. **"捕获"模式** — 当未强制使用eager时，执行/重放预捕获的CUDA图（记得我们在引擎构建的初始化KV缓存过程中捕获了这些图）。
+1. **Eager 模式** — 当启用 eager 执行时，运行标准的 PyTorch 前向传播。
+1. **"捕获"模式** — 当未强制使用 eager 时，执行/重放预捕获的 CUDA 图（记得我们在引擎构建的初始化 KV 缓存过程中捕获了这些图）。
 
 这里有一个具体示例，应该能让连续批处理和分页注意力变得清晰：
 
@@ -257,15 +257,15 @@ KV缓存块列表
 
 分块预填充是一种通过将长提示的预填充步骤拆分为更小的块来处理长提示的技术。没有它，我们可能会遇到一个非常长的请求独占一个引擎步骤，阻止其他预填充请求运行。这会推迟所有其他请求并增加它们的延迟。
 
-例如，让每个块包含`n`（=8）个token，用小写字母标记并用"-"分隔。一个长提示`P`可能看起来像`x-y-z`，其中`z`是一个不完整的块（例如2个token）。执行`P`的完整预填充将需要≥3个引擎步骤（>可能发生，如果它未在某个步骤中调度执行），并且只有在最后一个分块预填充步骤中我们才会采样一个新token。
+例如，让每个块包含`n`（=8）个 token，用小写字母标记并用"-"分隔。一个长提示`P`可能看起来像`x-y-z`，其中`z`是一个不完整的块（例如2 个 token）。执行`P`的完整预填充将需要≥3 个引擎步骤（>可能发生，如果它未在某个步骤中调度执行），并且只有在最后一个分块预填充步骤中我们才会采样一个新 token。
 
 这里是同一个示例的视觉表示：
 
 ![Chunked prefilling - pt 1](/images/others/inside-vllm-anatomy-of-a-high-throughput-llm-inference-system/005-e0b3ede8.png)
 
-实现很简单：限制每个步骤的新token数量。如果请求的数量超过`long_prefill_token_threshold`，则将其重置为该值。底层的索引逻辑（如前所述）会处理其余部分。
+实现很简单：限制每个步骤的新 token 数量。如果请求的数量超过`long_prefill_token_threshold`，则将其重置为该值。底层的索引逻辑（如前所述）会处理其余部分。
 
-在vLLM V1中，您可以通过将`long_prefill_token_threshold`设置为正整数来启用分块预填充。（技术上，无论是否设置，如果提示长度超过token预算，我们会截断它并运行分块预填充。）
+在vLLM V1中，您可以通过将`long_prefill_token_threshold`设置为正整数来启用分块预填充。（技术上，无论是否设置，如果提示长度超过 token 预算，我们会截断它并运行分块预填充。）
 
 ## 前缀缓存
 
@@ -293,25 +293,25 @@ if __name__ == "__main__":
     main()
 ```
 
-前缀缓存避免重新计算多个提示在开头共享的token — 因此称为**前缀**。
+前缀缓存避免重新计算多个提示在开头共享的 token — 因此称为**前缀**。
 
-关键部分是`long_prefix`：它被定义为任何长于KV缓存块（默认为16个token）的前缀。为了简化我们的示例，假设`long_prefix`的长度正好是`n x block_size`（其中`n ≥ 1`）。
+关键部分是`long_prefix`：它被定义为任何长于KV缓存块（默认为16 个 token）的前缀。为了简化我们的示例，假设`long_prefix`的长度正好是`n x block_size`（其中`n ≥ 1`）。
 
-即，它完美对齐块边界 — 否则我们将不得不重新计算`long_prefix_len % block_size`个token，因为我们无法缓存不完整的块。
+即，它完美对齐块边界 — 否则我们将不得不重新计算`long_prefix_len % block_size`个 token，因为我们无法缓存不完整的块。
 
-没有前缀缓存，每次我们处理具有相同`long_prefix`的新请求时，我们会重新计算所有`n x block_size`个token。
+没有前缀缓存，每次我们处理具有相同`long_prefix`的新请求时，我们会重新计算所有`n x block_size`个 token。
 
-有了前缀缓存，这些token只计算一次（它们的KV存储在KV缓存分页内存中），然后被重用，因此只有新的提示token需要处理。这加速了预填充请求（尽管对解码没有帮助）。
+有了前缀缓存，这些 token 只计算一次（它们的KV存储在KV缓存分页内存中），然后被重用，因此只有新的提示 token 需要处理。这加速了预填充请求（尽管对解码没有帮助）。
 
 这在vLLM中是如何工作的？
 
 在第一次`generate`调用期间，在调度阶段，在`kv_cache_manager.get_computed_blocks`内部，引擎调用`hash_request_tokens`：
 
-1. 此函数将`long_prefix + prompts[0]`拆分为16个token的块。
-1. 对于每个完整块，它计算一个哈希（使用内置哈希或SHA-256，后者较慢但碰撞较少）。哈希结合了前一个块的哈希、当前token和可选的元数据。
+1. 此函数将`long_prefix + prompts[0]`拆分为16 个 token 的块。
+1. 对于每个完整块，它计算一个哈希（使用内置哈希或SHA-256，后者较慢但碰撞较少）。哈希结合了前一个块的哈希、当前 token 和可选的元数据。
 1. 可选元数据包括：MM哈希、LoRA ID、缓存盐（注入第一个块的哈希中，确保只有具有此缓存盐的请求可以重用块）。
 
-   每个结果存储为一个`BlockHash`对象，包含哈希和其token ID。我们返回一个块哈希列表。
+   每个结果存储为一个`BlockHash`对象，包含哈希和其 token ID。我们返回一个块哈希列表。
 
 该列表存储在`self.req_to_block_hashes[request_id]`中。
 
@@ -345,7 +345,7 @@ KV缓存块仅在即将从`free_block_queue`（从左弹出）重新分配时变
 
 ## 引导解码（FSM）
 
-引导解码是一种技术，在每个解码步骤中，logits受到基于语法的有限状态机的约束。这确保只有语法允许的token可以被采样。
+引导解码是一种技术，在每个解码步骤中，logits受到基于语法的有限状态机的约束。这确保只有语法允许的 token 可以被采样。
 
 这是一个强大的设置：你可以强制执行从正则语法（乔姆斯基类型-3，例如任意正则表达式模式）一直到上下文无关语法（类型-2，涵盖大多数编程语言）的任何内容。
 
@@ -386,11 +386,11 @@ if __name__ == "__main__":
 1. 在调度期间，如果异步编译已完成，状态切换到`WAITING`，并且`request_id`被添加到`structured_output_request_ids`；否则它被放入`skipped_waiting_requests`以在下一个引擎步骤重试。
 1. 在调度循环之后（仍在调度内部），如果有FSM请求，`StructuredOutputManager`要求后端准备/更新`_grammar_bitmask`。
 1. 在前向传递产生logits后，xgr_torch_compile的函数将位掩码扩展到词汇表大小（32倍扩展比，因为我们使用32位整数），并将不允许的logits掩码为–∞。
-1. 在采样下一个token后，请求的FSM通过`accept_tokens`前进。视觉上，我们在FSM图上移动到下一个状态。
+1. 在采样下一个 token 后，请求的FSM通过`accept_tokens`前进。视觉上，我们在FSM图上移动到下一个状态。
 
 步骤6值得进一步澄清。
 
-如果`vocab_size = 32`，`_grammar_bitmask`是单个整数；其二进制表示编码哪些token是允许的（"1"）与不允许的（"0"）。例如，"101…001"扩展为长度为32的数组`[1, 0, 1, …, 0, 0, 1]`；位置为0的logits被设置为–∞。对于更大的词汇表，使用多个32位字并相应扩展/连接。后端（例如，`xgrammar`）负责使用当前FSM状态产生这些位模式。
+如果`vocab_size = 32`，`_grammar_bitmask`是单个整数；其二进制表示编码哪些 token 是允许的（"1"）与不允许的（"0"）。例如，"101…001"扩展为长度为32的数组`[1, 0, 1, …, 0, 0, 1]`；位置为0的logits被设置为–∞。对于更大的词汇表，使用多个32位字并相应扩展/连接。后端（例如，`xgrammar`）负责使用当前FSM状态产生这些位模式。
 
 📝注意：
 
@@ -406,23 +406,23 @@ if __name__ == "__main__":
 
 ## 推测解码
 
-在自回归生成中，每个新token都需要大型语言模型的前向传递。这很昂贵——每一步都重新加载并应用所有模型权重，仅为了计算单个token！（假设批次大小==1，通常为`B`）
+在自回归生成中，每个新 token 都需要大型语言模型的前向传递。这很昂贵——每一步都重新加载并应用所有模型权重，仅为了计算单个 token！（假设批次大小==1，通常为`B`）
 
-推测解码[\[8\]](#ref-8)通过引入较小的草稿语言模型来加速此过程。草稿廉价地提出`k`个token。但我们最终不想从较小的模型采样——它仅用于猜测候选延续。大型模型仍然决定什么是有效的。
+推测解码[\[8\]](#ref-8)通过引入较小的草稿语言模型来加速此过程。草稿廉价地提出`k`个 token。但我们最终不想从较小的模型采样——它仅用于猜测候选延续。大型模型仍然决定什么是有效的。
 
 以下是步骤：
 
-1. **草稿：**在上下文中运行小模型并提出`k`个token
+1. **草稿：**在上下文中运行小模型并提出`k`个 token
 
-1. **验证：**在上下文+`k`个草稿token上运行大型模型一次。这为这些`k`个位置加上一个额外位置产生概率（所以我们得到`k+1`个候选）
+1. **验证：**在上下文+`k`个草稿 token 上运行大型模型一次。这为这些`k`个位置加上一个额外位置产生概率（所以我们得到`k+1`个候选）
 
-1. **接受/拒绝：**从左到右遍历`k`个草稿token：
-   - 如果大型模型对草稿token的概率≥草稿的概率，接受它
+1. **接受/拒绝：**从左到右遍历`k`个草稿 token：
+   - 如果大型模型对草稿 token 的概率≥草稿的概率，接受它
    - 否则，以概率`p_large(token)/p_draft(token)`接受它
-   - 在第一次拒绝时停止，或接受所有`k`个草稿token。如果所有`k`个草稿token都被接受，也从大型模型中"免费"采样额外的第`(k+1)`个token（我们已经计算了该分布）
-   - 如果有拒绝，在该位置创建新的重新平衡分布（`p_large - p_draft`，最小值为0，归一化总和为1）并从其中采样最后一个token
+   - 在第一次拒绝时停止，或接受所有`k`个草稿 token。如果所有`k`个草稿 token 都被接受，也从大型模型中"免费"采样额外的第`(k+1)`个 token（我们已经计算了该分布）
+   - 如果有拒绝，在该位置创建新的重新平衡分布（`p_large - p_draft`，最小值为0，归一化总和为1）并从其中采样最后一个 token
 
-**为什么这有效：**尽管我们使用小模型提出候选，但接受/拒绝规则保证在期望中，序列的分布与我们从大型模型逐个token采样完全相同。这意味着推测解码在统计上等同于标准自回归解码——但可能快得多，因为单个大型模型传递可以产生多达`k+1`个token。
+**为什么这有效：**尽管我们使用小模型提出候选，但接受/拒绝规则保证在期望中，序列的分布与我们从大型模型逐个 token 采样完全相同。这意味着推测解码在统计上等同于标准自回归解码——但可能快得多，因为单个大型模型传递可以产生多达`k+1`个 token。
 
 📝注意：可查看 [gpt-fast](https://github.com/meta-pytorch/gpt-fast) 的简单实现，以及[原始论文](https://arxiv.org/abs/2302.01318)了解数学细节和与完整模型采样等价的证明。
 
@@ -430,11 +430,11 @@ vLLM V1不支持LLM草稿模型方法，而是实现更快——但准确性较�
 
 每个的简要说明：
 
-1. **n-gram：**取最后`prompt_lookup_max`个token；在序列中找到先前的匹配；如果找到，提出跟随该匹配的`k`个token；否则减小窗口并重试，直到`prompt_lookup_min`。当前实现返回`k`个token，在**第一次**匹配之后。引入最近性偏差并反转搜索方向感觉更自然吗？（即最后一次匹配）
+1. **n-gram：**取最后`prompt_lookup_max`个 token；在序列中找到先前的匹配；如果找到，提出跟随该匹配的`k`个 token；否则减小窗口并重试，直到`prompt_lookup_min`。当前实现返回`k`个 token，在**第一次**匹配之后。引入最近性偏差并反转搜索方向感觉更自然吗？（即最后一次匹配）
 
 1. **Eagle：**对大型语言模型进行"模型手术"——保留嵌入和LM头，用轻量级MLP替换transformer堆栈；微调它作为廉价草稿
 
-1. **Medusa：**在大型模型顶部（LM头之前的嵌入）训练辅助线性头，以并行预测下一个`k`个token；使用这些头更高效地提出token，比运行单独的小语言模型
+1. **Medusa：**在大型模型顶部（LM头之前的嵌入）训练辅助线性头，以并行预测下一个`k`个 token；使用这些头更高效地提出 token，比运行单独的小语言模型
 
 ```python
 from vllm import LLM, SamplingParams
@@ -472,11 +472,11 @@ if __name__ == "__main__":
 **之后在`generate`函数中**（假设我们获得全新请求）：
 
 1. 使用大型模型运行常规预填充步骤。
-1. 在前向传递和标准采样后，调用`propose_draft_token_ids(k)`从草稿模型中采样`k`个草稿token。
+1. 在前向传递和标准采样后，调用`propose_draft_token_ids(k)`从草稿模型中采样`k`个草稿 token。
 1. 将这些存储在`request.spec_token_ids`中（更新请求元数据）。
-1. 在下一个引擎步骤，当请求在运行队列中时，添加`len(request.spec_token_ids)`到“新token”计数，以便`allocate_slots`为前向传递保留足够的KV块。
+1. 在下一个引擎步骤，当请求在运行队列中时，添加`len(request.spec_token_ids)`到“新 token”计数，以便`allocate_slots`为前向传递保留足够的KV块。
 1. 复制`spec_token_ids`到`input_batch.token_ids_cpu`以形成（上下文+草稿）token。
-1. 通过`_calc_spec_decode_metadata`计算元数据（这从`input_batch.token_ids_cpu`复制token，准备logits等），然后在草稿token上运行大型模型前向传递。
+1. 通过`_calc_spec_decode_metadata`计算元数据（这从`input_batch.token_ids_cpu`复制 token，准备logits等），然后在草稿 token 上运行大型模型前向传递。
 1. 代替从logits进行常规采样，使用`rejection_sampler`从左到右接受/拒绝并产生`output_token_ids`。
 1. 重复步骤2-7，直到满足停止条件。
 
@@ -500,7 +500,7 @@ if __name__ == "__main__":
 
 连接器是vLLM处理实例间KV交换的抽象。连接器接口尚未稳定，计划进行一些近期改进，可能涉及更改，有些可能是破坏性的。
 
-我们启动2个vLLM实例（GPU 0用于预填充，GPU 1用于解码），然后在它们之间传输KV缓存：
+我们启动2 个vLLM实例（GPU 0用于预填充，GPU 1用于解码），然后在它们之间传输KV缓存：
 
 ```python
 
@@ -659,9 +659,9 @@ MultiProcExecutor在TP=8设置中（驱动工作器为rank 0）
 
 如果模型需要`TP=4`，我们可以这样配置节点。
 
-![服务器配置包含2个8xH100节点](/images/others/inside-vllm-anatomy-of-a-high-throughput-llm-inference-system/015-b9dd52a1.png)
+![服务器配置包含2 个8xH100节点](/images/others/inside-vllm-anatomy-of-a-high-throughput-llm-inference-system/015-b9dd52a1.png)
 
-服务器配置包含2个8xH100节点（1个无头节点，1个API服务器节点）
+服务器配置包含2 个8xH100节点（1 个无头节点，1 个API服务器节点）
 
 在第一个节点上，以无头模式（无API服务器）运行引擎，使用以下参数：
 
@@ -699,25 +699,25 @@ vllm serve <model-name>
 
 ## 在无头服务器节点上
 
-在无头节点上，一个`CoreEngineProcManager`启动2个进程（每个`--data-parallel-size-local`）各运行`EngineCoreProc.run_engine_core`。这些函数中的每一个都创建一个`DPEngineCoreProc`（引擎核心），然后进入其忙循环。
+在无头节点上，一个`CoreEngineProcManager`启动2 个进程（每个`--data-parallel-size-local`）各运行`EngineCoreProc.run_engine_core`。这些函数中的每一个都创建一个`DPEngineCoreProc`（引擎核心），然后进入其忙循环。
 
 `DPEngineCoreProc`初始化其父`EngineCoreProc`（的子`EngineCore`），它：
 
 1. 创建一个`input_queue`和`output_queue`（`queue.Queue`）。
 1. 使用一个`DEALER` ZMQ套接字（异步消息库）与另一个节点上的前端执行初始握手，并接收协调地址信息。
 1. 初始化DP组（例如使用NCCL后端）。
-1. 用`EngineCore`初始化`MultiProcExecutor`（`TP=4`在4个GPU上，如前所述）。
+1. 用`EngineCore`初始化`MultiProcExecutor`（`TP=4`在4 个GPU上，如前所述）。
 1. 创建一个`ready_event`（`threading.Event`）。
 1. 启动一个输入守护线程（`threading.Thread`）运行`process_input_sockets(…, ready_event)`。类似地启动一个输出线程。
-1. 仍在主线程中，等待`ready_event`，直到所有4个进程（跨越2个节点）的输入线程完成协调握手，最终执行`ready_event.set()`。
+1. 仍在主线程中，等待`ready_event`，直到所有4 个进程（跨越2 个节点）的输入线程完成协调握手，最终执行`ready_event.set()`。
 1. 一旦解除阻塞，向前端发送“就绪”消息，包含元数据（例如，`num_gpu_blocks`在分页KV缓存内存中可用）。
 1. 主线程、输入线程和输出线程随后进入各自的忙循环。
 
-TL;DR：我们最终得到4个子进程（每个DP副本一个），每个运行一个主线程、输入线程和输出线程。它们与DP协调器和前端完成协调握手，然后每个进程的所有三个线程在稳态忙循环中运行。
+TL;DR：我们最终得到4 个子进程（每个DP副本一个），每个运行一个主线程、输入线程和输出线程。它们与DP协调器和前端完成协调握手，然后每个进程的所有三个线程在稳态忙循环中运行。
 
-![分布式系统包含4个DPEngineCoreProc](/images/others/inside-vllm-anatomy-of-a-high-throughput-llm-inference-system/016-65b08a2c.png)
+![分布式系统包含4 个DPEngineCoreProc](/images/others/inside-vllm-anatomy-of-a-high-throughput-llm-inference-system/016-65b08a2c.png)
 
-分布式系统包含4个DP副本运行4个DPEngineCoreProc
+分布式系统包含4 个DP副本运行4 个DPEngineCoreProc
 
 **当前稳态：**
 
@@ -748,7 +748,7 @@ TL;DR：我们最终得到4个子进程（每个DP副本一个），每个运行
 在`AsyncMPClient`（的子`MPClient`）内部，我们：
 
 1. 创建一个`outputs_queue`（`asyncio.Queue`）。
-1. 我们创建一个asyncio任务`process_outputs_socket`，它（通过输出套接字）与所有4个`DPEngineCoreProc`的输出线程通信，并写入`outputs_queue`。
+1. 我们创建一个asyncio任务`process_outputs_socket`，它（通过输出套接字）与所有4 个`DPEngineCoreProc`的输出线程通信，并写入`outputs_queue`。
 1. 随后，另一个asyncio任务`output_handler`从`AsyncLLM`读取此队列，并最终将信息发送到`create_completion`函数。
 
 在`DPAsyncMPClient`内部，我们创建一个asyncio任务`run_engine_stats_update_task`，它与DP协调器通信。
@@ -803,7 +803,7 @@ curl -X POST http://localhost:8000/v1/completions -H "Content-Type: application/
 
 1. FastAPI 附加元数据（完成原因、对数概率、使用信息等）并返回一个`JSONResponse`通过 Uvicorn 到您的终端！
 
-就这样，您的完成结果返回了——整个分布式机制隐藏在一个简单的`curl`命令之后！ :) 太有趣了！！！
+就这样，您的完成结果返回了——整个分布式机制隐藏在一个简单的`curl`命令之后！ :) 太有趣了！
 
 📝附加说明：
 
