@@ -347,8 +347,7 @@ export async function sync() {
         
         // Merge existing local tags with Notion tags
         const existingTags = existingBySlug?.tags || previousMeta?.tags || [];
-        const mergedTags = Array.from(new Set([...existingTags, ...notionTags]));
-        const tags = mergedTags;
+        const tags = Array.from(new Set([...existingTags, ...notionTags]));
 
         let cover = '';
         const pageCoverUrl =
