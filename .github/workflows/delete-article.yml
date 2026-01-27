@@ -11,7 +11,7 @@ on:
         description: 'Delete related images'
         required: false
         type: boolean
-        default: false
+        default: true
       dry_run:
         description: 'Preview without deleting'
         required: false
