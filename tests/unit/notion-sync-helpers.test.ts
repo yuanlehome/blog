@@ -592,7 +592,7 @@ describe('notion sync helpers', () => {
   it('preserves existing local tags when updating articles from Notion', async () => {
     const contentDir = process.env.NOTION_CONTENT_DIR!;
     fs.mkdirSync(contentDir, { recursive: true });
-    
+
     // Create an existing file with local tags
     const existingContent = matter.stringify('existing content', {
       title: 'Test Article',
@@ -603,7 +603,7 @@ describe('notion sync helpers', () => {
       date: '2024-01-01',
     });
     fs.writeFileSync(path.join(contentDir, 'test-article.md'), existingContent);
-    
+
     // Mock a page update from Notion with different tags
     queryMock.mockResolvedValue({
       results: [
@@ -621,20 +621,20 @@ describe('notion sync helpers', () => {
       ],
     });
     blocksListMock.mockResolvedValue({ results: [], has_more: false, next_cursor: null });
-    
+
     const mod = await import('../../scripts/notion-sync');
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(new Response(Buffer.from('img'), { status: 200 })),
     );
     await mod.sync();
-    
+
     // Verify that both local and Notion tags are preserved
     const updatedFile = fs.readFileSync(path.join(contentDir, 'test-article.md'), 'utf-8');
     const { data } = matter(updatedFile);
-    
+
     expect(data.tags).toEqual(
-      expect.arrayContaining(['Local Tag 1', 'Local Tag 2', 'Notion Tag 1', 'Notion Tag 2'])
+      expect.arrayContaining(['Local Tag 1', 'Local Tag 2', 'Notion Tag 1', 'Notion Tag 2']),
     );
     expect(data.tags.length).toBe(4);
   });
