@@ -2,11 +2,13 @@
 title: FlashAttention 原理与实现
 slug: flashattention
 date: '2026-01-27'
-tags: ['FlashAttention', 'Attention']
+tags:
+  - FlashAttention
+  - Attention
 status: published
 cover: /images/notion/flashattention/2d022dca-4210-80ec-a195-c3adbd923096.png
-lastEditedTime: '2026-01-27T12:14:00.000Z'
-updated: '2026-01-27T12:14:00.000Z'
+lastEditedTime: '2026-01-27T12:45:00.000Z'
+updated: '2026-01-27T12:45:00.000Z'
 source: notion
 notion:
   id: 1fb22dca-4210-80cd-a96e-e32787cfd674
@@ -43,7 +45,7 @@ $O = \text{softmax}\left(\frac{Q K^T}{\sqrt{d}}\right) V$
 
 其中 $Q, K, V$ 分别是查询、键、值矩阵，$d$ 是每个注意力头的维度。这个计算需要先计算 $QK^T$ 得到 $N \times N$ 的注意力得分矩阵，再对每一行执行 Softmax 归一化，最后与 $V$ 相乘得到输出 $O$。如图 1 所示，标准实现中，这三个步骤通常拆分为独立的矩阵运算，会产生大量中间结果。
 
-![图 1](/images/notion/flashattention/2d022dca-4210-80ec-a195-c3adbd923096.png)
+![](/images/notion/flashattention/2d022dca-4210-80ec-a195-c3adbd923096.png)
 
 **内存与计算挑战：** 注意力的时间和空间复杂度均为 $O(N^2)$，当序列长度 $N$ 增大时，内存占用和数据传输量会呈二次方增长。例如，长度翻倍会导致注意力矩阵元素数量增加四倍。这导致 GPU 上**内存访问**成为瓶颈——对巨大的 $QK^T$ 矩阵和 Softmax 中间结果的反复读写使计算受限于内存带宽。事实上，在大模型推理中，尽管 GPU 算力很强，**显存的读写速度**往往限制了注意力层的性能。
 
@@ -59,7 +61,9 @@ FlashAttention V1（最初发表于 2022 年）是 Tri Dao 等人提出的**精�
 
 ![](/images/notion/flashattention/2d222dca-4210-808b-8f4d-e92e18a8d8b6.png)
 
-![图 2：FlashAttention V1 的块式注意力计算原理示意图。将长序列的 K, V 拆分成多个块分批加载至片上高速内存（SRAM）计算，与每个块对应的 Q 批次进行乘积并软最大归一化，再累积输出结果。蓝色框表示存储在 GPU 显存（HBM）的大矩阵未被 materialize，橙色虚线框表示在片上 SRAM 中计算的部分。最终通过重新缩放确保整体 Softmax 正确归一化。](/images/notion/flashattention/2cf22dca-4210-801c-9beb-dddea5d7e160.png)
+![](/images/notion/flashattention/2cf22dca-4210-801c-9beb-dddea5d7e160.png)
+
+_图 2：FlashAttention V1 的块式注意力计算原理示意图。将长序列的_ $K, V$ _拆分成多个块分批加载至片上高速内存（SRAM）计算，与每个块对应的_ $Q$ _批次进行乘积并软最大归一化，再累积输出结果。蓝色框表示存储在 GPU 显存（HBM）的大矩阵未被 materialize，橙色虚线框表示在片上 SRAM 中计算的部分。最终通过重新缩放确保整体 Softmax 正确归一化。_
 
 ### 2.1 块式计算与内存优化
 
@@ -154,6 +158,20 @@ def online_softmax_blocked(Q_block, K, V, Bc):
     LSE = m + np.log(l)
 return O, LSE
 ```
+
+下图展示了分块计算的整体流程：
+
+![](/images/notion/flashattention/2f522dca-4210-8044-a8ad-fb3940f27bd3.png)
+
+图中，$Q$ 被划分为多个 $Bm×d$ 的分块，$K$ 和 $V$ 被划分为多个 $Bn×d$ 的分块，计算流程包含两层循环：
+
+- **外层循环**
+
+  外层循环遍历 $Q$ 矩阵的小块，这里每一个块都包含 $Bm$ 个 token，其中每个 token 的维度为 $d$。因为通常使用的是多头注意力机制，每个头的维度通常为 64 到 128 这样的量级，所以这里 $d$ 通常不会很大，$Q$ 矩阵的分块可以很容易地加载到共享内存中进行计算。
+
+- **内层循环**
+
+  内层循环中，每次读取 $K$ 和 $V$ 矩阵的小块，这里每一个块都包含 $Bn$个 token。使用 $Q$ 矩阵的小块与 $K$ 矩阵的小块计算注意力权重，并使用 online softmax 融合加权求和的方式，计算出当前 $Q$ 矩阵小块对应的输出结果。然后不断将结果累加并修正，直到遍历完所有的 $K$ 和 $V$ 矩阵，最后得到完整的输出结果。
 
 ---
 
