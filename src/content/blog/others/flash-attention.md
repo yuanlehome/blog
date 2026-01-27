@@ -1,8 +1,8 @@
 ---
-title: Flash Attention 的实现原理
+title: Flash Attention 的实现原理（2）
 slug: flash-attention
 date: '2026-01-27'
-tags: []
+tags: ['FlashAttention', 'Attention']
 status: published
 source_url: 'https://wangyu.me/posts/ml/flash-attention-overview/'
 source_author: wangyu.me
