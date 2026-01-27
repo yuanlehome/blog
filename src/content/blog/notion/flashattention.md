@@ -2,7 +2,7 @@
 title: FlashAttention 原理与实现
 slug: flashattention
 date: '2026-01-04'
-tags: ['Attention']
+tags: ['FlashAttention', 'Attention']
 status: published
 cover: /images/notion/flashattention/2d022dca-4210-80ec-a195-c3adbd923096.png
 lastEditedTime: '2026-01-04T14:57:00.000Z'
