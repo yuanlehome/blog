@@ -183,6 +183,7 @@ type ExistingPostMeta = {
   lastEdited?: string;
   path: string;
   notionId?: string;
+  tags?: string[];
 };
 
 async function getExistingPosts() {
@@ -195,11 +196,13 @@ async function getExistingPosts() {
     const { data } = matter(content);
     const slug = data.slug || path.basename(file, '.md');
     const notionId = data.notion?.id || data.notionId;
+    const tags = Array.isArray(data.tags) ? data.tags : [];
     const meta: ExistingPostMeta = {
       slug,
       lastEdited: data.lastEditedTime,
       path: file,
       notionId,
+      tags,
     };
     bySlug.set(slug, meta);
     if (notionId) byNotionId.set(notionId, meta);
@@ -340,7 +343,12 @@ export async function sync() {
         }
 
         const date = props.date?.date?.start || new Date().toISOString().split('T')[0];
-        const tags = props.tags?.multi_select?.map((t: any) => t.name) || [];
+        const notionTags = props.tags?.multi_select?.map((t: any) => t.name) || [];
+        
+        // Merge existing local tags with Notion tags
+        const existingTags = existingBySlug?.tags || previousMeta?.tags || [];
+        const mergedTags = Array.from(new Set([...existingTags, ...notionTags]));
+        const tags = mergedTags;
 
         let cover = '';
         const pageCoverUrl =
