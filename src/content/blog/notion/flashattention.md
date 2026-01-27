@@ -1,12 +1,12 @@
 ---
 title: FlashAttention 原理与实现
 slug: flashattention
-date: '2026-01-04'
-tags: ['FlashAttention', 'Attention']
+date: '2026-01-27'
+tags: []
 status: published
 cover: /images/notion/flashattention/2d022dca-4210-80ec-a195-c3adbd923096.png
-lastEditedTime: '2026-01-04T14:57:00.000Z'
-updated: '2026-01-04T14:57:00.000Z'
+lastEditedTime: '2026-01-27T12:14:00.000Z'
+updated: '2026-01-27T12:14:00.000Z'
 source: notion
 notion:
   id: 1fb22dca-4210-80cd-a96e-e32787cfd674
@@ -18,6 +18,7 @@ notion:
 
 - [图解大模型计算加速系列：FlashAttention V1，从硬件到计算逻辑 - 知乎](https://zhuanlan.zhihu.com/p/669926191)
 - [图解大模型计算加速系列：FlashAttention V2，从原理到并行计算 - 知乎](https://zhuanlan.zhihu.com/p/691067658)
+- [Flash Attention 的实现原理](https://wangyu.me/posts/ml/flash-attention-overview/)
 - [\[Attention优化\]\[2w字\]📚原理篇: 从Online-Softmax到FlashAttention V1/V2/V3 - 知乎](https://zhuanlan.zhihu.com/p/668888063?share_code=15umGexBTQvYV&utm_psn=1985738448250896443)
 - [FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning](https://arxiv.org/pdf/2307.08691)
 - [flash attention v1-v3系列论文解读\[all\] - 知乎](https://zhuanlan.zhihu.com/p/1951775373198091592?share_code=1j8zn2LiuCsMG&utm_psn=1984332043031713739)
