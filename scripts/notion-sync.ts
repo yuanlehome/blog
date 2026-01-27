@@ -344,7 +344,7 @@ export async function sync() {
 
         const date = props.date?.date?.start || new Date().toISOString().split('T')[0];
         const notionTags = props.tags?.multi_select?.map((t: any) => t.name) || [];
-        
+
         // Merge existing local tags with Notion tags
         const existingTags = existingBySlug?.tags || previousMeta?.tags || [];
         const tags = Array.from(new Set([...existingTags, ...notionTags]));
