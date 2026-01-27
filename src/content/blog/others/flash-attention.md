@@ -1,5 +1,5 @@
 ---
-title: Flash Attention 的实现原理（2）
+title: Flash Attention 的实现原理
 slug: flash-attention
 date: '2026-01-27'
 tags: ['FlashAttention', 'Attention']
@@ -14,8 +14,6 @@ cover: /images/others/flash-attention/001-cfa412d2.svg
 ---
 
 # Flash Attention 的实现原理
-
-分类：[机器学习](/categories/#机器学习) 标签： [LLM](/tags/#LLM) 创建时间：2025-12-17 21:10:00
 
 自从 _Attention is All You Need_ 论文提出以来，Transformer 被广泛应用于各类深度学习任务中。尤其是近年来，GPT 系列、LLaMA 等大规模语言模型（LLM）再度推动了 Transformer 的发展与落地。注意力机制（Attention Mechanism）作为 Transformer 的核心组件，其计算效率直接决定了模型的训练和推理速度。2022 年提出的 Flash Attention 算法大幅优化了注意力计算效率，现已成为大规模语言模型中广泛采用的核心技术之一。
 
@@ -67,7 +65,7 @@ $\text{MultiHead}(Q, K, V) = \text{Concat}(\text{head}\_1, \ldots, \text{head}\_
 
 ## 注意力计算的挑战
 
-深度学习模型的训练与推理通常依赖 GPU 等硬件加速器，而 GPU 包含寄存器、共享内存、全局内存等多层级内存（访问速度和容量差异显著）。注意力计算中，$Q$、$K$、$V$ 通常存储在全局内存，计算时需加载到共享内存/寄存器中处理。
+深度学习模型的训练与推理通常依赖 GPU 等硬件加速器，而 GPU 包含寄存器、共享内存、全局内存等多层级内存（访问速度和容量差异显著）。注意力计算中，$Q$、$K$、$V$ 通常存储在全局内存，计算时需加载到共享内存 / 寄存器中处理。
 
 常规注意力计算流程如下：
 
@@ -93,7 +91,7 @@ Flash Attention 的核心是融合注意力计算流程，减少注意力权重�
 
 ### Online Softmax
 
-理解 Flash Attention 的核心是掌握 online softmax 的计算方式，以及如何将 softmax 与加权求和融合。只有理解了 online softmax 的计算原理，才能理解 Flash Attention 的实现原理。Online softmax 的原理其实很简单，但我初次接触时，看到的都是一大堆公式推导，反而让人心生畏惧难，很快就放弃了。这里我避免数学公式的堆砌，并使用更直观的方式来解释其原理。
+理解 Flash Attention 的核心是掌握 online softmax 的计算方式，以及如何将 softmax 与加权求和融合。只有理解了 online softmax 的计算原理，才能理解 Flash Attention 的实现原理。Online softmax 的原理其实很简单，但我初次接触时，看到的都是一大堆公式推导，反而让人心生畏惧，很快就放弃了。这里我避免数学公式的堆砌，并使用更直观的方式来解释其原理。
 
 首先，回顾 softmax 的定义：
 
@@ -132,9 +130,9 @@ void softmax(const float *x, float *out, int dim) {
 
 这里的实现分为三步：
 
-1. 寻找最大值 `m`。
-1. 计算指数和 `expsum`。
-1. 计算 softmax 输出。
+1. 寻找最大值 `m`
+2. 计算指数和 `expsum`
+3. 计算 softmax 输出
 
 第二步依赖于第一步计算出的最大值 `m`，而第三步又依赖于第一步和二步计算出的 `m` 和 `expsum`。因此，似乎一定需要三次遍历。但利用指数函数的性质，我们可以将前两步合并为一步，从而减少一次遍历。
 
@@ -157,7 +155,7 @@ for (int i = 0; i < dim; i++) {
 }
 ```
 
-在遍历过程中，我们始终保持 `max` 为当前遍历过的最大值。并使用此 `max` 来计算指数和 `expsum`。当遇到一个更大的值 `m` 时，我们需要调整 `expsum` 的值。因为此时 $\text{expsum} = \sum e^{x\_i - \text{max}}$，而我们需要将其转换为 $\text{expsum} = \sum e^{x\_i - m}$。根据指数函数的性质，我们可以通过乘以 $e^{\text{max} - m}$ 来实现这一转换。
+在遍历过程中，我们始终保持 `max` 为当前遍历过的最大值，并使用此 `max` 来计算指数和 `expsum`。当遇到一个更大的值 `m` 时，我们需要调整 `expsum` 的值。因为此时 $\text{expsum} = \sum e^{x\_i - \text{max}}$，而我们需要将其转换为 $\text{expsum} = \sum e^{x\_i - m}$。根据指数函数的性质，我们可以通过乘以 $e^{\text{max} - m}$ 来实现这一转换。
 
 下面是具体的数学推导：
 
@@ -271,6 +269,6 @@ Q 的分块和 K 可以计算出权重矩阵，权重矩阵在和 V 相乘得到
 
 ## 总结
 
-本文回顾了注意力机制的基本原理和计算流程，分析了传统注意力计算在处理长序列时面临的内存带宽瓶颈问题。随后，详细介绍了 Flash Attention 的核心思想，包括 softmax 融合加权求和的计算方法，以及分块计算的实现流程，这是两个点是理解 Flash Attention 关键点。
+本文回顾了注意力机制的基本原理和计算流程，分析了传统注意力计算在处理长序列时面临的内存带宽瓶颈问题。随后，详细介绍了 Flash Attention 的核心思想，包括 softmax 融合加权求和的计算方法，以及分块计算的实现流程，这两个点是理解 Flash Attention 的关键。
 
 本文力求以通俗易懂的方式解释 Attention 机制和 Flash Attention 的实现原理。如果你仍然有没看懂的地方，这是我的错，欢迎在评论区留言讨论。而如果你看懂了，那就是你的错，你应该早点看。
