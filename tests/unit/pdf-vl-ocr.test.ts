@@ -420,7 +420,7 @@ describe('PDF VL OCR Client', () => {
   });
 
   describe('IPv4 forcing and connection timeout', () => {
-    it('should use undici dispatcher with IPv4 forcing', async () => {
+    it('should use system default DNS when IP override is not configured', async () => {
       process.env.PDF_OCR_RETRY = '0';
       process.env.PDF_OCR_DIAG = '0';
 
@@ -434,7 +434,7 @@ describe('PDF VL OCR Client', () => {
             layoutParsingResults: [
               {
                 markdown: {
-                  text: '# Test\n\nIPv4 dispatcher applied.',
+                  text: '# Test\n\nSystem default DNS used.',
                   images: {},
                 },
               },
@@ -455,10 +455,10 @@ describe('PDF VL OCR Client', () => {
         mockLogger as any,
       );
 
-      // Verify dispatcher was provided (undici Agent)
+      // Verify dispatcher is NOT provided when IP override is missing
+      // (should use system default DNS)
       expect(fetchOptions).toBeDefined();
-      expect(fetchOptions.dispatcher).toBeDefined();
-      expect(typeof fetchOptions.dispatcher.destroy).toBe('function');
+      expect(fetchOptions.dispatcher).toBeUndefined();
     });
 
     it('should handle connection timeout error', async () => {
@@ -655,8 +655,8 @@ describe('PDF VL OCR Client', () => {
         mockLogger as any,
       );
 
-      // Should have dispatcher (always created for IPv4 forcing)
-      expect(fetchOptions.dispatcher).toBeDefined();
+      // Should NOT have dispatcher (IP override is missing, use system DNS)
+      expect(fetchOptions.dispatcher).toBeUndefined();
 
       // Verify info log shows override not enabled
       const infoCalls = mockLogger.info.mock.calls;
