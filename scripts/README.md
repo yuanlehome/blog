@@ -21,7 +21,7 @@ scripts/
 ├── utils.ts             # 共享工具函数
 ├── logger-helpers.ts    # 日志辅助工具
 ├── import/              # 导入适配器
-│   └── adapters/        # 平台适配器（zhihu、wechat、medium、others）
+│   └── adapters/        # 平台适配器（zhihu、wechat、medium、arxiv、others）
 ├── markdown/            # Markdown 处理管线
 │   ├── index.ts         # 入口
 │   ├── translator.ts    # 翻译接口
@@ -110,18 +110,30 @@ scripts/
 
 **支持的平台**：
 
-| 平台   | URL 模式                 | 输出目录                   |
-| ------ | ------------------------ | -------------------------- |
-| 知乎   | `zhuanlan.zhihu.com/p/*` | `src/content/blog/zhihu/`  |
-| 微信   | `mp.weixin.qq.com/s/*`   | `src/content/blog/wechat/` |
-| Medium | `*.medium.com/*`         | `src/content/blog/medium/` |
-| 其他   | 任意 URL                 | `src/content/blog/others/` |
+| 平台   | URL 模式                                                | 输出目录                   |
+| ------ | ------------------------------------------------------- | -------------------------- |
+| 知乎   | `zhuanlan.zhihu.com/p/*`                                | `src/content/blog/zhihu/`  |
+| 微信   | `mp.weixin.qq.com/s/*`                                  | `src/content/blog/wechat/` |
+| Medium | `*.medium.com/*`                                        | `src/content/blog/medium/` |
+| arXiv  | `arxiv.org/pdf/*`, `arxiv.org/abs/*`, `arxiv.org/src/*` | `src/content/blog/others/` |
+| 其他   | 任意 URL                                                | `src/content/blog/others/` |
+
+**arXiv 特殊说明**：
+
+- 自动下载 LaTeX 源码包 (`.tar.gz`)
+- 自动识别主 TeX 文件
+- 转换 LaTeX 为 Markdown（支持数学公式、图片、章节）
+- 从 arXiv API 获取论文元信息
+- 支持版本号：`2306.00978v5`
 
 **使用示例**：
 
 ```bash
 # 导入知乎文章
 npm run import:content -- --url="https://zhuanlan.zhihu.com/p/668888063"
+
+# 导入 arXiv 论文
+npm run import:content -- --url="https://arxiv.org/pdf/2306.00978"
 
 # 覆盖已存在的文章
 npm run import:content -- --url="<URL>" --allow-overwrite
