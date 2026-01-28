@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
+    "prebuild": "npm run favicon:generate",
     "build": "astro build",
     "preview": "astro preview",
+    "favicon:generate": "tsx scripts/favicon/generate-favicon.ts",
     "notion:sync": "tsx scripts/notion-sync.ts && npm run lint",
     "import:content": "tsx scripts/content-import.ts && npm run lint",
     "delete:article": "tsx scripts/delete-article.ts",
@@ -61,6 +63,7 @@
     "@vitest/coverage-v8": "^4.0.16",
     "jsdom": "^27.4.0",
     "markdownlint-cli2": "^0.20.0",
+    "png-to-ico": "^3.0.1",
     "prettier": "^3.7.4",
     "prettier-plugin-astro": "^0.14.1",
     "tsx": "^4.21.0",
