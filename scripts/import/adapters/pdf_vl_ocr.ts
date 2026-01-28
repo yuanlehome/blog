@@ -23,6 +23,7 @@ export interface PaddleOcrVlResult {
   markdown: string;
   images: Record<string, string>; // img_path -> img_url
   outputImages?: string[];
+  pagesProcessed: number;
 }
 
 /**
@@ -679,6 +680,89 @@ function extractErrorDetails(error: any): Record<string, any> {
 /**
  * Call PaddleOCR-VL API with a single attempt (no retry logic)
  */
+/**
+ * Merge multiple page results from layoutParsingResults into a single result
+ * Handles markdown concatenation, image merging with conflict resolution,
+ * and outputImages merging
+ */
+function mergeLayoutParsingResults(
+  layoutResults: NonNullable<PaddleOcrVlResponse['result']>['layoutParsingResults'],
+): { markdown: string; images: Record<string, string>; outputImages: string[] } {
+  if (!layoutResults || layoutResults.length === 0) {
+    throw new OcrParseError('No layout parsing results to merge');
+  }
+
+  const allMarkdownParts: string[] = [];
+  const mergedImages: Record<string, string> = {};
+  const allOutputImages: string[] = [];
+  const imageKeyCounter: Record<string, number> = {};
+
+  for (let pageIdx = 0; pageIdx < layoutResults.length; pageIdx++) {
+    const pageResult = layoutResults[pageIdx];
+    const pageMarkdown = pageResult.markdown?.text || '';
+    const pageImages = pageResult.markdown?.images || {};
+    const pageOutputImages = pageResult.outputImages || [];
+
+    // Collect markdown
+    if (pageMarkdown) {
+      allMarkdownParts.push(pageMarkdown);
+    }
+
+    // Merge images with conflict resolution
+    for (const [imgPath, imgUrl] of Object.entries(pageImages)) {
+      if (imgPath in mergedImages) {
+        // Conflict detected - need to rename
+        // Track how many times we've seen this key
+        imageKeyCounter[imgPath] = (imageKeyCounter[imgPath] || 1) + 1;
+
+        // Generate new key: add page suffix before extension
+        // e.g., "image.png" -> "image_page2.png"
+        const dotIndex = imgPath.lastIndexOf('.');
+        let newImgPath: string;
+        if (dotIndex > 0) {
+          newImgPath = `${imgPath.slice(0, dotIndex)}_page${pageIdx + 1}${imgPath.slice(dotIndex)}`;
+        } else {
+          newImgPath = `${imgPath}_page${pageIdx + 1}`;
+        }
+
+        // Store with new key
+        mergedImages[newImgPath] = imgUrl;
+
+        // Replace references in the page markdown
+        // Match both ./imgPath and imgPath patterns in markdown
+        const escapedImgPath = imgPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const patterns = [
+          new RegExp(`!\\[([^\\]]*)\\]\\(${escapedImgPath}\\)`, 'g'),
+          new RegExp(`!\\[([^\\]]*)\\]\\(\\.\\/${escapedImgPath}\\)`, 'g'),
+        ];
+
+        let updatedMarkdown = allMarkdownParts[allMarkdownParts.length - 1];
+        for (const pattern of patterns) {
+          updatedMarkdown = updatedMarkdown.replace(pattern, `![$1](${newImgPath})`);
+        }
+        allMarkdownParts[allMarkdownParts.length - 1] = updatedMarkdown;
+      } else {
+        // No conflict, add directly
+        mergedImages[imgPath] = imgUrl;
+      }
+    }
+
+    // Collect outputImages
+    if (pageOutputImages.length > 0) {
+      allOutputImages.push(...pageOutputImages);
+    }
+  }
+
+  // Join all markdown parts with double newline separator
+  const finalMarkdown = allMarkdownParts.join('\n\n');
+
+  return {
+    markdown: finalMarkdown,
+    images: mergedImages,
+    outputImages: allOutputImages,
+  };
+}
+
 async function callPaddleOcrVlOnce(
   pdfBuffer: Buffer,
   apiUrl: string,
@@ -970,9 +1054,9 @@ async function callPaddleOcrVlOnce(
     );
   }
 
-  const firstResult = layoutResults[0];
-  const markdown = firstResult.markdown?.text;
-  const images = firstResult.markdown?.images;
+  // Merge all pages
+  const mergedResult = mergeLayoutParsingResults(layoutResults);
+  const { markdown, images, outputImages } = mergedResult;
 
   if (!markdown) {
     const errorCode = classifyOcrError(new Error('no markdown text'), response.status);
@@ -991,8 +1075,8 @@ async function callPaddleOcrVlOnce(
     });
 
     throw new OcrParseError(
-      'PaddleOCR-VL API did not return markdown text',
-      JSON.stringify(firstResult).slice(0, 500),
+      'PaddleOCR-VL API did not return markdown text after merging',
+      JSON.stringify(layoutResults).slice(0, 500),
     );
   }
 
@@ -1006,16 +1090,18 @@ async function callPaddleOcrVlOnce(
     requestId: undefined, // API doesn't provide request ID
     elapsedMs,
     responseMeta: {
+      pagesProcessed: layoutResults.length,
       markdownChars: markdown.length,
-      imagesCount: images ? Object.keys(images).length : 0,
-      outputImagesCount: firstResult.outputImages?.length || 0,
+      imagesCount: Object.keys(images).length,
+      outputImagesCount: outputImages.length,
     },
   });
 
   return {
     markdown,
-    images: images || {},
-    outputImages: firstResult.outputImages,
+    images,
+    outputImages,
+    pagesProcessed: layoutResults.length,
   };
 }
 
@@ -1159,25 +1245,28 @@ export async function callLocalMockOcr(logger?: Logger): Promise<PaddleOcrVlResu
       throw new OcrParseError('Mock fixture has empty layoutParsingResults');
     }
 
-    const firstResult = layoutResults[0];
-    const markdown = firstResult.markdown?.text;
-    const images = firstResult.markdown?.images;
+    // Merge all pages using the same logic as real API
+    const mergedResult = mergeLayoutParsingResults(layoutResults);
+    const { markdown, images, outputImages } = mergedResult;
 
     if (!markdown) {
-      throw new OcrParseError('Mock fixture does not contain markdown text');
+      throw new OcrParseError('Mock fixture does not contain markdown text after merging');
     }
 
     logger?.info('Mock OCR successful', {
       module: 'pdf_vl_ocr',
       stage: 'mock',
+      pagesProcessed: layoutResults.length,
       markdownLength: markdown.length,
-      imageCount: images ? Object.keys(images).length : 0,
+      imageCount: Object.keys(images).length,
+      outputImagesCount: outputImages.length,
     });
 
     return {
       markdown,
-      images: images || {},
-      outputImages: firstResult.outputImages,
+      images,
+      outputImages,
+      pagesProcessed: layoutResults.length,
     };
   } catch (error) {
     logger?.error('Mock OCR failed', {

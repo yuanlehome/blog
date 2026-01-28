@@ -380,7 +380,7 @@ Sunt in culpa qui officia deserunt mollit anim id est laborum.
         endTs: new Date(ocrJobEndTs).toISOString(),
         durationMs: ocrJobDurationMs,
         resultSummary: {
-          pagesProcessed: 1, // Single PDF processed as whole
+          pagesProcessed: ocrResult.pagesProcessed,
           imagesCount: Object.keys(ocrResult.images).length,
           markdownChars: ocrResult.markdown.length,
           retries: ocrRetries,
