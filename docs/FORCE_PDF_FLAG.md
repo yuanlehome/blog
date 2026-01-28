@@ -13,6 +13,7 @@ Previously, arXiv URLs (e.g., `https://arxiv.org/pdf/2306.00978`) were blocked w
 ## Solution
 
 A new `--forcePdf` flag has been added that:
+
 1. Bypasses arXiv domain blocking
 2. Forces the use of the generic PDF adapter (PaddleOCR-VL)
 3. Allows any PDF URL to be imported, regardless of domain
@@ -82,6 +83,7 @@ logger.error('Content import failed', { error: serializeError(error) });
 ```
 
 Error structure always includes:
+
 - `message`: Error message string
 - `name`: Error type name
 - `stack`: Stack trace (if available)
@@ -90,11 +92,13 @@ Error structure always includes:
 ### Adapter Selection Priority
 
 With `--forcePdf=true`:
+
 1. Skip domain blocklists (arXiv, ar5iv)
 2. Force PDF adapter regardless of URL pattern
 3. Process URL as generic PDF
 
 Without flag (default behavior):
+
 1. Check domain blocklists (arXiv → blocked)
 2. Use normal adapter resolution by URL pattern
 3. PDF adapter only for `.pdf` URLs
@@ -106,6 +110,7 @@ Without flag (default behavior):
 New test file: `tests/unit/force-pdf-flag.test.ts`
 
 Covers:
+
 - Default arXiv blocking (forcePdf=false)
 - arXiv import with forcePdf=true
 - Error serialization with message/name/stack
@@ -170,12 +175,14 @@ npm run import:content -- --url https://arxiv.org/pdf/2306.00978
 ## Error Handling
 
 All errors are now properly serialized with:
+
 - Clear error messages
 - Stack traces for debugging
 - Sensitive information redacted (tokens, API keys)
 - Nested error causes preserved
 
 Example error output:
+
 ```json
 {
   "message": "Failed to download PDF",
@@ -204,6 +211,7 @@ Example error output:
 ## Future Enhancements
 
 Potential future improvements:
+
 - Support for more PDF sources
 - Batch import of multiple PDFs
 - Progress indicators for long PDF processing

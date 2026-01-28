@@ -9,12 +9,14 @@ Successfully implemented the `--forcePdf` flag for content-import pipeline with 
 ### 1. Core Implementation Files
 
 #### scripts/utils/errors.ts (NEW)
+
 - Created `serializeError()` utility function
 - Ensures all errors have consistent structure: message, name, stack, cause
 - Prevents empty error objects `error={}` in logs
 - Automatically redacts sensitive information
 
 #### scripts/content-import.ts
+
 - Added `forcePdf: boolean` to `ImportArgs` type
 - Updated `parseArgs()` to parse `--forcePdf` and `--force-pdf` flags
 - Modified arXiv blocking logic: skip check when `forcePdf=true`
@@ -23,6 +25,7 @@ Successfully implemented the `--forcePdf` flag for content-import pipeline with 
 - Exported `isArxivUrl()` function for testing
 
 #### .github/workflows/import-content.yml
+
 - Added `force_pdf` boolean input (default: false)
 - Pass flag to CLI when enabled: `--forcePdf`
 - Updated workflow documentation
@@ -30,7 +33,9 @@ Successfully implemented the `--forcePdf` flag for content-import pipeline with 
 ### 2. Test Files
 
 #### tests/unit/force-pdf-flag.test.ts (NEW)
+
 Created comprehensive test suite covering:
+
 - arXiv URL detection and blocking (default behavior)
 - arXiv import success with forcePdf=true
 - PDF adapter selection with flag
@@ -42,7 +47,9 @@ All 12 tests passing ✅
 ### 3. Documentation
 
 #### docs/FORCE_PDF_FLAG.md (NEW)
+
 Complete documentation including:
+
 - Overview and problem statement
 - Usage examples (CLI, env var, GitHub Actions)
 - Implementation details
@@ -53,17 +60,19 @@ Complete documentation including:
 ## Test Results
 
 ### Unit Tests
-```
-✓ Force PDF Flag (12 tests)
+
+```text
+✓ Force PDF Flag (13 tests)
   ✓ arXiv URL handling (2 tests)
   ✓ PDF adapter selection with forcePdf (2 tests)
-✓ Error Serialization (8 tests)
+✓ Error Serialization (9 tests)
   ✓ Error objects with message, name, stack
   ✓ Error with cause
   ✓ Null and undefined
   ✓ Plain objects
   ✓ Primitive types
   ✓ Sensitive information redaction
+  ✓ Nested object redaction
   ✓ Errors without stack traces
   ✓ Non-empty error objects
 
@@ -71,6 +80,7 @@ All tests passed ✅
 ```
 
 ### Full Test Suite
+
 ```bash
 npm run check   ✅ 0 errors, 0 warnings, 44 hints
 npm run test    ✅ All tests passed
@@ -81,24 +91,34 @@ npm run lint    ✅ All files formatted correctly
 ## Verification
 
 ### 1. CLI Flag Parsing
+
+````text
 ✅ Accepts `--forcePdf`
+```text
 ✅ Accepts `--force-pdf`
+````
+
+````text
 ✅ Reads from `FORCE_PDF` env var
+```text
 ✅ Default value is `false`
 
 ### 2. Adapter Selection Logic
+
 ✅ Default: arXiv URLs blocked with clear error message
 ✅ With flag: arXiv URLs use PDF adapter
 ✅ Non-arXiv URLs unaffected
 ✅ Normal adapter resolution works when flag is false
 
 ### 3. Error Serialization
+
 ✅ All errors have message/name/stack
 ✅ Empty error objects eliminated
 ✅ Nested causes preserved
 ✅ Sensitive data redacted
 
 ### 4. GitHub Workflow Integration
+
 ✅ New `force_pdf` input added
 ✅ Flag passed to CLI correctly
 ✅ Backward compatible (default: false)
@@ -106,18 +126,21 @@ npm run lint    ✅ All files formatted correctly
 ## Usage Examples
 
 ### Example 1: Default Behavior (arXiv Blocked)
+
 ```bash
 npm run import:content -- --url https://arxiv.org/pdf/2306.00978
 # ❌ Error: arXiv import is no longer supported
-```
+````
 
 ### Example 2: Force PDF Mode (arXiv Works)
+
 ```bash
 npm run import:content -- --url https://arxiv.org/pdf/2306.00978 --forcePdf
 # ✅ Success: Imports using PDF adapter
 ```
 
 ### Example 3: GitHub Actions
+
 1. Navigate to Actions → Import Content
 2. Enter arXiv URL: `https://arxiv.org/pdf/2306.00978`
 3. Check "Force PDF import mode"
@@ -127,11 +150,13 @@ npm run import:content -- --url https://arxiv.org/pdf/2306.00978 --forcePdf
 ## Code Quality
 
 ### Coverage
+
 - Error serialization: 95.45% coverage
 - All critical paths tested
 - Edge cases handled
 
 ### Standards Met
+
 - TypeScript strict mode ✅
 - Prettier formatting ✅
 - Markdown linting ✅
@@ -178,6 +203,7 @@ npm run import:content -- --url https://arxiv.org/pdf/2306.00978 --forcePdf
 ## Next Steps
 
 Ready for:
+
 - Code review
 - Merge to main branch
 - Deployment to production
@@ -195,6 +221,7 @@ The `--forcePdf` flag implementation is complete, tested, and ready for producti
 7. ✅ Documentation complete with examples
 
 The implementation follows best practices:
+
 - Minimal changes to existing code
 - Backward compatible
 - Well tested

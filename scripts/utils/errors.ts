@@ -52,6 +52,9 @@ export function serializeError(error: unknown): SerializedError {
         // Redact sensitive values in string properties
         if (typeof value === 'string') {
           serialized[key] = redactValue(value);
+        } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+          // Recursively redact nested objects
+          serialized[key] = redactNestedObject(value);
         } else {
           serialized[key] = value;
         }
@@ -72,7 +75,15 @@ export function serializeError(error: unknown): SerializedError {
       ...Object.keys(obj).reduce(
         (acc, key) => {
           if (!['message', 'msg', 'name', 'stack', 'cause'].includes(key)) {
-            acc[key] = typeof obj[key] === 'string' ? redactValue(obj[key]) : obj[key];
+            const value = obj[key];
+            if (typeof value === 'string') {
+              acc[key] = redactValue(value);
+            } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+              // Recursively redact nested objects
+              acc[key] = redactNestedObject(value);
+            } else {
+              acc[key] = value;
+            }
           }
           return acc;
         },
@@ -86,4 +97,24 @@ export function serializeError(error: unknown): SerializedError {
     message: String(error),
     name: 'UnknownError',
   };
+}
+
+/**
+ * Helper function to recursively redact nested objects
+ */
+function redactNestedObject(obj: Record<string, any>): Record<string, any> {
+  const redacted: Record<string, any> = {};
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === 'string') {
+      redacted[key] = redactValue(value);
+    } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      // Recursively redact nested objects
+      redacted[key] = redactNestedObject(value);
+    } else {
+      redacted[key] = value;
+    }
+  }
+
+  return redacted;
 }

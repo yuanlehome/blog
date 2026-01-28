@@ -279,10 +279,35 @@ describe('Error Serialization', () => {
 
     expect(serialized.message).toBe('Request failed');
     // The redaction should be applied to string values containing sensitive patterns
-    // The redactValue function transforms 'api_key=secret-key-12345' to show truncated value
-    expect(serialized.details).toMatch(/api_key=secret\.\.\./);
+    // The redactValue function transforms 'api_key=secret-key-12345' to 'api_key=secret...2345'
+    expect(serialized.details).toMatch(/api_key=secret\.\.\.\d{4}/);
     expect(serialized.authorization).not.toBe('Bearer abc123def456');
     expect(serialized.authorization).toContain('Bearer');
+  });
+
+  it('should recursively redact nested objects in error properties', () => {
+    const error = new Error('Complex error') as any;
+    error.metadata = {
+      request: {
+        headers: {
+          authorization: 'Bearer secret-token-value',
+          'x-api-key': 'api_key=my-secret-key',
+        },
+      },
+    };
+
+    const serialized = serializeError(error);
+
+    expect(serialized.message).toBe('Complex error');
+    expect(serialized.metadata).toBeDefined();
+    expect(serialized.metadata.request).toBeDefined();
+    expect(serialized.metadata.request.headers).toBeDefined();
+    // Nested authorization should be redacted
+    expect(serialized.metadata.request.headers.authorization).not.toBe('Bearer secret-token-value');
+    expect(serialized.metadata.request.headers.authorization).toContain('Bearer');
+    // Nested API key should be redacted
+    expect(serialized.metadata.request.headers['x-api-key']).toMatch(/api_key=/);
+    expect(serialized.metadata.request.headers['x-api-key']).not.toBe('api_key=my-secret-key');
   });
 
   it('should handle errors without stack traces', () => {
