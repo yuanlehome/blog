@@ -101,7 +101,7 @@ for b_idx in range(B):
 
 我们将遵循典型的 MMA 流程
 
-- 使用 [cp.async](https://docs.nvidia.com/cuda/parallel-thread-execution/#data-movement-and-conversion-instructions-cp-async) 从 global memory 加载二维瓦片数据到 shared memory。这需要 Ampere（sm80 及更新版本）。
+- 使用 [cp.async](https://docs.nvidia.com/cuda/parallel-thread-execution/#data-movement-and-conversion-instructions-cp-async) 从 global memory 加载二维 tile 数据到 shared memory。这需要 Ampere（sm80 及更新版本）。
 - 使用 [ldmatrix](https://docs.nvidia.com/cuda/parallel-thread-execution/#warp-level-matrix-instructions-ldmatrix) 从 shared memory 加载数据到 register memory。
 - 调用 [mma.m16n8k16](https://docs.nvidia.com/cuda/parallel-thread-execution/#warp-level-matrix-fragment-mma-16816-float) 进行 BF16 矩阵乘法（并累加）。
 
@@ -109,9 +109,9 @@ for b_idx in range(B):
 
 ### Global 到 Shared memory 的数据传输
 
-以下模板函数执行从 global memory 到 shared memory 的二维瓦片复制。
+以下模板函数执行从 global memory 到 shared memory 的二维 tile 复制。
 
-- 二维瓦片的形状通过 `HEIGHT` 和 `WIDTH` 指定。
+- 二维 tile 的形状通过 `HEIGHT` 和 `WIDTH` 指定。
 - `dst` 是 shared memory 地址，`src` 是 global memory 地址。
 - Global memory `src` 是行优先的，因此 `src_stride` 指定移动到下一行需要移动多少。
 - Shared memory `dst` 也是行优先的，并将作为连续块存储 -> `dst_stride = WIDTH`。
@@ -139,7 +139,7 @@ void global_to_shared(uint32_t dst, const nv_bfloat16 *src, int src_stride, int 
 
 ![Global to Shared data transfer](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/001-d8f57fc4.svg)
 
-从 Global memory 到 Shared memory 的二维瓦片复制。
+从 Global memory 到 Shared memory 的二维 tile 复制。
 
 我们将使用内联汇编来编写 `cp.async.cg.shared.global`。这个 PTX 指令为每个 CUDA 线程执行 16 字节传输，即 8 个 BF16 元素（`num_elems = 16 / sizeof(nv_bfloat16)`）。为了确保合并内存访问，连续的线程将负责连续的 8xBF16 组。
 
@@ -177,24 +177,24 @@ __syncthreads();
 
 ### Shared memory 到 Register memory 的数据传输
 
-在进行全局到共享内存的数据传输时，我们以线程块瓦片和单个 CUDA 线程为单位来思考。对于共享内存到寄存器的数据传输，由于这是为了服务后续的 MMA 指令，我们以 warp 瓦片/MMA 瓦片和 warp 为单位来思考。遵循 Flash Attention 2（第 3.3 节），我们让线程块中的每个 warp 处理一部分`tile_Q`，沿着 Q 序列长度维度进行分割。这意味着不同的 warp 将索引到`tile_Q`的不同块，但它们都索引到相同的`tile_K`和`tile_V`块在 KV 序列长度循环中。
+在进行全局到共享内存的数据传输时，我们以 threadblock tile 和单个 CUDA 线程为单位来思考。对于共享内存到寄存器的数据传输，由于这是为了服务后续的 MMA 指令，我们以 warp tile/MMA tile 和 warp 为单位来思考。遵循 Flash Attention 2（第 3.3 节），我们让线程块中的每个 warp 处理一部分`tile_Q`，沿着 Q 序列长度维度进行分割。这意味着不同的 warp 将索引到`tile_Q`的不同块，但它们都索引到相同的`tile_K`和`tile_V`块在 KV 序列长度循环中。
 
 ![Flash Attention warp 分区](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/003-ba293e9f.svg)
 
 Flash Attention 2 中的 warp 分区。
 
-由于我们使用`mma.m16n8k16`指令，每个 MMA 16x8 输出瓦片（`m16n8`）需要一个 16x16 的 A 瓦片（`m16k16`）和一个 8x16 的 B 瓦片（`n8k16`）。`ldmatrix`可以加载一个、两个或四个 8x8 瓦片的 16 位元素。因此，
+由于我们使用`mma.m16n8k16`指令，每个 MMA 16x8 输出 tile（`m16n8`）需要一个 16x16 的 A tile（`m16k16`）和一个 8x16 的 B tile（`n8k16`）。`ldmatrix`可以加载一个、两个或四个 8x8 tile 的 16 位元素。因此，
 
-- A 瓦片`m16k16`需要四个 8x8 瓦片 -> `ldmatrix.x4`
-- B 瓦片`n8k16`需要两个 8x8 瓦片 -> `ldmatrix.x2`
+- A tile `m16k16` 需要四个 8x8 tile -> `ldmatrix.x4`
+- B tile `n8k16` 需要两个 8x8 tile -> `ldmatrix.x2`
 
 只有 Q 在 MMA 中充当 A。K 和 V 都在各自的 MMA 中充当 B，尽管 K 需要转置的`ldmatrix`以获得正确的布局（所有张量在全局和共享内存中使用行优先布局）。
 
-要使用`ldmatrix`，每个线程提供一行的地址。线程 0-7 选择第一个 8x8 瓦片，线程 8-15 选择第二个 8x8 瓦片，依此类推。[A 的布局](https://docs.nvidia.com/cuda/parallel-thread-execution/#warp-level-matrix-fragment-mma-16816-float)在官方的 PTX 文档中可能看起来令人困惑。但更容易（至少对我来说）专注于 MMA 瓦片内 8x8 瓦片的顺序。
+要使用`ldmatrix`，每个线程提供一行的地址。线程 0-7 选择第一个 8x8 tile，线程 8-15 选择第二个 8x8 tile，依此类推。[A 的布局](https://docs.nvidia.com/cuda/parallel-thread-execution/#warp-level-matrix-fragment-mma-16816-float)在官方的 PTX 文档中可能看起来令人困惑。但更容易（至少对我来说）专注于 MMA tile 内 8x8 tile 的顺序。
 
 ![MMA 布局的 ldmatrix](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/004-182a0351.svg)
 
-`mma.m16n8k16` 中 `ldmatrix` 瓦片的顺序。
+`mma.m16n8k16` 中 `ldmatrix` tile 的顺序。
 
 通过上面的可视化，我希望以下代码片段有意义
 
@@ -215,14 +215,14 @@ for (int mma_id_q = 0; mma_id_q < WARP_Q / MMA_M; mma_id_q++)
   }
 ```
 
-- 两个嵌套循环将`[MMA_M, MMA_K]`（即`[16, 16]`）在共享内存中瓦片化`[WARP_Q, DIM]`。
-- `(warp_id * WARP_Q)`选择 warp 瓦片。我们不需要为 K 和 V 这样做。
-- `(mma_id_q * MMA_M)`在`row`和`(mma_id_d * MMA_K)`在`col`中选择 MMA 瓦片。
+- 两个嵌套循环将`[MMA_M, MMA_K]`（即`[16, 16]`）在共享内存中 tile 化`[WARP_Q, DIM]`。
+- `(warp_id * WARP_Q)`选择 warp tile。我们不需要为 K 和 V 这样做。
+- `(mma_id_q * MMA_M)`在`row`和`(mma_id_d * MMA_K)`在`col`中选择 MMA tile。
 - `(lane_id % 16)`在`row`和`(lane_id / 16 * 8)`在`col`中为每个线程选择正确的行地址，遵循所需的 Multiplicand A 布局（见上图）。
 
 `ldmatrix_x4()`是`ldmatrix.sync.aligned.m8n8.x4.b16`PTX 的一个小包装，为了方便。你可以参考[common.h](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/common.h)获取更多细节。
 
-K 和 V 可以类似地从共享内存加载到寄存器内存。需要注意的一点是使用`ldmatrix`时的行优先/列优先布局。无论是否使用`.trans`修饰符，每个线程仍然提供 8x8 瓦片中每行的行地址。`.trans`只改变**结果的**寄存器布局`ldmatrix`。
+K 和 V 可以类似地从共享内存加载到寄存器内存。需要注意的一点是使用`ldmatrix`时的行优先/列优先布局。无论是否使用`.trans`修饰符，每个线程仍然提供 8x8 tile 中每行的行地址。`.trans`只改变**结果的**寄存器布局`ldmatrix`。
 
 ![K 和 V 的 ldmatrix](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/005-7d5699b1.svg)
 
@@ -232,7 +232,7 @@ K 和 V 可以类似地从共享内存加载到寄存器内存。需要注意的
 
 ### 草稿版本
 
-我们有了高层级的基于瓦片的设计，并知道如何为 MMA 加载数据。调用 MMA 很简单——只需在我们的代码中插入`mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32`PTX。我们的草稿版本看起来像这样。
+我们有了高层级的基于 tile 的设计，并知道如何为 MMA 加载数据。调用 MMA 很简单——只需在我们的代码中插入`mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32`PTX。我们的草稿版本看起来像这样。
 
 ```cpp
 constexpr int BLOCK_Q = 128;
@@ -481,13 +481,13 @@ tile_O /= sumexp.unsqueeze(-1)
 
 MMA m16n8k16 输出的线程和寄存器布局。来源：[NVIDIA PTX 文档](https://docs.nvidia.com/cuda/parallel-thread-execution/#warp-level-matrix-fragment-mma-16816-float)。
 
-Softmax 缩放对所有元素应用相同的缩放，所以这很简单。接下来，我们需要计算当前瓦片的行最大值。记住我们为`tile_S`这样分配寄存器。
+Softmax 缩放对所有元素应用相同的缩放，所以这很简单。接下来，我们需要计算当前 tile 的行最大值。记住我们为`tile_S`这样分配寄存器。
 
 ```cpp
 float S_rmem[WARP_Q / MMA_M][BLOCK_KV / MMA_N][4];
 ```
 
-`4`意味着`c0,c1,c2,c3`在上图中，即每个线程持有来自 2 行的 2 个连续元素。要在行内（MMA 输出瓦片）进行归约，我们对线程持有的 2 个连续元素进行归约，然后在 4 个线程的组内进行归约，即`T0-T3`、`T4-T7`等等。然而，行归约实际上是在整个`tile_S`内进行的，因此我们还需要循环`BLOCK_KV / MMA_N`的`S_rmem`。这可以与线程级归约结合，在 4 线程归约之前进行。
+`4`意味着`c0,c1,c2,c3`在上图中，即每个线程持有来自 2 行的 2 个连续元素。要在行内（MMA 输出 tile）进行归约，我们对线程持有的 2 个连续元素进行归约，然后在 4 个线程的组内进行归约，即`T0-T3`、`T4-T7`等等。然而，行归约实际上是在整个`tile_S`内进行的，因此我们还需要循环`BLOCK_KV / MMA_N`的`S_rmem`。这可以与线程级归约结合，在 4 线程归约之前进行。
 
 ![行归约](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/007-9e2fcb2f.svg)
 
@@ -542,7 +542,7 @@ for (int kv_idx = 0; kv_idx < num_kv_iters; kv_idx++) {
 
 #### 重新缩放
 
-有了新瓦片的行最大值，我们可以计算（未归一化）输出的重新缩放因子以及归一化器（每行的 sumexp）。
+有了新 tile 的行最大值，我们可以计算（未归一化）输出的重新缩放因子以及归一化器（每行的 sumexp）。
 
 ```cpp
 // new rowmax
@@ -626,6 +626,7 @@ rowsumexp[mma_id_q][1] = rowsumexp[mma_id_q][1] * rescale[1] + this_rowsumexp[1]
 无论如何，现在我们需要一个脚本来进行正确性检查和速度基准测试。我更喜欢用 Python 完成这些任务。正确性检查和速度基准测试通常在 `test.py` 和 `benchmark.py` 中分开，但我更喜欢将它们放在同一个脚本中。
 
 [attention.cpp](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/attention.cpp)：为我的注意力内核提供 PyTorch 绑定。
+
 1. [main.py](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/main.py)：正确性检查和速度基准测试。
 
 对于正确性检查，我与 `F.sdpa()` 进行比较，默认情况下应该调度 Flash Attention 2（如果可用）。
@@ -675,10 +676,11 @@ Nsight Compute 可以在 macOS 上运行，通过 SSH 访问另一台装有 NVID
 内核 v1 的内存分析。
 
 **L1TEX Global Store Access Pattern** 来自存储输出，因为这是我们唯一的全局写入。这并不重要，因为当 `len_kv` 很大时，循环遍历 KV 序列长度的运行时间应该占主导地位。
+
 - **L1TEX Local Load/Store Access Pattern** 是由于寄存器溢出。由于是寄存器溢出，一次只溢出和重新加载 1 个元素是正常的。减少 `BLOCK_Q`（这样我们使用更少的寄存器来保存累加器）可以解决这个问题，但我的手动调整表明，一些溢出实际上更快。
 - **Shared Load Bank Conflicts** 正是我们要寻找的——导致 "Stall Short Scoreboard" 的 bank 冲突。
 
-NVIDIA GPU 的 shared memory 由 32 个 memory bank 支持。连续的 4 字节内存地址分配给连续的 memory bank。当我们使用 `ldmatrix` 从 shared 加载数据到 register memory 时，这会带来问题。虽然在任何文档中都没有明确说明，但 `ldmatrix.x2` 和 `ldmatrix.x4` 每次操作一个 8x8 的瓦片。这很好，因为它简化了我们的分析：我们只需要考虑加载一个 8x8 瓦片的情况。
+NVIDIA GPU 的 shared memory 由 32 个 memory bank 支持。连续的 4 字节内存地址分配给连续的 memory bank。当我们使用 `ldmatrix` 从 shared 加载数据到 register memory 时，这会带来问题。虽然在任何文档中都没有明确说明，但 `ldmatrix.x2` 和 `ldmatrix.x4` 每次操作一个 8x8 的 tile。这很好，因为它简化了我们的分析：我们只需要考虑加载一个 8x8 tile 的情况。
 
 考虑共享内存中一个形状为 8x64、数据类型为 BF16 的 2D 图块。
 
@@ -895,13 +897,13 @@ Stall Long Scoreboard 现在已从 Warp 状态统计中消失。我还必须将`
 | 内核               | TFLOPS | % of SOL |
 | ------------------ | ------ | -------- |
 | v2（共享内存重排） | 181.11 | 86.45%   |
-| v3（2 级流水线）    | 189.84 | 90.62%   |
+| v3（2 级流水线）   | 189.84 | 90.62%   |
 
 ## 版本 4 - 对 K 和 V 使用 ldmatrix.x4
 
 对于最后两个版本，我无法从性能分析数据中识别出任何优化机会（也许只是技能问题）。这些想法主要来自阅读随机资料和盯着内核看。
 
-之前，我们使用`ldmatrix.x2`用于 K 和 V，因为它自然适合`n8k16`MMA 瓦片。然而，既然我们无论如何都在处理更大的瓦片，我们可以直接使用`ldmatrix.x4`来发出更少的指令。有两个选项：加载`n16k16`瓦片，或`n8k32`瓦片。
+之前，我们使用`ldmatrix.x2`用于 K 和 V，因为它自然适合`n8k16`MMA tile。然而，既然我们无论如何都在处理更大的 tile，我们可以直接使用`ldmatrix.x4`来发出更少的指令。有两个选项：加载`n16k16` tile，或`n8k32` tile。
 
 ![对 B 使用 ldmatrix.x4](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/016-78fcfc89.svg)
 
@@ -909,7 +911,7 @@ Stall Long Scoreboard 现在已从 Warp 状态统计中消失。我还必须将`
 
 一个选项比另一个更好吗？我们可以尝试从算术强度方面做一些分析。乍一看，`n16k16`看起来是更好的选项：2 个`ldmatrix.x4`（1 个用于 A 和 1 个用于 B）来执行 2 个`mma.m16n8k16`；而`n8k32`选项需要 3 个`ldmatrix.x4`（2 个用于 A 和 1 个用于 B）来执行 2 个`mma.m16n8k16`。如果我们要为矩阵乘法内核实现这个想法，这个分析是有道理的。然而，在我们的情况下，乘数 A（查询）已经在寄存器中，因此我们只需要考虑乘数 B（键和值）的加载成本。这个认识表明两个选项应该是相同的。
 
-你当然可以选择不同的模式来加载 K 和 V，但我希望至少这里提供的两个选项更有条理一些。要实现这个想法，关键是选择正确的 8x8`ldmatrix`瓦片的行地址。
+你当然可以选择不同的模式来加载 K 和 V，但我希望至少这里提供的两个选项更有条理一些。要实现这个想法，关键是选择正确的 8x8 `ldmatrix` tile 的行地址。
 
 ```cpp
 {
@@ -939,9 +941,9 @@ for (int kv_id = 0; kv_id < num_kv_iter; kv_id++) {
 
 版本 4：[attention_v4.cu](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/attention_v4.cu)。
 
-| 内核                        | TFLOPS | % of SOL |
-| --------------------------- | ------ | -------- |
-| v3（2 级流水线）             | 189.84 | 90.62%   |
+| 内核                           | TFLOPS | % of SOL |
+| ------------------------------ | ------ | -------- |
+| v3（2 级流水线）               | 189.84 | 90.62%   |
 | v4（`ldmatrix.x4`用于 K 和 V） | 194.33 | 92.76%   |
 
 我对这个加速感到相当惊讶。这个版本唯一的区别是我们在主循环中使用了 2 倍更少的`ldmatrix`指令。然而，我们获得了显著的改进，接近 SOL。我猜是因为在新 GPU 中，张量核心和内存引擎非常快，调度和发出指令可能成为瓶颈！
@@ -987,25 +989,25 @@ for (int kv_id = 0; kv_id < num_kv_iter; kv_id++) {
 
 版本 5：[attention_v5.cu](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/attention_v5.cu)。
 
-更有效地使用共享内存意味着我们可以增加一些瓦片大小。我将`BLOCK_KV`从 32 增加回 64。增加`BLOCK_Q`很困难，因为它会使保存累加器的寄存器数量翻倍。改进是适度但明显的。
+更有效地使用共享内存意味着我们可以增加一些 tile 大小。我将`BLOCK_KV`从 32 增加回 64。增加`BLOCK_Q`很困难，因为它会使保存累加器的寄存器数量翻倍。改进是适度但明显的。
 
-| 内核                        | TFLOPS | % of SOL |
-| --------------------------- | ------ | -------- |
+| 内核                           | TFLOPS | % of SOL |
+| ------------------------------ | ------ | -------- |
 | v4（`ldmatrix.x4`用于 K 和 V） | 194.33 | 92.76%   |
-| v5（更好的流水线）          | 197.74 | 94.39%   |
+| v5（更好的流水线）             | 197.74 | 94.39%   |
 
 ## 下一步是什么？
 
-| 内核                          | TFLOPS | % of SOL |
-| ----------------------------- | ------ | -------- |
-| `F.sdpa()`（Flash Attention） | 186.73 | 89.13%   |
-| `F.sdpa()`（CuDNN）           | 203.61 | 97.19%   |
-| `flash-attn`                  | 190.58 | 90.97%   |
-| v1（基础版）                  | 142.87 | 68.20%   |
-| v2（共享内存重排）            | 181.11 | 86.45%   |
+| 内核                           | TFLOPS | % of SOL |
+| ------------------------------ | ------ | -------- |
+| `F.sdpa()`（Flash Attention）  | 186.73 | 89.13%   |
+| `F.sdpa()`（CuDNN）            | 203.61 | 97.19%   |
+| `flash-attn`                   | 190.58 | 90.97%   |
+| v1（基础版）                   | 142.87 | 68.20%   |
+| v2（共享内存重排）             | 181.11 | 86.45%   |
 | v3（2 级流水线）               | 189.84 | 90.62%   |
-| v4（`ldmatrix.x4`用于 K 和 V）   | 194.33 | 92.76%   |
-| v5（更好的流水线）            | 197.74 | 94.39%   |
+| v4（`ldmatrix.x4`用于 K 和 V） | 194.33 | 92.76%   |
+| v5（更好的流水线）             | 197.74 | 94.39%   |
 
 回顾一下，我们的内核 v3 已经击败了官方的 Flash Attention 内核，这是一个不错的惊喜。感觉相比前几代，从 5090 中获得良好性能相当容易。然而，我们最好的内核落后于 CuDNN 的意味着仍有提升空间。我尝试检查了 CuDNN 注意力内核的性能分析数据，并得到了以下细节
 
