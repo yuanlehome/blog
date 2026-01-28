@@ -224,7 +224,13 @@ export const pdfVlAdapter: Adapter = {
             stage: 'ocr',
             ocrJobId,
           });
-          ocrResult = await callPaddleOcrVl(pdfBuffer!, config.apiUrl, config.token, logger, ocrJobId);
+          ocrResult = await callPaddleOcrVl(
+            pdfBuffer!,
+            config.apiUrl,
+            config.token,
+            logger,
+            ocrJobId,
+          );
         }
         ocrStatus = 'success';
         logger.info('OCR completed', {

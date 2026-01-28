@@ -658,12 +658,13 @@ describe('PDF VL OCR Client', () => {
       // Should have dispatcher (always created for IPv4 forcing)
       expect(fetchOptions.dispatcher).toBeDefined();
 
-      // Verify debug log shows override not enabled
-      const debugCalls = mockLogger.debug.mock.calls;
-      const fetchConfigLog = debugCalls.find((call: any) => call[1]?.stage === 'fetch_config');
-      expect(fetchConfigLog).toBeDefined();
-      expect(fetchConfigLog![1].overrideEnabled).toBe(false);
-      expect(fetchConfigLog![1].overrideIpState).toBe('missing');
+      // Verify info log shows override not enabled
+      const infoCalls = mockLogger.info.mock.calls;
+      const requestPrepareLog = infoCalls.find(
+        (call: any) => call[1]?.event === 'ocr-request-prepare',
+      );
+      expect(requestPrepareLog).toBeDefined();
+      expect(requestPrepareLog![1].networkMeta.overrideIpState).toBe('missing');
     });
 
     it('should handle empty IP override string', async () => {
@@ -698,12 +699,13 @@ describe('PDF VL OCR Client', () => {
         mockLogger as any,
       );
 
-      // Verify debug log shows override not enabled
-      const debugCalls = mockLogger.debug.mock.calls;
-      const fetchConfigLog = debugCalls.find((call: any) => call[1]?.stage === 'fetch_config');
-      expect(fetchConfigLog).toBeDefined();
-      expect(fetchConfigLog![1].overrideEnabled).toBe(false);
-      expect(fetchConfigLog![1].overrideIpState).toBe('missing');
+      // Verify info log shows override not enabled
+      const infoCalls = mockLogger.info.mock.calls;
+      const requestPrepareLog = infoCalls.find(
+        (call: any) => call[1]?.event === 'ocr-request-prepare',
+      );
+      expect(requestPrepareLog).toBeDefined();
+      expect(requestPrepareLog![1].networkMeta.overrideIpState).toBe('missing');
     });
 
     it('should handle invalid IP override', async () => {
@@ -745,12 +747,13 @@ describe('PDF VL OCR Client', () => {
       );
       expect(invalidIpWarn).toBeDefined();
 
-      // Verify debug log shows override as invalid
-      const debugCalls = mockLogger.debug.mock.calls;
-      const fetchConfigLog = debugCalls.find((call: any) => call[1]?.stage === 'fetch_config');
-      expect(fetchConfigLog).toBeDefined();
-      expect(fetchConfigLog![1].overrideEnabled).toBe(false);
-      expect(fetchConfigLog![1].overrideIpState).toBe('invalid');
+      // Verify info log shows override as invalid
+      const infoCalls = mockLogger.info.mock.calls;
+      const requestPrepareLog = infoCalls.find(
+        (call: any) => call[1]?.event === 'ocr-request-prepare',
+      );
+      expect(requestPrepareLog).toBeDefined();
+      expect(requestPrepareLog![1].networkMeta.overrideIpState).toBe('invalid');
     });
 
     it('should use valid IPv4 override', async () => {
@@ -785,18 +788,21 @@ describe('PDF VL OCR Client', () => {
         mockLogger as any,
       );
 
-      // Verify debug log shows override enabled
+      // Verify info log shows override enabled
+      const infoCalls = mockLogger.info.mock.calls;
+      const requestPrepareLog = infoCalls.find(
+        (call: any) => call[1]?.event === 'ocr-request-prepare',
+      );
+      expect(requestPrepareLog).toBeDefined();
+      expect(requestPrepareLog![1].networkMeta.overrideIpState).toBe('enabled');
+
+      // Verify debug log shows IP configuration
       const debugCalls = mockLogger.debug.mock.calls;
       const networkConfigLog = debugCalls.find(
         (call: any) => call[1]?.stage === 'network_config' && call[1]?.ip === '192.168.1.100',
       );
       expect(networkConfigLog).toBeDefined();
       expect(networkConfigLog![1].ipVersion).toBe('IPv4');
-
-      const fetchConfigLog = debugCalls.find((call: any) => call[1]?.stage === 'fetch_config');
-      expect(fetchConfigLog).toBeDefined();
-      expect(fetchConfigLog![1].overrideEnabled).toBe(true);
-      expect(fetchConfigLog![1].overrideIpState).toBe('enabled');
     });
 
     it('should use valid IPv6 override', async () => {
@@ -831,17 +837,20 @@ describe('PDF VL OCR Client', () => {
         mockLogger as any,
       );
 
-      // Verify debug log shows override enabled with IPv6
+      // Verify info log shows override enabled with IPv6
+      const infoCalls = mockLogger.info.mock.calls;
+      const requestPrepareLog = infoCalls.find(
+        (call: any) => call[1]?.event === 'ocr-request-prepare',
+      );
+      expect(requestPrepareLog).toBeDefined();
+      expect(requestPrepareLog![1].networkMeta.overrideIpState).toBe('enabled');
+
+      // Verify debug log shows IPv6 configuration
       const debugCalls = mockLogger.debug.mock.calls;
       const networkConfigLog = debugCalls.find(
         (call: any) => call[1]?.stage === 'network_config' && call[1]?.ipVersion === 'IPv6',
       );
       expect(networkConfigLog).toBeDefined();
-
-      const fetchConfigLog = debugCalls.find((call: any) => call[1]?.stage === 'fetch_config');
-      expect(fetchConfigLog).toBeDefined();
-      expect(fetchConfigLog![1].overrideEnabled).toBe(true);
-      expect(fetchConfigLog![1].overrideIpState).toBe('enabled');
     });
 
     it('should handle undefined IP without ERR_INVALID_IP_ADDRESS', async () => {
@@ -988,13 +997,15 @@ describe('PDF VL OCR Client', () => {
       );
 
       // Verify proxy presence is logged (but not the URL itself)
-      const debugCalls = mockLogger.debug.mock.calls;
-      const fetchConfigLog = debugCalls.find((call: any) => call[1]?.stage === 'fetch_config');
-      expect(fetchConfigLog).toBeDefined();
-      expect(fetchConfigLog![1].proxyConfigured).toBe(true);
+      const infoCalls = mockLogger.info.mock.calls;
+      const requestPrepareLog = infoCalls.find(
+        (call: any) => call[1]?.event === 'ocr-request-prepare',
+      );
+      expect(requestPrepareLog).toBeDefined();
+      expect(requestPrepareLog![1].networkMeta.proxyPresent.http).toBe(true);
 
       // Ensure proxy URL is NOT logged (security)
-      const allLogs = JSON.stringify(mockLogger.debug.mock.calls);
+      const allLogs = JSON.stringify(mockLogger.info.mock.calls);
       expect(allLogs).not.toContain('proxy.example.com');
     });
 
@@ -1030,10 +1041,12 @@ describe('PDF VL OCR Client', () => {
         mockLogger as any,
       );
 
-      const debugCalls = mockLogger.debug.mock.calls;
-      const fetchConfigLog = debugCalls.find((call: any) => call[1]?.stage === 'fetch_config');
-      expect(fetchConfigLog).toBeDefined();
-      expect(fetchConfigLog![1].proxyConfigured).toBe(true);
+      const infoCalls = mockLogger.info.mock.calls;
+      const requestPrepareLog = infoCalls.find(
+        (call: any) => call[1]?.event === 'ocr-request-prepare',
+      );
+      expect(requestPrepareLog).toBeDefined();
+      expect(requestPrepareLog![1].networkMeta.proxyPresent.noProxy).toBe(true);
     });
 
     it('should show proxyConfigured=false when no proxy vars set', async () => {
@@ -1067,10 +1080,14 @@ describe('PDF VL OCR Client', () => {
         mockLogger as any,
       );
 
-      const debugCalls = mockLogger.debug.mock.calls;
-      const fetchConfigLog = debugCalls.find((call: any) => call[1]?.stage === 'fetch_config');
-      expect(fetchConfigLog).toBeDefined();
-      expect(fetchConfigLog![1].proxyConfigured).toBe(false);
+      const infoCalls = mockLogger.info.mock.calls;
+      const requestPrepareLog = infoCalls.find(
+        (call: any) => call[1]?.event === 'ocr-request-prepare',
+      );
+      expect(requestPrepareLog).toBeDefined();
+      expect(requestPrepareLog![1].networkMeta.proxyPresent.http).toBe(false);
+      expect(requestPrepareLog![1].networkMeta.proxyPresent.https).toBe(false);
+      expect(requestPrepareLog![1].networkMeta.proxyPresent.noProxy).toBe(false);
     });
   });
 });

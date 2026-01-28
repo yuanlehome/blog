@@ -167,7 +167,11 @@ export function classifyOcrError(error: any, statusCode: number): OcrErrorCode {
     if (errorMessage.includes('download') || errorMessage.includes('fetch')) {
       return 'OCR_PDF_FETCH_FAIL';
     }
-    if (errorMessage.includes('parse') || errorMessage.includes('invalid') || errorMessage.includes('format')) {
+    if (
+      errorMessage.includes('parse') ||
+      errorMessage.includes('invalid') ||
+      errorMessage.includes('format')
+    ) {
       return 'OCR_PDF_PARSE_FAIL';
     }
   }
