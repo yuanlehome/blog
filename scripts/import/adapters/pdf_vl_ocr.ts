@@ -76,6 +76,123 @@ export class OcrParseError extends Error {
 }
 
 /**
+ * Error code classification for quick diagnosis
+ */
+export type OcrErrorCode =
+  | 'OCR_NET_INVALID_IP'
+  | 'OCR_NET_DNS_FAIL'
+  | 'OCR_NET_TIMEOUT'
+  | 'OCR_NET_TLS'
+  | 'OCR_NET_CONNECTION'
+  | 'OCR_HTTP_NON_2XX'
+  | 'OCR_RESPONSE_PARSE_FAIL'
+  | 'OCR_RESULT_EMPTY'
+  | 'OCR_PDF_FETCH_FAIL'
+  | 'OCR_PDF_PARSE_FAIL'
+  | 'OCR_UNKNOWN';
+
+/**
+ * Classify error into diagnostic code for quick identification
+ * This helps diagnose failures like "Invalid IP address: undefined"
+ * Priority order matters - more specific checks should come before generic ones
+ */
+export function classifyOcrError(error: any, statusCode: number): OcrErrorCode {
+  // Check error.cause and nested causes for network codes
+  const causeCode = error?.cause?.code || error?.cause?.cause?.code;
+  const errorCode = error?.code;
+  const errorMessage = error?.message || '';
+
+  // Invalid IP address (common in CI with undefined env vars)
+  if (
+    causeCode === 'ERR_INVALID_IP_ADDRESS' ||
+    errorCode === 'ERR_INVALID_IP_ADDRESS' ||
+    errorMessage.includes('Invalid IP address')
+  ) {
+    return 'OCR_NET_INVALID_IP';
+  }
+
+  // DNS failures
+  if (
+    causeCode === 'ENOTFOUND' ||
+    causeCode === 'EAI_AGAIN' ||
+    errorCode === 'ENOTFOUND' ||
+    errorCode === 'EAI_AGAIN' ||
+    errorMessage.includes('getaddrinfo')
+  ) {
+    return 'OCR_NET_DNS_FAIL';
+  }
+
+  // TLS/SSL errors (check before timeout, since "TLS handshake timeout" should be TLS not timeout)
+  if (
+    causeCode === 'EPROTO' ||
+    causeCode === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' ||
+    errorCode === 'EPROTO' ||
+    errorMessage.includes('SSL') ||
+    errorMessage.includes('TLS') ||
+    errorMessage.includes('certificate')
+  ) {
+    return 'OCR_NET_TLS';
+  }
+
+  // Timeout errors (after TLS check)
+  if (
+    causeCode === 'ETIMEDOUT' ||
+    causeCode === 'ESOCKETTIMEDOUT' ||
+    errorCode === 'ETIMEDOUT' ||
+    errorCode === 'ESOCKETTIMEDOUT' ||
+    error?.name === 'AbortError' ||
+    (errorMessage.includes('timeout') && !errorMessage.includes('TLS')) ||
+    errorMessage.includes('abort')
+  ) {
+    return 'OCR_NET_TIMEOUT';
+  }
+
+  // HTTP non-2xx status codes (check early for priority)
+  if (statusCode >= 300 && statusCode < 600) {
+    return 'OCR_HTTP_NON_2XX';
+  }
+
+  // Parse failures
+  if (error instanceof OcrParseError || error?.name === 'OcrParseError') {
+    return 'OCR_RESPONSE_PARSE_FAIL';
+  }
+
+  // Empty result
+  if (errorMessage.includes('empty') || errorMessage.includes('no markdown')) {
+    return 'OCR_RESULT_EMPTY';
+  }
+
+  // PDF fetch/parse failures (check before generic connection errors)
+  if (errorMessage.includes('PDF')) {
+    if (errorMessage.includes('download') || errorMessage.includes('fetch')) {
+      return 'OCR_PDF_FETCH_FAIL';
+    }
+    if (errorMessage.includes('parse') || errorMessage.includes('invalid') || errorMessage.includes('format')) {
+      return 'OCR_PDF_PARSE_FAIL';
+    }
+  }
+
+  // Connection errors (generic - check last)
+  if (
+    causeCode === 'ECONNRESET' ||
+    causeCode === 'ECONNREFUSED' ||
+    causeCode === 'EPIPE' ||
+    causeCode === 'EHOSTUNREACH' ||
+    causeCode === 'ENETUNREACH' ||
+    errorCode === 'ECONNRESET' ||
+    errorCode === 'ECONNREFUSED' ||
+    errorCode === 'EPIPE' ||
+    errorCode === 'EHOSTUNREACH' ||
+    errorCode === 'ENETUNREACH' ||
+    errorMessage.includes('fetch failed')
+  ) {
+    return 'OCR_NET_CONNECTION';
+  }
+
+  return 'OCR_UNKNOWN';
+}
+
+/**
  * Configuration for OCR API calls
  */
 interface OcrConfig {
@@ -84,6 +201,15 @@ interface OcrConfig {
   connectTimeoutMs: number;
   enableDiag: boolean;
   overrideIp?: string;
+}
+
+/**
+ * Generate a short OCR job ID for correlation
+ * Format: ocr-{8 random hex chars}
+ */
+export function generateOcrJobId(): string {
+  const randomHex = Math.random().toString(16).substring(2, 10);
+  return `ocr-${randomHex}`;
 }
 
 /**
@@ -573,17 +699,11 @@ async function callPaddleOcrVlOnce(
   apiUrl: string,
   token: string,
   config: OcrConfig,
+  attempt: number,
+  ocrJobId: string,
   logger?: Logger,
 ): Promise<PaddleOcrVlResult> {
   const base64Pdf = pdfBuffer.toString('base64');
-
-  logger?.debug('Preparing OCR request', {
-    module: 'pdf_vl_ocr',
-    stage: 'prepare',
-    base64Length: base64Pdf.length,
-    base64Bytes: base64Pdf.length,
-    pdfSizeKb: Math.round(pdfBuffer.length / 1024),
-  });
 
   // Check PDF size limit (25MB)
   const maxSizeBytes = 25 * 1024 * 1024;
@@ -607,11 +727,6 @@ async function callPaddleOcrVlOnce(
       useChartRecognition: false, // Optional: chart/table recognition
     };
     payload = JSON.stringify(payloadObj);
-    logger?.debug('Payload prepared', {
-      module: 'pdf_vl_ocr',
-      stage: 'prepare',
-      payloadBytes: payload.length,
-    });
   } catch (error) {
     throw new OcrApiError(
       `Failed to serialize request payload: ${error instanceof Error ? error.message : String(error)}`,
@@ -637,26 +752,46 @@ async function callPaddleOcrVlOnce(
   const hasHttpProxy = !!(process.env.HTTP_PROXY || process.env.http_proxy);
   const hasHttpsProxy = !!(process.env.HTTPS_PROXY || process.env.https_proxy);
   const hasNoProxy = !!(process.env.NO_PROXY || process.env.no_proxy);
-  // proxyConfigured is true if any proxy variable is set (even NO_PROXY suggests proxy config exists)
-  const proxyConfigured = hasHttpProxy || hasHttpsProxy || hasNoProxy;
 
-  // Log network configuration diagnostics before fetch
+  // Parse API URL for logging
   const apiUrlObj = new URL(apiUrl);
-  logger?.debug('Fetch network configuration', {
+
+  // B. OCR Request Preparation - Log before fetch
+  logger?.info('OCR request starting', {
     module: 'pdf_vl_ocr',
-    stage: 'fetch_config',
-    hostname: apiUrlObj.hostname,
-    overrideEnabled: ipOverride.enabled,
-    overrideIpState: ipOverride.state,
-    proxyConfigured, // Indicates if any proxy env vars are set
+    event: 'ocr-request-prepare',
+    ocrJobId,
+    attempt,
+    endpointHost: apiUrlObj.host,
+    endpointPath: apiUrlObj.pathname,
+    timeoutMs: config.timeoutMs,
+    retryPolicy: {
+      maxAttempts: config.retries + 1,
+      backoff: 'exponential',
+    },
+    requestPayloadMeta: {
+      sendPdfAs: 'base64',
+      payloadBytesApprox: payload.length,
+      pdfSizeKb: Math.round(pdfBuffer.length / 1024),
+    },
+    networkMeta: {
+      overrideIpState: ipOverride.state,
+      proxyPresent: {
+        http: hasHttpProxy,
+        https: hasHttpsProxy,
+        noProxy: hasNoProxy,
+      },
+      userAgent: 'blog-content-import/1.0',
+      dnsStrategy: ipOverride.enabled ? 'customLookup' : 'undiciDispatcher',
+    },
   });
 
   let response: Response;
   let responseText: string = '';
+  const requestStartTime = Date.now();
 
   try {
     // Make API request with undici dispatcher for IPv4 + connection timeout
-    const startTime = Date.now();
     response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
@@ -672,7 +807,7 @@ async function callPaddleOcrVlOnce(
       dispatcher: agent,
     });
 
-    const fetchDuration = Date.now() - startTime;
+    const fetchDuration = Date.now() - requestStartTime;
 
     responseText = await response.text();
 
@@ -685,17 +820,30 @@ async function callPaddleOcrVlOnce(
     });
   } catch (error) {
     const errorDetails = extractErrorDetails(error);
+    const elapsedMs = Date.now() - requestStartTime;
+    const errorCode = classifyOcrError(error, 0);
 
-    // Enhanced error logging with network configuration context
-    logger?.error('OCR API request failed', {
+    // C. OCR Request Result - Failure (network exception)
+    logger?.error('OCR request failed', {
       module: 'pdf_vl_ocr',
-      stage: 'request',
-      error: errorDetails, // Always contains detailed information, never empty {}
-      networkConfig: {
-        hostname: new URL(apiUrl).hostname,
-        overrideEnabled: ipOverride.enabled,
+      event: 'ocr-request-fail',
+      ocrJobId,
+      attempt,
+      statusCode: 0,
+      errorCode,
+      errName: errorDetails.name,
+      errMessage: errorDetails.message,
+      undiciCauseName: errorDetails.cause?.name,
+      undiciCauseCode: errorDetails.cause?.code,
+      causeSummary: errorDetails.cause
+        ? `${errorDetails.cause.name || 'Error'}: ${errorDetails.cause.code || errorDetails.cause.message || 'unknown'}`
+        : undefined,
+      endpointHost: apiUrlObj.host,
+      elapsedMs,
+      shouldRetry: isRetryableError(error, 0) && attempt <= config.retries,
+      networkMeta: {
         overrideIpState: ipOverride.state,
-        proxyConfigured, // Indicates if any proxy env vars are set
+        proxyPresent: { http: hasHttpProxy, https: hasHttpsProxy, noProxy: hasNoProxy },
       },
     });
 
@@ -720,11 +868,30 @@ async function callPaddleOcrVlOnce(
     agent.destroy();
   }
 
+  const elapsedMs = Date.now() - requestStartTime;
+
   // Check HTTP status
   if (!response.ok) {
+    const errorCode = classifyOcrError(null, response.status);
+
     // Sanitize response body for logging (truncate to 2KB max)
     const bodySample =
       responseText.length > 2048 ? responseText.slice(0, 2048) + '...(truncated)' : responseText;
+
+    // C. OCR Request Result - HTTP non-2xx
+    logger?.error('OCR request failed with HTTP error', {
+      module: 'pdf_vl_ocr',
+      event: 'ocr-request-fail',
+      ocrJobId,
+      attempt,
+      statusCode: response.status,
+      errorCode,
+      errMessage: `HTTP ${response.status} ${response.statusText}`,
+      endpointHost: apiUrlObj.host,
+      elapsedMs,
+      shouldRetry: isRetryableError(null, response.status) && attempt <= config.retries,
+      responseBodySnippet: bodySample.slice(0, 200),
+    });
 
     throw new OcrApiError(
       `PaddleOCR-VL API returned error: HTTP ${response.status} ${response.statusText}`,
@@ -738,8 +905,25 @@ async function callPaddleOcrVlOnce(
   try {
     parsedResponse = JSON.parse(responseText);
   } catch (error) {
+    const errorCode = classifyOcrError(error, response.status);
     const bodySample =
       responseText.length > 500 ? responseText.slice(0, 500) + '...' : responseText;
+
+    // C. OCR Request Result - Parse failure
+    logger?.error('OCR response parse failed', {
+      module: 'pdf_vl_ocr',
+      event: 'ocr-request-fail',
+      ocrJobId,
+      attempt,
+      statusCode: response.status,
+      errorCode,
+      errName: 'OcrParseError',
+      errMessage: error instanceof Error ? error.message : String(error),
+      endpointHost: apiUrlObj.host,
+      elapsedMs,
+      shouldRetry: false,
+    });
+
     throw new OcrParseError(
       `Failed to parse PaddleOCR-VL API response as JSON: ${error instanceof Error ? error.message : String(error)}`,
       bodySample,
@@ -748,6 +932,21 @@ async function callPaddleOcrVlOnce(
 
   // Check for API-level errors
   if (parsedResponse.error) {
+    const errorCode = classifyOcrError(parsedResponse, response.status);
+
+    logger?.error('OCR API returned error', {
+      module: 'pdf_vl_ocr',
+      event: 'ocr-request-fail',
+      ocrJobId,
+      attempt,
+      statusCode: response.status,
+      errorCode,
+      errMessage: parsedResponse.error,
+      endpointHost: apiUrlObj.host,
+      elapsedMs,
+      shouldRetry: false,
+    });
+
     throw new OcrApiError(
       `PaddleOCR-VL API error: ${parsedResponse.error}`,
       response.status,
@@ -758,6 +957,21 @@ async function callPaddleOcrVlOnce(
   // Extract result
   const layoutResults = parsedResponse.result?.layoutParsingResults;
   if (!layoutResults || layoutResults.length === 0) {
+    const errorCode = classifyOcrError(new Error('empty layoutParsingResults'), response.status);
+
+    logger?.error('OCR response empty', {
+      module: 'pdf_vl_ocr',
+      event: 'ocr-request-fail',
+      ocrJobId,
+      attempt,
+      statusCode: response.status,
+      errorCode,
+      errMessage: 'Empty layoutParsingResults',
+      endpointHost: apiUrlObj.host,
+      elapsedMs,
+      shouldRetry: false,
+    });
+
     throw new OcrParseError(
       'PaddleOCR-VL API returned empty layoutParsingResults',
       JSON.stringify(parsedResponse).slice(0, 500),
@@ -769,17 +983,41 @@ async function callPaddleOcrVlOnce(
   const images = firstResult.markdown?.images;
 
   if (!markdown) {
+    const errorCode = classifyOcrError(new Error('no markdown text'), response.status);
+
+    logger?.error('OCR result missing markdown', {
+      module: 'pdf_vl_ocr',
+      event: 'ocr-request-fail',
+      ocrJobId,
+      attempt,
+      statusCode: response.status,
+      errorCode,
+      errMessage: 'No markdown text in result',
+      endpointHost: apiUrlObj.host,
+      elapsedMs,
+      shouldRetry: false,
+    });
+
     throw new OcrParseError(
       'PaddleOCR-VL API did not return markdown text',
       JSON.stringify(firstResult).slice(0, 500),
     );
   }
 
-  logger?.info('OCR parsing successful', {
+  // C. OCR Request Result - Success
+  logger?.info('OCR request succeeded', {
     module: 'pdf_vl_ocr',
-    stage: 'success',
-    markdownLength: markdown.length,
-    imageCount: images ? Object.keys(images).length : 0,
+    event: 'ocr-request-success',
+    ocrJobId,
+    attempt,
+    statusCode: response.status,
+    requestId: undefined, // API doesn't provide request ID
+    elapsedMs,
+    responseMeta: {
+      markdownChars: markdown.length,
+      imagesCount: images ? Object.keys(images).length : 0,
+      outputImagesCount: firstResult.outputImages?.length || 0,
+    },
   });
 
   return {
@@ -797,8 +1035,10 @@ export async function callPaddleOcrVl(
   apiUrl: string,
   token: string,
   logger?: Logger,
+  ocrJobId?: string,
 ): Promise<PaddleOcrVlResult> {
   const config = getOcrConfig();
+  const jobId = ocrJobId || generateOcrJobId();
 
   // Validate API URL first
   validateApiUrl(apiUrl);
@@ -807,6 +1047,7 @@ export async function callPaddleOcrVl(
   logger?.info('OCR API call starting', {
     module: 'pdf_vl_ocr',
     stage: 'init',
+    ocrJobId: jobId,
     apiUrlDomain: new URL(apiUrl).hostname,
     nodeVersion: process.version,
     platform: process.platform,
@@ -824,11 +1065,13 @@ export async function callPaddleOcrVl(
     logger?.info('Running network diagnostics', {
       module: 'pdf_vl_ocr',
       stage: 'diagnostics',
+      ocrJobId: jobId,
     });
     const diagResult = await runNetworkDiagnostics(apiUrl, logger);
     logger?.info('Network diagnostics complete', {
       module: 'pdf_vl_ocr',
       stage: 'diagnostics',
+      ocrJobId: jobId,
       result: diagResult,
     });
   }
@@ -836,28 +1079,35 @@ export async function callPaddleOcrVl(
   // Retry loop
   let lastError: Error | undefined;
   let lastStatusCode = 0;
+  let retryCount = 0;
 
-  for (let attempt = 0; attempt <= config.retries; attempt++) {
-    if (attempt > 0) {
-      const delay = calculateBackoff(attempt - 1);
+  for (let attempt = 1; attempt <= config.retries + 1; attempt++) {
+    if (attempt > 1) {
+      retryCount++;
+      const delay = calculateBackoff(attempt - 2);
+      const nextBackoffMs = Math.round(delay);
 
       // Extract error details for retry logging
       const errorInfo = lastError ? extractErrorDetails(lastError) : {};
+      const errorCode = lastError ? classifyOcrError(lastError, lastStatusCode) : 'OCR_UNKNOWN';
 
       logger?.info('Retrying OCR API call', {
         module: 'pdf_vl_ocr',
         stage: 'retry',
+        ocrJobId: jobId,
         attempt,
-        maxRetries: config.retries,
-        delayMs: Math.round(delay),
-        lastErrorCode: errorInfo.code || errorInfo.cause?.code,
+        maxAttempts: config.retries + 1,
+        delayMs: nextBackoffMs,
+        nextBackoffMs,
+        lastErrorCode: errorCode,
+        lastCauseCode: errorInfo.code || errorInfo.cause?.code,
         lastErrorMessage: errorInfo.message,
       });
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
 
     try {
-      return await callPaddleOcrVlOnce(pdfBuffer, apiUrl, token, config, logger);
+      return await callPaddleOcrVlOnce(pdfBuffer, apiUrl, token, config, attempt, jobId, logger);
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 
@@ -867,29 +1117,22 @@ export async function callPaddleOcrVl(
       }
 
       // Check if error is retryable
-      const shouldRetry = attempt < config.retries && isRetryableError(error, lastStatusCode);
-
-      const errorDetails = extractErrorDetails(error);
-      logger?.warn('OCR API call failed', {
-        module: 'pdf_vl_ocr',
-        stage: 'error',
-        attempt: attempt + 1,
-        maxAttempts: config.retries + 1,
-        shouldRetry,
-        statusCode: lastStatusCode,
-        error: errorDetails,
-      });
+      const shouldRetry = attempt <= config.retries && isRetryableError(error, lastStatusCode);
 
       if (!shouldRetry) {
-        // Log 4xx errors with response body snippet
-        if (lastStatusCode >= 400 && lastStatusCode < 500 && error instanceof OcrApiError) {
-          logger?.error('Client error from OCR API', {
-            module: 'pdf_vl_ocr',
-            stage: 'client_error',
-            statusCode: lastStatusCode,
-            responseBodySnippet: error.responseBody,
-          });
-        }
+        // Log final failure
+        const errorDetails = extractErrorDetails(error);
+        const errorCode = classifyOcrError(error, lastStatusCode);
+        logger?.error('OCR API call failed permanently', {
+          module: 'pdf_vl_ocr',
+          stage: 'final_error',
+          ocrJobId: jobId,
+          attempt,
+          maxAttempts: config.retries + 1,
+          statusCode: lastStatusCode,
+          errorCode,
+          error: errorDetails,
+        });
         throw error;
       }
     }
