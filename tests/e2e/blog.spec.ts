@@ -18,6 +18,17 @@ const ensureHashNavigation = async (page: any, tocSelector: string) => {
     .toBe(targetHash);
 };
 
+const navigateToHomePage = async (page: any) => {
+  await page.goto('/');
+  const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
+  if (await notFoundHeading.count()) {
+    const baseLink = page.locator('a[href="/blog/"]');
+    if (await baseLink.count()) {
+      await baseLink.first().click();
+    }
+  }
+};
+
 const openFirstPostWithToc = async (page: any) => {
   await page.goto('/');
   const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
@@ -214,16 +225,8 @@ test.describe('Blog smoke journey', () => {
     // Test mobile viewport (< sm breakpoint = 640px)
     const mobileContext = await browser.newContext({ viewport: { width: 375, height: 812 } });
     const mobilePage = await mobileContext.newPage();
-    
-    // Navigate to the home page (handle base path)
-    await mobilePage.goto('/');
-    const notFoundHeading = mobilePage.locator('h1', { hasText: '404: Not found' });
-    if (await notFoundHeading.count()) {
-      const baseLink = mobilePage.locator('a[href="/blog/"]');
-      if (await baseLink.count()) {
-        await baseLink.first().click();
-      }
-    }
+
+    await navigateToHomePage(mobilePage);
 
     // Check site header exists
     const header = mobilePage.locator('[data-header]');
@@ -254,16 +257,8 @@ test.describe('Blog smoke journey', () => {
     // Test desktop viewport (≥ sm breakpoint = 640px)
     const desktopContext = await browser.newContext({ viewport: { width: 1024, height: 768 } });
     const desktopPage = await desktopContext.newPage();
-    
-    // Navigate to the home page (handle base path)
-    await desktopPage.goto('/');
-    const notFoundHeadingDesktop = desktopPage.locator('h1', { hasText: '404: Not found' });
-    if (await notFoundHeadingDesktop.count()) {
-      const baseLink = desktopPage.locator('a[href="/blog/"]');
-      if (await baseLink.count()) {
-        await baseLink.first().click();
-      }
-    }
+
+    await navigateToHomePage(desktopPage);
 
     // Check site header exists
     const desktopHeader = desktopPage.locator('[data-header]');
