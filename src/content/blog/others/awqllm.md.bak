@@ -1,7 +1,7 @@
 ---
 lang: zh
 translatedFrom: en
-title: AWQ：面向设备端 LLM 压缩与加速的激活感知权重量化
+title: AWQ：面向设备端LLM压缩与加速的激活感知权重量化
 slug: awqllm
 date: '2026-01-28'
 tags: []
@@ -15,7 +15,7 @@ source:
 cover: /images/others/2306.00978/img_in_image_box_615_896_1082_1062.jpg
 ---
 
-# AWQ：面向设备端 LLM 压缩与加速的激活感知权重量化
+# AWQ：面向设备端LLM压缩与加速的激活感知权重量化
 
 Ji Lin$^{*1}$Jiaming Tang$^{*1,2}$Haotian Tang$^{\dagger1}$Shang Yang$^{\dagger1}$Wei-Ming Chen$^{3}$Wei-Chen Wang$^{1}$Guangxuan Xiao$^{1}$Xingyu Dang$^{1,4}$Chuang Gan$^{5,6}$Song Han$^{1,3}$
 
@@ -23,59 +23,59 @@ Ji Lin$^{*1}$Jiaming Tang$^{*1,2}$Haotian Tang$^{\dagger1}$Shang Yang$^{\dagger1
 
 ## 摘要
 
-大型语言模型（LLMs）已经改变了众多人工智能应用。设备端 LLM 正变得越来越重要：在边缘设备上本地运行 LLM 可以降低云计算成本并保护用户隐私。然而，巨大的模型尺寸和有限的硬件资源带来了显著的部署挑战。我们提出了激活感知权重量化（AWQ），一种面向硬件的 LLM 低比特仅权重量化方法。AWQ 发现并非 LLM 中的所有权重都同等重要。仅保护 1%的关键权重就能大幅减少量化误差。为了识别关键权重通道，我们应该参考激活分布，而非权重。为了避免硬件效率低下的混合精度量化，我们通过数学推导得出，放大关键通道可以减少量化误差。AWQ 采用等效变换来放大关键权重通道以保护它们。缩放因子通过离线收集激活统计量确定。AWQ 不依赖任何反向传播或重构，因此能泛化到不同领域和模态，而不会过拟合校准集。AWQ 在各种语言建模和领域特定基准测试（编码和数学）上优于现有工作。得益于更好的泛化能力，它在指令调优的 LM 上实现了优异的量化性能，并首次在多模态 LM 上实现。除了 AWQ，我们还实现了 TinyChat，一个专为 4 位设备端 LLM/VLM 设计的高效灵活推理框架。通过内核融合和平台感知的权重打包，TinyChat 在桌面和移动 GPU 上相比 Huggingface FP16 实现提供了超过 3 倍的加速。它还使得 70B Llama-2 模型在移动 GPU 上的部署成为可能。
+大型语言模型（LLMs）已经改变了众多人工智能应用。设备端LLM正变得越来越重要：在边缘设备上本地运行LLM可以降低云计算成本并保护用户隐私。然而，巨大的模型尺寸和有限的硬件资源带来了显著的部署挑战。我们提出了激活感知权重量化（AWQ），一种面向硬件的LLM低比特仅权重量化方法。AWQ发现并非LLM中的所有权重都同等重要。仅保护1%的关键权重就能大幅减少量化误差。为了识别关键权重通道，我们应该参考激活分布，而非权重。为了避免硬件效率低下的混合精度量化，我们通过数学推导得出，放大关键通道可以减少量化误差。AWQ采用等效变换来放大关键权重通道以保护它们。缩放因子通过离线收集激活统计量确定。AWQ不依赖任何反向传播或重构，因此能泛化到不同领域和模态，而不会过拟合校准集。AWQ在各种语言建模和领域特定基准测试（编码和数学）上优于现有工作。得益于更好的泛化能力，它在指令调优的LM上实现了优异的量化性能，并首次在多模态LM上实现。除了AWQ，我们还实现了TinyChat，一个专为4位设备端LLM/VLM设计的高效灵活推理框架。通过内核融合和平台感知的权重打包，TinyChat在桌面和移动GPU上相比Huggingface FP16实现提供了超过3倍的加速。它还使得70B Llama-2模型在移动GPU上的部署成为可能。
 
 ## 1 引言
 
-直接在边缘设备上部署大型语言模型（LLMs）至关重要。设备端使用消除了将数据发送到云服务器造成的延迟，并使 LLM 能够离线运行，这对于虚拟助手、聊天机器人和自动驾驶汽车等实时应用有益。与维护和扩展集中式云基础设施相关的运营成本也可以降低。设备端 LLM 还通过将敏感信息保留在本地来增强数据安全性，减少数据泄露的风险。LLMs 基于 Transformer 架构（Vaswani 等人，2017 年），因其在各种基准测试中的出色表现而受到广泛关注（Brown 等人，2020 年；Zhang 等人，2022 年；Touvron 等人，2022 年）。
+直接在边缘设备上部署大型语言模型（LLMs）至关重要。设备端使用消除了将数据发送到云服务器造成的延迟，并使LLM能够离线运行，这对于虚拟助手、聊天机器人和自动驾驶汽车等实时应用有益。与维护和扩展集中式云基础设施相关的运营成本也可以降低。设备端LLM还通过将敏感信息保留在本地来增强数据安全性，减少数据泄露的风险。LLMs基于Transformer架构（Vaswani等人，2017年），因其在各种基准测试中的出色表现而受到广泛关注（Brown等人，2020年；Zhang等人，2022年；Touvron等人，2022年）。
 
 <div style="text-align: center;"><img src="imgs/img_in_image_box_615_896_1082_1062.jpg" alt="Image" width="38%" /></div>
 
-<div style="text-align: center;">图 1. 我们介绍了 AWQ，一种适用于 LLM 的多功能权重量化方法。为了实现 AWQ，我们开发了 TinyChat 将 4 位量化 LLM 部署到各种边缘平台，相比 FP16 实现了 3-4 倍的性能提升。值得注意的是，我们还制造了一台 TinyChat 计算机，由 TinyChat 驱动，包含一个仅 8GB 内存和 15W 功耗的 NVIDIA Jetson Orin Nano。演示：https://youtu.be/z91a8DrfgEw.</div>
+<div style="text-align: center;">Figure 1. We introduce AWQ, a versatile weight quantization method for LLM. To implement AWQ, we developed TinyChat to deploy 4-bit quantized LLMs into various edge platforms, achieving a 3-4× performance boost compared to FP16. Notably, we've also manufactured a TinyChat computer, powered by TinyChat, which contains an NVIDIA Jetson Orin Nano with only 8GB of memory and 15W power consumption. Demo: https://youtu.be/z91a8DrfgEw.</div>
 
-LLMs 的低比特权重量化可以显著减少设备端 LLM 推理的内存占用，但很困难。量化感知训练（QAT）由于高训练成本而不高效，而后训练量化（PTQ）在低比特设置下遭受大的精度下降。最接近的工作是 GPTQ（Frantar 等人，2022 年），它使用二阶信息进行误差补偿。然而，它可能在重构过程中过拟合校准集，扭曲在分布外领域学习到的特征（图 8），这是有问题的，因为 LLMs 是通用模型。
+LLMs的低比特权重量化可以显著减少设备端LLM推理的内存占用，但很困难。量化感知训练（QAT）由于高训练成本而不高效，而后训练量化（PTQ）在低比特设置下遭受大的精度下降。最接近的工作是GPTQ（Frantar等人，2022年），它使用二阶信息进行误差补偿。然而，它可能在重构过程中过拟合校准集，扭曲在分布外领域学习到的特征（图8），这是有问题的，因为LLMs是通用模型。
 
-在本文中，我们提出了激活感知权重量化（AWQ），一种面向硬件的 LLM 低比特仅权重量化方法。我们的方法基于观察：权重对 LLMs 的性能并非同等重要。存在一小部分（0.1%-1%）关键权重；跳过这些关键权重的量化将显著减少量化损失（表 1）。为了找到关键权重通道，洞见是尽管我们进行仅权重量化，但应参考激活分布而非权重分布：对应较大激活幅度的权重通道更关键，因为它们处理更重要的特征。为了避免硬件效率低下的混合精度实现，我们分析了权重量化的误差，并推导出放大关键通道可以减少它们的相对量化误差（方程 2）。遵循这一直觉，我们设计了一种每通道缩放方法，以自动搜索在完全权重量化下最小化量化误差的最佳缩放。AWQ 不依赖任何反向传播或重构，因此能很好地保留 LLMs 在各种领域和模态上的泛化能力，而不会过拟合校准集。
+在本文中，我们提出了激活感知权重量化（AWQ），一种面向硬件的LLM低比特仅权重量化方法。我们的方法基于观察：权重对LLMs的性能并非同等重要。存在一小部分（0.1%-1%）关键权重；跳过这些关键权重的量化将显著减少量化损失（表1）。为了找到关键权重通道，洞见是尽管我们进行仅权重量化，但应参考激活分布而非权重分布：对应较大激活幅度的权重通道更关键，因为它们处理更重要的特征。为了避免硬件效率低下的混合精度实现，我们分析了权重量化的误差，并推导出放大关键通道可以减少它们的相对量化误差（方程2）。遵循这一直觉，我们设计了一种每通道缩放方法，以自动搜索在完全权重量化下最小化量化误差的最佳缩放。AWQ不依赖任何反向传播或重构，因此能很好地保留LLMs在各种领域和模态上的泛化能力，而不会过拟合校准集。
 
-为了实现 AWQ，我们设计了 TinyChat，一个高效的推理框架，将 4 位 LLM 的理论内存节省转化为实测加速。我们的框架通过即时反量化显著加速线性层。我们还利用高效的 4 位权重打包和内核融合来最小化推理开销（例如，中间 DRAM 访问和内核启动开销），从而更好地实现从权重量化到 4 位带来的加速，尽管计算机是字节对齐的。
+为了实现AWQ，我们设计了TinyChat，一个高效的推理框架，将4位LLM的理论内存节省转化为实测加速。我们的框架通过即时反量化显著加速线性层。我们还利用高效的4位权重打包和内核融合来最小化推理开销（例如，中间DRAM访问和内核启动开销），从而更好地实现从权重量化到4位带来的加速，尽管计算机是字节对齐的。
 
 实验表明，AWQ在不同模型家族（例如，LLaMA（Touvron等人，2023年a）、OPT（Zhang等人，2022年））和模型尺寸的各种任务上优于现有工作。得益于更好的泛化能力，它还在指令调优的LM（例如，Vicuna）上实现了良好的量化性能，并首次在多模态LM（OpenFlamingo（Awadalla等人，2023年））上实现。TinyChat进一步将$\sim4\times$以较低的内存占用实现实测加速。在桌面、笔记本和移动GPU上，我们一致观察到，与Huggingface的FP16实现相比，在多样化的LLM频谱中平均加速达到3.2-3.3倍。此外，它使得Llama-2-70B模型能够轻松部署在单个64GB内存的NVIDIA Jetson Orin上。它还在仅8GB内存的笔记本RTX 4070 GPU上，以30 tokens/秒的交互速度普及了130亿参数LLM。AWQ已被工业和开源社区广泛采用：HuggingFace Transformers、NVIDIA TensorRT-LLM、Microsoft DirectML、Google Vertex AI、Intel Neural Compressor、Amazon Sagemaker、AMD、FastChat、vLLM、LMDploy，并使得Falcon-180B可在单个H200 GPU上部署。
 
 ## 2 相关工作
 
-模型量化方法。量化降低了深度学习模型的比特精度（Han 等人，2016；Jacob 等人，2018；Nagel 等人，2019；Wang 等人，2019；Nagel 等人，2020；Lin 等人，2020），这有助于减小模型大小并加速推理。量化技术通常分为两类：量化感知训练（QAT，依赖反向传播更新量化权重）（Bengio 等人，2013；Gholami 等人，2021；Nagel 等人，2021；Choi 等人，2018）和后训练量化（Jacob 等人，2018；Nagel 等人，2019；2020）（PTQ，通常无需训练）。QAT 方法难以扩展到像 LLM 这样的大型模型。因此，人们通常使用 PTQ 方法来量化 LLM。
+模型量化方法。量化降低了深度学习模型的比特精度（Han等人，2016；Jacob等人，2018；Nagel等人，2019；Wang等人，2019；Nagel等人，2020；Lin等人，2020），这有助于减小模型大小并加速推理。量化技术通常分为两类：量化感知训练（QAT，依赖反向传播更新量化权重）（Bengio等人，2013；Gholami等人，2021；Nagel等人，2021；Choi等人，2018）和后训练量化（Jacob等人，2018；Nagel等人，2019；2020）（PTQ，通常无需训练）。QAT方法难以扩展到像LLM这样的大型模型。因此，人们通常使用PTQ方法来量化LLM。
 
-LLM 的量化。人们研究 LLM 量化的两种设置：（1）W8A8 量化，其中激活和权重都被量化为 INT8（Dettmers 等人，2022；Xiao 等人，2022；Yao 等人，2022；Wei 等人，2022a；2023）；（2）低比特仅权重量化（例如，W4A16），其中仅权重被量化为低比特整数（Frantar 等人，2022；Dettmers & Zettlemoyer，2022；Sheng 等人，2023；Park 等人，2022）。我们在本工作中专注于第二种设置，因为它不仅降低了硬件门槛（需要更小的内存大小），还加速了 token 生成（缓解内存受限工作负载）。除了普通的最近舍入基线（RTN），GPTQ（Frantar 等人，2022）是与我们工作最接近的。然而，GPTQ 的重建过程会导致对校准集的过拟合问题，可能无法保留 LLM 在其他模态和领域的通用能力。它还需要重排序技巧才能适用于某些模型（例如，LLaMA-7B（Touvron 等人，2023a）和 OPT-66B（Zhang 等人，2022））。除了为通用硬件设计的量化方法外，SpAtten（Wang 等人，2020）设计了一种渐进方法，逐步增加 softmax 计算中使用的比特数。
+LLM的量化。人们研究LLM量化的两种设置：（1）W8A8量化，其中激活和权重都被量化为INT8（Dettmers等人，2022；Xiao等人，2022；Yao等人，2022；Wei等人，2022a；2023）；（2）低比特仅权重量化（例如，W4A16），其中仅权重被量化为低比特整数（Frantar等人，2022；Dettmers & Zettlemoyer，2022；Sheng等人，2023；Park等人，2022）。我们在本工作中专注于第二种设置，因为它不仅降低了硬件门槛（需要更小的内存大小），还加速了token生成（缓解内存受限工作负载）。除了普通的最近舍入基线（RTN），GPTQ（Frantar等人，2022）是与我们工作最接近的。然而，GPTQ的重建过程会导致对校准集的过拟合问题，可能无法保留LLM在其他模态和领域的通用能力。它还需要重排序技巧才能适用于某些模型（例如，LLaMA-7B（Touvron等人，2023a）和OPT-66B（Zhang等人，2022））。除了为通用硬件设计的量化方法外，SpAtten（Wang等人，2020）设计了一种渐进方法，逐步增加softmax计算中使用的比特数。
 
-对低比特量化 LLM 的系统支持。低比特量化 LLM 已成为降低推理成本的流行设置。
+对低比特量化LLM的系统支持。低比特量化LLM已成为降低推理成本的流行设置。
 
 <div style="text-align: center;"><img src="imgs/img_in_image_box_112_131_1083_355.jpg" alt="Image" width="79%" /></div>
 
-<div style="text-align: center;">图 2. 我们观察到可以基于激活分布（中间）在 LLM 中找到 1% 的显著权重。将显著权重保持在 FP16 可以显著改善量化性能（PPL 从 43.2（左）到 13.0（中间）），但混合精度格式不够硬件高效。我们遵循激活感知原则并提出 AWQ（右）。AWQ 执行逐通道缩放以保护显著权重并减少量化误差。我们在 INT3-g128 量化下测量 OPT-6.7B 的困惑度。</div>
+<div style="text-align: center;">Figure 2. We observe that we can find 1% of the salient weights in LLMs based on the activation distribution (middle). Keeping the salient weights in FP16 can significantly improve the quantized performance (PPL from 43.2 (left) to 13.0 (middle)), but the mixed-precision format is not hardware-efficient. We follow the activation-awareness principle and propose AWQ (right). AWQ performs per-channel scaling to protect the salient weights and reduce quantization error. We measure the perplexity of OPT-6.7B under INT3-g128 quantization.</div>
 
-有一些系统支持来实现实际的加速。GPTQ（Frantar 等人，2022）为 OPT 模型提供 INT3 内核，而 GPTQ-for-LLaMA 借助 Triton（Tillet 等人，2019）扩展了对 INT4 重排序量化的内核支持。FlexGen（Sheng 等人，2023）、llama.cpp$^{*}$ 和 exllama$^{\dagger}$ 执行分组 INT4 量化以减少 I/O 成本和卸载。FasterTransformer 实现了 FP16×INT4 GEMM 用于仅权重的每张量量化，但不支持分组量化。LUT-GEMM（Park 等人，2022）借助查找表在 GPU CUDA 核心上执行位运算。我们的并行工作，MLC-LLM（MLC-Team，2023）凭借强大的 TVM（Chen 等人，2018；Feng 等人，2023）后端，在多个边缘 CPU 和 GPU 平台上提供了强劲的结果。
+有一些系统支持来实现实际的加速。GPTQ（Frantar等人，2022）为OPT模型提供INT3内核，而GPTQ-for-LLaMA借助Triton（Tillet等人，2019）扩展了对INT4重排序量化的内核支持。FlexGen（Sheng等人，2023）、llama.cpp$^{*}$和exllama$^{\dagger}$执行分组INT4量化以减少I/O成本和卸载。FasterTransformer实现了FP16×INT4 GEMM用于仅权重的每张量量化，但不支持分组量化。LUT-GEMM（Park等人，2022）借助查找表在GPU CUDA核心上执行位运算。我们的并行工作，MLC-LLM（MLC-Team，2023）凭借强大的TVM（Chen等人，2018；Feng等人，2023）后端，在多个边缘CPU和GPU平台上提供了强劲的结果。
 
-## 3 AWQ：激活感知权重量化
+## 3 AWO：激活感知权重量化
 
-量化将浮点数映射到低比特整数。它是减小 LLM 模型大小和推理成本的有效方法（Dettmers 等人，2022；Frantar 等人，2022；Yao 等人，2022；Xiao 等人，2022）。在本节中，我们首先提出一种仅权重量化方法，通过保护更多“重要”权重来提高精度，无需训练/回归。然后开发一种数据驱动方法来搜索减少量化误差的最优缩放（图 2）。
+量化将浮点数映射到低比特整数。它是减小LLM模型大小和推理成本的有效方法（Dettmers等人，2022；Frantar等人，2022；Yao等人，2022；Xiao等人，2022）。在本节中，我们首先提出一种仅权重量化方法，通过保护更多“重要”权重来提高精度，无需训练/回归。然后开发一种数据驱动方法来搜索减少量化误差的最优缩放（图2）。
 
-### 3.1 通过保留 1%显著权重改进 LLM 量化
+### 3.1 通过保留1%显著权重改进LLM量化
 
 我们观察到LLM的权重并非同等重要：有一小部分显著权重对LLM性能比其他权重重要得多。跳过这些显著权重的量化可以帮助弥补由于量化损失导致的性能下降，无需任何训练或回归（图2(b)）。为了验证这一想法，我们在表1中基准测试了跳过部分权重通道时量化LLM的性能。我们测量了INT3量化模型的性能，同时保持一定比例的权重通道为FP16。确定权重重要性的常用方法是查看其幅度或$L_{2}$范数（Han等人，2015；Frankle & Carbin，2018）。但我们发现跳过具有大范数的权重通道（即基于W的FP16%）并未显著改善量化性能，导致与随机选择类似的边际改进。有趣的是，基于激活幅度选择权重可以显著提高性能，尽管仅保持0.1%-1%的通道为FP16。我们假设幅度较大的输入特征通常更重要。保持相应权重为FP16可以保留这些特征，从而有助于更好的模型性能。
 
-局限性：尽管将 0.1%的权重保留为 FP16 可以在不明显增加模型大小（以总比特数衡量）的情况下提升量化性能，但这种混合精度数据类型会使系统实现变得困难。我们需要提出一种方法，在不实际将重要权重保留为 FP16 的情况下保护它们。
+局限性：尽管将0.1%的权重保留为FP16可以在不明显增加模型大小（以总比特数衡量）的情况下提升量化性能，但这种混合精度数据类型会使系统实现变得困难。我们需要提出一种方法，在不实际将重要权重保留为FP16的情况下保护它们。
 
 ### 3.2 通过激活感知缩放保护显著权重
 
 我们提出一种替代方法，通过逐通道缩放来减少显著权重的量化误差，这种方法不受硬件效率低下的影响。
 
-#### 3.2.1 分析量化误差
+## 分析量化误差
 
-我们首先分析仅权重量化带来的误差。考虑一组/块权重 w；线性操作可以写为 y = wx，量化后的对应操作为 $y = Q(\mathbf{w})\mathbf{x}$。具体来说，量化
+我们首先分析仅权重量化带来的误差。考虑一组/块权重w；线性操作可以写为y = wx，量化后的对应操作为$y = Q(\mathbf{w})\mathbf{x}$。具体来说，量化
 
 <table border=1 style='margin: auto; word-wrap: break-word;'><tr><td rowspan="2">PPL  $\downarrow$</td><td rowspan="2">FP16</td><td rowspan="2">RTN (w3-g128)</td><td colspan="3">FP16% (based on act.)</td><td colspan="3">FP16% (based on W)</td><td colspan="3">FP16% (random)</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>0.1%</td><td style='text-align: center; word-wrap: break-word;'>1%</td><td style='text-align: center; word-wrap: break-word;'>3%</td><td style='text-align: center; word-wrap: break-word;'>0.1%</td><td style='text-align: center; word-wrap: break-word;'>1%</td><td style='text-align: center; word-wrap: break-word;'>3%</td><td style='text-align: center; word-wrap: break-word;'>0.1%</td><td style='text-align: center; word-wrap: break-word;'>1%</td><td style='text-align: center; word-wrap: break-word;'>3%</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>OPT-1.3B</td><td style='text-align: center; word-wrap: break-word;'>14.62</td><td style='text-align: center; word-wrap: break-word;'>119.00</td><td style='text-align: center; word-wrap: break-word;'>25.03</td><td style='text-align: center; word-wrap: break-word;'>16.91</td><td style='text-align: center; word-wrap: break-word;'>16.68</td><td style='text-align: center; word-wrap: break-word;'>108.71</td><td style='text-align: center; word-wrap: break-word;'>98.55</td><td style='text-align: center; word-wrap: break-word;'>98.08</td><td style='text-align: center; word-wrap: break-word;'>119.76</td><td style='text-align: center; word-wrap: break-word;'>109.38</td><td style='text-align: center; word-wrap: break-word;'>61.49</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>OPT-6.7B</td><td style='text-align: center; word-wrap: break-word;'>10.86</td><td style='text-align: center; word-wrap: break-word;'>23.54</td><td style='text-align: center; word-wrap: break-word;'>11.58</td><td style='text-align: center; word-wrap: break-word;'>11.39</td><td style='text-align: center; word-wrap: break-word;'>11.36</td><td style='text-align: center; word-wrap: break-word;'>23.41</td><td style='text-align: center; word-wrap: break-word;'>22.37</td><td style='text-align: center; word-wrap: break-word;'>22.45</td><td style='text-align: center; word-wrap: break-word;'>23.54</td><td style='text-align: center; word-wrap: break-word;'>24.23</td><td style='text-align: center; word-wrap: break-word;'>24.22</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>OPT-13B</td><td style='text-align: center; word-wrap: break-word;'>10.13</td><td style='text-align: center; word-wrap: break-word;'>46.04</td><td style='text-align: center; word-wrap: break-word;'>10.51</td><td style='text-align: center; word-wrap: break-word;'>10.43</td><td style='text-align: center; word-wrap: break-word;'>10.42</td><td style='text-align: center; word-wrap: break-word;'>46.07</td><td style='text-align: center; word-wrap: break-word;'>48.96</td><td style='text-align: center; word-wrap: break-word;'>54.49</td><td style='text-align: center; word-wrap: break-word;'>44.87</td><td style='text-align: center; word-wrap: break-word;'>42.00</td><td style='text-align: center; word-wrap: break-word;'>39.71</td></tr></table>
 
-<div style="text-align: center;">表 1. 将一小部分权重（0.1%-1%）保持在 FP16 可以显著改善量化模型相对于最近舍入（RTN）的性能。只有当我们通过查看激活分布而不是权重分布来选择 FP16 中的重要权重时，它才有效。我们用绿色突出显示具有合理困惑度的结果。我们使用分组大小为 128 的 INT3 量化并测量 WikiText 困惑度（ $\downarrow$ ）。</div>
+<div style="text-align: center;">Table 1. Keeping a small fraction of weights (0.1%-1%) in FP16 significantly improves the performance of the quantized models over round-to-nearest (RTN). It is only effective when we select the important weights in FP16 by looking at activation distribution instead of weight distribution. We highlight results with a decent perplexity in green. We used INT3 quantization with a group size of 128 and measured the WikiText perplexity ( $\downarrow$ ).</div>
 
 $s=1\ s=1.25\ s=1.5\ s=2\ s=4$
 
@@ -87,34 +87,33 @@ $\frac{\Delta^{^{\prime}}}{\Delta}\cdot\frac{1}{s}$
 
 <table border=1 style='margin: auto; word-wrap: break-word;'><tr><td style='text-align: center; word-wrap: break-word;'>OPT-6.7B</td><td style='text-align: center; word-wrap: break-word;'>s=1</td><td style='text-align: center; word-wrap: break-word;'>s=1.25</td><td style='text-align: center; word-wrap: break-word;'>s=1.5</td><td style='text-align: center; word-wrap: break-word;'>s=2</td><td style='text-align: center; word-wrap: break-word;'>s=4</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>proportion of  $\Delta^{\prime}\neq\Delta$</td><td style='text-align: center; word-wrap: break-word;'>0%</td><td style='text-align: center; word-wrap: break-word;'>2.8%</td><td style='text-align: center; word-wrap: break-word;'>4.4%</td><td style='text-align: center; word-wrap: break-word;'>8.2%</td><td style='text-align: center; word-wrap: break-word;'>21.2%</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>average  $\Delta^{\prime}/\Delta$</td><td style='text-align: center; word-wrap: break-word;'>1</td><td style='text-align: center; word-wrap: break-word;'>1.005</td><td style='text-align: center; word-wrap: break-word;'>1.013</td><td style='text-align: center; word-wrap: break-word;'>1.038</td><td style='text-align: center; word-wrap: break-word;'>1.213</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>average  $\frac{\Delta^{\prime}}{\Delta}\cdot\frac{1}{s}$</td><td style='text-align: center; word-wrap: break-word;'>1</td><td style='text-align: center; word-wrap: break-word;'>0.804</td><td style='text-align: center; word-wrap: break-word;'>0.676</td><td style='text-align: center; word-wrap: break-word;'>0.519</td><td style='text-align: center; word-wrap: break-word;'>0.303</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>Wiki-2 PPL</td><td style='text-align: center; word-wrap: break-word;'>23.54</td><td style='text-align: center; word-wrap: break-word;'>12.87</td><td style='text-align: center; word-wrap: break-word;'>12.48</td><td style='text-align: center; word-wrap: break-word;'>11.92</td><td style='text-align: center; word-wrap: break-word;'>12.36</td></tr></table>
 
-<div style="text-align: center;">表 2. 将 1% 显著通道乘以 s > 1 时的统计数据。放大显著通道显著改善了困惑度（从 23.54 到 11.92）。随着 s 变大，改变的 $\Delta$ 百分比增加，显著通道的误差减少率也增加。然而，最佳困惑度在 s = 2 时达到，因为进一步增加 s 会增加非显著通道的量化误差。</div>
+<div style="text-align: center;">Table 2. Statistics when multiplying the 1% salient channels by s > 1. Scaling up the salient channels significantly improves the perplexity (23.54 to 11.92). As s goes larger, the percentage of changed  $\Delta$  increases, and the error reduction rate for salient channels also increases. However, the best perplexity is achieved at s = 2, since further increasing s will increase the quantization error for non-salient channels.</div>
 
 函数定义为：
 
 $Q(\mathbf{w})=\Delta\cdot\mathrm{Round}(\frac{\mathbf{w}}{\Delta}),\quad\Delta=\frac{\max(|\mathbf{w}|)}{2^{N-1}},$
 
-其中 N 是量化比特数，$\Delta$ 是由绝对最大值决定的量化标量。现在考虑一个权重元素 $w \in w$，如果我们将 w 乘以 s > 1 并反向缩放 x，我们将得到 $Q(w \cdot s)(x/s)$，即：
+其中N是量化比特数，$\Delta$是由绝对最大值决定的量化标量。现在考虑一个权重元素$w \in w$，如果我们将w乘以s > 1并反向缩放x，我们将得到$Q(w \cdot s)(x/s)$，即：
 
 $Q(w\cdot s)\cdot\frac{x}{s}=\Delta^{^{\prime}}\cdot\mathrm{R o u n d}(\frac{w s}{\Delta^{^{\prime}}})\cdot x\cdot\frac{1}{s},$
 
-其中 $\Delta^{\prime}$ 是应用 s 后的新量化标量。我们经验性地发现：（1）来自 Round$(\cdot)$（记为 RoundErr$(\cdot)$）的期望误差不变：由于 round 函数将浮点数映射到整数，误差大致均匀分布在 $[0,0.5]$，导致平均误差为 0.25；即 RoundErr$(\cdot)$ $\sim$≈ 0.25。（2）放大单个元素 w 通常不会改变组 w 中的最大值。因此我们有 $\Delta^{\prime} \approx \Delta$；（3）由于 $\Delta$ 和 x 以 FP16 表示，它们没有量化误差。因此，方程 1 和 2 中的量化误差可以表示为
+其中$\Delta^{\prime}$是应用s后的新量化标量。我们经验性地发现：（1）来自Round$(\cdot)$（记为RoundErr$(\cdot)$）的期望误差不变：由于round函数将浮点数映射到整数，误差大致均匀分布在$[0,0.5]$，导致平均误差为0.25；即RoundErr$(\cdot)$ $\sim$≈ 0.25。（2）放大单个元素w通常不会改变组w中的最大值。因此我们有$\Delta^{\prime} \approx \Delta$；（3）由于$\Delta$和x以FP16表示，它们没有量化误差。因此，方程1和2中的量化误差可以表示为
 
 ```tex
-\begin{aligned}
-\mathrm{Err}(Q(w)x)&=\Delta\cdot\mathrm{RoundErr}(\frac{w}{\Delta})\cdot x\\
-\mathrm{Err}(Q(w\cdot s)(\frac{x}{s}))&=\Delta^{^{\prime}}\cdot\mathrm{RoundErr}(\frac{ws}{\Delta^{^{\prime}}})\cdot x\cdot\frac{1}{s}
-\end{aligned}
+\begin{aligned}\mathrm{Err}(Q(w)x)&=\Delta\cdot\mathrm{RoundErr}(\frac{w}{\Delta})\cdot x\\\mathrm{Err}(Q(w\cdot s)(\frac{x}{s}))&=\Delta^{^{\prime}}\cdot\mathrm{RoundErr}(\frac{ws}{\Delta^{^{\prime}}})\cdot x\cdot\frac{1}{s}\end{aligned}
 ```
+
+_Note: Math block could not be automatically fixed (Low confidence (low)). Showing as code._
 
 $s=2$
 
 <table border=1 style='margin: auto; word-wrap: break-word;'><tr><td style='text-align: center; word-wrap: break-word;'>OPT (PPL $\downarrow$ )</td><td style='text-align: center; word-wrap: break-word;'>1.3B</td><td style='text-align: center; word-wrap: break-word;'>2.7B</td><td style='text-align: center; word-wrap: break-word;'>6.7B</td><td style='text-align: center; word-wrap: break-word;'>13B</td><td style='text-align: center; word-wrap: break-word;'>30B</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>FP16</td><td style='text-align: center; word-wrap: break-word;'>14.62</td><td style='text-align: center; word-wrap: break-word;'>12.47</td><td style='text-align: center; word-wrap: break-word;'>10.86</td><td style='text-align: center; word-wrap: break-word;'>10.13</td><td style='text-align: center; word-wrap: break-word;'>9.56</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>RTN</td><td style='text-align: center; word-wrap: break-word;'>119.47</td><td style='text-align: center; word-wrap: break-word;'>298.00</td><td style='text-align: center; word-wrap: break-word;'>23.54</td><td style='text-align: center; word-wrap: break-word;'>46.04</td><td style='text-align: center; word-wrap: break-word;'>18.80</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>1% FP16</td><td style='text-align: center; word-wrap: break-word;'>16.91</td><td style='text-align: center; word-wrap: break-word;'>13.69</td><td style='text-align: center; word-wrap: break-word;'>11.39</td><td style='text-align: center; word-wrap: break-word;'>10.43</td><td style='text-align: center; word-wrap: break-word;'>9.85</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>s = 2</td><td style='text-align: center; word-wrap: break-word;'>18.63</td><td style='text-align: center; word-wrap: break-word;'>14.94</td><td style='text-align: center; word-wrap: break-word;'>11.92</td><td style='text-align: center; word-wrap: break-word;'>10.80</td><td style='text-align: center; word-wrap: break-word;'>10.32</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>AWQ</td><td style='text-align: center; word-wrap: break-word;'>16.32</td><td style='text-align: center; word-wrap: break-word;'>13.58</td><td style='text-align: center; word-wrap: break-word;'>11.39</td><td style='text-align: center; word-wrap: break-word;'>10.56</td><td style='text-align: center; word-wrap: break-word;'>9.77</td></tr></table>
 
-<div style="text-align: center;">表 3. AWQ 通过使用基于缩放的方法保护显著权重并减少量化误差。它始终优于最近舍入量化（RTN）并实现与混合精度（1% FP16）相当的性能，同时更硬件友好。我们使用分组大小为 128 的 3 位量化。</div>
+<div style="text-align: center;">Table 3. AWQ protects salient weights and reduces quantization error by using a scaling-based method. It consistently outperforms Round-to-nearest quantization (RTN) and achieves comparable performance as mixed-precision (1% FP16) while being more hardware-friendly. We use 3-bit quantization with group size 128.</div>
 
-新误差与原始误差的比率为 $\frac{\Delta^{^{\prime}}}{\Delta} \cdot \frac{1}{s}$。给定 $\Delta^{^{\prime}} \approx \Delta$ 且 s > 1，显著权重 w 的相对误差更小。
+新误差与原始误差的比率为$\frac{\Delta^{^{\prime}}}{\Delta} \cdot \frac{1}{s}$。给定$\Delta^{^{\prime}} \approx \Delta$且s > 1，显著权重w的相对误差更小。
 
-为了验证这一想法，我们将 OPT-6.7B 模型中 1% 的显著通道乘以 s > 1，并测量表 2 中每组 $\Delta$ 的变化。我们发现放大显著通道非常有效：困惑度从 s = 1（简单 RTN）的 23.54 提升到 s = 2 的 11.92。随着 s 增大，改变的 $\Delta$ 百分比通常变得更大，但对于 s < 2，百分比仍然很小（小于 5%）；显著通道的相对误差随着 s 增加继续减小。然而，最佳 PPL 实际上出现在 s = 2。这是因为如果使用非常大的 s，当 $\Delta$ 增加时，会增加非显著通道的相对误差（非显著通道的误差将被 $\frac{\Delta'}{\Delta}$ 放大，在 s = 4 下，21.2% 的通道比率大于 1），这可能损害模型的整体准确性。因此，在保护显著通道时，我们还需要考虑非显著通道的误差。
+为了验证这一想法，我们将OPT-6.7B模型中1%的显著通道乘以s > 1，并测量表2中每组$\Delta$的变化。我们发现放大显著通道非常有效：困惑度从s = 1（简单RTN）的23.54提升到s = 2的11.92。随着s增大，改变的$\Delta$百分比通常变得更大，但对于s < 2，百分比仍然很小（小于5%）；显著通道的相对误差随着s增加继续减小。然而，最佳PPL实际上出现在s = 2。这是因为如果使用非常大的s，当$\Delta$增加时，会增加非显著通道的相对误差（非显著通道的误差将被$\frac{\Delta'}{\Delta}$放大，在s = 4下，21.2%的通道比率大于1），这可能损害模型的整体准确性。因此，在保护显著通道时，我们还需要考虑非显著通道的误差。
 
 搜索缩放因子。为了同时考虑显著和非显著权重，我们选择自动搜索最优的（每输入通道）缩放因子，以最小化特定层量化后的输出差异。
 
@@ -122,24 +121,23 @@ $s=2$
 
 <div style="text-align: center;"><img src="imgs/img_in_chart_box_370_135_725_295.jpg" alt="Image" width="29%" /></div>
 
-<div style="text-align: center;">（a）生成阶段更慢</div>
+<div style="text-align: center;">(a) Generation stage is slower</div>
 
 <div style="text-align: center;"><img src="imgs/img_in_chart_box_775_138_1056_299.jpg" alt="Image" width="22%" /></div>
 
-<div style="text-align: center;">（c）权重加载更昂贵</div>
+<div style="text-align: center;">(c) Weight loading is more expensive</div>
 
-<div style="text-align: center;">图 3. NVIDIA RTX 4090 上 Llama-2-7B 的瓶颈分析。左：在设备端 LLM 应用中，生成阶段比上下文阶段慢得多。中：生成阶段受内存限制且算术强度低。W4A16 量化可以通过 4 倍有效改善算术强度。右：权重访问量比激活访问量大几个数量级。因此，仅权重量化对设备端 LLM 更有效。</div>
+<div style="text-align: center;">Figure 3. Bottleneck analysis for Llama-2-7B on NVIDIA RTX 4090. Left: In on-device LLM applications, generation stage is much slower than the context stage. Middle: The generation stage is memory bound and has low arithmetic intensity. W4A16 quantization can effectively improve the arithmetic intensity by 4×. Right: The amount of weight access is orders of magnitude larger than the amount of activation access. Thus, weight-only quantization is more effective for on-device LLMs.</div>
 
 形式上，我们希望优化以下目标：
 
 ```tex
-\begin{aligned}
-\mathbf{s}^{*}=\underset{\mathbf{s}}{\arg\min}\mathcal{L}(\mathbf{s})\\
-\mathcal{L}(\mathbf{s})=\|Q(\mathbf{W}\cdot\mathrm{diag}(\mathbf{s}))(\mathrm{diag}(\mathbf{s})^{-1}\cdot\mathbf{X})-\mathbf{W}\mathbf{X}\|
-\end{aligned}
+\begin{aligned}\mathbf{s}^{*}=\underset{\mathbf{s}}{\arg\min}\mathcal{L}(\mathbf{s})\\\mathcal{L}(\mathbf{s})=\|Q(\mathbf{W}\cdot\mathrm{diag}(\mathbf{s}))(\mathrm{diag}(\mathbf{s})^{-1}\cdot\mathbf{X})-\mathbf{W}\mathbf{X}\|\end{aligned}
 ```
 
-这里 Q 表示权重量化函数 $(e.g., \operatorname{INT3/INT4}$，组大小为 128$)$，W 是 FP16 中的原始权重，X 是从小型校准集缓存的输入特征（我们从预训练数据集中取一个小型校准集，以避免过拟合特定任务）。s 是每（输入）通道缩放因子；对于 $s^{-1} \cdot X$，它通常可以融合到前一个操作中（Wei 等人，2022b；Xiao 等人，2022）。由于量化函数不可微，我们无法直接通过普通反向传播优化该问题。有一些技术依赖于近似梯度（Bengio 等人，2013；Esser 等人，2019），但我们发现这些方法仍然存在收敛不稳定的问题。
+_Note: Math block could not be automatically fixed (Low confidence (low)). Showing as code._
+
+这里Q表示权重量化函数$(e.g., \operatorname{INT3/INT4}$，组大小为128$)$，W是FP16中的原始权重，X是从小型校准集缓存的输入特征（我们从预训练数据集中取一个小型校准集，以避免过拟合特定任务）。s是每（输入）通道缩放因子；对于$s^{-1} \cdot X$，它通常可以融合到前一个操作中（Wei等人，2022b；Xiao等人，2022）。由于量化函数不可微，我们无法直接通过普通反向传播优化该问题。有一些技术依赖于近似梯度（Bengio等人，2013；Esser等人，2019），但我们发现这些方法仍然存在收敛不稳定的问题。
 
 为了使过程更稳定，我们通过分析影响缩放因子选择的因素来定义最优缩放因子的搜索空间。如上一节所示，权重通道的显著性实际上由激活尺度决定（因此称为“激活感知”）。因此，我们简单地使用一个非常简单的搜索空间：
 
@@ -147,9 +145,9 @@ $\mathbf{s}=\mathbf{s}_{\mathbf{X}}^{\alpha},\quad\alpha^{*}=\underset{\alpha}{\
 
 $s_{X}$是激活的平均幅度（每通道），我们使用单个超参数$\alpha$来平衡显著和非显著通道的保护。我们可以通过在区间$\alpha$（0表示不缩放；1对应我们搜索空间中最激进的缩放）上进行快速网格搜索来找到最佳$[0, 1]$。我们进一步应用权重裁剪以最小化量化的MSE误差。我们在表5中提供了OPT模型在INT3-g128量化下的消融研究；AWQ始终优于最近舍入量化（RTN），并达到与混合精度（1% FP16）相当的性能，同时更硬件友好。
 
-优势。我们的方法不依赖于任何回归（Frantar 等人，2022）或反向传播，这是许多量化感知训练方法所必需的。它对校准集的依赖最小，因为我们只测量每通道的平均幅度，从而防止过拟合（图 8）。因此，我们的方法在量化过程中需要更少的数据，并且可以保留 LLM 在校准集分布之外的知识。更多细节见第 5.3 节。
+优势。我们的方法不依赖于任何回归（Frantar等人，2022）或反向传播，这是许多量化感知训练方法所必需的。它对校准集的依赖最小，因为我们只测量每通道的平均幅度，从而防止过拟合（图8）。因此，我们的方法在量化过程中需要更少的数据，并且可以保留LLM在校准集分布之外的知识。更多细节见第5.3节。
 
-## 4 TINYCHAT：将 AWQ 映射到边缘平台
+## 4 TINYCHAT：将AWQ映射到边缘平台
 
 AWQ 可以显著减小大型语言模型（LLM）的规模。然而，将 W4A16（4 位权重，16 位激活）量化带来的理论内存节省转化为实测加速并非易事。替代的 W8A8 量化方法，如 SmoothQuant（Xiao 等人，2022），在存储和计算中保持相同的数据精度。这使得反量化过程可以无缝集成到计算内核的收尾阶段。另一方面，W4A16 量化对内存访问和计算使用不同的数据类型。因此，为了获得最佳性能，其反量化必须纳入主计算循环中，这带来了实现上的挑战。为了解决这个问题，我们引入了 TinyChat：一个用于 AWQ 模型推理的轻巧系统。它拥有一个 PyTorch 前端和一个利用设备特定指令集（例如 CUDA/PTX、Neon、AVX）的后端。
 
@@ -163,7 +161,7 @@ AWQ 可以显著减小大型语言模型（LLM）的规模。然而，将 W4A16�
 
 <div style="text-align: center;"><img src="imgs/img_in_chart_box_824_139_1084_260.jpg" alt="Image" width="21%" /></div>
 
-<div style="text-align: center;">图 4. ARM NEON 的 SIMD 感知权重打包（128 位 SIMD 单元）。原始权重被重新排序和打包以与位宽对齐，以便在运行时使用 AND 和移位按位操作与 128 位掩码解包为字节。</div>
+<div style="text-align: center;">Figure 4. SIMD-aware weight packing for ARM NEON with 128-bit SIMD units. Original weights are reordered and packed to align with the bit width so that the weights can be unpacked into bytes at runtime using AND and shift bitwise operations with a 128-bit mask.</div>
 
 仅需 10 毫秒。因此，生成阶段明显慢于上下文阶段，特别是对于设备端交互式应用。
 
@@ -197,45 +195,57 @@ $PPL\downarrow$
 
 量化。在本工作中，我们专注于仅权重的分组量化。如先前工作所示（Dettmers & Zettlemoyer, 2022; Frantar et al., 2022），分组量化总是有助于改善性能/模型大小的权衡。除非另有说明，我们在整个工作中使用128的组大小。我们专注于INT4/INT3量化，因为它们能够基本保留LLMs的性能（Dettmers & Zettlemoyer, 2022）。对于AWQ，我们使用了来自Pile（Gao et al., 2020）数据集的小型校准集，以避免过拟合到特定的下游领域。我们使用20的网格大小来搜索最优的$\alpha$在方程5中。
 
-模型。我们在 LLaMA（Touvron et al., 2023a）和 OPT（Zhang et al., 2022）系列上对我们的方法进行了基准测试。还有其他开放的 LLMs，如 BLOOM（Scao et al., 2022），但它们的质量通常较差，因此我们未将它们纳入我们的研究。我们进一步基准测试了一个指令调优模型 Vicuna（Chiang et al., 2023）和视觉语言模型 OpenFlamingo-9B（Awadalla et al., 2023）和 LLaVA-13B（Liu et al., 2023a），以展示我们方法的通用性。
+模型。我们在LLaMA（Touvron et al., 2023a）和OPT（Zhang et al., 2022）系列上对我们的方法进行了基准测试。还有其他开放的LLMs，如BLOOM（Scao et al., 2022），但它们的质量通常较差，因此我们未将它们纳入我们的研究。我们进一步基准测试了一个指令调优模型Vicuna（Chiang et al., 2023）和视觉语言模型OpenFlamingo-9B（Awadalla et al., 2023）和LLaVA-13B（Liu et al., 2023a），以展示我们方法的通用性。
 
 <div style="text-align: center;"><img src="imgs/img_in_chart_box_611_513_892_649.jpg" alt="Image" width="22%" /></div>
 
 <div style="text-align: center;"><img src="imgs/img_in_chart_box_894_514_1102_650.jpg" alt="Image" width="16%" /></div>
 
-<div style="text-align: center;">图 5. 在 GPT-4 评估协议下比较 INT3-g128 量化的 Vicuna 模型与 FP16 对应模型（Chiang 等，2023）。更多的获胜案例（蓝色）表示更好的性能。AWQ 相比 RTN 和 GPTQ（Frantar 等，2022）始终改善量化性能，显示了对指令调优模型的泛化能力。</div>
+<div style="text-align: center;">Figure 5. Comparing INT3-g128 quantized Vicuna models with FP16 counterparts under GPT-4 evaluation protocol (Chiang et al., 2023). More winning cases (in blue) indicate better performance. AWQ consistently improves the quantized performance compared to RTN and GPTQ (Frantar et al., 2022), showing generalization to instruction-tuned models.</div>
 
-评估。遵循先前文献（Dettmers et al., 2022; Xiao et al., 2022; Frantar et al., 2022; Dettmers & Zettlemoyer, 2022; Yao et al., 2022），我们主要在语言建模任务上分析量化模型（在 WikiText-2（Merity et al., 2016）上的困惑度评估），因为困惑度可以稳定地反映 LLM 的性能（Dettmers & Zettlemoyer, 2022）。
+评估。遵循先前文献（Dettmers et al., 2022; Xiao et al., 2022; Frantar et al., 2022; Dettmers & Zettlemoyer, 2022; Yao et al., 2022），我们主要在语言建模任务上分析量化模型（在WikiText-2（Merity et al., 2016）上的困惑度评估），因为困惑度可以稳定地反映LLM的性能（Dettmers & Zettlemoyer, 2022）。
 
-基线。我们的主要基线是普通的四舍五入量化（RTN）。当使用像 128 这样的小组大小时，它实际上相当强大（Frantar et al., 2022; Dettmers & Zettlemoyer, 2022）。我们还与 LLM 权重量化的最先进方法 GPTQ（Frantar et al., 2022）进行了比较。对于 GPTQ，我们还与使用“重新排序”技巧的更新版本（表示为 GPTQ-Reorder 或 GPTQ-R）进行了比较。其他技术如 ZeroQuant（Yao et al., 2022）、AdaRound（Nagel et al., 2020）和 BRECQ（Li et al., 2021）依赖于反向传播来更新量化权重，这可能不容易扩展到大型模型大小；它们也没有超越 GPTQ（Frantar et al., 2022），因此未纳入研究。
+基线。我们的主要基线是普通的四舍五入量化（RTN）。当使用像128这样的小组大小时，它实际上相当强大（Frantar et al., 2022; Dettmers & Zettlemoyer, 2022）。我们还与LLM权重量化的最先进方法GPTQ（Frantar et al., 2022）进行了比较。对于GPTQ，我们还与使用“重新排序”技巧的更新版本（表示为GPTQ-Reorder或GPTQ-R）进行了比较。其他技术如ZeroQuant（Yao et al., 2022）、AdaRound（Nagel et al., 2020）和BRECQ（Li et al., 2021）依赖于反向传播来更新量化权重，这可能不容易扩展到大型模型大小；它们也没有超越GPTQ（Frantar et al., 2022），因此未纳入研究。
 
 ### 5.2 评估
 
-LLaMA 模型上的结果。我们专注于 LLaMA 模型（LLaMA（Touvron et al., 2023a）和 Llama-2（Touvron et al., 2023b））
+LLaMA模型上的结果。我们专注于LLaMA模型（LLaMA（Touvron et al., 2023a）和Llama-2（Touvron et al., 2023b））
+
+<div style="text-align: center;">AWQ: Activation-aware Weight Quantization for On-Device LLM Compression and Acceleration</div>
 
 <table border=1 style='margin: auto; word-wrap: break-word;'><tr><td colspan="2">COCO (CIDEr  $\uparrow$ )</td><td style='text-align: center; word-wrap: break-word;'>0-shot</td><td style='text-align: center; word-wrap: break-word;'>4-shot</td><td style='text-align: center; word-wrap: break-word;'>8-shot</td><td style='text-align: center; word-wrap: break-word;'>16-shot</td><td style='text-align: center; word-wrap: break-word;'>32-shot</td><td style='text-align: center; word-wrap: break-word;'>$\Delta(32$ -shot)</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>FP16</td><td style='text-align: center; word-wrap: break-word;'>-</td><td style='text-align: center; word-wrap: break-word;'>63.73</td><td style='text-align: center; word-wrap: break-word;'>72.18</td><td style='text-align: center; word-wrap: break-word;'>76.95</td><td style='text-align: center; word-wrap: break-word;'>79.74</td><td style='text-align: center; word-wrap: break-word;'>81.70</td><td style='text-align: center; word-wrap: break-word;'>-</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>INT4</td><td style='text-align: center; word-wrap: break-word;'>RTN</td><td style='text-align: center; word-wrap: break-word;'>60.24</td><td style='text-align: center; word-wrap: break-word;'>68.07</td><td style='text-align: center; word-wrap: break-word;'>72.46</td><td style='text-align: center; word-wrap: break-word;'>74.09</td><td style='text-align: center; word-wrap: break-word;'>77.13</td><td style='text-align: center; word-wrap: break-word;'>-4.57</td></tr><tr><td rowspan="2">g128</td><td style='text-align: center; word-wrap: break-word;'>GPTQ</td><td style='text-align: center; word-wrap: break-word;'>59.72</td><td style='text-align: center; word-wrap: break-word;'>67.68</td><td style='text-align: center; word-wrap: break-word;'>72.53</td><td style='text-align: center; word-wrap: break-word;'>74.98</td><td style='text-align: center; word-wrap: break-word;'>74.98</td><td style='text-align: center; word-wrap: break-word;'>-6.72</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>AWQ</td><td style='text-align: center; word-wrap: break-word;'>62.57</td><td style='text-align: center; word-wrap: break-word;'>71.02</td><td style='text-align: center; word-wrap: break-word;'>74.75</td><td style='text-align: center; word-wrap: break-word;'>78.23</td><td style='text-align: center; word-wrap: break-word;'>80.53</td><td style='text-align: center; word-wrap: break-word;'>-1.17</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>INT3</td><td style='text-align: center; word-wrap: break-word;'>RTN</td><td style='text-align: center; word-wrap: break-word;'>46.07</td><td style='text-align: center; word-wrap: break-word;'>55.13</td><td style='text-align: center; word-wrap: break-word;'>60.46</td><td style='text-align: center; word-wrap: break-word;'>63.21</td><td style='text-align: center; word-wrap: break-word;'>64.79</td><td style='text-align: center; word-wrap: break-word;'>-16.91</td></tr><tr><td rowspan="2">g128</td><td style='text-align: center; word-wrap: break-word;'>GPTQ</td><td style='text-align: center; word-wrap: break-word;'>29.84</td><td style='text-align: center; word-wrap: break-word;'>50.77</td><td style='text-align: center; word-wrap: break-word;'>56.55</td><td style='text-align: center; word-wrap: break-word;'>60.54</td><td style='text-align: center; word-wrap: break-word;'>64.77</td><td style='text-align: center; word-wrap: break-word;'>-16.93</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>AWQ</td><td style='text-align: center; word-wrap: break-word;'>56.33</td><td style='text-align: center; word-wrap: break-word;'>64.73</td><td style='text-align: center; word-wrap: break-word;'>68.79</td><td style='text-align: center; word-wrap: break-word;'>72.86</td><td style='text-align: center; word-wrap: break-word;'>74.47</td><td style='text-align: center; word-wrap: break-word;'>-7.23</td></tr></table>
 
-<div style="text-align: center;">表 6. 视觉语言模型 OpenFlamingo-9B（Awadalla 等，2023）在 COCO 字幕数据集上的量化结果。激活感知权重量化在零样本和各种少样本设置下优于现有方法，证明了对不同模态和上下文学习工作负载的泛化能力。激活感知权重量化在 INT4-g128 下将量化退化（32 样本）从 4.57 降低到 1.17，实现了 4 倍的模型大小缩减，且性能损失可忽略不计。</div>
+<div style="text-align: center;">Table 6. Quantization results of a visual language model OpenFlamingo-9B (Awadalla et al., 2023) on COCO Captioning datasets. Activation-aware Weight Quantization outperforms existing methods under zero-shot and various few-shot settings, demonstrating the generability to different modalities and in-context learning workloads. Activation-aware Weight Quantization reduces the quantization degradation (32-shot) from 4.57 to 1.17 under INT4-g128, providing 4× model size reduction with negligible performance loss.</div>
 
 <table border=1 style='margin: auto; word-wrap: break-word;'><tr><td style='text-align: center; word-wrap: break-word;'>Model (Accuracy $\uparrow$ )</td><td style='text-align: center; word-wrap: break-word;'>VQAv2</td><td style='text-align: center; word-wrap: break-word;'>GQA</td><td style='text-align: center; word-wrap: break-word;'>VizWiz</td><td style='text-align: center; word-wrap: break-word;'>SQA-I</td><td style='text-align: center; word-wrap: break-word;'>VQA-T</td><td style='text-align: center; word-wrap: break-word;'>POPE</td><td style='text-align: center; word-wrap: break-word;'>MME</td><td style='text-align: center; word-wrap: break-word;'>MMB</td><td style='text-align: center; word-wrap: break-word;'>SEED</td><td style='text-align: center; word-wrap: break-word;'>llava-bench</td><td style='text-align: center; word-wrap: break-word;'>MM-Vet</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>VILA-7B</td><td style='text-align: center; word-wrap: break-word;'>80.3</td><td style='text-align: center; word-wrap: break-word;'>63.1</td><td style='text-align: center; word-wrap: break-word;'>59.6</td><td style='text-align: center; word-wrap: break-word;'>68.0</td><td style='text-align: center; word-wrap: break-word;'>62.6</td><td style='text-align: center; word-wrap: break-word;'>86.3</td><td style='text-align: center; word-wrap: break-word;'>1489.4</td><td style='text-align: center; word-wrap: break-word;'>69.8</td><td style='text-align: center; word-wrap: break-word;'>61.7</td><td style='text-align: center; word-wrap: break-word;'>75.2</td><td style='text-align: center; word-wrap: break-word;'>35.1</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>VILA-7B-AWQ</td><td style='text-align: center; word-wrap: break-word;'>80.1</td><td style='text-align: center; word-wrap: break-word;'>63.0</td><td style='text-align: center; word-wrap: break-word;'>57.8</td><td style='text-align: center; word-wrap: break-word;'>68.0</td><td style='text-align: center; word-wrap: break-word;'>61.9</td><td style='text-align: center; word-wrap: break-word;'>85.3</td><td style='text-align: center; word-wrap: break-word;'>1486.3</td><td style='text-align: center; word-wrap: break-word;'>68.8</td><td style='text-align: center; word-wrap: break-word;'>61.3</td><td style='text-align: center; word-wrap: break-word;'>75.8</td><td style='text-align: center; word-wrap: break-word;'>35.9</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>VILA-13B</td><td style='text-align: center; word-wrap: break-word;'>80.5</td><td style='text-align: center; word-wrap: break-word;'>63.6</td><td style='text-align: center; word-wrap: break-word;'>63.1</td><td style='text-align: center; word-wrap: break-word;'>70.5</td><td style='text-align: center; word-wrap: break-word;'>64.0</td><td style='text-align: center; word-wrap: break-word;'>86.3</td><td style='text-align: center; word-wrap: break-word;'>1553.6</td><td style='text-align: center; word-wrap: break-word;'>73.8</td><td style='text-align: center; word-wrap: break-word;'>62.8</td><td style='text-align: center; word-wrap: break-word;'>78.3</td><td style='text-align: center; word-wrap: break-word;'>42.6</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>VILA-13B-AWQ</td><td style='text-align: center; word-wrap: break-word;'>80.4</td><td style='text-align: center; word-wrap: break-word;'>63.6</td><td style='text-align: center; word-wrap: break-word;'>63.0</td><td style='text-align: center; word-wrap: break-word;'>71.2</td><td style='text-align: center; word-wrap: break-word;'>63.5</td><td style='text-align: center; word-wrap: break-word;'>87.0</td><td style='text-align: center; word-wrap: break-word;'>1552.9</td><td style='text-align: center; word-wrap: break-word;'>73.6</td><td style='text-align: center; word-wrap: break-word;'>62.2</td><td style='text-align: center; word-wrap: break-word;'>77.6</td><td style='text-align: center; word-wrap: break-word;'>42.0</td></tr></table>
 
-<div style="text-align: center;">表 7. VILA-7B 和 VILA-13B（Lin 等，2024）在 11 个视觉语言基准上的 INT4-g128 结果。AWQ 在所有基准上始终显示无损性能。由于空间限制，基准名称已缩写。VQA-v2 (Goyal 等，2017); GQA (Hudson & Manning, 2019); VisWiz (Gurari 等，2018); SQA $^{1}$ : ScienceQA-IMG (Lu 等，2022); VQA $^{2}$ : TextVQA (Singh 等，2019); POPE (Li 等，2023d); MME (Fu 等，2023); MMB: MMBench (Liu 等，2023b); MMB $^{CN}$ : MMBench-Chinese (Liu 等，2023b); SEED: SEED-Bench (Li 等，2023a); LLaVA $^{W}$ : LLaVA-Bench (In-the-Wild) (Liu 等，2023a); MM-Vet (Yu 等，2023)。</div>
+<div style="text-align: center;">Table 7. INT4-g128 results of VILA-7B and VILA-13B (Lin et al., 2024) on 11 visual-language benchmarks. AWQ consistently shows lossless performance on all benchmarks. Benchmark names are abbreviated due to space limits. VQA-v2 (Goyal et al., 2017); GQA (Hudson & Manning, 2019); VisWiz (Gurari et al., 2018); SQA $^{1}$ : ScienceQA-IMG (Lu et al., 2022); VQA $^{2}$ : TextVQA (Singh et al., 2019); POPE (Li et al., 2023d); MME (Fu et al., 2023); MMB: MMBench (Liu et al., 2023b); MMB $^{CN}$ : MMBench-Chinese (Liu et al., 2023b); SEED: SEED-Bench (Li et al., 2023a); LLaVA $^{W}$ : LLaVA-Bench (In-the-Wild) (Liu et al., 2023a); MM-Vet (Yu et al., 2023).</div>
 
-et al., 2023b）），因为它们与其他开源 LLMs 相比具有优越性能（Zhang et al., 2022; Scao et al., 2022）；它也是许多流行开源模型的基础（Taori et al., 2023; Chiang et al., 2023）。我们在表 4 中评估量化前后的困惑度。AWQ 在不同模型规模（7B-70B）和代际中始终优于四舍五入（RTN）和 GPTQ（Frantar et al., 2022）（有和没有重新排序）。
+et al., 2023b）），因为它们与其他开源LLMs相比具有优越性能（Zhang et al., 2022; Scao et al., 2022）；它也是许多流行开源模型的基础（Taori et al., 2023; Chiang et al., 2023）。我们在表4中评估量化前后的困惑度。AWQ在不同模型规模（7B-70B）和代际中始终优于四舍五入（RTN）和GPTQ（Frantar et al., 2022）（有和没有重新排序）。
 
-Mistral / Mixtral 模型上的结果。我们还在 Mistral 和 Mixtral 模型上评估了 AWQ，它们分别是最流行的开源 LLMs 和混合专家（MoE）模型之一（Jiang et al., 2023; 2024）。结果表明，AWQ 在 Mistral 和 Mixtral 模型上都实现了优越性能。这证明 AWQ 在各种模型架构中都是有效的。
+Mistral / Mixtral模型上的结果。我们还在Mistral和Mixtral模型上评估了AWQ，它们分别是最流行的开源LLMs和混合专家（MoE）模型之一（Jiang et al., 2023; 2024）。结果表明，AWQ在Mistral和Mixtral模型上都实现了优越性能。这证明AWQ在各种模型架构中都是有效的。
 
-指令调优模型的量化。指令调优可以显著改善模型的性能和可用性（Wei et al., 2021; Sanh et al., 2021; Ouyang et al., 2022; Chung et al., 2022）。它已成为模型部署前的重要步骤。我们在图 5 中进一步基准测试我们的方法在流行指令调优模型 Vicuna（Chiang et al., 2023）上的性能。我们使用 GPT-4 分数来评估量化模型相对于 FP16 对应模型在 80 个样本问题上的性能（Chiang et al., 2023）。我们比较两种顺序（量化-FP16，FP16-量化）的响应，以消除顺序效应。
+指令调优模型的量化。指令调优可以显著改善模型的性能和可用性（Wei et al., 2021; Sanh et al., 2021; Ouyang et al., 2022; Chung et al., 2022）。它已成为模型部署前的重要步骤。我们在图5中进一步基准测试我们的方法在流行指令调优模型Vicuna（Chiang et al., 2023）上的性能。我们使用GPT-4分数来评估量化模型相对于FP16对应模型在80个样本问题上的性能（Chiang et al., 2023）。我们比较两种顺序（量化-FP16，FP16-量化）的响应，以消除顺序效应。
 
 <table border=1 style='margin: auto; word-wrap: break-word;'><tr><td style='text-align: center; word-wrap: break-word;'>MBPP (7B)</td><td style='text-align: center; word-wrap: break-word;'>pass@1</td><td style='text-align: center; word-wrap: break-word;'>pass@10</td><td style='text-align: center; word-wrap: break-word;'>GSM8K</td><td style='text-align: center; word-wrap: break-word;'>7B</td><td style='text-align: center; word-wrap: break-word;'>13B</td><td style='text-align: center; word-wrap: break-word;'>70B</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>FP16</td><td style='text-align: center; word-wrap: break-word;'>38.53</td><td style='text-align: center; word-wrap: break-word;'>49.77</td><td style='text-align: center; word-wrap: break-word;'>FP16</td><td style='text-align: center; word-wrap: break-word;'>13.87</td><td style='text-align: center; word-wrap: break-word;'>26.16</td><td style='text-align: center; word-wrap: break-word;'>56.41</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>RTN</td><td style='text-align: center; word-wrap: break-word;'>37.51</td><td style='text-align: center; word-wrap: break-word;'>48.49</td><td style='text-align: center; word-wrap: break-word;'>RTN</td><td style='text-align: center; word-wrap: break-word;'>11.07</td><td style='text-align: center; word-wrap: break-word;'>21.23</td><td style='text-align: center; word-wrap: break-word;'>53.98</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>GPTQ</td><td style='text-align: center; word-wrap: break-word;'>31.97</td><td style='text-align: center; word-wrap: break-word;'>44.75</td><td style='text-align: center; word-wrap: break-word;'>GPTQ</td><td style='text-align: center; word-wrap: break-word;'>12.13</td><td style='text-align: center; word-wrap: break-word;'>24.26</td><td style='text-align: center; word-wrap: break-word;'>56.03</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>AWQ</td><td style='text-align: center; word-wrap: break-word;'>40.64</td><td style='text-align: center; word-wrap: break-word;'>49.25</td><td style='text-align: center; word-wrap: break-word;'>AWQ</td><td style='text-align: center; word-wrap: break-word;'>13.57</td><td style='text-align: center; word-wrap: break-word;'>25.25</td><td style='text-align: center; word-wrap: break-word;'>56.40</td></tr></table>
 
-<div style="text-align: center;">表 8. CodeLlama-7b-Instruct-hf 在 MBPP 数据集上和 Llama-2 (7B/13B/70B) 在 GSM8K 数据集上的 INT4-g128 量化结果。AWQ 在编程和数学数据集上优于现有方法，证明了对不同场景和评估设置的泛化能力。值得注意的是，AWQ 在 INT4-g128 配置下在两个数据集上表现出与原始 FP16 模型相当的性能。</div>
+<div style="text-align: center;">Table 8. INT4-g128 quantization results of CodeLlama-7b-Instruct-hf on MBPP dataset and Llama-2 (7B/13B/70B) on GSM8K dataset. AWQ outperforms existing methods on programming and math datasets, demonstrating the generability to different scenarios and evaluation settings. Notably, AWQ under the INT4-g128 configuration demonstrates comparable performance to the original FP16 model across both datasets.</div>
 
-（我们发现 GPT-4 倾向于提高第一个输入的评分），导致 160 次试验。AWQ 在两种规模（7B 和 13B）下始终改善 INT3-g128 量化的 Vicuna 模型，优于 RTN 和 GPTQ，证明了对指令调优模型的通用性。
+（我们发现GPT-4倾向于提高第一个输入的评分），导致160次试验。AWQ在两种规模（7B和13B）下始终改善INT3-g128量化的Vicuna模型，优于RTN和GPTQ，证明了对指令调优模型的通用性。
 
-多模态语言模型的量化。大型多模态模型（LMMs）或视觉语言模型（VLMs）是增强视觉输入的 LLMs（Alayrac et al., 2022; Li et al., 2023b; Koh et al., 2023; Driess et al., 2023; Zhang et al., 2023; Liu et al., 2023a）。这类模型能够基于图像/视频输入执行文本生成。由于我们的方法没有对校准集过拟合的问题，它可以直接应用于 VLMs。
+多模态语言模型的量化。大型多模态模型（LMMs）或视觉语言模型（VLMs）是增强视觉输入的LLMs（Alayrac et al., 2022; Li et al., 2023b; Koh et al., 2023; Driess et al., 2023; Zhang et al., 2023; Liu et al., 2023a）。这类模型能够基于图像/视频输入执行文本生成。由于我们的方法没有对校准集过拟合的问题，它可以直接应用于VLMs。
 
-<div style="text-align: center;">图 6. 来自 LLaVA-13B 模型（Liu 等，2023a）的视觉推理示例。AWQ 改进了四舍五入（RTN）基线，提供了更合理的答案。我们为文本着色以显示正确或错误的响应。</div>
+有时我只是看着从太空拍摄的地球照片，惊叹于这一切是多么美丽。
+
+问题：你能详细解释这个梗吗？
+
+<div style="text-align: center;"><img src="imgs/img_in_image_box_114_186_281_347.jpg" alt="Image" width="13%" /></div>
+
+INT4-g128 RTN：图像中的梗展示了一盘食物，可能是炸鸡，有一个独特的转折。食物顶部放置了地球和其他行星的小图片，创造了一个有趣和引人发笑的视觉效果。盘子旁边，一个标题写道：“有时我看着从太空拍摄的地球照片，惊叹于这一切是多么美丽。”这种食物和行星图像的结合增添了一丝幽默和好奇，让观众想知道梗的背景和意图。
+
+INT4-g128 AWQ：图像中的梗是对观看从太空拍摄的地球照片概念的一个轻松幽默的演绎。一盘炸食，特别是鸡块，配以标题：“有时我看着从太空拍摄的地球照片，惊叹于这一切是多么美丽。”食物物品和地球相关背景的俏皮结合创造了一个有趣和娱乐的视觉效果。
+
+图6。来自LLaVA-13B模型（Liu et al., 2023a）的视觉推理示例。AWQ改进了四舍五入（RTN）基线，提供了更合理的答案。我们为文本着色以显示正确或错误的响应。
 
 <div style="text-align: center;"><img src="imgs/img_in_image_box_111_432_287_550.jpg" alt="Image" width="14%" /></div>
 
@@ -255,31 +265,31 @@ W4-RTN：一名男子和一只狗走过一些灌木丛。
 
 W4-AWQ：两只狗在街上行走。
 
-<div style="text-align: center;">图 7. 量化 OpenFlamingo-9B（Awadalla 等，2023）在 COCO 字幕数据集上的定性结果（4 样本，INT4-g128 量化）。我们的方法相比四舍五入（RTN）基线显著改善了字幕质量。我们为文本着色以显示正确或错误的字幕。</div>
+<div style="text-align: center;">Figure 7. Qualitative results of quantized OpenFlamingo-9B (Awadalla et al., 2023) on COCO captioning dataset (4-shot, INT4-g128 quantization). Our method significantly improves the captioning quality compared to the round-to-nearest (RTN) baseline. We color the text to show the correct or wrong captions.</div>
 
-为了提供准确且高效的量化。我们使用 OpenFlamingo-9B 模型（Awadalla 等人，2023 年）（Alayrac 等人，2022 年的开源复现）在 COCO 字幕（Chen 等人，2015 年）数据集（表 6）上进行实验。我们测量了不同少样本设置下 5k 个样本的平均性能。我们仅量化模型的语言部分，因为它主导了模型大小。AWQ 在零样本和各种少样本设置下优于现有方法，证明了其对不同模态和上下文学习工作负载的泛化能力。在 INT4-g128 下，它将量化退化（32 样本）从 4.57 降低到 1.17，实现了 4 倍的模型大小缩减，且性能损失可忽略不计。为了进一步证明 AWQ 的泛化能力，我们还在一个最先进的多图像视觉语言模型 VILA 上评估了 AWQ。表 7 中的结果显示，AWQ 在 11 个视觉语言基准上实现了无损量化性能。我们进一步在图 7 中提供了一些定性字幕结果，以展示我们相对于 RTN 的优势。我们的方法为 LMM/VLM 量化提供了一个即用型解决方案。据我们所知，这是首次对 VLM 低比特量化的研究。
+为了提供准确且高效的量化。我们使用OpenFlamingo-9B模型（Awadalla等人，2023年）（Alayrac等人，2022年的开源复现）在COCO字幕（Chen等人，2015年）数据集（表6）上进行实验。我们测量了不同少样本设置下5k个样本的平均性能。我们仅量化模型的语言部分，因为它主导了模型大小。AWQ在零样本和各种少样本设置下优于现有方法，证明了其对不同模态和上下文学习工作负载的泛化能力。在INT4-g128下，它将量化退化（32样本）从4.57降低到1.17，实现了4倍的模型大小缩减，且性能损失可忽略不计。为了进一步证明AWQ的泛化能力，我们还在一个最先进的多图像视觉语言模型VILA上评估了AWQ。表7中的结果显示，AWQ在11个视觉语言基准上实现了无损量化性能。我们进一步在图7中提供了一些定性字幕结果，以展示我们相对于RTN的优势。我们的方法为LMM/VLM量化提供了一个即用型解决方案。据我们所知，这是首次对VLM低比特量化的研究。
 
-视觉推理结果。我们进一步在图 6 中提供了 LLaVA-13B 模型（Liu 等人，2023a 年）的一些定性视觉推理示例。对于 INT4-g128 量化，AWQ 相比四舍五入（RTN）改进了响应，导致更合理的答案。在第一个示例中，AWQ 模型能够理解这个梗，因为它类似于从太空看地球的样子，而 RTN 产生了错误的描述（用红色标记）。
+视觉推理结果。我们进一步在图6中提供了LLaVA-13B模型（Liu等人，2023a年）的一些定性视觉推理示例。对于INT4-g128量化，AWQ相比四舍五入（RTN）改进了响应，导致更合理的答案。在第一个示例中，AWQ模型能够理解这个梗，因为它类似于从太空看地球的样子，而RTN产生了错误的描述（用红色标记）。
 
 <table border=1 style='margin: auto; word-wrap: break-word;'><tr><td style='text-align: center; word-wrap: break-word;'>OPT (Wiki PPL $\downarrow$ )</td><td style='text-align: center; word-wrap: break-word;'>1.3B</td><td style='text-align: center; word-wrap: break-word;'>2.7B</td><td style='text-align: center; word-wrap: break-word;'>6.7B</td><td style='text-align: center; word-wrap: break-word;'>13B</td><td style='text-align: center; word-wrap: break-word;'>30B</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>FP16</td><td style='text-align: center; word-wrap: break-word;'>14.62</td><td style='text-align: center; word-wrap: break-word;'>12.47</td><td style='text-align: center; word-wrap: break-word;'>10.86</td><td style='text-align: center; word-wrap: break-word;'>10.13</td><td style='text-align: center; word-wrap: break-word;'>9.56</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>RTN</td><td style='text-align: center; word-wrap: break-word;'>10476</td><td style='text-align: center; word-wrap: break-word;'>193210</td><td style='text-align: center; word-wrap: break-word;'>7622</td><td style='text-align: center; word-wrap: break-word;'>17564</td><td style='text-align: center; word-wrap: break-word;'>8170</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>GPTQ</td><td style='text-align: center; word-wrap: break-word;'>46.67</td><td style='text-align: center; word-wrap: break-word;'>28.15</td><td style='text-align: center; word-wrap: break-word;'>16.65</td><td style='text-align: center; word-wrap: break-word;'>16.74</td><td style='text-align: center; word-wrap: break-word;'>11.75</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>AWQ + GPTQ</td><td style='text-align: center; word-wrap: break-word;'>35.71</td><td style='text-align: center; word-wrap: break-word;'>25.70</td><td style='text-align: center; word-wrap: break-word;'>15.71</td><td style='text-align: center; word-wrap: break-word;'>13.25</td><td style='text-align: center; word-wrap: break-word;'>11.38</td></tr></table>
 
-<div style="text-align: center;">表 9. 我们的方法与 GPTQ 正交：当与 GPTQ 结合时，它进一步缩小了极低比特量化（INT2-g64）下的性能差距。结果是 OPT 模型的 WikiText-2 困惑度。</div>
+<div style="text-align: center;">Table 9. Our method is orthogonal to GPTQ: it further closes the performance gap under extreme low-bit quantization (INT2-g64) when combined with GPTQ. Results are WikiText-2 perplexity of OPT models.</div>
 
-编程和数学任务的结果。为了进一步评估 AWQ 在涉及复杂生成任务上的性能，我们还在 MBPP（Austin 等人，2021 年）和 GSM8K（Cobbe 等人，2021 年）上测试了 AWQ。MBPP（Austin 等人，2021 年）包含约 1,000 个 Python 编程问题，设计为入门级程序员可解决，涵盖编程基础、标准库功能等。GSM8K（Cobbe 等人，2021 年）创建用于支持需要多步推理的基本数学问题的问答任务。我们将 CodeLlama-7b-Instruct-hf 和 Llama-2 量化为 INT4-g128，并在编程和数学数据集（表 8）上进行实验。AWQ 在两个数据集上均优于现有方法，证明了其对复杂生成的泛化能力。在 INT4-g128 配置下，AWQ 在两个数据集上表现出与原始 FP16 模型相当的性能。
+编程和数学任务的结果。为了进一步评估AWQ在涉及复杂生成任务上的性能，我们还在MBPP（Austin等人，2021年）和GSM8K（Cobbe等人，2021年）上测试了AWQ。MBPP（Austin等人，2021年）包含约1,000个Python编程问题，设计为入门级程序员可解决，涵盖编程基础、标准库功能等。GSM8K（Cobbe等人，2021年）创建用于支持需要多步推理的基本数学问题的问答任务。我们将CodeLlama-7b-Instruct-hf和Llama-2量化为INT4-g128，并在编程和数学数据集（表8）上进行实验。AWQ在两个数据集上均优于现有方法，证明了其对复杂生成的泛化能力。在INT4-g128配置下，AWQ在两个数据集上表现出与原始FP16模型相当的性能。
 
-极低比特量化。我们进一步将 LLM 量化为 INT2 以适应有限的设备内存（表 9）。
+极低比特量化。我们进一步将LLM量化为INT2以适应有限的设备内存（表9）。
 
 <div style="text-align: center;"><img src="imgs/img_in_chart_box_108_132_564_274.jpg" alt="Image" width="37%" /></div>
 
-<div style="text-align: center;">(a) 我们的方法需要更小的校准集</div>
+<div style="text-align: center;">(a) Our method needs a smaller calibration set</div>
 
 <table border=1 style='margin: auto; word-wrap: break-word;'><tr><td style='text-align: center; word-wrap: break-word;'>Eval</td><td colspan="3">GPTQ</td><td colspan="2">Ours</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>Calib</td><td style='text-align: center; word-wrap: break-word;'>PubMed</td><td style='text-align: center; word-wrap: break-word;'>Enron</td><td style='text-align: center; word-wrap: break-word;'></td><td style='text-align: center; word-wrap: break-word;'>PubMed</td><td style='text-align: center; word-wrap: break-word;'>Enron</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>PubMed</td><td style='text-align: center; word-wrap: break-word;'>32.48</td><td style='text-align: center; word-wrap: break-word;'>50.41</td><td style='text-align: center; word-wrap: break-word;'>$^{+4.89}$</td><td style='text-align: center; word-wrap: break-word;'>32.56</td><td style='text-align: center; word-wrap: break-word;'>45.07</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>Enron</td><td style='text-align: center; word-wrap: break-word;'>$^{+2.33}$</td><td style='text-align: center; word-wrap: break-word;'>34.81</td><td style='text-align: center; word-wrap: break-word;'>45.52</td><td style='text-align: center; word-wrap: break-word;'>$^{+0.60}$</td><td style='text-align: center; word-wrap: break-word;'>33.16</td></tr></table>
 
 $+4.89$
 
-<div style="text-align: center;">(b) 我们的方法对校准集分布更鲁棒</div>
+<div style="text-align: center;">(b) Our method is more robust to calibration set distribution</div>
 
-<div style="text-align: center;">图 8. 左：AWQ 需要更小的校准集就能达到良好的量化性能。相比 GPTQ，它可以使用 $10\times$ 更小的校准集实现更好的困惑度。右：我们的方法对校准集分布更鲁棒。总体而言，使用相同的校准和评估分布效果最佳（PubMed-PubMed，Enron-Enron）。但当使用不同的校准分布时（PubMed-Enron，Enron-PubMed），AWQ 仅增加困惑度 0.5-0.6，而 GPTQ 的困惑度差 2.3-4.9。所有实验均使用 OPT-6.7B 模型在 INT3-g128 量化下完成。</div>
+<div style="text-align: center;">Figure 8. Left: AWQ needs a much smaller calibration set to reach a good quantized performance. It can achieve better perplexity using  $10\times$  smaller calibration set compared to GPTQ. Right: Our method is more robust to the calibration set distribution. Overall, using the same calibration and evaluation distribution works the best (PubMed-PubMed, Enron-Enron). But when using a different calibration distribution (PubMed-Enron, Enron-PubMed), AWQ only increases the perplexity by 0.5-0.6, while GPTQ has 2.3-4.9 worse perplexity. All experiments are done with the OPT-6.7B model under INT3-g128 quantization.</div>
 
 <div style="text-align: center;"><img src="imgs/img_in_chart_box_109_445_527_624.jpg" alt="Image" width="34%" /></div>
 
@@ -287,29 +297,35 @@ $+4.89$
 
 <div style="text-align: center;"><img src="imgs/img_in_chart_box_869_469_1086_602.jpg" alt="Image" width="17%" /></div>
 
-<div style="text-align: center;">(c) RTX 4070 笔记本 GPU</div>
+<div style="text-align: center;">(c) RTX 4070 laptop GPU</div>
 
-<div style="text-align: center;">图 9. TinyChat 提供了一个即用型解决方案，将理论上的内存占用减少转化为可量化的加速。因此，TinyChat 在 4090（桌面 GPU）和 Orin（移动 GPU）上分别比 Huggingface 的 FP16 实现快 $3.9\times$ 和 $3.5\times$。AWQ 还使得在仅有 8GB 内存的笔记本电脑 GPU（4070）上部署 Llama-2-13B 成为可能。</div>
+<div style="text-align: center;">Figure 9. TinyChat provides a turn-key solution to transform the theoretical memory footprint reduction into a quantifiable speedup. As a result, TinyChat is up to  $3.9\times$  and  $3.5\times$  faster than the FP16 implementation from Huggingface on 4090 (desktop GPU) and Orin (mobile GPU), respectively. AWQ also democratizes Llama-2-13B deployment on laptop GPUs (4070) with merely 8GB memory.</div>
 
-RTN 完全失败，而 AWQ 在 GPTQ 基础上带来了显著的困惑度改进。我们的方法与 GPTQ 正交。我们可以将我们的方法与 GPTQ 结合，以进一步提高 INT2 量化性能，使其成为一个更实用的设置。
+RTN完全失败，而AWQ在GPTQ基础上带来了显著的困惑度改进。我们的方法与GPTQ正交。我们可以将我们的方法与GPTQ结合，以进一步提高INT2量化性能，使其成为一个更实用的设置。
 
 ### 5.3 数据效率和泛化
 
-校准集的数据效率更好。我们的方法需要较小的校准集，因为我们不依赖回归/反向传播；我们仅从校准集测量平均激活尺度，这是数据高效的。为了演示这一想法，我们在图 8（a）中比较了 OPT-6.7B 模型在 INT3-g128 量化下的困惑度。AWQ 需要小得多的校准集就能达到良好的量化性能；相比 GPTQ（16 个序列对比 192 个序列），它可以使用更小的校准集实现更好的困惑度。$10\times$对校准集分布的鲁棒性。我们的方法对校准集分布不太敏感，因为我们仅从校准集测量平均激活尺度，这在不同数据集分布间更具泛化性。我们进一步在图 8（b）中基准测试了不同校准集分布的影响。我们从 Pile 数据集（Gao 等人，2020 年）中取了两个子集：PubMed 摘要和 Enron 电子邮件（Klimt & Yang，2004 年）。我们使用每个子集作为校准集，并在两个集上评估量化模型（校准集和评估集无重叠；我们使用了 1k 个样本进行评估）。总体而言，使用相同的校准和评估分布效果最佳（PubMed-PubMed，Enron-Enron）。但当使用不同的校准分布时（PubMed-Enron，Enron-PubMed），AWQ 仅增加困惑度 0.5-0.6，而 GPTQ 的困惑度差 2.3-4.9。这证明了 AWQ 对校准集分布的鲁棒性。
+校准集的数据效率更好。我们的方法需要较小的校准集，因为我们不依赖回归/反向传播；我们仅从校准集测量平均激活尺度，这是数据高效的。为了演示这一想法，我们在图8（a）中比较了OPT-6.7B模型在INT3-g128量化下的困惑度。AWQ需要小得多的校准集就能达到良好的量化性能；相比GPTQ（16个序列对比192个序列），它可以使用更小的校准集实现更好的困惑度。$10\times$对校准集分布的鲁棒性。我们的方法对校准集分布不太敏感，因为我们仅从校准集测量平均激活尺度，这在不同数据集分布间更具泛化性。我们进一步在图8（b）中基准测试了不同校准集分布的影响。我们从Pile数据集（Gao等人，2020年）中取了两个子集：PubMed摘要和Enron电子邮件（Klimt & Yang，2004年）。我们使用每个子集作为校准集，并在两个集上评估量化模型（校准集和评估集无重叠；我们使用了1k个样本进行评估）。总体而言，使用相同的校准和评估分布效果最佳（PubMed-PubMed，Enron-Enron）。但当使用不同的校准分布时（PubMed-Enron，Enron-PubMed），AWQ仅增加困惑度0.5-0.6，而GPTQ的困惑度差2.3-4.9。这证明了AWQ对校准集分布的鲁棒性。
 
-### 5.4 加速评估
+5.4 加速评估
 
-设置。在图 9 中，我们展示了 TinyChat 带来的系统加速结果。TinyChat 优化了线性层和没有量化权重的层。我们按照 exllama 中描述的协议，在 RTX 4090 和 Jetson Orin 上进行基准测试实验。
+<table border=1 style='margin: auto; word-wrap: break-word;'><tr><td style='text-align: center; word-wrap: break-word;'>Model (Throughput $\uparrow$ )</td><td style='text-align: center; word-wrap: break-word;'>Precision</td><td style='text-align: center; word-wrap: break-word;'>A100</td><td style='text-align: center; word-wrap: break-word;'>4090</td><td style='text-align: center; word-wrap: break-word;'>Orin</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>VILA-7B</td><td style='text-align: center; word-wrap: break-word;'>FP16</td><td style='text-align: center; word-wrap: break-word;'>81.6</td><td style='text-align: center; word-wrap: break-word;'>58.5</td><td style='text-align: center; word-wrap: break-word;'>11.5</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>VILA-7B-AWQ</td><td style='text-align: center; word-wrap: break-word;'>W4A16</td><td style='text-align: center; word-wrap: break-word;'>155.3</td><td style='text-align: center; word-wrap: break-word;'>168.1</td><td style='text-align: center; word-wrap: break-word;'>35.6</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>VILA-13B</td><td style='text-align: center; word-wrap: break-word;'>FP16</td><td style='text-align: center; word-wrap: break-word;'>48.5</td><td style='text-align: center; word-wrap: break-word;'>OOM</td><td style='text-align: center; word-wrap: break-word;'>6.1</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>VILA-13B-AWQ</td><td style='text-align: center; word-wrap: break-word;'>W4A16</td><td style='text-align: center; word-wrap: break-word;'>102.1</td><td style='text-align: center; word-wrap: break-word;'>99.0</td><td style='text-align: center; word-wrap: break-word;'>17.5</td></tr></table>
+
+<div style="text-align: center;">Table 10. TinyChat also enables seamless deployment of VILA (Lin et al., 2024), a state-of-the-art visual-language model, on multiple GPU platforms. Leveraging our 4-bit AWQ quantization, TinyChat accelerates VILA-7B by up to  $3.1 \times$  and VILA-13B by up to  $2.9 \times$ .</div>
+
+5.4 加速评估
+
+### 设置。在图9中，我们展示了TinyChat带来的系统加速结果。TinyChat优化了线性层和没有量化权重的层。我们按照exllama中描述的协议，在RTX 4090和Jetson Orin上进行基准测试实验。
 
 结果。如图9（a）所示，在4090上，TinyChat为三个LLM家族（Llama-2、MPT和Falcon）带来了加速，相比Huggingface FP16实现。对于Llama-2-7B，我们通过FP16内核融合将推理速度从52令牌/秒提高到62令牌/秒。在更强的FP16基线之上，我们进一步从快速量化线性内核中获得了额外的加速。对于Falcon-7B，官方实现在推理时未正确支持KV缓存，因此它比其他模型慢得多。在这种情况下，我们的FP16优化带来了更大的加速。$^{\dagger}$
 
 <div style="text-align: center;"><img src="imgs/img_in_chart_box_109_129_1062_293.jpg" alt="Image" width="77%" /></div>
 
-<div style="text-align: center;">(a) Jetson Orin（64G）移动 GPU 上的延迟比较</div>
+<div style="text-align: center;">(a) Latency comparison on Jetson Orin (64G) mobile GPU</div>
 
-<div style="text-align: center;">(b) Raspberry Pi 4 上的延迟</div>
+<div style="text-align: center;">(b) Latency on Raspberry Pi 4</div>
 
-<div style="text-align: center;">图 10. 在 NVIDIA Jetson Orin 上运行 4 比特量化的 Llama 模型时，TinyChat 相比现有系统提供 1.2-3.0× 加速。它还支持各种通用和编码特定的 LLMs，相比 AutoGPTQ 至少有 2.6× 加速，AutoGPTQ 也支持所有这些工作负载。此外，TinyChat 可在 Raspberry Pi 上无缝运行，并使得在资源极度受限的 IoT 设备上部署高达 70 亿参数的 LLMs 成为可能。</div>
+<div style="text-align: center;">Figure 10. TinyChat offers 1.2-3.0× speedup over existing systems when running 4-bit quantized Llama models on NVIDIA Jetson Orin. It also supports a diverse range of general-purpose and coding-specific LLMs with at least 2.6× speedup over AutoGPTQ, which also supports all these workloads. Moreover, TinyChat seamlessly operates on Raspberry Pi and enables the deployment of LLMs with up to 7 billion parameters on extremely resource-constrained IoT devices.</div>
 
 $2.7-3.9\times$$3.1\times$$1.6\times$在仅有8GB内存的笔记本电脑4070 GPU上，我们仍能以33 tokens/s的速度运行Llama-2-13B模型，而FP16实现无法容纳7B模型。我们还在表10中展示了视觉语言模型（Lin等人，2024）的加速结果。TinyChat为$3\times$在NVIDIA Jetson Orin上为VILA-7B和VILA-13B带来加速。值得注意的是，我们使用原生PyTorch API实现了所有AWQ模型的前向传播，并且此代码可在各种GPU架构上重用。因此，TinyChat提供了卓越的可扩展性。
 
@@ -321,7 +337,7 @@ $2.7-3.9\times$$3.1\times$$1.6\times$在仅有8GB内存的笔记本电脑4070 GP
 
 ## 致谢
 
-我们感谢 MIT AI 硬件计划、国家科学基金会、MIT-IBM Watson AI 实验室、亚马逊和 MIT 科学中心、微软图灵学术计划以及三星对本研究的支持。
+我们感谢MIT AI硬件计划、国家科学基金会、MIT-IBM Watson AI实验室、亚马逊和MIT科学中心、微软图灵学术计划以及三星对本研究的支持。
 
 ## 参考文献
 
@@ -331,29 +347,29 @@ Austin, J., Odena, A., Nye, M., Bosma, M., Michalewski, H., Dohan, D., Jiang, E.
 
 Awadalla, A., Gao, I., Gardner, J., Hessel, J., Hanafy, Y., Zhu, W., Marathe, K., Bitton, Y., Gadre, S., Jitsev, J., Kornblith, S., Koh, P. W., Ilharco, G., Wortsman, M., 和 Schmidt, L. Openflamingo，2023年3月。URL<https://doi.org/10.5281/zenodo.7733589>。
 
-Bengio, Y., Léonard, N., 和 Courville, A. 通过随机神经元估计或传播梯度以进行条件计算。arXiv 预印本 arXiv:1308.3432，2013。
+Bengio, Y., Léonard, N., 和 Courville, A. 通过随机神经元估计或传播梯度以进行条件计算。arXiv预印本arXiv:1308.3432，2013。
 
-Black, S., Biderman, S., Hallahan, E., Anthony, Q., Gao, L., Golding, L., He, H., Leahy, C., McDonell, K., Phang, J., 等人。Gpt-neox-20b：一种开源自回归语言模型。arXiv 预印本 arXiv:2204.06745，2022。
+Black, S., Biderman, S., Hallahan, E., Anthony, Q., Gao, L., Golding, L., He, H., Leahy, C., McDonell, K., Phang, J., 等人。Gpt-neox-20b：一种开源自回归语言模型。arXiv预印本arXiv:2204.06745，2022。
 
 Brown, T., Mann, B., Ryder, N., Subbiah, M., Kaplan, J. D., Dhariwal, P., Neelakantan, A., Shyam, P., Sastry, G., Askell, A., Agarwal, S., Herbert-Voss, A., Krueger, G., Henighan, T., Child, R., Ramesh, A., Ziegler, D., Wu, J., Winter, C., Hesse, C., Chen, M., Sigler, E., Litwin, M., Gray, S., Chess, B., Clark, J., Berner, C., McCandlish, S., Radford, A., Sutskever, I., 和 Amodei, D. 语言模型是少样本学习者。载于 Larochelle, H., Ranzato, M., Hadsell, R., Balcan, M., 和 Lin, H. (编)，《神经信息处理系统进展》，第33卷，第1877–1901页。Curran Associates, Inc., 2020。URL<https://proceedings.neurips.cc/paper/2020/file/1457c0d6bfcb4967418bfb8ac142f64a-Paper.pdf>。
 
-Chen, T., Moreau, T., Jiang, Z., Zheng, L., Yan, E., Shen, H., Cowan, M., Wang, L., Hu, Y., Ceze, L., 等人。TVM：一种用于深度学习的自动化端到端优化编译器。载于《第 13 届 USENIX 操作系统设计与实现研讨会（OSDI）》，2018。
+Chen, T., Moreau, T., Jiang, Z., Zheng, L., Yan, E., Shen, H., Cowan, M., Wang, L., Hu, Y., Ceze, L., 等人。TVM：一种用于深度学习的自动化端到端优化编译器。载于《第13届USENIX操作系统设计与实现研讨会（OSDI）》，2018。
 
-Chen, X., Fang, H., Lin, T.-Y., Vedantam, R., Gupta, S., Dollár, P., 和 Zitnick, C. L. Microsoft coco captions：数据收集和评估服务器。arXiv 预印本 arXiv:1504.00325，2015。
+Chen, X., Fang, H., Lin, T.-Y., Vedantam, R., Gupta, S., Dollár, P., 和 Zitnick, C. L. Microsoft coco captions：数据收集和评估服务器。arXiv预印本arXiv:1504.00325，2015。
 
 Chiang, W\.-L., Li, Z., Lin, Z., Sheng, Y., Wu, Z., Zhang, H., Zheng, L., Zhuang, S., Zhuang, Y., Gonzalez, J. E., Stoica, I., 和 Xing, E. P. Vicuna：一种以90% ChatGPT质量给GPT-4留下深刻印象的开源聊天机器人，2023年3月。URL<https://lmsys.org/blog/2023-03-30-vicuna/>。
 
-Choi, J., Wang, Z., Venkataramani, S., Chuang, P. I.-J., Srinivasan, V., 和 Gopalakrishnan, K. PACT：量化神经网络的参数化裁剪激活。arXiv 预印本 arXiv:1805.06085，2018。
+Choi, J., Wang, Z., Venkataramani, S., Chuang, P. I.-J., Srinivasan, V., 和 Gopalakrishnan, K. PACT：量化神经网络的参数化裁剪激活。arXiv预印本arXiv:1805.06085，2018。
 
-Chung, H. W., Hou, L., Longpre, S., Zoph, B., Tay, Y., Fedus, W., Li, E., Wang, X., Dehghani, M., Brahma, S., 等人。扩展指令微调的语言模型。arXiv 预印本 arXiv:2210.11416，2022。
+Chung, H. W., Hou, L., Longpre, S., Zoph, B., Tay, Y., Fedus, W., Li, E., Wang, X., Dehghani, M., Brahma, S., 等人。扩展指令微调的语言模型。arXiv预印本arXiv:2210.11416，2022。
 
 Cobbe, K., Kosaraju, V., Bavarian, M., Chen, M., Jun, H., Kaiser, L., Plappert, M., Tworek, J., Hilton, J., Nakano, R., Hesse, C., 和 Schulman, J. 训练验证器以解决数学文字问题，2021。
 
-Dettmers, T. 和 Zettlemoyer, L. 4 位精度的案例：k 位推理缩放定律。arXiv 预印本 arXiv:2212.09720，2022。
+Dettmers, T. 和 Zettlemoyer, L. 4位精度的案例：k位推理缩放定律。arXiv预印本arXiv:2212.09720，2022。
 
-Dettmers, T., Lewis, M., Belkada, Y., 和 Zettlemoyer, L. Llm.int8()：用于大规模 Transformer 的 8 位矩阵乘法。arXiv 预印本 arXiv:2208.07339，2022。
+Dettmers, T., Lewis, M., Belkada, Y., 和 Zettlemoyer, L. Llm.int8()：用于大规模Transformer的8位矩阵乘法。arXiv预印本arXiv:2208.07339，2022。
 
-Driess, D., Xia, F., Sajjadi, M. S., Lynch, C., Chowdhery, A., Ichter, B., Wahid, A., Tompson, J., Vuong, Q., Yu, T., 等人。Palm-e：一种具身多模态语言模型。arXiv 预印本 arXiv:2303.03378，2023。
+Driess, D., Xia, F., Sajjadi, M. S., Lynch, C., Chowdhery, A., Ichter, B., Wahid, A., Tompson, J., Vuong, Q., Yu, T., 等人。Palm-e：一种具身多模态语言模型。arXiv预印本arXiv:2303.03378，2023。
 
 Esser, S. K., McKinstry, J. L., Bablani, D., Appuswamy, R., 和 Modha, D. S. 学习步长量化（Learned step size quantization）。arXiv 预印本 arXiv:1902.08153，2019。
 
@@ -425,15 +441,15 @@ Ouyang, L., Wu, J., Jiang, X., Almeida, D., Wainwright, C., Mishkin, P., Zhang, 
 
 Park, G., Park, B., Kwon, S. J., Kim, B., Lee, Y., and Lee, D. nuqmm：量化矩阵乘法用于高效推理大规模生成语言模型。arXiv preprint arXiv:2206.09557, 2022.
 
-Penedo, G., Malartic, Q., Hesslow, D., Cojocaru, R., Cappelli, A., Alobeidli, H., Pannier, B., Almazrouei, E., and Launay, J. RefinedWeb 数据集用于 Falcon LLM：仅用网络数据超越精选语料库。arXiv preprint arXiv:2306.01116, 2023.
+Penedo, G., Malartic, Q., Hesslow, D., Cojocaru, R., Cappelli, A., Alobeidli, H., Pannier, B., Almazrouei, E., and Launay, J. RefinedWeb数据集用于Falcon LLM：仅用网络数据超越精选语料库。arXiv preprint arXiv:2306.01116, 2023.
 
 Sanh, V., Webson, A., Raffel, C., Bach, S. H., Sutawika, L., Alyafeai, Z., Chaffin, A., Stiegler, A., Scao, T. L., Raja, A., et al. 多任务提示训练实现零样本任务泛化。arXiv preprint arXiv:2110.08207, 2021.
 
-Scao, T. L., Fan, A., Akiki, C., Pavlick, E., Ilić, S., Hesslow, D., Castagné, R., Luccioni, A. S., Yvon, F., Gallé, M., et al. Bloom：一个 1760 亿参数的开源多语言语言模型。arXiv preprint arXiv:2211.05100, 2022.
+Scao, T. L., Fan, A., Akiki, C., Pavlick, E., Ilić, S., Hesslow, D., Castagné, R., Luccioni, A. S., Yvon, F., Gallé, M., et al. Bloom：一个1760亿参数的开源多语言语言模型。arXiv preprint arXiv:2211.05100, 2022.
 
-Sheng, Y., Zheng, L., Yuan, B., Li, Z., Ryabinin, M., Fu, D. Y., Xie, Z., Chen, B., Barrett, C., Gonzalez, J. E., et al. 使用单个 GPU 进行大语言模型的高吞吐量生成推理。arXiv preprint arXiv:2303.06865, 2023.
+Sheng, Y., Zheng, L., Yuan, B., Li, Z., Ryabinin, M., Fu, D. Y., Xie, Z., Chen, B., Barrett, C., Gonzalez, J. E., et al. 使用单个GPU进行大语言模型的高吞吐量生成推理。arXiv preprint arXiv:2303.06865, 2023.
 
-Singh, A., Natarajan, V., Shah, M., Jiang, Y., Chen, X., Batra, D., Parikh, D., and Rohrbach, M. 迈向能够阅读的 VQA 模型。In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, pp. 8317–8326, 2019.
+Singh, A., Natarajan, V., Shah, M., Jiang, Y., Chen, X., Batra, D., Parikh, D., and Rohrbach, M. 迈向能够阅读的VQA模型。In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, pp. 8317–8326, 2019.
 
 Taori, R., Gulrajani, I., Zhang, T., Dubois, Y., Li, X., Guestrin, C., Liang, P., and Hashimoto, T. B. Stanford Alpaca：一个遵循指令的Llama模型。<https://github.com/tatsu-lab/stanford_alpaca>, 2023.
 
@@ -453,7 +469,7 @@ Wei, J., Bosma, M., Zhao, V. Y., Guu, K., Yu, A. W., Lester, B., Du, N., Dai, A.
 
 Wei, X., Zhang, Y., Zhang, X., Gong, R., Zhang, S., Zhang, Q., Yu, F., and Liu, X. 异常值抑制：推动低比特Transformer语言模型的极限，2022a. URL <https://arxiv.org/abs/2209.13325>.
 
-Wei, X., Zhang, Y., Zhang, X., Gong, R., Zhang, S., Zhang, Q., Yu, F., and Liu, X. 异常值抑制：推动低比特 Transformer 语言模型的极限。arXiv preprint arXiv:2209.13325, 2022b.
+Wei, X., Zhang, Y., Zhang, X., Gong, R., Zhang, S., Zhang, Q., Yu, F., and Liu, X. 异常值抑制：推动低比特Transformer语言模型的极限。arXiv preprint arXiv:2209.13325, 2022b.
 
 Wei, X., Zhang, Y., Li, Y., Zhang, X., Gong, R., Guo, J., and Liu, X. 异常值抑制+：通过等效和最优移位与缩放实现大语言模型的精确量化。arXiv preprint arXiv:2304.09145, 2023.
 
