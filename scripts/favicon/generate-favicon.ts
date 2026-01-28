@@ -50,6 +50,11 @@ async function generateFavicons() {
   const favicon16Path = path.join(OUTPUT_DIR, 'favicon-16x16.png');
   const icoPath = path.join(OUTPUT_DIR, 'favicon.ico');
 
+  // Verify PNG files exist before creating ICO
+  if (!fs.existsSync(favicon32Path) || !fs.existsSync(favicon16Path)) {
+    throw new Error('Required PNG files for ICO generation are missing');
+  }
+
   console.log('  → Generating favicon.ico');
   const icoBuffer = await pngToIco([favicon32Path, favicon16Path]);
   fs.writeFileSync(icoPath, icoBuffer);
