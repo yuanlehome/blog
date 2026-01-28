@@ -131,7 +131,8 @@ export const pdfVlAdapter: Adapter = {
     if (config.ocrProvider === 'paddleocr_vl' && !config.token) {
       throw new Error(
         'PADDLEOCR_VL_TOKEN environment variable is required for PDF import. ' +
-          'Please set it in your .env.local or GitHub Secrets.',
+          'Please set it in your .env.local or GitHub Secrets.\n\n' +
+          'Alternatively, for testing or offline use, set PDF_OCR_PROVIDER=local_mock to use mock data.',
       );
     }
 
@@ -140,7 +141,8 @@ export const pdfVlAdapter: Adapter = {
       throw new Error(
         'API URL is required for PDF import. ' +
           'Please obtain it from https://aistudio.baidu.com/paddleocr/task ' +
-          'and set it via PDF_OCR_API_URL or PADDLEOCR_VL_API_URL environment variable.',
+          'and set it via PDF_OCR_API_URL or PADDLEOCR_VL_API_URL environment variable.\n\n' +
+          'Alternatively, for testing or offline use, set PDF_OCR_PROVIDER=local_mock to use mock data.',
       );
     }
 
