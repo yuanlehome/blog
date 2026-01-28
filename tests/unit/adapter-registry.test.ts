@@ -28,21 +28,6 @@ describe('Adapter Registry', () => {
       expect(adapter?.name).toBe('WeChat');
     });
 
-    it('should resolve arxiv adapter for arxiv URLs', () => {
-      const pdfAdapter = resolveAdapter('https://arxiv.org/pdf/2306.00978');
-      expect(pdfAdapter).not.toBeNull();
-      expect(pdfAdapter?.id).toBe('arxiv');
-      expect(pdfAdapter?.name).toBe('arXiv');
-
-      const srcAdapter = resolveAdapter('https://arxiv.org/src/2306.00978');
-      expect(srcAdapter).not.toBeNull();
-      expect(srcAdapter?.id).toBe('arxiv');
-
-      const absAdapter = resolveAdapter('https://arxiv.org/abs/2306.00978');
-      expect(absAdapter).not.toBeNull();
-      expect(absAdapter?.id).toBe('arxiv');
-    });
-
     it('should resolve others adapter for unknown URLs', () => {
       const adapter = resolveAdapter('https://example.com/article');
       expect(adapter).not.toBeNull();
@@ -63,13 +48,12 @@ describe('Adapter Registry', () => {
   describe('getAllAdapters', () => {
     it('should return all registered adapters', () => {
       const adapters = getAllAdapters();
-      expect(adapters.length).toBeGreaterThanOrEqual(5);
+      expect(adapters.length).toBeGreaterThanOrEqual(4);
 
       const ids = adapters.map((a) => a.id);
       expect(ids).toContain('zhihu');
       expect(ids).toContain('medium');
       expect(ids).toContain('wechat');
-      expect(ids).toContain('arxiv');
       expect(ids).toContain('others');
     });
 
@@ -93,10 +77,6 @@ describe('Adapter Registry', () => {
       const wechat = getAdapterById('wechat');
       expect(wechat).not.toBeNull();
       expect(wechat?.id).toBe('wechat');
-
-      const arxiv = getAdapterById('arxiv');
-      expect(arxiv).not.toBeNull();
-      expect(arxiv?.id).toBe('arxiv');
 
       const others = getAdapterById('others');
       expect(others).not.toBeNull();
@@ -133,16 +113,6 @@ describe('Adapter Registry', () => {
       expect(wechat?.canHandle('https://medium.com/article')).toBe(false);
     });
 
-    it('arxiv adapter should only handle arxiv URLs', () => {
-      const arxiv = getAdapterById('arxiv');
-      expect(arxiv?.canHandle('https://arxiv.org/pdf/2306.00978')).toBe(true);
-      expect(arxiv?.canHandle('https://arxiv.org/src/2306.00978')).toBe(true);
-      expect(arxiv?.canHandle('https://arxiv.org/abs/2306.00978')).toBe(true);
-      expect(arxiv?.canHandle('https://arxiv.org/e-print/2306.00978')).toBe(true);
-      expect(arxiv?.canHandle('https://example.com/arxiv')).toBe(false);
-      expect(arxiv?.canHandle('https://medium.com/article')).toBe(false);
-    });
-
     it('others adapter should handle all URLs', () => {
       const others = getAdapterById('others');
       expect(others?.canHandle('https://example.com/article')).toBe(true);
@@ -162,7 +132,7 @@ describe('Adapter Registry', () => {
         expect(adapter).toHaveProperty('fetchArticle');
         expect(typeof adapter.canHandle).toBe('function');
         expect(typeof adapter.fetchArticle).toBe('function');
-        expect(['zhihu', 'medium', 'wechat', 'arxiv', 'others']).toContain(adapter.id);
+        expect(['zhihu', 'medium', 'wechat', 'others']).toContain(adapter.id);
       }
     });
   });

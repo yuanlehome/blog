@@ -15,8 +15,8 @@ export interface Article {
   markdown: string;
   /** Original/canonical URL */
   canonicalUrl: string;
-  /** Source identifier (zhihu, medium, wechat, arxiv, others) */
-  source: 'zhihu' | 'medium' | 'wechat' | 'arxiv' | 'others';
+  /** Source identifier (zhihu, medium, wechat, others) */
+  source: 'zhihu' | 'medium' | 'wechat' | 'others';
   /** Article author */
   author?: string;
   /** Publication date (ISO 8601) */
@@ -76,7 +76,7 @@ export type DownloadImageFunction = (
  */
 export interface Adapter {
   /** Unique adapter identifier */
-  id: 'zhihu' | 'medium' | 'wechat' | 'arxiv' | 'others';
+  id: 'zhihu' | 'medium' | 'wechat' | 'others';
 
   /** Human-readable adapter name */
   name: string;

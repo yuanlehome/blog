@@ -8,7 +8,6 @@ import type { Adapter, AdapterRegistry } from './types.js';
 import { zhihuAdapter } from './zhihu.js';
 import { mediumAdapter } from './medium.js';
 import { wechatAdapter } from './wechat.js';
-import { arxivAdapter } from './arxiv.js';
 import { othersAdapter } from './others.js';
 import type { Logger } from '../../logger/types.js';
 
@@ -80,7 +79,6 @@ function registerDefaultAdapters(): void {
   adapterRegistry.register(zhihuAdapter);
   adapterRegistry.register(mediumAdapter);
   adapterRegistry.register(wechatAdapter);
-  adapterRegistry.register(arxivAdapter);
   adapterRegistry.register(othersAdapter);
 }
 
@@ -116,5 +114,5 @@ export function getAdapterById(id: string): Adapter | null {
 }
 
 // Re-export adapters for direct use
-export { zhihuAdapter, mediumAdapter, wechatAdapter, arxivAdapter, othersAdapter };
+export { zhihuAdapter, mediumAdapter, wechatAdapter, othersAdapter };
 export * from './types.js';

@@ -49,7 +49,7 @@ Astro 构建期和浏览器运行期执行的代码。**完全隔离于 scripts*
 | `src/lib/site/`     | 资源 URL 解析                                       |
 | `src/lib/ui/`       | 客户端交互（代码复制、浮动按钮）                    |
 | `src/lib/theme/`    | 主题切换逻辑                                        |
-| `src/content/blog/` | 博客文章（notion/、wechat/、arxiv/、others/、本地） |
+| `src/content/blog/` | 博客文章（notion/、wechat/、others/、本地） |
 
 ### 2.2 Scripts 层（`scripts/`）
 
