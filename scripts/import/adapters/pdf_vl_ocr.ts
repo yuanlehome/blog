@@ -92,6 +92,11 @@ interface OcrConfig {
 function getOcrConfig(): OcrConfig {
   // Check for IP override configuration
   // Support multiple environment variable names for compatibility
+  // Priority order (first defined wins):
+  // 1. PADDLE_OCR_VL_API_IP (most specific, recommended)
+  // 2. PADDLE_OCR_VL_IP (shorter variant)
+  // 3. PDF_OCR_API_IP (generic PDF OCR variant)
+  // 4. PADDLEOCR_VL_IP (legacy, for backward compatibility)
   const ipOverride =
     process.env.PADDLE_OCR_VL_API_IP ||
     process.env.PADDLE_OCR_VL_IP ||
@@ -404,6 +409,7 @@ function calculateBackoff(attempt: number): number {
 interface IpOverrideConfig {
   enabled: boolean;
   ip?: string;
+  ipVersion?: 4 | 6; // IP version: 4 for IPv4, 6 for IPv6
   state: 'missing' | 'invalid' | 'enabled';
 }
 
@@ -444,7 +450,7 @@ function prepareIpOverride(overrideIp: string | undefined, logger?: Logger): IpO
     };
   }
 
-  // Valid IP address
+  // Valid IP address - store the IP version to avoid revalidation
   logger?.debug('IP override enabled', {
     module: 'pdf_vl_ocr',
     stage: 'network_config',
@@ -455,6 +461,7 @@ function prepareIpOverride(overrideIp: string | undefined, logger?: Logger): IpO
   return {
     enabled: true,
     ip,
+    ipVersion: ipVersion as 4 | 6,
     state: 'enabled',
   };
 }
@@ -625,11 +632,13 @@ async function callPaddleOcrVlOnce(
   // Create undici agent with IPv4 forcing and connection timeout
   const agent = createIpv4Agent(config.connectTimeoutMs, ipOverride);
 
-  // Check for proxy environment variables
+  // Check for proxy environment variables (any proxy-related var indicates proxy may be in use)
+  // Note: NO_PROXY indicates which hosts bypass the proxy, suggesting proxy is configured
   const hasHttpProxy = !!(process.env.HTTP_PROXY || process.env.http_proxy);
   const hasHttpsProxy = !!(process.env.HTTPS_PROXY || process.env.https_proxy);
   const hasNoProxy = !!(process.env.NO_PROXY || process.env.no_proxy);
-  const proxyPresent = hasHttpProxy || hasHttpsProxy || hasNoProxy;
+  // proxyConfigured is true if any proxy variable is set (even NO_PROXY suggests proxy config exists)
+  const proxyConfigured = hasHttpProxy || hasHttpsProxy || hasNoProxy;
 
   // Log network configuration diagnostics before fetch
   const apiUrlObj = new URL(apiUrl);
@@ -639,7 +648,7 @@ async function callPaddleOcrVlOnce(
     hostname: apiUrlObj.hostname,
     overrideEnabled: ipOverride.enabled,
     overrideIpState: ipOverride.state,
-    proxyPresent,
+    proxyConfigured, // Indicates if any proxy env vars are set
   });
 
   let response: Response;
@@ -686,7 +695,7 @@ async function callPaddleOcrVlOnce(
         hostname: new URL(apiUrl).hostname,
         overrideEnabled: ipOverride.enabled,
         overrideIpState: ipOverride.state,
-        proxyPresent,
+        proxyConfigured, // Indicates if any proxy env vars are set
       },
     });
 

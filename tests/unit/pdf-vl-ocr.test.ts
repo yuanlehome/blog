@@ -991,7 +991,7 @@ describe('PDF VL OCR Client', () => {
       const debugCalls = mockLogger.debug.mock.calls;
       const fetchConfigLog = debugCalls.find((call: any) => call[1]?.stage === 'fetch_config');
       expect(fetchConfigLog).toBeDefined();
-      expect(fetchConfigLog![1].proxyPresent).toBe(true);
+      expect(fetchConfigLog![1].proxyConfigured).toBe(true);
 
       // Ensure proxy URL is NOT logged (security)
       const allLogs = JSON.stringify(mockLogger.debug.mock.calls);
@@ -1033,10 +1033,10 @@ describe('PDF VL OCR Client', () => {
       const debugCalls = mockLogger.debug.mock.calls;
       const fetchConfigLog = debugCalls.find((call: any) => call[1]?.stage === 'fetch_config');
       expect(fetchConfigLog).toBeDefined();
-      expect(fetchConfigLog![1].proxyPresent).toBe(true);
+      expect(fetchConfigLog![1].proxyConfigured).toBe(true);
     });
 
-    it('should show proxyPresent=false when no proxy vars set', async () => {
+    it('should show proxyConfigured=false when no proxy vars set', async () => {
       process.env.PDF_OCR_RETRY = '0';
       process.env.PDF_OCR_DIAG = '0';
 
@@ -1070,7 +1070,7 @@ describe('PDF VL OCR Client', () => {
       const debugCalls = mockLogger.debug.mock.calls;
       const fetchConfigLog = debugCalls.find((call: any) => call[1]?.stage === 'fetch_config');
       expect(fetchConfigLog).toBeDefined();
-      expect(fetchConfigLog![1].proxyPresent).toBe(false);
+      expect(fetchConfigLog![1].proxyConfigured).toBe(false);
     });
   });
 });
