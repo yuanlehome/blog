@@ -230,7 +230,7 @@ K 和 V 可以类似地从共享内存加载到寄存器内存。需要注意的
 
 ### 草稿版本
 
-我们有了高层级的基于 tile 的设计，并知道如何为 MMA 加载数据。调用 MMA 很简单——只需在我们的代码中插入`mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32`PTX。我们的草稿版本看起来像这样。
+我们有了高层级的基于 tile 的设计，并知道如何为 MMA 加载数据。调用 MMA 很简单——只需在我们的代码中插入 `mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32` PTX。我们的草稿版本看起来像这样。
 
 ```cpp
 constexpr int BLOCK_Q = 128;
@@ -684,7 +684,7 @@ NVIDIA GPU 的 shared memory 由 32 个 memory bank 支持。连续的 4 字节�
 
 共享内存中 8x64 BF16 图块的内存 bank 分布。
 
-从上图可知，当我们加载 8x8`ldmatrix`图块时，相同的 4 个 bank 0-3 服务所有 32 个线程，导致 8 路 bank 冲突。我不确定为什么 Nsight Compute 如上所示报告 16 路 bank 冲突。我尝试查找[matmul blogposts with swizzling](https://alexarmbr.github.io/2024/08/10/How-To-Write-A-Fast-Matrix-Multiplication-From-Scratch-With-Tensor-Cores.html)和[NVIDIA forum threads](https://forums.developer.nvidia.com/t/ncu-detects-bank-conflicts-in-matrix-transposition-after-padding/239100/6)，并发现另一种检查 bank 冲突的方法是转到 Nsight Compute 的**Source**选项卡并检查**L1 Wavefronts Shared**和**L1 Wavefronts Shared Ideal**（我必须手动启用这两列，因为默认情况下它们没有显示）。
+从上图可知，当我们加载 8x8 `ldmatrix` 图块时，相同的 4 个 bank 0-3 服务所有 32 个线程，导致 8 路 bank 冲突。我不确定为什么 Nsight Compute 如上所示报告 16 路 bank 冲突。我尝试查找 [matmul blogposts with swizzling](https://alexarmbr.github.io/2024/08/10/How-To-Write-A-Fast-Matrix-Multiplication-From-Scratch-With-Tensor-Cores.html) 和 [NVIDIA forum threads](https://forums.developer.nvidia.com/t/ncu-detects-bank-conflicts-in-matrix-transposition-after-padding/239100/6)，并发现另一种检查 bank 冲突的方法是转到 Nsight Compute 的 **Source** 选项卡并检查 **L1 Wavefronts Shared** 和 **L1 Wavefronts Shared Ideal**（我必须手动启用这两列，因为默认情况下它们没有显示）。
 
 ![Bank conflicts in ldmatrix](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/013-f80df431.png)
 
