@@ -46,6 +46,7 @@ export type NavTheme = z.infer<typeof navThemeSchema>;
 export const navConfigSchema = z.object({
   header: z.object({
     brandText: z.string().min(1).default('Yuanle Liu'),
+    brandLogo: z.string().optional(),
     menuItems: z.array(navMenuItemSchema).default([]),
   }),
   theme: navThemeSchema.default({}),
@@ -59,6 +60,7 @@ export type NavConfig = z.infer<typeof navConfigSchema>;
 export const defaultNavConfig: NavConfig = {
   header: {
     brandText: 'Yuanle Liu',
+    brandLogo: undefined,
     menuItems: [
       { label: 'Home', href: '/', isExternal: false },
       { label: 'Archive', href: '/archive/', isExternal: false },

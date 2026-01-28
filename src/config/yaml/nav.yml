@@ -4,6 +4,8 @@
 header:
   # Logo/brand text linking to home
   brandText: 'Yuanle Liu'
+  # Logo image path (relative to public folder)
+  brandLogo: 'placeholder-social.jpg'
 
   # Navigation menu items
   menuItems:
