@@ -1,0 +1,13 @@
+{
+  "result": {
+    "layoutParsingResults": [
+      {
+        "markdown": {
+          "text": "# Mock PDF Document Title\n\nThis is a mock OCR result for testing purposes.\n\n## Section 1: Introduction\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\n\n## Section 2: Main Content\n\nUt enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.\n\nDuis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.\n\n### Subsection 2.1\n\nExcepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n\n## Section 3: Additional Details\n\nSed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium.\n\nTotam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.\n\n### Subsection 3.1\n\nNemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit.\n\nSed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt.\n\n### Subsection 3.2\n\nMore content to ensure we exceed 20 lines requirement.\n\nAdditional paragraph with meaningful text content here.\n\n## Section 4: Conclusion\n\nNeque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit.\n\nSed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem.\n\nThis concludes our mock document with sufficient content for testing.\n",
+          "images": {}
+        },
+        "outputImages": []
+      }
+    ]
+  }
+}
