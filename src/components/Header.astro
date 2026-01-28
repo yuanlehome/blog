@@ -48,8 +48,10 @@ function isMenuItemActive(item: { href: string; isExternal: boolean }): boolean 
     <a href={BASE} class="text-xl font-bold hover:text-sky-600 dark:hover:text-sky-400 flex items-center gap-2">
       {navConfig.header.brandLogo && (
         <img 
-          src={`${BASE}${navConfig.header.brandLogo}`} 
+          src={`${BASE}${navConfig.header.brandLogo.startsWith('/') ? navConfig.header.brandLogo.slice(1) : navConfig.header.brandLogo}`} 
           alt={navConfig.header.brandText}
+          width="32"
+          height="32"
           class="h-8 w-8 rounded"
         />
       )}
