@@ -9,6 +9,7 @@ import type { Adapter, Article, FetchArticleInput } from './types.js';
 import { createLogger } from '../../logger/index.js';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import axios from 'axios';
 import * as tar from 'tar';
 import { promisify } from 'util';
@@ -42,7 +43,8 @@ const ALLOWED_EXTENSIONS = new Set([
 export function parseArxivId(url: string): string | null {
   try {
     const urlObj = new URL(url);
-    if (!urlObj.hostname.includes('arxiv.org')) {
+    // Only allow arxiv.org or its subdomains, not any hostname containing arxiv.org
+    if (urlObj.hostname !== 'arxiv.org' && !urlObj.hostname.endsWith('.arxiv.org')) {
       return null;
     }
 
@@ -121,6 +123,8 @@ async function extractTarGz(
   const extractedFiles: string[] = [];
 
   return new Promise((resolve, reject) => {
+    let timeoutId: NodeJS.Timeout | null = null;
+
     const extract = tar.extract({
       cwd: extractDir,
       filter: (entryPath: string, entry: any) => {
@@ -162,20 +166,25 @@ async function extractTarGz(
     readStream.pipe(extract);
 
     extract.on('end', () => {
+      if (timeoutId) clearTimeout(timeoutId);
       logger.info('Extraction complete', { fileCount: extractedFiles.length, totalSize });
       resolve(extractedFiles);
     });
 
     extract.on('error', (err: Error) => {
+      if (timeoutId) clearTimeout(timeoutId);
       reject(err);
     });
 
     readStream.on('error', (err: Error) => {
+      if (timeoutId) clearTimeout(timeoutId);
       reject(err);
     });
 
-    // Timeout
-    setTimeout(() => {
+    // Timeout with cleanup
+    timeoutId = setTimeout(() => {
+      readStream.destroy();
+      // Extract stream will be cleaned up by error handler
       reject(new Error('Extraction timeout'));
     }, EXTRACT_TIMEOUT);
   });
@@ -261,7 +270,7 @@ async function fetchArxivMetadata(
 }> {
   // Remove version number for API query
   const baseId = paperId.replace(/v\d+$/, '');
-  const apiUrl = `http://export.arxiv.org/api/query?id_list=${baseId}`;
+  const apiUrl = `https://export.arxiv.org/api/query?id_list=${baseId}`;
 
   logger.info('Fetching arXiv metadata', { paperId, apiUrl });
 
@@ -382,9 +391,19 @@ function latexToMarkdown(
     }
 
     if (foundPath) {
-      // Copy image to destination
-      const imageBasename = path.basename(foundPath);
-      const destPath = path.join(imageDestDir, imageBasename);
+      // Copy image to destination with unique name to avoid collisions
+      const imageExt = path.extname(foundPath);
+      const imageBasename = path.basename(foundPath, imageExt);
+      let destFilename = path.basename(foundPath);
+      let destPath = path.join(imageDestDir, destFilename);
+
+      // Handle filename collisions by appending index
+      let counter = 1;
+      while (fs.existsSync(destPath)) {
+        destFilename = `${imageBasename}-${counter}${imageExt}`;
+        destPath = path.join(imageDestDir, destFilename);
+        counter++;
+      }
 
       // Ensure dest directory exists
       fs.mkdirSync(path.dirname(destPath), { recursive: true });
@@ -394,8 +413,8 @@ function latexToMarkdown(
       copiedImages++;
 
       // Update markdown with public path
-      const publicPath = `${publicBasePath}/${imageBasename}`;
-      markdown = markdown.replace(match[0], `\n![${imageBasename}](${publicPath})\n`);
+      const publicPath = `${publicBasePath}/${destFilename}`;
+      markdown = markdown.replace(match[0], `\n![${destFilename}](${publicPath})\n`);
     } else {
       // Remove if not found
       markdown = markdown.replace(match[0], '');
@@ -449,8 +468,8 @@ export const arxivAdapter: Adapter = {
 
     logger.info('Processing arXiv paper', { paperId, url });
 
-    // Create temp directories
-    const tmpDir = path.join('/tmp', `arxiv-${paperId}-${Date.now()}`);
+    // Create temp directories using os.tmpdir() for cross-platform compatibility
+    const tmpDir = path.join(os.tmpdir(), `arxiv-${paperId}-${Date.now()}`);
     const extractDir = path.join(tmpDir, 'extracted');
     fs.mkdirSync(extractDir, { recursive: true });
 

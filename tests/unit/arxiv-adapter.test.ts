@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { parseArxivId } from '../../scripts/import/adapters/arxiv.js';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
 describe('arXiv Adapter', () => {
   describe('parseArxivId', () => {
@@ -36,6 +37,9 @@ describe('arXiv Adapter', () => {
     it('should return null for non-arXiv URLs', () => {
       expect(parseArxivId('https://example.com/paper')).toBeNull();
       expect(parseArxivId('https://google.com/arxiv')).toBeNull();
+      // Security: prevent arbitrary hosts that contain arxiv.org
+      expect(parseArxivId('https://evil-arxiv.org.example.com/pdf/1234.5678')).toBeNull();
+      expect(parseArxivId('https://arxiv.org.attacker.com/pdf/1234.5678')).toBeNull();
     });
 
     it('should return null for invalid arXiv URLs', () => {
@@ -48,7 +52,7 @@ describe('arXiv Adapter', () => {
     let tempDir: string;
 
     beforeEach(() => {
-      tempDir = path.join('/tmp', `test-arxiv-${Date.now()}`);
+      tempDir = path.join(os.tmpdir(), `test-arxiv-${Date.now()}`);
       fs.mkdirSync(tempDir, { recursive: true });
     });
 
@@ -153,7 +157,7 @@ Content
         return true;
       };
 
-      const extractDir = '/tmp/extract';
+      const extractDir = path.join(os.tmpdir(), 'extract');
 
       expect(isSafePath('normal.tex', extractDir)).toBe(true);
       expect(isSafePath('subdir/file.tex', extractDir)).toBe(true);
