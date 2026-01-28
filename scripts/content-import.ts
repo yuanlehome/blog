@@ -1154,6 +1154,29 @@ async function withBrowser<T>(fn: (context: BrowserContext) => Promise<T>) {
   }
 }
 
+/**
+ * Check if URL is an arXiv URL (no longer supported)
+ */
+function isArxivUrl(url: string): boolean {
+  try {
+    const urlObj = new URL(url);
+    // Check for arxiv.org or its subdomains
+    if (urlObj.hostname === 'arxiv.org' || urlObj.hostname.endsWith('.arxiv.org')) {
+      // Check for common arXiv path patterns
+      if (urlObj.pathname.match(/\/(pdf|abs|src|html|e-print)\//)) {
+        return true;
+      }
+    }
+    // Also check for ar5iv
+    if (urlObj.hostname === 'ar5iv.labs.arxiv.org') {
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 async function main() {
   const scriptStart = now();
   const options = await parseArgs();
@@ -1170,6 +1193,24 @@ async function main() {
   });
 
   try {
+    // Check if URL is arXiv (no longer supported)
+    if (isArxivUrl(targetUrl)) {
+      logger.error(new Error('arXiv import is no longer supported'), {
+        url: targetUrl,
+        reason: 'arXiv import has been removed from this repository',
+      });
+      logger.summary({
+        status: 'fail',
+        url: targetUrl,
+        reason: 'arXiv import no longer supported',
+        suggestion: 'Please provide a non-arXiv source URL (e.g., blog post), or import manually.',
+      });
+      throw new Error(
+        'arXiv import is no longer supported in this repository. ' +
+          'Please provide a non-arXiv source URL (e.g., blog post), or import manually.',
+      );
+    }
+
     // Resolve adapter for URL
     const resolveSpan = logger.time('resolve-adapter');
     const adapter = resolveAdapter(targetUrl);
