@@ -83,17 +83,32 @@ interface OcrConfig {
   timeoutMs: number;
   connectTimeoutMs: number;
   enableDiag: boolean;
+  overrideIp?: string;
 }
 
 /**
  * Get OCR configuration from environment
  */
 function getOcrConfig(): OcrConfig {
+  // Check for IP override configuration
+  // Support multiple environment variable names for compatibility
+  // Priority order (first defined wins):
+  // 1. PADDLE_OCR_VL_API_IP (most specific, recommended)
+  // 2. PADDLE_OCR_VL_IP (shorter variant)
+  // 3. PDF_OCR_API_IP (generic PDF OCR variant)
+  // 4. PADDLEOCR_VL_IP (legacy, for backward compatibility)
+  const ipOverride =
+    process.env.PADDLE_OCR_VL_API_IP ||
+    process.env.PADDLE_OCR_VL_IP ||
+    process.env.PDF_OCR_API_IP ||
+    process.env.PADDLEOCR_VL_IP;
+
   return {
     retries: parseInt(process.env.PDF_OCR_RETRY || '3', 10),
     timeoutMs: parseInt(process.env.PDF_OCR_TIMEOUT_MS || '90000', 10),
     connectTimeoutMs: parseInt(process.env.PDF_OCR_CONNECT_TIMEOUT_MS || '15000', 10),
     enableDiag: process.env.PDF_OCR_DIAG === '1' || process.env.CI === 'true',
+    overrideIp: ipOverride?.trim() || undefined,
   };
 }
 
@@ -389,6 +404,69 @@ function calculateBackoff(attempt: number): number {
 }
 
 /**
+ * IP override configuration for fetch requests
+ */
+interface IpOverrideConfig {
+  enabled: boolean;
+  ip?: string;
+  ipVersion?: 4 | 6; // IP version: 4 for IPv4, 6 for IPv6
+  state: 'missing' | 'invalid' | 'enabled';
+}
+
+/**
+ * Validate and prepare IP override configuration
+ * Returns configuration that indicates whether IP override should be used
+ *
+ * @param overrideIp - The IP address from configuration (may be undefined/empty/invalid)
+ * @param logger - Optional logger for diagnostics
+ * @returns IP override configuration indicating whether to use custom dispatcher
+ */
+function prepareIpOverride(overrideIp: string | undefined, logger?: Logger): IpOverrideConfig {
+  // No IP provided - use system DNS
+  if (!overrideIp || overrideIp.trim() === '') {
+    return {
+      enabled: false,
+      state: 'missing',
+    };
+  }
+
+  const ip = overrideIp.trim();
+
+  // Validate IP address format using Node's net.isIP
+  // Returns 0 if invalid, 4 for IPv4, 6 for IPv6
+  const ipVersion = net.isIP(ip);
+  if (ipVersion === 0) {
+    // Invalid IP - log warning and fall back to system DNS
+    logger?.warn('Invalid IP override configuration, falling back to system DNS', {
+      module: 'pdf_vl_ocr',
+      stage: 'network_config',
+      overrideIp: ip,
+      reason: 'net.isIP returned 0 (invalid IP format)',
+    });
+    return {
+      enabled: false,
+      ip,
+      state: 'invalid',
+    };
+  }
+
+  // Valid IP address - store the IP version to avoid revalidation
+  logger?.debug('IP override enabled', {
+    module: 'pdf_vl_ocr',
+    stage: 'network_config',
+    ip,
+    ipVersion: ipVersion === 4 ? 'IPv4' : 'IPv6',
+  });
+
+  return {
+    enabled: true,
+    ip,
+    ipVersion: ipVersion as 4 | 6,
+    state: 'enabled',
+  };
+}
+
+/**
  * Create undici Agent with IPv4-only and connection timeout
  * This ensures:
  * 1. Force IPv4 to avoid IPv6 connectivity issues in CI environments
@@ -398,18 +476,34 @@ function calculateBackoff(attempt: number): number {
  * - Native fetch doesn't expose connection-level timeout control
  * - IPv6 connectivity issues can cause "fetch failed" with statusCode=0
  * - undici Agent allows custom DNS lookup and timeout configuration
+ *
+ * @param connectTimeoutMs - Connection timeout in milliseconds
+ * @param overrideConfig - Optional IP override configuration
+ * @returns undici Agent configured for the request
  */
-function createIpv4Agent(connectTimeoutMs: number): Agent {
-  return new Agent({
+function createIpv4Agent(connectTimeoutMs: number, overrideConfig?: IpOverrideConfig): Agent {
+  const agentConfig: any = {
     connect: {
       timeout: connectTimeoutMs,
-      // Force IPv4 by providing custom lookup function
-      // undici expects callback-based dns.lookup, not promise-based
-      lookup: (hostname, _options, callback) => {
-        dnsCallback.lookup(hostname, { family: 4 }, callback);
-      },
     },
-  });
+  };
+
+  // Add custom lookup function based on configuration
+  if (overrideConfig?.enabled && overrideConfig.ip) {
+    // IP override: always return the specified IP address
+    agentConfig.connect.lookup = (hostname: string, _options: any, callback: any) => {
+      // Return the override IP directly, bypassing DNS resolution
+      // undici expects callback(error, address, family)
+      callback(null, overrideConfig.ip, net.isIP(overrideConfig.ip!));
+    };
+  } else {
+    // No IP override: force IPv4 for DNS resolution
+    agentConfig.connect.lookup = (hostname: string, _options: any, callback: any) => {
+      dnsCallback.lookup(hostname, { family: 4 }, callback);
+    };
+  }
+
+  return new Agent(agentConfig);
 }
 
 /**
@@ -532,8 +626,30 @@ async function callPaddleOcrVlOnce(
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), config.timeoutMs);
 
+  // Prepare IP override configuration
+  const ipOverride = prepareIpOverride(config.overrideIp, logger);
+
   // Create undici agent with IPv4 forcing and connection timeout
-  const agent = createIpv4Agent(config.connectTimeoutMs);
+  const agent = createIpv4Agent(config.connectTimeoutMs, ipOverride);
+
+  // Check for proxy environment variables (any proxy-related var indicates proxy may be in use)
+  // Note: NO_PROXY indicates which hosts bypass the proxy, suggesting proxy is configured
+  const hasHttpProxy = !!(process.env.HTTP_PROXY || process.env.http_proxy);
+  const hasHttpsProxy = !!(process.env.HTTPS_PROXY || process.env.https_proxy);
+  const hasNoProxy = !!(process.env.NO_PROXY || process.env.no_proxy);
+  // proxyConfigured is true if any proxy variable is set (even NO_PROXY suggests proxy config exists)
+  const proxyConfigured = hasHttpProxy || hasHttpsProxy || hasNoProxy;
+
+  // Log network configuration diagnostics before fetch
+  const apiUrlObj = new URL(apiUrl);
+  logger?.debug('Fetch network configuration', {
+    module: 'pdf_vl_ocr',
+    stage: 'fetch_config',
+    hostname: apiUrlObj.hostname,
+    overrideEnabled: ipOverride.enabled,
+    overrideIpState: ipOverride.state,
+    proxyConfigured, // Indicates if any proxy env vars are set
+  });
 
   let response: Response;
   let responseText: string = '';
@@ -570,10 +686,17 @@ async function callPaddleOcrVlOnce(
   } catch (error) {
     const errorDetails = extractErrorDetails(error);
 
+    // Enhanced error logging with network configuration context
     logger?.error('OCR API request failed', {
       module: 'pdf_vl_ocr',
       stage: 'request',
       error: errorDetails, // Always contains detailed information, never empty {}
+      networkConfig: {
+        hostname: new URL(apiUrl).hostname,
+        overrideEnabled: ipOverride.enabled,
+        overrideIpState: ipOverride.state,
+        proxyConfigured, // Indicates if any proxy env vars are set
+      },
     });
 
     const errorMsg = error instanceof Error ? error.message : String(error);
