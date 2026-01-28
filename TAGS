@@ -4,6 +4,7 @@
 'FP8'
 'DeepGEMM'
 'Attention'
+'FlashAttention'
 'Speculative Decoding'
 'Interviews with Experts'
 'RDMA'
