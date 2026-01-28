@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       url:
-        description: 'Article URL to import (Zhihu / Medium / WeChat / others)'
+        description: 'Article URL to import (Zhihu / Medium / WeChat / PDF / others)'
         required: true
         type: string
       allow_overwrite:
@@ -85,6 +85,7 @@ jobs:
           MARKDOWN_TRANSLATE_ENABLED: ${{ inputs.markdown_translate_enabled && '1' || '0' }}
           MARKDOWN_TRANSLATE_PROVIDER: ${{ inputs.markdown_translate_provider }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          PADDLEOCR_VL_TOKEN: ${{ secrets.PADDLEOCR_VL_TOKEN }}
         run: |
           ARGS=()
           ARGS+=("--url" "$URL")
@@ -104,6 +105,7 @@ jobs:
           echo "Running: npm run import:content -- ${ARGS[*]}"
           echo "Translation enabled: $MARKDOWN_TRANSLATE_ENABLED"
           echo "Translation provider: $MARKDOWN_TRANSLATE_PROVIDER"
+          echo "PDF import enabled: $([ -n "$PADDLEOCR_VL_TOKEN" ] && echo "yes" || echo "no (token not set)")"
           npm run import:content -- "${ARGS[@]}"
 
       - name: Check for changes
