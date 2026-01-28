@@ -322,15 +322,17 @@ async function fetchArxivMetadata(
 }
 
 /**
- * Convert LaTeX to Markdown
+ * Convert LaTeX to Markdown and copy images to destination
  */
 function latexToMarkdown(
   texContent: string,
   extractDir: string,
   texFilePath: string,
-): { markdown: string; images: string[] } {
+  imageDestDir: string,
+  publicBasePath: string,
+): { markdown: string; copiedImages: number } {
   let markdown = texContent;
-  const images: string[] = [];
+  let copiedImages = 0;
 
   // Remove comments
   markdown = markdown.replace(/(?<!\\)%.*$/gm, '');
@@ -362,7 +364,7 @@ function latexToMarkdown(
   );
   markdown = markdown.replace(/\\begin{align\*?}([\s\S]*?)\\end{align\*?}/g, '\n$$$$\n$1\n$$$$\n');
 
-  // Extract images
+  // Extract and copy images
   const imageMatches = markdown.matchAll(/\\includegraphics(?:\[[^\]]*\])?\{([^}]+)\}/g);
   for (const match of imageMatches) {
     let imagePath = match[1];
@@ -380,9 +382,20 @@ function latexToMarkdown(
     }
 
     if (foundPath) {
-      images.push(foundPath);
+      // Copy image to destination
       const imageBasename = path.basename(foundPath);
-      markdown = markdown.replace(match[0], `\n![${imageBasename}](./assets/${imageBasename})\n`);
+      const destPath = path.join(imageDestDir, imageBasename);
+
+      // Ensure dest directory exists
+      fs.mkdirSync(path.dirname(destPath), { recursive: true });
+
+      // Copy the file
+      fs.copyFileSync(foundPath, destPath);
+      copiedImages++;
+
+      // Update markdown with public path
+      const publicPath = `${publicBasePath}/${imageBasename}`;
+      markdown = markdown.replace(match[0], `\n![${imageBasename}](${publicPath})\n`);
     } else {
       // Remove if not found
       markdown = markdown.replace(match[0], '');
@@ -396,7 +409,7 @@ function latexToMarkdown(
   markdown = markdown.replace(/\n{3,}/g, '\n\n');
   markdown = markdown.trim();
 
-  return { markdown, images };
+  return { markdown, copiedImages };
 }
 
 /**
@@ -412,7 +425,7 @@ export const arxivAdapter: Adapter = {
 
   async fetchArticle(input: FetchArticleInput): Promise<Article> {
     const { url, options = {} } = input;
-    const { slug = 'arxiv-article', logger: parentLogger } = options;
+    const { slug = 'arxiv-article', imageRoot = '/tmp/images', logger: parentLogger } = options;
 
     // Create child logger with context
     const logger =
@@ -441,6 +454,10 @@ export const arxivAdapter: Adapter = {
     const extractDir = path.join(tmpDir, 'extracted');
     fs.mkdirSync(extractDir, { recursive: true });
 
+    // Create destination directory for images
+    const imageDestDir = path.join(imageRoot, slug);
+    const publicBasePath = options.publicBasePath || `/images/others/${slug}`;
+
     try {
       // Download source
       const tarPath = path.join(tmpDir, 'source.tar.gz');
@@ -463,7 +480,13 @@ export const arxivAdapter: Adapter = {
       // Read and convert TeX to Markdown
       const texPath = path.join(extractDir, mainTex);
       const texContent = fs.readFileSync(texPath, 'utf-8');
-      const { markdown, images } = latexToMarkdown(texContent, extractDir, mainTex);
+      const { markdown, copiedImages } = latexToMarkdown(
+        texContent,
+        extractDir,
+        mainTex,
+        imageDestDir,
+        publicBasePath,
+      );
 
       // Fetch metadata
       const metadata = await fetchArxivMetadata(paperId, logger);
@@ -478,7 +501,7 @@ export const arxivAdapter: Adapter = {
         fields: {
           paperId,
           mainTex,
-          imagesCount: images.length,
+          imagesCount: copiedImages,
           markdownLength: markdown.length,
         },
       });
@@ -488,7 +511,7 @@ export const arxivAdapter: Adapter = {
         adapter: 'arxiv',
         paperId,
         title: metadata.title,
-        imagesCount: images.length,
+        imagesCount: copiedImages,
         markdownLength: markdown.length,
       });
 
@@ -500,7 +523,7 @@ export const arxivAdapter: Adapter = {
         author: metadata.authors.join(', '),
         publishedAt: publishedDate,
         tags: ['arxiv', ...metadata.categories.slice(0, 3)],
-        images: images.map((localPath) => ({ url: '', localPath })),
+        images: [],
       };
     } catch (error) {
       extractionSpan.end({ status: 'fail' });
