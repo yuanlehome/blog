@@ -2,6 +2,7 @@
  * PDF VL OCR Multi-Page Tests
  *
  * Tests for multi-page PDF merging functionality
+ * Note: These tests run serially to avoid race conditions when manipulating fixtures
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -16,12 +17,10 @@ const mockLogger = {
   error: vi.fn(),
 };
 
-describe('PDF VL OCR Multi-Page Support', () => {
+describe.sequential('PDF VL OCR Multi-Page Support', () => {
   it('should merge multiple pages correctly', async () => {
     // Dynamically import to avoid issues with module resolution
-    const { callLocalMockOcr } = await import(
-      '../../scripts/import/adapters/pdf_vl_ocr.js'
-    );
+    const { callLocalMockOcr } = await import('../../scripts/import/adapters/pdf_vl_ocr.js');
 
     // Temporarily replace the fixture file with our multi-page version
     const fixtureDir = path.join(process.cwd(), 'tests/fixtures/ocr');
@@ -53,9 +52,7 @@ describe('PDF VL OCR Multi-Page Support', () => {
       expect(result.images['img2.png']).toBe('https://example.com/images/page2-img2.png');
 
       // Verify conflicting image was renamed
-      expect(result.images['img1_page3.png']).toBe(
-        'https://example.com/images/page3-img1.png',
-      );
+      expect(result.images['img1_page3.png']).toBe('https://example.com/images/page3-img1.png');
 
       // Verify the markdown references the renamed image
       expect(result.markdown).toContain('img1_page3.png');
@@ -72,9 +69,7 @@ describe('PDF VL OCR Multi-Page Support', () => {
   });
 
   it('should handle single page as before', async () => {
-    const { callLocalMockOcr } = await import(
-      '../../scripts/import/adapters/pdf_vl_ocr.js'
-    );
+    const { callLocalMockOcr } = await import('../../scripts/import/adapters/pdf_vl_ocr.js');
 
     const result = await callLocalMockOcr(mockLogger as any);
 
@@ -90,9 +85,7 @@ describe('PDF VL OCR Multi-Page Support', () => {
   });
 
   it('should handle pages with no images', async () => {
-    const { callLocalMockOcr } = await import(
-      '../../scripts/import/adapters/pdf_vl_ocr.js'
-    );
+    const { callLocalMockOcr } = await import('../../scripts/import/adapters/pdf_vl_ocr.js');
 
     // This test uses the original single-page fixture which has no images
     const result = await callLocalMockOcr(mockLogger as any);

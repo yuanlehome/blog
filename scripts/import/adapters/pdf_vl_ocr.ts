@@ -678,9 +678,6 @@ function extractErrorDetails(error: any): Record<string, any> {
 }
 
 /**
- * Call PaddleOCR-VL API with a single attempt (no retry logic)
- */
-/**
  * Merge multiple page results from layoutParsingResults into a single result
  * Handles markdown concatenation, image merging with conflict resolution,
  * and outputImages merging
@@ -695,7 +692,6 @@ function mergeLayoutParsingResults(
   const allMarkdownParts: string[] = [];
   const mergedImages: Record<string, string> = {};
   const allOutputImages: string[] = [];
-  const imageKeyCounter: Record<string, number> = {};
 
   for (let pageIdx = 0; pageIdx < layoutResults.length; pageIdx++) {
     const pageResult = layoutResults[pageIdx];
@@ -703,18 +699,13 @@ function mergeLayoutParsingResults(
     const pageImages = pageResult.markdown?.images || {};
     const pageOutputImages = pageResult.outputImages || [];
 
-    // Collect markdown
-    if (pageMarkdown) {
-      allMarkdownParts.push(pageMarkdown);
-    }
+    // Always add markdown (even if empty) to maintain proper indexing
+    allMarkdownParts.push(pageMarkdown);
 
     // Merge images with conflict resolution
     for (const [imgPath, imgUrl] of Object.entries(pageImages)) {
       if (imgPath in mergedImages) {
         // Conflict detected - need to rename
-        // Track how many times we've seen this key
-        imageKeyCounter[imgPath] = (imageKeyCounter[imgPath] || 1) + 1;
-
         // Generate new key: add page suffix before extension
         // e.g., "image.png" -> "image_page2.png"
         const dotIndex = imgPath.lastIndexOf('.');
@@ -736,11 +727,11 @@ function mergeLayoutParsingResults(
           new RegExp(`!\\[([^\\]]*)\\]\\(\\.\\/${escapedImgPath}\\)`, 'g'),
         ];
 
-        let updatedMarkdown = allMarkdownParts[allMarkdownParts.length - 1];
+        let updatedMarkdown = allMarkdownParts[pageIdx];
         for (const pattern of patterns) {
           updatedMarkdown = updatedMarkdown.replace(pattern, `![$1](${newImgPath})`);
         }
-        allMarkdownParts[allMarkdownParts.length - 1] = updatedMarkdown;
+        allMarkdownParts[pageIdx] = updatedMarkdown;
       } else {
         // No conflict, add directly
         mergedImages[imgPath] = imgUrl;
@@ -762,6 +753,10 @@ function mergeLayoutParsingResults(
     outputImages: allOutputImages,
   };
 }
+
+/**
+ * Call PaddleOCR-VL API with a single attempt (no retry logic)
+ */
 
 async function callPaddleOcrVlOnce(
   pdfBuffer: Buffer,
