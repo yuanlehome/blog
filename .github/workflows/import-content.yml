@@ -92,6 +92,7 @@ jobs:
           MARKDOWN_TRANSLATE_PROVIDER: ${{ inputs.markdown_translate_provider }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           PADDLEOCR_VL_TOKEN: ${{ secrets.PADDLEOCR_VL_TOKEN }}
+          PDF_OCR_API_URL: ${{ secrets.PADDLEOCR_VL_API_URL }}
         run: |
           ARGS=()
           ARGS+=("--url" "$URL")
