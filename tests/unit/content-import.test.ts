@@ -189,7 +189,7 @@ describe('content import for external articles', () => {
         async (
           imageUrl: string,
           _provider: string,
-          slug: string,
+          _slug: string,
           _imageRoot: string,
           index: number,
         ) => {
@@ -256,7 +256,7 @@ describe('content import for external articles', () => {
         async (
           _url: string,
           _provider: string,
-          slug: string,
+          _slug: string,
           _imageRoot: string,
           index: number,
         ) => {

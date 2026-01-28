@@ -373,7 +373,7 @@ export async function sync() {
 
         // Convert Body to MD
         const mdblocks = await n2m.pageToMarkdown(pageId);
-        const mdString = await n2m.toMarkdownString(mdblocks);
+        const mdString = n2m.toMarkdownString(mdblocks);
 
         // Construct Frontmatter
         const frontmatter = {

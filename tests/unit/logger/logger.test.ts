@@ -4,7 +4,6 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
-import path from 'path';
 import { createLogger } from '../../../scripts/logger/logger';
 
 describe('Logger', () => {
@@ -260,7 +259,7 @@ describe('Logger', () => {
 
     it('should not affect parent logger', () => {
       const parent = createLogger({ format: 'json', silent: false, fields: { runId: 'abc123' } });
-      const child = parent.child({ script: 'test-script' });
+      parent.child({ script: 'test-script' });
 
       parent.info('parent message');
 

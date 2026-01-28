@@ -45,7 +45,7 @@ export function redactValue(value: any): any {
     let redacted = value;
 
     // Redact sensitive URL parameters FIRST (before cookie pattern which is more greedy)
-    redacted = redacted.replace(SENSITIVE_URL_PARAMS, (match, prefix, param, value) => {
+    redacted = redacted.replace(SENSITIVE_URL_PARAMS, (_match, prefix, param, _value) => {
       return `${prefix}${param}=[REDACTED]`;
     });
 

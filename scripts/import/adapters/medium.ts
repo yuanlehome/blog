@@ -6,7 +6,6 @@
 
 import type { Adapter, Article, FetchArticleInput } from './types.js';
 import { htmlToMdx } from '../../content-import.js';
-import type { Logger } from '../../logger/types.js';
 import { createLogger } from '../../logger/index.js';
 
 /**

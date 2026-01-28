@@ -236,8 +236,8 @@ describe('PDF VL OCR Client', () => {
       process.env.PDF_OCR_DIAG = '0';
 
       // Mock fetch that respects abort signal
-      global.fetch = vi.fn((url: any, options: any) => {
-        return new Promise((resolve, reject) => {
+      global.fetch = vi.fn((_url: any, options: any) => {
+        return new Promise((_resolve, reject) => {
           // Listen for abort signal
           if (options?.signal) {
             options.signal.addEventListener('abort', () => {
@@ -427,7 +427,7 @@ describe('PDF VL OCR Client', () => {
       let fetchOptions: any = null;
 
       // Mock fetch to capture options
-      global.fetch = vi.fn((url: any, options: any) => {
+      global.fetch = vi.fn((_url: any, options: any) => {
         fetchOptions = options;
         const mockResponse = {
           result: {
@@ -627,7 +627,7 @@ describe('PDF VL OCR Client', () => {
 
       let fetchOptions: any = null;
 
-      global.fetch = vi.fn((url: any, options: any) => {
+      global.fetch = vi.fn((_url: any, options: any) => {
         fetchOptions = options;
         const mockResponse = {
           result: {

@@ -125,7 +125,7 @@ describe('DeepSeekTranslator', () => {
       ];
 
       let fetchCallCount = 0;
-      global.fetch = vi.fn(async (url: string, options: any) => {
+      global.fetch = vi.fn(async (_url: string, options: any) => {
         fetchCallCount++;
         const body = JSON.parse(options.body);
         const userContent = body.messages[1].content;
@@ -167,7 +167,7 @@ describe('DeepSeekTranslator', () => {
       ];
 
       let fetchCallCount = 0;
-      global.fetch = vi.fn(async (url: string, options: any) => {
+      global.fetch = vi.fn(async (_url: string, options: any) => {
         fetchCallCount++;
         const body = JSON.parse(options.body);
         const userContent = body.messages[1].content;
@@ -325,7 +325,7 @@ describe('DeepSeekTranslator', () => {
     it('should handle timeout with fallback', async () => {
       const nodes: TranslationNode[] = [{ kind: 'text', nodeId: 'node1', text: 'Hello' }];
 
-      global.fetch = vi.fn(async (url: string, options: any) => {
+      global.fetch = vi.fn(async (_url: string, options: any) => {
         // Simulate a long-running request that gets aborted
         return new Promise((resolve, reject) => {
           const timeoutId = setTimeout(() => {
@@ -461,7 +461,7 @@ describe('DeepSeekTranslator', () => {
       const nodes2: TranslationNode[] = [{ kind: 'text', nodeId: 'node1', text: 'World' }];
 
       let fetchCallCount = 0;
-      global.fetch = vi.fn(async (url: string, options: any) => {
+      global.fetch = vi.fn(async (_url: string, options: any) => {
         fetchCallCount++;
         const body = JSON.parse(options.body);
         const userContent = body.messages[1].content;
@@ -557,7 +557,7 @@ describe('DeepSeekTranslator', () => {
       ];
 
       let callCount = 0;
-      global.fetch = vi.fn(async (url: string, options: any) => {
+      global.fetch = vi.fn(async (_url: string, options: any) => {
         callCount++;
         const body = JSON.parse(options.body);
         const userContent = body.messages[1].content;

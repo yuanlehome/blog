@@ -14,7 +14,7 @@ import remarkStringify from 'remark-stringify';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import { visit } from 'unist-util-visit';
-import type { Root, Code, Paragraph, Image } from 'mdast';
+import type { Root, Code, Paragraph } from 'mdast';
 import matter from 'gray-matter';
 
 import { detectLanguage, shouldTranslate } from './language-detector.js';
@@ -353,7 +353,6 @@ function fixImageCaptions(tree: Root): number {
       node.children?.length === 1 &&
       node.children[0].type === 'image'
     ) {
-      const image = node.children[0] as Image;
       const nextSibling = parent && typeof index === 'number' && parent.children[index + 1];
 
       // Check if next sibling is a potential caption
