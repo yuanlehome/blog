@@ -2,12 +2,20 @@
  * PaddleOCR-VL API Client
  *
  * Handles communication with PaddleOCR-VL layout parsing API
+ *
+ * Network stability enhancements:
+ * - Force IPv4 to avoid IPv6 connectivity issues in CI
+ * - Proper connection timeout via undici Agent
+ * - Enhanced diagnostics for DNS/TCP/TLS
+ * - Exponential backoff retry with detailed error logging
  */
 
 import type { Logger } from '../../logger/types.js';
-import * as dns from 'dns/promises';
+import * as dnsPromises from 'dns/promises';
+import * as dnsCallback from 'dns';
 import * as net from 'net';
 import * as https from 'https';
+import { Agent } from 'undici';
 
 /**
  * OCR result structure
@@ -90,12 +98,66 @@ function getOcrConfig(): OcrConfig {
 }
 
 /**
+ * Validate API URL according to official documentation
+ * URL must be obtained from https://aistudio.baidu.com/paddleocr/task page
+ */
+function validateApiUrl(apiUrl: string): void {
+  if (!apiUrl || apiUrl.trim() === '') {
+    throw new Error(
+      'API URL is required. Please obtain it from https://aistudio.baidu.com/paddleocr/task ' +
+        'and set it via PDF_OCR_API_URL or PADDLEOCR_VL_API_URL environment variable.',
+    );
+  }
+
+  let url: URL;
+  try {
+    url = new URL(apiUrl);
+  } catch (error) {
+    throw new Error(
+      `Invalid API URL format: ${apiUrl}. ` +
+        'Please verify the URL from https://aistudio.baidu.com/paddleocr/task',
+    );
+  }
+
+  // Must be HTTPS
+  if (url.protocol !== 'https:') {
+    throw new Error(
+      `API URL must use HTTPS protocol, got: ${url.protocol}. ` +
+        'Please verify the URL from https://aistudio.baidu.com/paddleocr/task',
+    );
+  }
+
+  // Must include /layout-parsing in path (as per official documentation)
+  if (!url.pathname.includes('/layout-parsing')) {
+    throw new Error(
+      `API URL path must include '/layout-parsing', got: ${url.pathname}. ` +
+        'Please verify the URL from https://aistudio.baidu.com/paddleocr/task',
+    );
+  }
+}
+
+/**
  * Network diagnostic results
  */
 interface DiagnosticResult {
-  dns?: { success: boolean; address?: string; error?: string };
-  tcp?: { success: boolean; error?: string };
-  tls?: { success: boolean; error?: string };
+  dns?: {
+    success: boolean;
+    addresses?: Array<{ address: string; family: number }>;
+    error?: string;
+    hasIPv6?: boolean;
+  };
+  tcp?: {
+    success: boolean;
+    address?: string;
+    port?: number;
+    error?: string;
+  };
+  tls?: {
+    success: boolean;
+    statusCode?: number;
+    headers?: Record<string, string>;
+    error?: string;
+  };
 }
 
 /**
@@ -108,16 +170,23 @@ async function runNetworkDiagnostics(apiUrl: string, logger?: Logger): Promise<D
     const url = new URL(apiUrl);
     const host = url.hostname;
     const port = url.port ? parseInt(url.port, 10) : 443;
+    const path = url.pathname;
 
-    // DNS lookup
+    // DNS lookup - get all addresses (both IPv4 and IPv6)
     try {
-      const addresses = await dns.lookup(host);
-      result.dns = { success: true, address: addresses.address };
+      const addresses = await dnsPromises.lookup(host, { all: true });
+      const hasIPv6 = addresses.some((addr) => addr.family === 6);
+      result.dns = {
+        success: true,
+        addresses: addresses.map((a) => ({ address: a.address, family: a.family })),
+        hasIPv6,
+      };
       logger?.debug('DNS lookup succeeded', {
         module: 'pdf_vl_ocr',
         stage: 'diagnostics',
         host,
-        address: addresses.address,
+        addresses: result.dns.addresses,
+        hasIPv6,
       });
     } catch (error) {
       result.dns = {
@@ -132,49 +201,89 @@ async function runNetworkDiagnostics(apiUrl: string, logger?: Logger): Promise<D
       });
     }
 
-    // TCP connection test
-    if (result.dns?.success) {
+    // TCP connection test - use IPv4 address if available
+    if (result.dns?.success && result.dns.addresses && result.dns.addresses.length > 0) {
+      // Prefer IPv4 address
+      const ipv4Addr = result.dns.addresses.find((a) => a.family === 4);
+      const targetAddr = ipv4Addr || result.dns.addresses[0];
+
       try {
         await new Promise<void>((resolve, reject) => {
-          const socket = net.connect({ host, port, timeout: 3000 }, () => {
-            socket.end();
-            resolve();
-          });
+          const socket = net.connect(
+            {
+              host: targetAddr.address,
+              port,
+              timeout: 3000,
+            },
+            () => {
+              socket.end();
+              resolve();
+            },
+          );
           socket.on('error', reject);
           socket.on('timeout', () => {
             socket.destroy();
             reject(new Error('Connection timeout'));
           });
         });
-        result.tcp = { success: true };
+        result.tcp = {
+          success: true,
+          address: targetAddr.address,
+          port,
+        };
         logger?.debug('TCP connection succeeded', {
           module: 'pdf_vl_ocr',
           stage: 'diagnostics',
-          host,
+          address: targetAddr.address,
           port,
         });
       } catch (error) {
         result.tcp = {
           success: false,
+          address: targetAddr.address,
+          port,
           error: error instanceof Error ? error.message : String(error),
         };
         logger?.warn('TCP connection failed', {
           module: 'pdf_vl_ocr',
           stage: 'diagnostics',
-          host,
+          address: targetAddr.address,
           port,
           error: result.tcp.error,
         });
       }
     }
 
-    // TLS handshake test (HEAD request)
+    // TLS handshake test - test the actual API path
     if (result.tcp?.success && url.protocol === 'https:') {
       try {
         await new Promise<void>((resolve, reject) => {
           const req = https.request(
-            { method: 'HEAD', hostname: host, port, path: '/', timeout: 3000 },
+            {
+              method: 'HEAD',
+              hostname: host,
+              port,
+              path, // Use actual API path
+              timeout: 3000,
+            },
             (res) => {
+              // Capture response metadata
+              result.tls = {
+                success: true,
+                statusCode: res.statusCode,
+                headers: {
+                  location: res.headers.location || '',
+                  server: Array.isArray(res.headers.server)
+                    ? res.headers.server.join(', ')
+                    : res.headers.server || '',
+                  via: Array.isArray(res.headers.via)
+                    ? res.headers.via.join(', ')
+                    : res.headers.via || '',
+                  'content-type': Array.isArray(res.headers['content-type'])
+                    ? res.headers['content-type'].join(', ')
+                    : res.headers['content-type'] || '',
+                },
+              };
               res.resume();
               resolve();
             },
@@ -186,11 +295,13 @@ async function runNetworkDiagnostics(apiUrl: string, logger?: Logger): Promise<D
           });
           req.end();
         });
-        result.tls = { success: true };
         logger?.debug('TLS handshake succeeded', {
           module: 'pdf_vl_ocr',
           stage: 'diagnostics',
           host,
+          path,
+          statusCode: result.tls?.statusCode,
+          headers: result.tls?.headers,
         });
       } catch (error) {
         result.tls = {
@@ -201,6 +312,7 @@ async function runNetworkDiagnostics(apiUrl: string, logger?: Logger): Promise<D
           module: 'pdf_vl_ocr',
           stage: 'diagnostics',
           host,
+          path,
           error: result.tls.error,
         });
       }
@@ -277,7 +389,32 @@ function calculateBackoff(attempt: number): number {
 }
 
 /**
+ * Create undici Agent with IPv4-only and connection timeout
+ * This ensures:
+ * 1. Force IPv4 to avoid IPv6 connectivity issues in CI environments
+ * 2. Proper connection timeout (connectTimeoutMs) actually takes effect
+ *
+ * Why this is needed:
+ * - Native fetch doesn't expose connection-level timeout control
+ * - IPv6 connectivity issues can cause "fetch failed" with statusCode=0
+ * - undici Agent allows custom DNS lookup and timeout configuration
+ */
+function createIpv4Agent(connectTimeoutMs: number): Agent {
+  return new Agent({
+    connect: {
+      timeout: connectTimeoutMs,
+      // Force IPv4 by providing custom lookup function
+      // undici expects callback-based dns.lookup, not promise-based
+      lookup: (hostname, _options, callback) => {
+        dnsCallback.lookup(hostname, { family: 4 }, callback);
+      },
+    },
+  });
+}
+
+/**
  * Extract detailed error information from fetch error
+ * Ensures no empty error={} in logs by extracting all available fields
  */
 function extractErrorDetails(error: any): Record<string, any> {
   const details: Record<string, any> = {
@@ -289,28 +426,46 @@ function extractErrorDetails(error: any): Record<string, any> {
     details.stack = error.stack.split('\n').slice(0, 3).join('\n');
   }
 
+  // Extract cause details (important for network errors)
   if (error?.cause) {
-    details.cause = {
-      name: error.cause.name,
-      message: error.cause.message,
-      code: error.cause.code,
-      errno: error.cause.errno,
-      syscall: error.cause.syscall,
-      address: error.cause.address,
-      port: error.cause.port,
-    };
+    const cause = error.cause;
+    details.cause = {};
+
+    // Extract all standard error fields
+    if (cause.name) details.cause.name = cause.name;
+    if (cause.message) details.cause.message = cause.message;
+    if (cause.code) details.cause.code = cause.code;
+    if (cause.errno !== undefined) details.cause.errno = cause.errno;
+    if (cause.syscall) details.cause.syscall = cause.syscall;
+    if (cause.address) details.cause.address = cause.address;
+    if (cause.port !== undefined) details.cause.port = cause.port;
+    if (cause.hostname) details.cause.hostname = cause.hostname;
+
+    // Remove empty cause object
+    if (Object.keys(details.cause).length === 0) {
+      delete details.cause;
+    }
   }
 
+  // Direct error fields (for cases where cause is not used)
   if (error?.code) {
     details.code = error.code;
   }
 
-  if (error?.errno) {
+  if (error?.errno !== undefined) {
     details.errno = error.errno;
   }
 
   if (error?.syscall) {
     details.syscall = error.syscall;
+  }
+
+  if (error?.address) {
+    details.address = error.address;
+  }
+
+  if (error?.port !== undefined) {
+    details.port = error.port;
   }
 
   return details;
@@ -347,15 +502,15 @@ async function callPaddleOcrVlOnce(
     );
   }
 
-  // Prepare request payload
+  // Prepare request payload (consistent with official documentation)
   let payload: string;
   try {
     const payloadObj = {
-      file: base64Pdf,
-      fileType: 0, // 0 = PDF, 1 = image
-      useDocOrientationClassify: false,
-      useDocUnwarping: false,
-      useChartRecognition: false,
+      file: base64Pdf, // Base64-encoded PDF content
+      fileType: 0, // 0 = PDF, 1 = image (as per official docs)
+      useDocOrientationClassify: false, // Optional: document orientation detection
+      useDocUnwarping: false, // Optional: document unwarping
+      useChartRecognition: false, // Optional: chart/table recognition
     };
     payload = JSON.stringify(payloadObj);
     logger?.debug('Payload prepared', {
@@ -373,26 +528,32 @@ async function callPaddleOcrVlOnce(
     );
   }
 
-  // Create abort controller for timeout
+  // Create abort controller for total timeout
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), config.timeoutMs);
+
+  // Create undici agent with IPv4 forcing and connection timeout
+  const agent = createIpv4Agent(config.connectTimeoutMs);
 
   let response: Response;
   let responseText: string = '';
 
   try {
-    // Make API request
+    // Make API request with undici dispatcher for IPv4 + connection timeout
     const startTime = Date.now();
     response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
+        // Authorization format as per official documentation
         Authorization: `token ${token}`,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json', // Required by API
         Accept: 'application/json',
         'User-Agent': 'blog-content-import/1.0',
       },
       body: payload,
       signal: controller.signal,
+      // @ts-ignore - undici dispatcher is valid but TypeScript doesn't recognize it
+      dispatcher: agent,
     });
 
     const fetchDuration = Date.now() - startTime;
@@ -412,26 +573,35 @@ async function callPaddleOcrVlOnce(
     logger?.error('OCR API request failed', {
       module: 'pdf_vl_ocr',
       stage: 'request',
-      ...errorDetails,
+      error: errorDetails, // Always contains detailed information, never empty {}
     });
 
     const errorMsg = error instanceof Error ? error.message : String(error);
+    // Truncate error details to <= 2KB for responseBody
+    const errorDetailsStr = JSON.stringify(errorDetails);
+    const truncatedDetails =
+      errorDetailsStr.length > 2048
+        ? errorDetailsStr.slice(0, 2048) + '...(truncated)'
+        : errorDetailsStr;
+
     throw new OcrApiError(
       `Failed to call PaddleOCR-VL API: ${errorMsg}`,
       0,
-      JSON.stringify(errorDetails),
+      truncatedDetails,
       undefined,
       error instanceof Error ? error : undefined,
     );
   } finally {
     clearTimeout(timeoutId);
+    // Clean up agent
+    agent.destroy();
   }
 
   // Check HTTP status
   if (!response.ok) {
-    // Sanitize response body for logging (truncate if too long)
+    // Sanitize response body for logging (truncate to 2KB max)
     const bodySample =
-      responseText.length > 2048 ? responseText.slice(0, 2048) + '...' : responseText;
+      responseText.length > 2048 ? responseText.slice(0, 2048) + '...(truncated)' : responseText;
 
     throw new OcrApiError(
       `PaddleOCR-VL API returned error: HTTP ${response.status} ${response.statusText}`,
@@ -507,6 +677,9 @@ export async function callPaddleOcrVl(
 ): Promise<PaddleOcrVlResult> {
   const config = getOcrConfig();
 
+  // Validate API URL first
+  validateApiUrl(apiUrl);
+
   // Log environment info
   logger?.info('OCR API call starting', {
     module: 'pdf_vl_ocr',
@@ -544,12 +717,18 @@ export async function callPaddleOcrVl(
   for (let attempt = 0; attempt <= config.retries; attempt++) {
     if (attempt > 0) {
       const delay = calculateBackoff(attempt - 1);
+
+      // Extract error details for retry logging
+      const errorInfo = lastError ? extractErrorDetails(lastError) : {};
+
       logger?.info('Retrying OCR API call', {
         module: 'pdf_vl_ocr',
         stage: 'retry',
         attempt,
         maxRetries: config.retries,
         delayMs: Math.round(delay),
+        lastErrorCode: errorInfo.code || errorInfo.cause?.code,
+        lastErrorMessage: errorInfo.message,
       });
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
@@ -567,13 +746,15 @@ export async function callPaddleOcrVl(
       // Check if error is retryable
       const shouldRetry = attempt < config.retries && isRetryableError(error, lastStatusCode);
 
+      const errorDetails = extractErrorDetails(error);
       logger?.warn('OCR API call failed', {
         module: 'pdf_vl_ocr',
         stage: 'error',
         attempt: attempt + 1,
         maxAttempts: config.retries + 1,
         shouldRetry,
-        error: extractErrorDetails(error),
+        statusCode: lastStatusCode,
+        error: errorDetails,
       });
 
       if (!shouldRetry) {

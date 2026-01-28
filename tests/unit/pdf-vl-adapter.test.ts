@@ -36,14 +36,16 @@ const originalFetch = global.fetch;
 describe('PDF VL Adapter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Set required environment variable
+    // Set required environment variables
     process.env.PADDLEOCR_VL_TOKEN = 'test-token-12345';
+    process.env.PDF_OCR_API_URL = 'https://test.aistudio-app.com/layout-parsing';
     process.env.MARKDOWN_TRANSLATE_ENABLED = '0';
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
     delete process.env.PADDLEOCR_VL_TOKEN;
+    delete process.env.PDF_OCR_API_URL;
     delete process.env.MARKDOWN_TRANSLATE_ENABLED;
   });
 
