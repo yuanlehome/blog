@@ -2,7 +2,7 @@
 title: Writing Speed-of-Light Flash Attention for 5090 in CUDA C++
 slug: writing-speed-of-light-flash-attention-for-5090-in-cuda-c
 date: '2025-08-23'
-tags: []
+tags: ['CUDA', 'FlashAttention']
 status: published
 source_url: 'https://gau-nernst.github.io/fa-5090/'
 source_author: Thien Tran
