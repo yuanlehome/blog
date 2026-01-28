@@ -72,7 +72,6 @@ function fixCodeFences(markdown: string): string {
   const lines = markdown.split('\n');
   const result: string[] = [];
   let inCodeBlock = false;
-  let codeBlockStart = -1;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -82,7 +81,6 @@ function fixCodeFences(markdown: string): string {
       if (!inCodeBlock) {
         // Opening fence
         inCodeBlock = true;
-        codeBlockStart = i;
       } else {
         // Closing fence
         inCodeBlock = false;
@@ -110,7 +108,6 @@ function normalizeListIndentation(markdown: string): string {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const prevLine = i > 0 ? lines[i - 1] : '';
-    const nextLine = i < lines.length - 1 ? lines[i + 1] : '';
 
     // Check if this is a list item
     const isListItem = /^\s*[-*+]\s/.test(line) || /^\s*\d+\.\s/.test(line);

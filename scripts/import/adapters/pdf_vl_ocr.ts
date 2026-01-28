@@ -112,17 +112,14 @@ export async function callPaddleOcrVl(
     });
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    throw new OcrApiError(
-      `Failed to call PaddleOCR-VL API: ${errorMsg}`,
-      0,
-      errorMsg,
-    );
+    throw new OcrApiError(`Failed to call PaddleOCR-VL API: ${errorMsg}`, 0, errorMsg);
   }
 
   // Check HTTP status
   if (!response.ok) {
     // Sanitize response body for logging (truncate if too long)
-    const bodySample = responseText.length > 500 ? responseText.slice(0, 500) + '...' : responseText;
+    const bodySample =
+      responseText.length > 500 ? responseText.slice(0, 500) + '...' : responseText;
 
     throw new OcrApiError(
       `PaddleOCR-VL API returned error: HTTP ${response.status} ${response.statusText}`,
@@ -136,7 +133,8 @@ export async function callPaddleOcrVl(
   try {
     parsedResponse = JSON.parse(responseText);
   } catch (error) {
-    const bodySample = responseText.length > 500 ? responseText.slice(0, 500) + '...' : responseText;
+    const bodySample =
+      responseText.length > 500 ? responseText.slice(0, 500) + '...' : responseText;
     throw new OcrParseError(
       `Failed to parse PaddleOCR-VL API response as JSON: ${error instanceof Error ? error.message : String(error)}`,
       bodySample,

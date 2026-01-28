@@ -8,10 +8,9 @@
 import type { Adapter, Article, FetchArticleInput } from './types.js';
 import { createLogger } from '../../logger/index.js';
 import { downloadPdf, validatePdf } from './pdf_vl_utils.js';
-import { callPaddleOcrVl, type PaddleOcrVlResult } from './pdf_vl_ocr.js';
+import { callPaddleOcrVl } from './pdf_vl_ocr.js';
 import { processOcrMarkdown, downloadOcrImages } from './pdf_vl_markdown.js';
 import { processMarkdownForImport } from '../../markdown/index.js';
-import fs from 'fs';
 import path from 'path';
 
 /**
@@ -109,7 +108,7 @@ export const pdfVlAdapter: Adapter = {
   },
 
   async fetchArticle(input: FetchArticleInput): Promise<Article> {
-    const { url, page, options = {} } = input;
+    const { url, options = {} } = input;
     // Note: PDF import doesn't use the page object since we download directly
     const {
       slug = 'pdf-article',
@@ -207,7 +206,10 @@ export const pdfVlAdapter: Adapter = {
       for (const [imgPath, localPath] of Object.entries(localImageMap)) {
         // Replace image references - handle both relative and absolute paths
         const patterns = [
-          new RegExp(`!\\[([^\\]]*)\\]\\(${imgPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'),
+          new RegExp(
+            `!\\[([^\\]]*)\\]\\(${imgPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`,
+            'g',
+          ),
           new RegExp(
             `!\\[([^\\]]*)\\]\\(\\.\\/${imgPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`,
             'g',
@@ -233,10 +235,13 @@ export const pdfVlAdapter: Adapter = {
           provider: config.translateProvider,
         });
 
-        const translationResult = await processMarkdownForImport(markdown, {
-          logger,
-          enableTranslation: true,
-        });
+        const translationResult = await processMarkdownForImport(
+          { markdown, slug, source: 'pdf' },
+          {
+            logger,
+            enableTranslation: true,
+          },
+        );
 
         markdown = translationResult.markdown;
         logger.info('Translation completed', {
