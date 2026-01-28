@@ -38,7 +38,7 @@ describe('Config Audit Script', () => {
 
     it('should contain prevention strategy section', () => {
       const content = fs.readFileSync(auditReportPath, 'utf-8');
-      expect(content).toContain('防止未来出现 Dead Config');
+      expect(content).toContain('防止配置失效的措施');
       expect(content).toContain('自动化审计');
       expect(content).toContain('npm run config:audit');
     });

@@ -1,225 +1,215 @@
-# PDF Import Feature
+# PDF 导入功能
 
-This document describes the generic PDF import feature that uses PaddleOCR-VL for layout parsing and text extraction.
+本文档介绍基于 PaddleOCR-VL 的 PDF 导入功能，用于解析布局和提取文本。
 
-## Overview
+## 功能概述
 
-The PDF import feature allows importing any PDF document as a blog post. The system:
+PDF 导入功能可将任意 PDF 文档导入为博客文章，流程如下：
 
-1. Downloads the PDF from a given URL
-2. Uses PaddleOCR-VL API for layout parsing and text extraction
-3. Converts the extracted content to Markdown
-4. Downloads and saves all images
-5. Optionally translates the content using DeepSeek
-6. Saves the result as a blog post with proper frontmatter
+1. 从 URL 下载 PDF
+2. 调用 PaddleOCR-VL API 解析布局和提取文本
+3. 转换为 Markdown 格式
+4. 下载并保存所有图片
+5. 可选翻译（使用 DeepSeek）
+6. 保存为带 frontmatter 的博客文章
 
-## Configuration
+## 配置
 
-### Environment Variables
+### 环境变量
 
-Add these to your `.env.local` file:
+在 `.env.local` 中添加：
 
 ```env
-# Required - PaddleOCR-VL API token
+# 必需 - PaddleOCR-VL API token
 PADDLEOCR_VL_TOKEN=your_token_here
 
-# Optional - API URL (defaults to PaddleOCR-VL endpoint)
+# 可选 - API URL（默认使用 PaddleOCR-VL 端点）
 PADDLEOCR_VL_API_URL=https://xbe1mb28fa0dz7kb.aistudio-app.com/layout-parsing
 
-# Optional - Maximum PDF size in MB (default: 50)
+# 可选 - PDF 文件大小限制（默认 50MB）
 PDF_MAX_MB=50
 
-# Optional - Enable translation (0 = disabled, 1 = enabled)
+# 可选 - 启用翻译（0 = 禁用，1 = 启用）
 MARKDOWN_TRANSLATE_ENABLED=1
 MARKDOWN_TRANSLATE_PROVIDER=deepseek
 
-# Optional - DeepSeek API key (required if translation is enabled)
+# 可选 - DeepSeek API key（翻译时必需）
 DEEPSEEK_API_KEY=sk-your-api-key-here
 ```
 
 ### GitHub Actions
 
-The import workflow has been updated to support PDF imports. When using the workflow:
+导入 workflow 已支持 PDF 导入：
 
-1. Set `PADDLEOCR_VL_TOKEN` in GitHub Secrets
-2. Provide a PDF URL in the workflow input
-3. The system will automatically detect it's a PDF and use the appropriate adapter
+1. 在 GitHub Secrets 中设置 `PADDLEOCR_VL_TOKEN`
+2. 在 workflow 输入中提供 PDF URL
+3. 系统自动检测 PDF 并使用相应适配器
 
-## Usage
+## 使用方法
 
-### Command Line
+### 命令行
 
 ```bash
-# Import a PDF without translation
+# 导入 PDF（不翻译）
 npm run import:content -- --url https://example.com/paper.pdf
 
-# Import a PDF with translation enabled
+# 导入 PDF（启用翻译）
 MARKDOWN_TRANSLATE_ENABLED=1 npm run import:content -- --url https://example.com/paper.pdf
 
-# Import from blocked domains (e.g., arXiv) using --forcePdf flag
+# 导入受限域名（如 arXiv）使用 --forcePdf 参数
 npm run import:content -- --url https://arxiv.org/pdf/2306.00978 --forcePdf
 
-# Note: Without --forcePdf, arXiv URLs are blocked by default
-# The --forcePdf flag forces the use of the generic PDF importer
+# 注意：不加 --forcePdf 时，arXiv URL 默认被阻止
+# --forcePdf 参数强制使用通用 PDF 导入器
 ```
 
-### GitHub Actions Workflow
+### GitHub Actions
 
-1. Go to Actions → Import Content
-2. Click "Run workflow"
-3. Enter the PDF URL (e.g., `https://example.com/document.pdf`)
-4. For blocked domains like arXiv, check "Force PDF import mode"
-5. Configure options:
-   - Enable translation if desired
-   - Choose translation provider (deepseek recommended)
-6. Run the workflow
+1. 进入 Actions → Import Content
+2. 点击 "Run workflow"
+3. 输入 PDF URL（如 `https://example.com/document.pdf`）
+4. 受限域名（如 arXiv）需勾选 "Force PDF import mode"
+5. 配置选项：
+   - 可选启用翻译
+   - 选择翻译提供商（推荐 deepseek）
+6. 运行 workflow
 
-## Features
+## 核心功能
 
-### PDF Download & Validation
+### PDF 下载与验证
 
-- Follows redirects automatically
-- Retries on failure (3 attempts with exponential backoff)
-- Validates file is actually a PDF (checks magic bytes `%PDF-`)
-- Enforces size limits (default 50MB max)
-- Validates minimum size (50KB) to catch incomplete downloads
+- 自动跟随重定向
+- 失败重试（3 次，指数退避）
+- 验证文件为有效 PDF（检查魔术字节 `%PDF-`）
+- 文件大小限制（默认最大 50MB）
+- 最小尺寸验证（50KB，防止下载不完整）
 
-### OCR Processing
+### OCR 处理
 
-- Uses PaddleOCR-VL layout parsing API
-- Extracts text with proper formatting
-- Identifies and maps images
-- Maintains document structure (headings, lists, tables)
+- 使用 PaddleOCR-VL 布局解析 API
+- 提取文本并保持格式
+- 识别和映射图片
+- 保留文档结构（标题、列表、表格）
 
-### Markdown Processing
+### Markdown 处理
 
-- Fixes unclosed code fences
-- Normalizes list indentation
-- Removes excessive blank lines
-- Validates content quality (minimum 20 effective lines)
-- Ensures MDX compatibility
+- 修复未闭合代码围栏
+- 规范化列表缩进
+- 删除多余空行
+- 验证内容质量（最少 20 行有效内容）
+- 确保 MDX 兼容性
 
-### Image Handling
+### 图片处理
 
-- Downloads all images referenced in the OCR result
-- Stores images in `/images/pdf/{slug}/` directory
-- Updates markdown to reference local image paths
-- Supports multiple image formats (PNG, JPG, GIF, WebP)
-- Validates image format using magic bytes
-- Prevents path traversal attacks
+- 下载 OCR 结果中引用的所有图片
+- 保存到 `/images/pdf/{slug}/` 目录
+- 更新 markdown 引用为本地路径
+- 支持多种格式（PNG、JPG、GIF、WebP）
+- 通过魔术字节验证图片格式
+- 防止路径遍历攻击
 
-### Optional Translation
+### 可选翻译
 
-- Integrates with existing translation system
-- Uses DeepSeek for translation
-- Preserves code blocks, URLs, and technical terms
-- Maintains markdown structure
+- 集成现有翻译系统
+- 使用 DeepSeek 翻译
+- 保留代码块、URL 和技术术语
+- 保持 markdown 结构
 
-### Security
+### 安全性
 
-- Never logs tokens or sensitive data
-- Validates all file paths to prevent directory traversal
-- Enforces file size limits
-- Validates file types
+- 不记录 token 或敏感数据
+- 验证所有文件路径防止目录遍历
+- 强制文件大小限制
+- 验证文件类型
 
-## Error Handling
+## 错误处理
 
-The system provides clear error messages for common issues:
+常见问题的错误提示：
 
-- **Missing token**: Clear message indicating `PADDLEOCR_VL_TOKEN` is required
-- **Download failures**: HTTP status codes and error details
-- **Invalid PDF**: Detected when file doesn't start with `%PDF-`
-- **File too large**: Shows actual size vs. limit
-- **Insufficient content**: When OCR returns less than 20 effective lines
-- **OCR API errors**: Includes HTTP status and error message
+- **缺少 token**：提示需要 `PADDLEOCR_VL_TOKEN`
+- **下载失败**：显示 HTTP 状态码和错误详情
+- **无效 PDF**：文件不以 `%PDF-` 开头
+- **文件过大**：显示实际大小与限制对比
+- **内容不足**：OCR 返回少于 20 行有效内容
+- **OCR API 错误**：包含 HTTP 状态和错误消息
 
-## Testing
+## 测试
 
-The feature includes comprehensive unit tests:
+包含完整单元测试：
 
 ```bash
-# Run PDF adapter tests
+# 运行 PDF 适配器测试
 npm test -- tests/unit/pdf-vl-adapter.test.ts
 
-# Run all tests
+# 运行所有测试
 npm test
 ```
 
-Tests cover:
+测试覆盖：
 
-- URL detection (PDF vs. non-PDF)
-- Successful PDF import flow
-- Error cases (missing token, download failures, invalid PDFs)
-- Content quality validation
-- Image download and processing
+- URL 检测（PDF vs. 非 PDF）
+- 完整 PDF 导入流程
+- 错误场景（缺少 token、下载失败、无效 PDF）
+- 内容质量验证
+- 图片下载与处理
 
-## Architecture
+## 架构
 
-### Files
+### 文件
 
-- `scripts/import/adapters/pdf_vl.ts` - Main adapter implementation
-- `scripts/import/adapters/pdf_vl_utils.ts` - PDF download and validation
-- `scripts/import/adapters/pdf_vl_ocr.ts` - PaddleOCR-VL API client
-- `scripts/import/adapters/pdf_vl_markdown.ts` - Markdown processing and image handling
-- `tests/unit/pdf-vl-adapter.test.ts` - Comprehensive unit tests
+- `scripts/import/adapters/pdf_vl.ts` - 主适配器实现
+- `scripts/import/adapters/pdf_vl_utils.ts` - PDF 下载与验证
+- `scripts/import/adapters/pdf_vl_ocr.ts` - PaddleOCR-VL API 客户端
+- `scripts/import/adapters/pdf_vl_markdown.ts` - Markdown 处理与图片处理
+- `tests/unit/pdf-vl-adapter.test.ts` - 完整单元测试
 
-### Flow
+### 流程
 
-1. **Detection**: Adapter checks if URL ends with `.pdf`
-2. **Download**: PDF is downloaded with validation and retries
-3. **Validation**: Check file is valid PDF and meets size requirements
-4. **OCR**: Send to PaddleOCR-VL API for layout parsing
-5. **Processing**: Clean up markdown, validate content quality
-6. **Images**: Download all images and update references
-7. **Translation** (optional): Translate content while preserving structure
-8. **Output**: Generate blog post with proper frontmatter
+1. **检测**：适配器检查 URL 是否以 `.pdf` 结尾
+2. **下载**：下载 PDF 并验证，带重试机制
+3. **验证**：检查是否为有效 PDF 并符合尺寸要求
+4. **OCR**：发送到 PaddleOCR-VL API 解析布局
+5. **处理**：清理 markdown，验证内容质量
+6. **图片**：下载所有图片并更新引用
+7. **翻译**（可选）：翻译内容并保持结构
+8. **输出**：生成带 frontmatter 的博客文章
 
-## Limitations
+## 限制
 
-- Maximum PDF size: 50MB (configurable)
-- Minimum content requirement: 20 effective lines
-- Only PDF files are supported (no other document formats)
-- Requires internet connection for OCR API
-- Requires PaddleOCR-VL API token
+- 最大 PDF 尺寸：50MB（可配置）
+- 最少内容要求：20 行有效内容
+- 仅支持 PDF 文件（不支持其他文档格式）
+- 需要网络连接访问 OCR API
+- 需要 PaddleOCR-VL API token
 
-## Troubleshooting
+## 常见问题
 
 ### "PADDLEOCR_VL_TOKEN environment variable is required"
 
-Solution: Add `PADDLEOCR_VL_TOKEN` to your `.env.local` file or GitHub Secrets.
+解决方案：在 `.env.local` 或 GitHub Secrets 中添加 `PADDLEOCR_VL_TOKEN`。
 
-### "File too small" or "Not a valid PDF file"
+### "File too small" 或 "Not a valid PDF file"
 
-The downloaded file is not a valid PDF. Check:
+下载的文件不是有效 PDF。检查：
 
-- The URL actually points to a PDF
-- The server is accessible
-- No authentication is required
+- URL 确实指向 PDF 文件
+- 服务器可访问
+- 不需要身份验证
 
 ### "Insufficient content quality"
 
-The OCR returned less than 20 effective lines of content. This may indicate:
+OCR 返回少于 20 行有效内容。可能原因：
 
-- The PDF is a scanned image (OCR may struggle)
-- The PDF is mostly images with little text
-- The OCR service had an issue
+- PDF 是扫描图片（OCR 难以识别）
+- PDF 主要是图片，文本很少
+- OCR 服务出现问题
 
-Solution: Verify the PDF contains text (not just scanned images).
+解决方案：确认 PDF 包含文本（而非仅扫描图片）。
 
 ### "Failed to download PDF after 3 attempts"
 
-Network or server issues. Check:
+网络或服务器问题。检查：
 
-- The URL is accessible
-- Your network connection is stable
-- The server is responding
-
-## Future Enhancements
-
-Potential improvements:
-
-- Support for other document formats (DOCX, PPTX, etc.)
-- Batch PDF processing
-- Custom OCR provider support
-- Enhanced image optimization
-- Better handling of complex layouts (multi-column, etc.)
+- URL 可访问
+- 网络连接稳定
+- 服务器正在响应
