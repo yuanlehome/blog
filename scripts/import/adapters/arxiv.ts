@@ -475,7 +475,7 @@ export const arxivAdapter: Adapter = {
 
     // Create destination directory for images
     const imageDestDir = path.join(imageRoot, slug);
-    const publicBasePath = options.publicBasePath || `/images/others/${slug}`;
+    const publicBasePath = options.publicBasePath || `/images/arxiv/${slug}`;
 
     try {
       // Download source
