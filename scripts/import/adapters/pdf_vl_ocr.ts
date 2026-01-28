@@ -410,7 +410,7 @@ interface IpOverrideConfig {
 /**
  * Validate and prepare IP override configuration
  * Returns configuration that indicates whether IP override should be used
- * 
+ *
  * @param overrideIp - The IP address from configuration (may be undefined/empty/invalid)
  * @param logger - Optional logger for diagnostics
  * @returns IP override configuration indicating whether to use custom dispatcher
@@ -469,7 +469,7 @@ function prepareIpOverride(overrideIp: string | undefined, logger?: Logger): IpO
  * - Native fetch doesn't expose connection-level timeout control
  * - IPv6 connectivity issues can cause "fetch failed" with statusCode=0
  * - undici Agent allows custom DNS lookup and timeout configuration
- * 
+ *
  * @param connectTimeoutMs - Connection timeout in milliseconds
  * @param overrideConfig - Optional IP override configuration
  * @returns undici Agent configured for the request

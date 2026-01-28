@@ -660,9 +660,7 @@ describe('PDF VL OCR Client', () => {
 
       // Verify debug log shows override not enabled
       const debugCalls = mockLogger.debug.mock.calls;
-      const fetchConfigLog = debugCalls.find(
-        (call: any) => call[1]?.stage === 'fetch_config',
-      );
+      const fetchConfigLog = debugCalls.find((call: any) => call[1]?.stage === 'fetch_config');
       expect(fetchConfigLog).toBeDefined();
       expect(fetchConfigLog![1].overrideEnabled).toBe(false);
       expect(fetchConfigLog![1].overrideIpState).toBe('missing');
@@ -702,9 +700,7 @@ describe('PDF VL OCR Client', () => {
 
       // Verify debug log shows override not enabled
       const debugCalls = mockLogger.debug.mock.calls;
-      const fetchConfigLog = debugCalls.find(
-        (call: any) => call[1]?.stage === 'fetch_config',
-      );
+      const fetchConfigLog = debugCalls.find((call: any) => call[1]?.stage === 'fetch_config');
       expect(fetchConfigLog).toBeDefined();
       expect(fetchConfigLog![1].overrideEnabled).toBe(false);
       expect(fetchConfigLog![1].overrideIpState).toBe('missing');
@@ -751,9 +747,7 @@ describe('PDF VL OCR Client', () => {
 
       // Verify debug log shows override as invalid
       const debugCalls = mockLogger.debug.mock.calls;
-      const fetchConfigLog = debugCalls.find(
-        (call: any) => call[1]?.stage === 'fetch_config',
-      );
+      const fetchConfigLog = debugCalls.find((call: any) => call[1]?.stage === 'fetch_config');
       expect(fetchConfigLog).toBeDefined();
       expect(fetchConfigLog![1].overrideEnabled).toBe(false);
       expect(fetchConfigLog![1].overrideIpState).toBe('invalid');
@@ -799,9 +793,7 @@ describe('PDF VL OCR Client', () => {
       expect(networkConfigLog).toBeDefined();
       expect(networkConfigLog![1].ipVersion).toBe('IPv4');
 
-      const fetchConfigLog = debugCalls.find(
-        (call: any) => call[1]?.stage === 'fetch_config',
-      );
+      const fetchConfigLog = debugCalls.find((call: any) => call[1]?.stage === 'fetch_config');
       expect(fetchConfigLog).toBeDefined();
       expect(fetchConfigLog![1].overrideEnabled).toBe(true);
       expect(fetchConfigLog![1].overrideIpState).toBe('enabled');
@@ -846,9 +838,7 @@ describe('PDF VL OCR Client', () => {
       );
       expect(networkConfigLog).toBeDefined();
 
-      const fetchConfigLog = debugCalls.find(
-        (call: any) => call[1]?.stage === 'fetch_config',
-      );
+      const fetchConfigLog = debugCalls.find((call: any) => call[1]?.stage === 'fetch_config');
       expect(fetchConfigLog).toBeDefined();
       expect(fetchConfigLog![1].overrideEnabled).toBe(true);
       expect(fetchConfigLog![1].overrideIpState).toBe('enabled');
@@ -999,9 +989,7 @@ describe('PDF VL OCR Client', () => {
 
       // Verify proxy presence is logged (but not the URL itself)
       const debugCalls = mockLogger.debug.mock.calls;
-      const fetchConfigLog = debugCalls.find(
-        (call: any) => call[1]?.stage === 'fetch_config',
-      );
+      const fetchConfigLog = debugCalls.find((call: any) => call[1]?.stage === 'fetch_config');
       expect(fetchConfigLog).toBeDefined();
       expect(fetchConfigLog![1].proxyPresent).toBe(true);
 
@@ -1043,9 +1031,7 @@ describe('PDF VL OCR Client', () => {
       );
 
       const debugCalls = mockLogger.debug.mock.calls;
-      const fetchConfigLog = debugCalls.find(
-        (call: any) => call[1]?.stage === 'fetch_config',
-      );
+      const fetchConfigLog = debugCalls.find((call: any) => call[1]?.stage === 'fetch_config');
       expect(fetchConfigLog).toBeDefined();
       expect(fetchConfigLog![1].proxyPresent).toBe(true);
     });
@@ -1082,9 +1068,7 @@ describe('PDF VL OCR Client', () => {
       );
 
       const debugCalls = mockLogger.debug.mock.calls;
-      const fetchConfigLog = debugCalls.find(
-        (call: any) => call[1]?.stage === 'fetch_config',
-      );
+      const fetchConfigLog = debugCalls.find((call: any) => call[1]?.stage === 'fetch_config');
       expect(fetchConfigLog).toBeDefined();
       expect(fetchConfigLog![1].proxyPresent).toBe(false);
     });
