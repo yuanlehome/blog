@@ -435,7 +435,7 @@ function latexToMarkdown(
  * arXiv adapter implementation
  */
 export const arxivAdapter: Adapter = {
-  id: 'others', // Use 'others' as source since 'arxiv' is not in the type union
+  id: 'arxiv',
   name: 'arXiv',
 
   canHandle(url: string): boolean {
@@ -475,7 +475,7 @@ export const arxivAdapter: Adapter = {
 
     // Create destination directory for images
     const imageDestDir = path.join(imageRoot, slug);
-    const publicBasePath = options.publicBasePath || `/images/others/${slug}`;
+    const publicBasePath = options.publicBasePath || `/images/arxiv/${slug}`;
 
     try {
       // Download source
@@ -538,7 +538,7 @@ export const arxivAdapter: Adapter = {
         title: metadata.title,
         markdown: `# ${metadata.title}\n\n${markdown}`,
         canonicalUrl: url,
-        source: 'others',
+        source: 'arxiv',
         author: metadata.authors.join(', '),
         publishedAt: publishedDate,
         tags: ['arxiv', ...metadata.categories.slice(0, 3)],

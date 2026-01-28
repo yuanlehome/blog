@@ -115,12 +115,12 @@ scripts/
 | 知乎   | `zhuanlan.zhihu.com/p/*`                                | `src/content/blog/zhihu/`  |
 | 微信   | `mp.weixin.qq.com/s/*`                                  | `src/content/blog/wechat/` |
 | Medium | `*.medium.com/*`                                        | `src/content/blog/medium/` |
-| arXiv  | `arxiv.org/pdf/*`, `arxiv.org/abs/*`, `arxiv.org/src/*` | `src/content/blog/others/` |
+| arXiv  | `arxiv.org/pdf/*`, `arxiv.org/abs/*`, `arxiv.org/src/*` | `src/content/blog/arxiv/`  |
 | 其他   | 任意 URL                                                | `src/content/blog/others/` |
 
 **arXiv 特殊说明**：
 
-- 自动下载 LaTeX 源码包 (`.tar.gz`)
+- 自动下载 LaTeX 源码包 (`.tar.gz`)，无需 Playwright 页面导航
 - 自动识别主 TeX 文件
 - 转换 LaTeX 为 Markdown（支持数学公式、图片、章节）
 - 从 arXiv API 获取论文元信息
