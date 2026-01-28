@@ -19,8 +19,6 @@ translatedFrom: en
 
 # Writing Speed-of-Light Flash Attention for 5090 in CUDA C++
 
-2025 年 8 月 23 日
-
 在这篇文章中，我将介绍如何在 CUDA C++ 中为 5090 实现 Flash Attention。主要目标是学习在 CUDA C++ 中编写注意力机制，因为许多特性在 [Triton](https://triton-lang.org/main/index.html) 中不可用，例如 sm120 的 MXFP8 / NVFP4 MMA。我还认为这是学习 matmul 内核后的自然下一步。最后，有[很多](https://alexarmbr.github.io/2024/08/10/How-To-Write-A-Fast-Matrix-Multiplication-From-Scratch-With-Tensor-Cores.html)[优秀的](https://www.spatters.ca/mma-matmul)[博客文章](https://cudaforfun.substack.com/p/outperforming-cublas-on-h100-a-worklog)介绍如何编写快速 matmul 内核，但没有关于注意力机制的。所以我想借此机会写点好东西。
 
 强烈建议读者熟悉 CUDA C++ 以及如何在 NVIDIA GPU 上使用 Tensor 核心。当然，你仍然可以继续阅读，并在过程中使用你最喜欢的 LLM 进行澄清。或者你可以查看 GPU-MODE 系列（[幻灯片](https://github.com/gpu-mode/lectures)，[YouTube](https://www.youtube.com/@GPUMODE)）以获得基础的 CUDA C++ 知识，以及上面提到的优秀 matmul 博客文章，以快速上手。
