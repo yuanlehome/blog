@@ -21,6 +21,7 @@ import { slugFromTitle } from '../src/lib/slug';
 import { processMarkdownForImport } from './markdown/index.js';
 import { resolveAdapter } from './import/adapters/index.js';
 import { createScriptLogger, now, duration } from './logger-helpers.js';
+import { serializeError } from './utils/errors.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -137,6 +138,7 @@ type ImportArgs = {
   allowOverwrite: boolean;
   dryRun: boolean;
   useFirstImageAsCover: boolean;
+  forcePdf: boolean;
 };
 
 async function parseArgs(): Promise<ImportArgs> {
@@ -158,6 +160,12 @@ async function parseArgs(): Promise<ImportArgs> {
   const useFirstImageAsCover =
     process.argv.includes('--use-first-image-as-cover') ||
     process.env.USE_FIRST_IMAGE_AS_COVER === 'true';
+
+  const forcePdf =
+    process.argv.includes('--forcePdf') ||
+    process.argv.includes('--force-pdf') ||
+    process.env.FORCE_PDF === 'true';
+
   let url = argUrl;
 
   if (!url && !process.stdin.isTTY) {
@@ -189,7 +197,7 @@ async function parseArgs(): Promise<ImportArgs> {
     throw new Error('Usage: npm run import:content -- --url=<URL>');
   }
 
-  return { url, allowOverwrite, dryRun, useFirstImageAsCover };
+  return { url, allowOverwrite, dryRun, useFirstImageAsCover, forcePdf };
 }
 
 function hasClass(node: HastElement, className: string) {
@@ -1190,11 +1198,12 @@ async function main() {
     dryRun: options.dryRun,
     allowOverwrite: options.allowOverwrite,
     useFirstImageAsCover: options.useFirstImageAsCover,
+    forcePdf: options.forcePdf,
   });
 
   try {
-    // Check if URL is arXiv (no longer supported)
-    if (isArxivUrl(targetUrl)) {
+    // Check if URL is arXiv (no longer supported) - UNLESS forcePdf is enabled
+    if (isArxivUrl(targetUrl) && !options.forcePdf) {
       logger.error(new Error('arXiv import is no longer supported'), {
         url: targetUrl,
         reason: 'arXiv import has been removed from this repository',
@@ -1203,17 +1212,32 @@ async function main() {
         status: 'fail',
         url: targetUrl,
         reason: 'arXiv import no longer supported',
-        suggestion: 'Please provide a non-arXiv source URL (e.g., blog post), or import manually.',
+        suggestion:
+          'Please provide a non-arXiv source URL (e.g., blog post), or use --forcePdf to import as PDF.',
       });
       throw new Error(
         'arXiv import is no longer supported in this repository. ' +
-          'Please provide a non-arXiv source URL (e.g., blog post), or import manually.',
+          'Please provide a non-arXiv source URL (e.g., blog post), or use --forcePdf to import as generic PDF.',
       );
     }
 
     // Resolve adapter for URL
     const resolveSpan = logger.time('resolve-adapter');
-    const adapter = resolveAdapter(targetUrl);
+    let adapter;
+
+    // If forcePdf is enabled, force the PDF adapter regardless of URL
+    if (options.forcePdf) {
+      logger.info('Force PDF mode enabled - using PDF adapter', {
+        url: targetUrl,
+        forcePdf: true,
+      });
+      // Import the PDF adapter directly
+      const { pdfVlAdapter } = await import('./import/adapters/pdf_vl.js');
+      adapter = pdfVlAdapter;
+    } else {
+      // Normal adapter resolution
+      adapter = resolveAdapter(targetUrl);
+    }
 
     if (!adapter) {
       resolveSpan.end({ status: 'fail' });
@@ -1326,7 +1350,7 @@ async function main() {
         migrationSpan.end({ status: 'ok' });
       } catch (error) {
         migrationSpan.end({ status: 'fail' });
-        logger.error('Failed to migrate slug', { error });
+        logger.error('Failed to migrate slug', { error: serializeError(error) });
         throw new Error(
           `Failed to migrate from tempSlug "${tempSlug}" to finalSlug "${slug}": ${error}`,
         );
@@ -1391,7 +1415,9 @@ async function main() {
         processSpan.end({ status: 'ok', fields: { changed: processed.diagnostics.changed } });
       } catch (error) {
         processSpan.end({ status: 'fail' });
-        logger.warn('Failed to enhance markdown, using original', { error: String(error) });
+        logger.warn('Failed to enhance markdown, using original', {
+          error: serializeError(error),
+        });
       }
     }
 
@@ -1437,7 +1463,7 @@ async function main() {
       markdownLength: fileContent.length,
     });
   } catch (error) {
-    logger.error('Content import failed', { error });
+    logger.error('Content import failed', { error: serializeError(error) });
     logger.summary({
       status: 'fail',
       durationMs: duration(scriptStart),
