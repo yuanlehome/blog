@@ -12,7 +12,6 @@
 
 import type { Logger } from '../../logger/types.js';
 import * as dnsPromises from 'dns/promises';
-import * as dnsCallback from 'dns';
 import * as net from 'net';
 import * as https from 'https';
 import { Agent } from 'undici';
@@ -541,17 +540,24 @@ interface IpOverrideConfig {
   ip?: string;
   ipVersion?: 4 | 6; // IP version: 4 for IPv4, 6 for IPv6
   state: 'missing' | 'invalid' | 'enabled';
+  dispatcher?: Agent; // Only present when enabled=true
 }
 
 /**
  * Validate and prepare IP override configuration
  * Returns configuration that indicates whether IP override should be used
+ * Creates undici dispatcher only when IP is valid
  *
  * @param overrideIp - The IP address from configuration (may be undefined/empty/invalid)
+ * @param connectTimeoutMs - Connection timeout in milliseconds
  * @param logger - Optional logger for diagnostics
  * @returns IP override configuration indicating whether to use custom dispatcher
  */
-function prepareIpOverride(overrideIp: string | undefined, logger?: Logger): IpOverrideConfig {
+function prepareIpOverride(
+  overrideIp: string | undefined,
+  connectTimeoutMs: number,
+  logger?: Logger,
+): IpOverrideConfig {
   // No IP provided - use system DNS
   if (!overrideIp || overrideIp.trim() === '') {
     return {
@@ -580,60 +586,35 @@ function prepareIpOverride(overrideIp: string | undefined, logger?: Logger): IpO
     };
   }
 
-  // Valid IP address - store the IP version to avoid revalidation
-  logger?.debug('IP override enabled', {
+  // Valid IP address - create dispatcher with custom lookup
+  logger?.debug('IP override enabled, creating custom dispatcher', {
     module: 'pdf_vl_ocr',
     stage: 'network_config',
     ip,
     ipVersion: ipVersion === 4 ? 'IPv4' : 'IPv6',
   });
 
+  // Create undici Agent with custom lookup that returns the override IP
+  const agentConfig: any = {
+    connect: {
+      timeout: connectTimeoutMs,
+      lookup: (_hostname: string, _options: any, callback: any) => {
+        // Return the override IP directly, bypassing DNS resolution
+        // undici expects callback(error, address, family)
+        callback(null, ip, ipVersion);
+      },
+    },
+  };
+
+  const dispatcher = new Agent(agentConfig);
+
   return {
     enabled: true,
     ip,
     ipVersion: ipVersion as 4 | 6,
     state: 'enabled',
+    dispatcher,
   };
-}
-
-/**
- * Create undici Agent with IPv4-only and connection timeout
- * This ensures:
- * 1. Force IPv4 to avoid IPv6 connectivity issues in CI environments
- * 2. Proper connection timeout (connectTimeoutMs) actually takes effect
- *
- * Why this is needed:
- * - Native fetch doesn't expose connection-level timeout control
- * - IPv6 connectivity issues can cause "fetch failed" with statusCode=0
- * - undici Agent allows custom DNS lookup and timeout configuration
- *
- * @param connectTimeoutMs - Connection timeout in milliseconds
- * @param overrideConfig - Optional IP override configuration
- * @returns undici Agent configured for the request
- */
-function createIpv4Agent(connectTimeoutMs: number, overrideConfig?: IpOverrideConfig): Agent {
-  const agentConfig: any = {
-    connect: {
-      timeout: connectTimeoutMs,
-    },
-  };
-
-  // Add custom lookup function based on configuration
-  if (overrideConfig?.enabled && overrideConfig.ip) {
-    // IP override: always return the specified IP address
-    agentConfig.connect.lookup = (_hostname: string, _options: any, callback: any) => {
-      // Return the override IP directly, bypassing DNS resolution
-      // undici expects callback(error, address, family)
-      callback(null, overrideConfig.ip, net.isIP(overrideConfig.ip!));
-    };
-  } else {
-    // No IP override: force IPv4 for DNS resolution
-    agentConfig.connect.lookup = (hostname: string, _options: any, callback: any) => {
-      dnsCallback.lookup(hostname, { family: 4 }, callback);
-    };
-  }
-
-  return new Agent(agentConfig);
 }
 
 /**
@@ -745,11 +726,8 @@ async function callPaddleOcrVlOnce(
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), config.timeoutMs);
 
-  // Prepare IP override configuration
-  const ipOverride = prepareIpOverride(config.overrideIp, logger);
-
-  // Create undici agent with IPv4 forcing and connection timeout
-  const agent = createIpv4Agent(config.connectTimeoutMs, ipOverride);
+  // Prepare IP override configuration (creates dispatcher only when IP is valid)
+  const ipOverride = prepareIpOverride(config.overrideIp, config.connectTimeoutMs, logger);
 
   // Check for proxy environment variables (any proxy-related var indicates proxy may be in use)
   // Note: NO_PROXY indicates which hosts bypass the proxy, suggesting proxy is configured
@@ -786,7 +764,7 @@ async function callPaddleOcrVlOnce(
         noProxy: hasNoProxy,
       },
       userAgent: 'blog-content-import/1.0',
-      dnsStrategy: ipOverride.enabled ? 'customLookup' : 'undiciDispatcher',
+      dnsStrategy: ipOverride.enabled ? 'customLookup' : 'systemDefault',
     },
   });
 
@@ -795,8 +773,8 @@ async function callPaddleOcrVlOnce(
   const requestStartTime = Date.now();
 
   try {
-    // Make API request with undici dispatcher for IPv4 + connection timeout
-    response = await fetch(apiUrl, {
+    // Prepare fetch options
+    const fetchOptions: RequestInit = {
       method: 'POST',
       headers: {
         // Authorization format as per official documentation
@@ -807,9 +785,17 @@ async function callPaddleOcrVlOnce(
       },
       body: payload,
       signal: controller.signal,
+    };
+
+    // Only use custom dispatcher when IP override is enabled
+    // When disabled (missing/invalid), use system default DNS
+    if (ipOverride.enabled && ipOverride.dispatcher) {
       // @ts-ignore - undici dispatcher is valid but TypeScript doesn't recognize it
-      dispatcher: agent,
-    });
+      fetchOptions.dispatcher = ipOverride.dispatcher;
+    }
+
+    // Make API request
+    response = await fetch(apiUrl, fetchOptions);
 
     const fetchDuration = Date.now() - requestStartTime;
 
@@ -868,8 +854,10 @@ async function callPaddleOcrVlOnce(
     );
   } finally {
     clearTimeout(timeoutId);
-    // Clean up agent
-    agent.destroy();
+    // Clean up dispatcher if it was created
+    if (ipOverride.dispatcher) {
+      ipOverride.dispatcher.destroy();
+    }
   }
 
   const elapsedMs = Date.now() - requestStartTime;
