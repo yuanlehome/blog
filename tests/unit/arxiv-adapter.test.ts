@@ -392,7 +392,9 @@ More content
           },
         });
 
-        expect(result.title).toBe('Evaluating Large Language Models at Evaluating Instruction Following');
+        expect(result.title).toBe(
+          'Evaluating Large Language Models at Evaluating Instruction Following',
+        );
         expect(result.source).toBe('arxiv');
         expect(result.canonicalUrl).toBe('https://arxiv.org/pdf/2306.00978');
         expect(result.tags).toContain('arxiv');
@@ -422,18 +424,18 @@ More content
     it('should handle source download failures gracefully', async () => {
       const axiosMock = vi.spyOn(axios, 'get');
       const isAxiosErrorMock = vi.spyOn(axios, 'isAxiosError');
-      
+
       const error: any = new Error('Request failed with status code 404');
       error.response = { status: 404 };
       error.isAxiosError = true;
-      
+
       axiosMock.mockImplementation((url: string) => {
         if (url.includes('arxiv.org/src/')) {
           return Promise.reject(error);
         }
         return Promise.reject(new Error('Unexpected URL'));
       });
-      
+
       isAxiosErrorMock.mockReturnValue(true);
 
       const logger = createLogger({ silent: true });
