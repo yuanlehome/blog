@@ -8,7 +8,7 @@
 import type { Adapter, Article, FetchArticleInput } from './types.js';
 import { createLogger } from '../../logger/index.js';
 import { downloadPdf, validatePdf } from './pdf_vl_utils.js';
-import { callPaddleOcrVl, callLocalMockOcr } from './pdf_vl_ocr.js';
+import { callPaddleOcrVl, callLocalMockOcr, generateOcrJobId } from './pdf_vl_ocr.js';
 import { processOcrMarkdown, downloadOcrImages } from './pdf_vl_markdown.js';
 import { processMarkdownForImport } from '../../markdown/index.js';
 import path from 'path';
@@ -187,32 +187,66 @@ export const pdfVlAdapter: Adapter = {
       }
 
       // Step 3: Call OCR provider
+      // Generate OCR job ID for correlation
+      const ocrJobId = generateOcrJobId();
+      const ocrJobStartTs = Date.now();
+
+      // A. OCR Job Overview - Start
+      logger.info('OCR-VL job starting', {
+        event: 'span.start',
+        span: 'ocr-vl-job',
+        adapter: 'pdf_vl',
+        stage: 'ocr',
+        ocrJobId,
+        sourceUrl: url,
+        adapterId: 'pdf_vl',
+        adapterName: 'PDF VL (Generic PDF Import)',
+        pdfBytes: pdfBuffer ? pdfBuffer.length : 'unknown',
+        ocrProvider: config.ocrProvider === 'local_mock' ? 'local_mock' : 'paddle-ocr-vl',
+        ocrMode: 'layout-parsing-markdown',
+        startTs: new Date(ocrJobStartTs).toISOString(),
+      });
+
       let ocrResult;
+      let ocrRetries = 0;
+      let ocrStatus: 'success' | 'fail' | 'fallback' = 'fail';
       try {
         if (config.ocrProvider === 'local_mock') {
           logger.info('Using local mock OCR provider', {
             adapter: 'pdf_vl',
             stage: 'ocr',
+            ocrJobId,
           });
           ocrResult = await callLocalMockOcr(logger);
         } else {
           logger.info('Calling PaddleOCR-VL API', {
             adapter: 'pdf_vl',
             stage: 'ocr',
+            ocrJobId,
           });
-          ocrResult = await callPaddleOcrVl(pdfBuffer!, config.apiUrl, config.token, logger);
+          ocrResult = await callPaddleOcrVl(
+            pdfBuffer!,
+            config.apiUrl,
+            config.token,
+            logger,
+            ocrJobId,
+          );
         }
+        ocrStatus = 'success';
         logger.info('OCR completed', {
           adapter: 'pdf_vl',
           stage: 'ocr',
+          ocrJobId,
           markdownLength: ocrResult.markdown.length,
           imageCount: Object.keys(ocrResult.images).length,
         });
       } catch (ocrError) {
         if (config.failOpen) {
+          ocrStatus = 'fallback';
           logger.warn('OCR failed, using fail-open fallback', {
             adapter: 'pdf_vl',
             stage: 'ocr_fallback',
+            ocrJobId,
             error: ocrError instanceof Error ? ocrError.message : String(ocrError),
           });
 
@@ -268,6 +302,26 @@ Sunt in culpa qui officia deserunt mollit anim id est laborum.
           throw ocrError;
         }
       }
+
+      // A. OCR Job Overview - End
+      const ocrJobEndTs = Date.now();
+      const ocrJobDurationMs = ocrJobEndTs - ocrJobStartTs;
+      logger.info('OCR-VL job completed', {
+        event: 'span.end',
+        span: 'ocr-vl-job',
+        adapter: 'pdf_vl',
+        stage: 'ocr',
+        ocrJobId,
+        endTs: new Date(ocrJobEndTs).toISOString(),
+        durationMs: ocrJobDurationMs,
+        resultSummary: {
+          pagesProcessed: 1, // Single PDF processed as whole
+          imagesCount: Object.keys(ocrResult.images).length,
+          markdownChars: ocrResult.markdown.length,
+          retries: ocrRetries,
+          finalStatus: ocrStatus,
+        },
+      });
 
       // Step 4: Process markdown and download images
       logger.info('Processing markdown', { adapter: 'pdf_vl', stage: 'process' });
