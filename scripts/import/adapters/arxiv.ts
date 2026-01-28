@@ -255,6 +255,21 @@ function detectMainTex(extractDir: string, extractedFiles: string[]): string | n
 }
 
 /**
+ * Decode HTML entities in text
+ */
+function decodeHtmlEntities(text: string): string {
+  const entities: Record<string, string> = {
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&apos;': "'",
+    '&#39;': "'",
+  };
+  return text.replace(/&[#a-z0-9]+;/gi, (entity) => entities[entity] || entity);
+}
+
+/**
  * Fetch metadata from arXiv API
  */
 async function fetchArxivMetadata(
@@ -284,23 +299,35 @@ async function fetchArxivMetadata(
 
     const xml = response.data;
 
-    // Parse XML (simple regex-based parsing for Atom feed)
-    const titleMatch = xml.match(/<title>([^<]+)<\/title>/);
-    const title = titleMatch ? titleMatch[1].trim() : `arXiv Paper ${paperId}`;
+    // Extract entry content (not feed metadata)
+    const entryMatch = xml.match(/<entry>([\s\S]*?)<\/entry>/);
+    if (!entryMatch) {
+      throw new Error(`No entry found in arXiv API response for ${paperId}`);
+    }
+    const entryXml = entryMatch[1];
 
-    const authorsMatches = xml.matchAll(/<author>\s*<name>([^<]+)<\/name>/g);
-    const authors = Array.from(authorsMatches, (m: RegExpMatchArray) => m[1].trim());
+    // Parse XML from entry (not feed title!)
+    const titleMatch = entryXml.match(/<title>([\s\S]*?)<\/title>/);
+    let title = titleMatch ? titleMatch[1].trim() : `arXiv Paper ${paperId}`;
+    // Collapse whitespace and decode HTML entities
+    title = decodeHtmlEntities(title.replace(/\s+/g, ' '));
 
-    const summaryMatch = xml.match(/<summary>([^<]+)<\/summary>/);
-    const abstract = summaryMatch ? summaryMatch[1].trim() : '';
+    const authorsMatches = entryXml.matchAll(/<author>\s*<name>([^<]+)<\/name>/g);
+    const authors = Array.from(authorsMatches, (m: RegExpMatchArray) =>
+      decodeHtmlEntities(m[1].trim()),
+    );
 
-    const publishedMatch = xml.match(/<published>([^<]+)<\/published>/);
+    const summaryMatch = entryXml.match(/<summary>([\s\S]*?)<\/summary>/);
+    let abstract = summaryMatch ? summaryMatch[1].trim() : '';
+    abstract = decodeHtmlEntities(abstract.replace(/\s+/g, ' '));
+
+    const publishedMatch = entryXml.match(/<published>([^<]+)<\/published>/);
     const published = publishedMatch ? publishedMatch[1].trim() : '';
 
-    const updatedMatch = xml.match(/<updated>([^<]+)<\/updated>/);
+    const updatedMatch = entryXml.match(/<updated>([^<]+)<\/updated>/);
     const updated = updatedMatch ? updatedMatch[1].trim() : '';
 
-    const categoryMatches = xml.matchAll(/<category[^>]+term="([^"]+)"/g);
+    const categoryMatches = entryXml.matchAll(/<category[^>]+term="([^"]+)"/g);
     const categories = Array.from(categoryMatches, (m: RegExpMatchArray) => m[1]);
 
     logger.info('Metadata fetched', {
@@ -318,15 +345,10 @@ async function fetchArxivMetadata(
       categories,
     };
   } catch (error) {
-    logger.warn('Failed to fetch metadata, using defaults', { error });
-    return {
-      title: `arXiv Paper ${paperId}`,
-      authors: [],
-      abstract: '',
-      published: new Date().toISOString(),
-      updated: new Date().toISOString(),
-      categories: [],
-    };
+    logger.error('Failed to fetch metadata from arXiv API', { paperId, error });
+    throw new Error(
+      `Failed to fetch arXiv metadata for ${paperId}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }
 
@@ -424,11 +446,49 @@ function latexToMarkdown(
   // Clean up LaTeX commands we don't handle
   markdown = markdown.replace(/\\[a-zA-Z]+(?:\[[^\]]*\])?(?:\{[^}]*\})?/g, '');
 
+  // Filter out kramdown/Jekyll attribute list noise: lines like "{: ...}"
+  markdown = markdown.replace(/^\s*\{:.*?\}\s*$/gm, '');
+
+  // Filter out standalone braces and colons that are conversion artifacts
+  markdown = markdown.replace(/^\s*[\{\}:]+\s*$/gm, '');
+
   // Clean up extra whitespace
   markdown = markdown.replace(/\n{3,}/g, '\n\n');
   markdown = markdown.trim();
 
   return { markdown, copiedImages };
+}
+
+/**
+ * Validate converted markdown content quality
+ */
+function validateContentQuality(markdown: string, paperId: string): void {
+  // Count non-empty lines (excluding whitespace-only lines)
+  const lines = markdown.split('\n').filter((line) => line.trim().length > 0);
+  const contentLines = lines.filter(
+    (line) =>
+      // Exclude heading markers, list markers, and short fragments
+      !line.match(/^#+\s*$/) && !line.match(/^[-*]\s*$/) && line.trim().length > 5,
+  );
+
+  const MIN_CONTENT_LINES = 20;
+  if (contentLines.length < MIN_CONTENT_LINES) {
+    throw new Error(
+      `Converted content too short for ${paperId}: only ${contentLines.length} content lines (minimum ${MIN_CONTENT_LINES}). ` +
+        `This may indicate conversion failure or missing source content.`,
+    );
+  }
+
+  // Check if content appears to be mostly fragments (common in failed conversions)
+  const avgLineLength =
+    contentLines.reduce((sum, line) => sum + line.length, 0) / contentLines.length;
+  const MIN_AVG_LINE_LENGTH = 20;
+  if (avgLineLength < MIN_AVG_LINE_LENGTH) {
+    throw new Error(
+      `Converted content appears to be fragments for ${paperId}: average line length ${avgLineLength.toFixed(1)} chars ` +
+        `(minimum ${MIN_AVG_LINE_LENGTH}). This suggests incomplete or failed conversion.`,
+    );
+  }
 }
 
 /**
@@ -506,6 +566,9 @@ export const arxivAdapter: Adapter = {
         imageDestDir,
         publicBasePath,
       );
+
+      // Validate content quality before proceeding
+      validateContentQuality(markdown, paperId);
 
       // Fetch metadata
       const metadata = await fetchArxivMetadata(paperId, logger);
