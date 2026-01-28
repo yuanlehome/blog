@@ -84,12 +84,13 @@ scripts/
 
 **命令行参数**：
 
-| 参数                         | 类型    | 必需 | 默认值  | 说明           |
-| ---------------------------- | ------- | ---- | ------- | -------------- |
-| `--url`                      | string  | ✓    | —       | 文章 URL       |
-| `--allow-overwrite`          | boolean | ✗    | `false` | 覆盖已存在文章 |
-| `--dry-run`                  | boolean | ✗    | `false` | 预览模式       |
-| `--use-first-image-as-cover` | boolean | ✗    | `false` | 首图作为封面   |
+| 参数                         | 类型    | 必需 | 默认值  | 说明                                        |
+| ---------------------------- | ------- | ---- | ------- | ------------------------------------------- |
+| `--url`                      | string  | ✓    | —       | 文章 URL                                    |
+| `--allow-overwrite`          | boolean | ✗    | `false` | 覆盖已存在文章                              |
+| `--dry-run`                  | boolean | ✗    | `false` | 预览模式                                    |
+| `--use-first-image-as-cover` | boolean | ✗    | `false` | 首图作为封面                                |
+| `--forcePdf` / `--force-pdf` | boolean | ✗    | `false` | 强制使用 PDF 导入器（绕过域名限制如 arXiv） |
 
 **环境变量**（可替代命令行参数）：
 
@@ -99,6 +100,7 @@ scripts/
 | `ALLOW_OVERWRITE`          | `--allow-overwrite`          |
 | `DRY_RUN`                  | `--dry-run`                  |
 | `USE_FIRST_IMAGE_AS_COVER` | `--use-first-image-as-cover` |
+| `FORCE_PDF`                | `--forcePdf`                 |
 
 **环境变量（翻译，可选）**：
 
@@ -107,6 +109,13 @@ scripts/
 | `MARKDOWN_TRANSLATE_ENABLED`  | `0`        | 启用翻译         |
 | `MARKDOWN_TRANSLATE_PROVIDER` | `identity` | 翻译提供商       |
 | `DEEPSEEK_API_KEY`            | —          | DeepSeek API key |
+
+**环境变量（PDF 导入，可选）**：
+
+| 变量名                | 默认值 | 说明                               |
+| --------------------- | ------ | ---------------------------------- |
+| `PADDLEOCR_VL_TOKEN`  | —      | PaddleOCR-VL API token（PDF 导入） |
+| `PDF_MAX_MB`          | `50`   | PDF 文件最大大小（MB）             |
 
 **支持的平台**：
 
@@ -128,6 +137,12 @@ npm run import:content -- --url="<URL>" --allow-overwrite
 
 # 预览模式
 npm run import:content -- --url="<URL>" --dry-run
+
+# 导入 arXiv PDF（需要 --forcePdf 标志）
+npm run import:content -- --url="https://arxiv.org/pdf/2306.00978" --forcePdf
+
+# 导入 PDF 并使用首图作为封面
+npm run import:content -- --url="https://example.com/document.pdf" --use-first-image-as-cover
 ```
 
 **CI 调用** → [import-content.yml](../docs/ci-workflow.md#24-import-contentyml--导入外部文章)

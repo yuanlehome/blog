@@ -55,6 +55,12 @@ npm run import:content -- --url https://example.com/paper.pdf
 
 # Import a PDF with translation enabled
 MARKDOWN_TRANSLATE_ENABLED=1 npm run import:content -- --url https://example.com/paper.pdf
+
+# Import from blocked domains (e.g., arXiv) using --forcePdf flag
+npm run import:content -- --url https://arxiv.org/pdf/2306.00978 --forcePdf
+
+# Note: Without --forcePdf, arXiv URLs are blocked by default
+# The --forcePdf flag forces the use of the generic PDF importer
 ```
 
 ### GitHub Actions Workflow
@@ -62,10 +68,11 @@ MARKDOWN_TRANSLATE_ENABLED=1 npm run import:content -- --url https://example.com
 1. Go to Actions → Import Content
 2. Click "Run workflow"
 3. Enter the PDF URL (e.g., `https://example.com/document.pdf`)
-4. Configure options:
+4. For blocked domains like arXiv, check "Force PDF import mode"
+5. Configure options:
    - Enable translation if desired
    - Choose translation provider (deepseek recommended)
-5. Run the workflow
+6. Run the workflow
 
 ## Features
 
