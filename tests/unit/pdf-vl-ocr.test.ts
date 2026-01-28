@@ -335,12 +335,7 @@ describe('PDF VL OCR Client', () => {
       largePdfBuffer.write('%PDF-1.4', 0); // Valid PDF header
 
       await expect(
-        callPaddleOcrVl(
-          largePdfBuffer,
-          'https://example.com/api',
-          'test-token',
-          mockLogger as any,
-        ),
+        callPaddleOcrVl(largePdfBuffer, 'https://example.com/api', 'test-token', mockLogger as any),
       ).rejects.toThrow('exceeds 25MB limit');
     });
   });

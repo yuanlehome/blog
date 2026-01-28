@@ -101,10 +101,7 @@ interface DiagnosticResult {
 /**
  * Run network diagnostics for API host
  */
-async function runNetworkDiagnostics(
-  apiUrl: string,
-  logger?: Logger,
-): Promise<DiagnosticResult> {
+async function runNetworkDiagnostics(apiUrl: string, logger?: Logger): Promise<DiagnosticResult> {
   const result: DiagnosticResult = {};
 
   try {
@@ -410,7 +407,7 @@ async function callPaddleOcrVlOnce(
     });
   } catch (error) {
     const errorDetails = extractErrorDetails(error);
-    
+
     logger?.error('OCR API request failed', {
       module: 'pdf_vl_ocr',
       stage: 'request',
@@ -567,8 +564,7 @@ export async function callPaddleOcrVl(
       }
 
       // Check if error is retryable
-      const shouldRetry =
-        attempt < config.retries && isRetryableError(error, lastStatusCode);
+      const shouldRetry = attempt < config.retries && isRetryableError(error, lastStatusCode);
 
       logger?.warn('OCR API call failed', {
         module: 'pdf_vl_ocr',
@@ -613,7 +609,7 @@ export async function callLocalMockOcr(logger?: Logger): Promise<PaddleOcrVlResu
     const path = await import('path');
     const fixtureDir = path.join(process.cwd(), 'tests/fixtures/ocr');
     const fixturePath = path.join(fixtureDir, 'paddle_mock.json');
-    
+
     const fixtureData = await fs.readFile(fixturePath, 'utf-8');
     const mockResponse: PaddleOcrVlResponse = JSON.parse(fixtureData);
 

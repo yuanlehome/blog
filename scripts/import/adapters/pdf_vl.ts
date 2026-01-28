@@ -202,7 +202,7 @@ export const pdfVlAdapter: Adapter = {
             stage: 'ocr_fallback',
             error: ocrError instanceof Error ? ocrError.message : String(ocrError),
           });
-          
+
           // Fallback: provide minimal content with error notice
           ocrResult = {
             markdown: `# PDF Import Failed - Offline Mode
