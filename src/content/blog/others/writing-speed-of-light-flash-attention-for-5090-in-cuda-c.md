@@ -42,7 +42,7 @@ translatedFrom: en
 
 ## Flash Attention 算法
 
-Let’s start with the reference implementation of attention.
+让我们从注意力机制的参考实现开始。
 
 ```python
 from torch import Tensor
@@ -194,7 +194,7 @@ Flash Attention 2 中的 warp 分区。
 
 ![MMA 布局的 ldmatrix](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/004-182a0351.svg)
 
-中`ldmatrix`瓦片的顺序`mma.m16n8k16`。
+`mma.m16n8k16` 中 `ldmatrix` 瓦片的顺序。
 
 通过上面的可视化，我希望以下代码片段有意义
 
@@ -565,7 +565,7 @@ rowmax[mma_id_q][0] = this_rowmax[0];
 rowmax[mma_id_q][1] = this_rowmax[1];
 ```
 
-我们不重新缩放`rowsumexp` here because we want to fuse it with addition of the new sumexp term later i.e. FMA - fused multiply add. We can’t fuse multiplication with MMA, hence we need to do a separate multiplication for `O_rmem`.
+我们不重新缩放 `rowsumexp`，因为我们希望稍后将其与新 sumexp 项的加法融合，即 FMA（融合乘加）。我们不能将乘法与 MMA 融合，因此我们需要对 `O_rmem` 进行单独的乘法。
 
 #### 打包到 BF16 并计算行求和 exp
 
@@ -626,7 +626,7 @@ rowsumexp[mma_id_q][1] = rowsumexp[mma_id_q][1] * rescale[1] + this_rowsumexp[1]
 无论如何，现在我们需要一个脚本来进行正确性检查和速度基准测试。我更喜欢用 Python 完成这些任务。正确性检查和速度基准测试通常在 `test.py` 和 `benchmark.py` 中分开，但我更喜欢将它们放在同一个脚本中。
 
 [attention.cpp](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/attention.cpp)：为我的注意力内核提供 PyTorch 绑定。
-1. [main.py](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/main.py): correctness check and speed benchmark.
+1. [main.py](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/main.py)：正确性检查和速度基准测试。
 
 对于正确性检查，我与 `F.sdpa()` 进行比较，默认情况下应该调度 Flash Attention 2（如果可用）。
 
@@ -660,7 +660,7 @@ Nsight Compute 可以在 macOS 上运行，通过 SSH 访问另一台装有 NVID
 
 ## 版本 2 - Shared memory swizzling
 
-Let’s do a profiling with Nsight Compute, and look at **Warp State Statistics** section.
+让我们使用 Nsight Compute 进行分析，并查看 **Warp State Statistics** 部分。
 
 ![Warp state statistics of v1](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/010-0e73a50b.png)
 
@@ -670,7 +670,7 @@ Let’s do a profiling with Nsight Compute, and look at **Warp State Statistics*
 
 我们可以通过查看 **Memory Workload Analysis** 来再次确认这一点，它揭示了几个问题。
 
-![Memory analsysis of v1](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/011-2b867178.png)
+![Memory analysis of v1](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/011-2b867178.png)
 
 内核 v1 的内存分析。
 
@@ -678,7 +678,7 @@ Let’s do a profiling with Nsight Compute, and look at **Warp State Statistics*
 - **L1TEX Local Load/Store Access Pattern** 是由于寄存器溢出。由于是寄存器溢出，一次只溢出和重新加载 1 个元素是正常的。减少 `BLOCK_Q`（这样我们使用更少的寄存器来保存累加器）可以解决这个问题，但我的手动调整表明，一些溢出实际上更快。
 - **Shared Load Bank Conflicts** 正是我们要寻找的——导致 "Stall Short Scoreboard" 的 bank 冲突。
 
-NVIDIA GPU’s shared memory is backed by 32 memory banks. Consecutive 4-byte memory addresses are assigned to consecutive memory banks. This poses a problem when we load data from shared to register memory with `ldmatrix`. Although it’s not explitcitly stated in any documentations, `ldmatrix.x2` and `ldmatrix.x4`每次操作一个 8x8 的图块。这很好，因为它简化了我们的分析：我们只需要考虑加载一个 8x8 图块的情况。
+NVIDIA GPU 的 shared memory 由 32 个 memory bank 支持。连续的 4 字节内存地址分配给连续的 memory bank。当我们使用 `ldmatrix` 从 shared 加载数据到 register memory 时，这会带来问题。虽然在任何文档中都没有明确说明，但 `ldmatrix.x2` 和 `ldmatrix.x4` 每次操作一个 8x8 的瓦片。这很好，因为它简化了我们的分析：我们只需要考虑加载一个 8x8 瓦片的情况。
 
 考虑共享内存中一个形状为 8x64、数据类型为 BF16 的 2D 图块。
 
