@@ -37,10 +37,7 @@ function getPdfConfig(): PdfImportConfig {
 
   // Support both PDF_OCR_API_URL (new, preferred) and PADDLEOCR_VL_API_URL (legacy)
   // PDF_OCR_API_URL takes precedence
-  const apiUrl = 
-    process.env.PDF_OCR_API_URL ||
-    process.env.PADDLEOCR_VL_API_URL ||
-    '';
+  const apiUrl = process.env.PDF_OCR_API_URL || process.env.PADDLEOCR_VL_API_URL || '';
 
   return {
     apiUrl,
@@ -142,8 +139,8 @@ export const pdfVlAdapter: Adapter = {
     if (config.ocrProvider === 'paddleocr_vl' && !config.apiUrl) {
       throw new Error(
         'API URL is required for PDF import. ' +
-        'Please obtain it from https://aistudio.baidu.com/paddleocr/task ' +
-        'and set it via PDF_OCR_API_URL or PADDLEOCR_VL_API_URL environment variable.',
+          'Please obtain it from https://aistudio.baidu.com/paddleocr/task ' +
+          'and set it via PDF_OCR_API_URL or PADDLEOCR_VL_API_URL environment variable.',
       );
     }
 
