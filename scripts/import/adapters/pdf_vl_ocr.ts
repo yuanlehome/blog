@@ -242,11 +242,12 @@ function isRetryableError(error: any, statusCode: number): boolean {
 
   // If error is OcrApiError, check its cause
   if (error instanceof OcrApiError && error.cause) {
-    if (error.cause.code && retryableErrorCodes.includes(error.cause.code)) {
+    const cause = error.cause as any;
+    if (cause.code && retryableErrorCodes.includes(cause.code)) {
       return true;
     }
-    // @ts-ignore - check nested cause
-    if (error.cause.cause?.code && retryableErrorCodes.includes(error.cause.cause.code)) {
+    // Check nested cause
+    if (cause.cause?.code && retryableErrorCodes.includes(cause.cause.code)) {
       return true;
     }
   }
