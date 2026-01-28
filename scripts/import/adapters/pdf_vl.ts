@@ -35,10 +35,15 @@ interface PdfImportConfig {
 function getPdfConfig(): PdfImportConfig {
   const maxPdfMb = parseInt(process.env.PDF_MAX_MB || '50', 10);
 
+  // Support both PDF_OCR_API_URL (new, preferred) and PADDLEOCR_VL_API_URL (legacy)
+  // PDF_OCR_API_URL takes precedence
+  const apiUrl = 
+    process.env.PDF_OCR_API_URL ||
+    process.env.PADDLEOCR_VL_API_URL ||
+    '';
+
   return {
-    apiUrl:
-      process.env.PADDLEOCR_VL_API_URL ||
-      'https://xbe1mb28fa0dz7kb.aistudio-app.com/layout-parsing',
+    apiUrl,
     token: process.env.PADDLEOCR_VL_TOKEN || '',
     maxPdfMb: isNaN(maxPdfMb) || maxPdfMb <= 0 ? 50 : maxPdfMb,
     ocrProvider: (process.env.PDF_OCR_PROVIDER as 'paddleocr_vl' | 'local_mock') || 'paddleocr_vl',
@@ -130,6 +135,15 @@ export const pdfVlAdapter: Adapter = {
       throw new Error(
         'PADDLEOCR_VL_TOKEN environment variable is required for PDF import. ' +
           'Please set it in your .env.local or GitHub Secrets.',
+      );
+    }
+
+    // Check API URL requirement (will be validated in callPaddleOcrVl)
+    if (config.ocrProvider === 'paddleocr_vl' && !config.apiUrl) {
+      throw new Error(
+        'API URL is required for PDF import. ' +
+        'Please obtain it from https://aistudio.baidu.com/paddleocr/task ' +
+        'and set it via PDF_OCR_API_URL or PADDLEOCR_VL_API_URL environment variable.',
       );
     }
 

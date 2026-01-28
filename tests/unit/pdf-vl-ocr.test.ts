@@ -72,7 +72,7 @@ describe('PDF VL OCR Client', () => {
       await expect(
         callPaddleOcrVl(
           samplePdfBuffer,
-          'https://invalid.example.com/api',
+          'https://invalid.example.com/layout-parsing',
           'test-token',
           mockLogger as any,
         ),
@@ -85,7 +85,7 @@ describe('PDF VL OCR Client', () => {
       try {
         await callPaddleOcrVl(
           samplePdfBuffer,
-          'https://invalid.example.com/api',
+          'https://invalid.example.com/layout-parsing',
           'test-token',
           mockLogger as any,
         );
@@ -118,7 +118,7 @@ describe('PDF VL OCR Client', () => {
       await expect(
         callPaddleOcrVl(
           samplePdfBuffer,
-          'https://example.com/api',
+          'https://example.com/layout-parsing',
           'test-token',
           mockLogger as any,
         ),
@@ -146,7 +146,7 @@ describe('PDF VL OCR Client', () => {
       await expect(
         callPaddleOcrVl(
           samplePdfBuffer,
-          'https://example.com/api',
+          'https://example.com/layout-parsing',
           'test-token',
           mockLogger as any,
         ),
@@ -174,7 +174,7 @@ describe('PDF VL OCR Client', () => {
       await expect(
         callPaddleOcrVl(
           samplePdfBuffer,
-          'https://example.com/api',
+          'https://example.com/layout-parsing',
           'test-token',
           mockLogger as any,
         ),
@@ -219,7 +219,7 @@ describe('PDF VL OCR Client', () => {
 
       const result = await callPaddleOcrVl(
         samplePdfBuffer,
-        'https://example.com/api',
+        'https://example.com/layout-parsing',
         'test-token',
         mockLogger as any,
       );
@@ -253,7 +253,7 @@ describe('PDF VL OCR Client', () => {
       await expect(
         callPaddleOcrVl(
           samplePdfBuffer,
-          'https://example.com/api',
+          'https://example.com/layout-parsing',
           'test-token',
           mockLogger as any,
         ),
@@ -311,7 +311,7 @@ describe('PDF VL OCR Client', () => {
       try {
         await callPaddleOcrVl(
           samplePdfBuffer,
-          'https://example.com/api',
+          'https://example.com/layout-parsing',
           'test-token',
           mockLogger as any,
         );
@@ -335,8 +335,268 @@ describe('PDF VL OCR Client', () => {
       largePdfBuffer.write('%PDF-1.4', 0); // Valid PDF header
 
       await expect(
-        callPaddleOcrVl(largePdfBuffer, 'https://example.com/api', 'test-token', mockLogger as any),
+        callPaddleOcrVl(largePdfBuffer, 'https://example.com/layout-parsing', 'test-token', mockLogger as any),
       ).rejects.toThrow('exceeds 25MB limit');
+    });
+  });
+
+  describe('API URL validation', () => {
+    it('should reject empty API URL', async () => {
+      process.env.PDF_OCR_RETRY = '0';
+      process.env.PDF_OCR_DIAG = '0';
+
+      await expect(
+        callPaddleOcrVl(samplePdfBuffer, '', 'test-token', mockLogger as any),
+      ).rejects.toThrow('API URL is required');
+    });
+
+    it('should reject non-HTTPS API URL', async () => {
+      process.env.PDF_OCR_RETRY = '0';
+      process.env.PDF_OCR_DIAG = '0';
+
+      await expect(
+        callPaddleOcrVl(
+          samplePdfBuffer,
+          'http://example.com/layout-parsing',
+          'test-token',
+          mockLogger as any,
+        ),
+      ).rejects.toThrow('must use HTTPS protocol');
+    });
+
+    it('should reject API URL without /layout-parsing path', async () => {
+      process.env.PDF_OCR_RETRY = '0';
+      process.env.PDF_OCR_DIAG = '0';
+
+      await expect(
+        callPaddleOcrVl(
+          samplePdfBuffer,
+          'https://example.com/api/v1',
+          'test-token',
+          mockLogger as any,
+        ),
+      ).rejects.toThrow("must include '/layout-parsing'");
+    });
+
+    it('should accept valid API URL with /layout-parsing', async () => {
+      process.env.PDF_OCR_RETRY = '0';
+      process.env.PDF_OCR_DIAG = '0';
+
+      // Mock successful response
+      global.fetch = vi.fn(() => {
+        const mockResponse = {
+          result: {
+            layoutParsingResults: [
+              {
+                markdown: {
+                  text: '# Test\n\nValid URL accepted.',
+                  images: {},
+                },
+              },
+            ],
+          },
+        };
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify(mockResponse)),
+        } as Response);
+      }) as any;
+
+      const result = await callPaddleOcrVl(
+        samplePdfBuffer,
+        'https://example.aistudio-app.com/layout-parsing',
+        'test-token',
+        mockLogger as any,
+      );
+
+      expect(result.markdown).toContain('Test');
+    });
+  });
+
+  describe('IPv4 forcing and connection timeout', () => {
+    it('should use undici dispatcher with IPv4 forcing', async () => {
+      process.env.PDF_OCR_RETRY = '0';
+      process.env.PDF_OCR_DIAG = '0';
+
+      let fetchOptions: any = null;
+
+      // Mock fetch to capture options
+      global.fetch = vi.fn((url: any, options: any) => {
+        fetchOptions = options;
+        const mockResponse = {
+          result: {
+            layoutParsingResults: [
+              {
+                markdown: {
+                  text: '# Test\n\nIPv4 dispatcher applied.',
+                  images: {},
+                },
+              },
+            ],
+          },
+        };
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify(mockResponse)),
+        } as Response);
+      }) as any;
+
+      await callPaddleOcrVl(
+        samplePdfBuffer,
+        'https://example.com/layout-parsing',
+        'test-token',
+        mockLogger as any,
+      );
+
+      // Verify dispatcher was provided (undici Agent)
+      expect(fetchOptions).toBeDefined();
+      expect(fetchOptions.dispatcher).toBeDefined();
+      expect(typeof fetchOptions.dispatcher.destroy).toBe('function');
+    });
+
+    it('should handle connection timeout error', async () => {
+      process.env.PDF_OCR_RETRY = '1';
+      process.env.PDF_OCR_DIAG = '0';
+      process.env.PDF_OCR_CONNECT_TIMEOUT_MS = '1000';
+
+      let callCount = 0;
+
+      // Mock fetch to simulate connection timeout
+      global.fetch = vi.fn(() => {
+        callCount++;
+        const error: any = new TypeError('fetch failed');
+        error.cause = {
+          code: 'ETIMEDOUT',
+          errno: -60,
+          syscall: 'connect',
+          address: '1.2.3.4',
+          port: 443,
+        };
+        return Promise.reject(error);
+      }) as any;
+
+      try {
+        await callPaddleOcrVl(
+          samplePdfBuffer,
+          'https://example.com/layout-parsing',
+          'test-token',
+          mockLogger as any,
+        );
+        expect.fail('Should have thrown');
+      } catch (error) {
+        if (error instanceof OcrApiError) {
+          // Verify error contains connection details
+          expect(error.responseBody).toContain('ETIMEDOUT');
+          expect(error.responseBody).toContain('1.2.3.4');
+          expect(error.responseBody).toContain('443');
+        }
+      }
+
+      // Should have retried
+      expect(callCount).toBe(2);
+    });
+  });
+
+  describe('Error details extraction', () => {
+    it('should extract all error fields including cause', async () => {
+      process.env.PDF_OCR_RETRY = '0';
+      process.env.PDF_OCR_DIAG = '0';
+
+      const mockCause = {
+        code: 'ECONNREFUSED',
+        errno: -61,
+        syscall: 'connect',
+        address: '192.168.1.1',
+        port: 443,
+        hostname: 'example.com',
+      };
+
+      global.fetch = vi.fn(() => {
+        const error: any = new TypeError('connect ECONNREFUSED');
+        error.cause = mockCause;
+        return Promise.reject(error);
+      }) as any;
+
+      try {
+        await callPaddleOcrVl(
+          samplePdfBuffer,
+          'https://example.com/layout-parsing',
+          'test-token',
+          mockLogger as any,
+        );
+        expect.fail('Should have thrown');
+      } catch (error) {
+        if (error instanceof OcrApiError) {
+          // Verify all fields are extracted
+          const body = error.responseBody || '';
+          expect(body).toContain('ECONNREFUSED');
+          expect(body).toContain('-61');
+          expect(body).toContain('connect');
+          expect(body).toContain('192.168.1.1');
+          expect(body).toContain('443');
+        }
+      }
+    });
+
+    it('should not have empty error object in logs', async () => {
+      process.env.PDF_OCR_RETRY = '0';
+      process.env.PDF_OCR_DIAG = '0';
+
+      global.fetch = vi.fn(() => {
+        return Promise.reject(new Error('Simple error'));
+      }) as any;
+
+      try {
+        await callPaddleOcrVl(
+          samplePdfBuffer,
+          'https://example.com/layout-parsing',
+          'test-token',
+          mockLogger as any,
+        );
+      } catch (error) {
+        // Verify logger.error was called with non-empty error object
+        const errorCalls = mockLogger.error.mock.calls;
+        expect(errorCalls.length).toBeGreaterThan(0);
+        
+        const lastErrorCall = errorCalls[errorCalls.length - 1];
+        const errorParam = lastErrorCall[1];
+        expect(errorParam).toBeDefined();
+        expect(errorParam.error).toBeDefined();
+        expect(errorParam.error.message).toBeDefined();
+        expect(errorParam.error.message).not.toBe('');
+      }
+    });
+
+    it('should truncate large response body to 2KB', async () => {
+      process.env.PDF_OCR_RETRY = '0';
+      process.env.PDF_OCR_DIAG = '0';
+
+      // Create a large error with details > 2KB
+      const largeMessage = 'x'.repeat(3000);
+      const error: any = new TypeError(largeMessage);
+      error.cause = { code: 'LARGE', data: 'y'.repeat(3000) };
+
+      global.fetch = vi.fn(() => {
+        return Promise.reject(error);
+      }) as any;
+
+      try {
+        await callPaddleOcrVl(
+          samplePdfBuffer,
+          'https://example.com/layout-parsing',
+          'test-token',
+          mockLogger as any,
+        );
+      } catch (error) {
+        if (error instanceof OcrApiError) {
+          const body = error.responseBody || '';
+          // Should be truncated
+          expect(body.length).toBeLessThanOrEqual(2048 + 50); // +50 for "(truncated)" suffix
+          expect(body).toContain('truncated');
+        }
+      }
     });
   });
 });
