@@ -84,22 +84,87 @@ function extractTitle(markdown: string, url: string): string {
 }
 
 /**
- * Count effective content lines (non-empty, non-symbol-only)
+ * Analyze markdown content quality with detailed metrics
  */
-function countEffectiveLines(markdown: string): number {
+interface ContentQualityMetrics {
+  effectiveLines: number;
+  markdownChars: number;
+  nonEmptyLines: number;
+  symbolOnlyLines: number;
+  sampleHead: string;
+  sampleTail: string;
+  suspicionFlags: {
+    isProbablyHtml: boolean;
+    isProbablyErrorPage: boolean;
+    isProbablyTooDense: boolean;
+    isProbablyEmpty: boolean;
+  };
+}
+
+function analyzeContentQuality(markdown: string): ContentQualityMetrics {
   const lines = markdown.split('\n');
   let effectiveCount = 0;
+  let nonEmptyCount = 0;
+  let symbolOnlyCount = 0;
 
   for (const line of lines) {
     const trimmed = line.trim();
-    // Skip empty lines
     if (!trimmed) continue;
-    // Skip lines with only symbols/punctuation
-    if (!/[a-zA-Z0-9\u4e00-\u9fa5]/.test(trimmed)) continue;
-    effectiveCount++;
+
+    nonEmptyCount++;
+
+    // Check if line has alphanumeric content
+    if (/[a-zA-Z0-9\u4e00-\u9fa5]/.test(trimmed)) {
+      effectiveCount++;
+    } else {
+      symbolOnlyCount++;
+    }
   }
 
-  return effectiveCount;
+  // Get sample head and tail (20 lines each, max 120 chars per line)
+  const sampleLines = 20;
+  const maxLineLength = 120;
+  const headLines = lines.slice(0, sampleLines).map((line) => {
+    const truncated = line.length > maxLineLength ? line.slice(0, maxLineLength) + '...' : line;
+    return truncated;
+  });
+  const tailLines = lines.slice(-sampleLines).map((line) => {
+    const truncated = line.length > maxLineLength ? line.slice(0, maxLineLength) + '...' : line;
+    return truncated;
+  });
+
+  // Detect suspicion flags
+  const markdownLower = markdown.toLowerCase();
+  const isProbablyHtml =
+    markdownLower.includes('<!doctype html>') ||
+    markdownLower.includes('<html') ||
+    (markdownLower.includes('<body') && markdownLower.includes('</body>'));
+
+  const isProbablyErrorPage =
+    markdownLower.includes('404') ||
+    markdownLower.includes('not found') ||
+    markdownLower.includes('error page') ||
+    markdownLower.includes('access denied');
+
+  // Too dense: very few lines but many characters (like Base64 or minified content)
+  const isProbablyTooDense = effectiveCount < 10 && markdown.length > 5000;
+
+  const isProbablyEmpty = effectiveCount === 0 && markdown.trim().length === 0;
+
+  return {
+    effectiveLines: effectiveCount,
+    markdownChars: markdown.length,
+    nonEmptyLines: nonEmptyCount,
+    symbolOnlyLines: symbolOnlyCount,
+    sampleHead: headLines.join('\n'),
+    sampleTail: tailLines.join('\n'),
+    suspicionFlags: {
+      isProbablyHtml,
+      isProbablyErrorPage,
+      isProbablyTooDense,
+      isProbablyEmpty,
+    },
+  };
 }
 
 /**
@@ -327,12 +392,64 @@ Sunt in culpa qui officia deserunt mollit anim id est laborum.
       logger.info('Processing markdown', { adapter: 'pdf_vl', stage: 'process' });
       let markdown = processOcrMarkdown(ocrResult.markdown);
 
-      // Check effective content quality
-      const effectiveLines = countEffectiveLines(markdown);
-      if (effectiveLines < 20) {
+      // Check effective content quality with detailed metrics
+      const metrics = analyzeContentQuality(markdown);
+
+      // Multi-condition quality gate:
+      // Pass conditions (satisfy any one):
+      // 1) effectiveLines >= 20
+      // 2) markdownChars >= 1500
+      // 3) nonEmptyLines >= 35 AND markdownChars >= 900
+      const passConditions = [
+        metrics.effectiveLines >= 20,
+        metrics.markdownChars >= 1500,
+        metrics.nonEmptyLines >= 35 && metrics.markdownChars >= 900,
+      ];
+      const passesQualityGate = passConditions.some((condition) => condition);
+
+      // Strong failure conditions (must reject):
+      // - isProbablyHtml === true
+      // - markdownChars < 200 AND effectiveLines < 10
+      // - effectiveLines === 0
+      const strongFailureConditions = [
+        metrics.suspicionFlags.isProbablyHtml,
+        metrics.markdownChars < 200 && metrics.effectiveLines < 10,
+        metrics.effectiveLines === 0,
+      ];
+      const hasStrongFailure = strongFailureConditions.some((condition) => condition);
+
+      // Log diagnostics and fail if needed
+      if (!passesQualityGate || hasStrongFailure) {
+        logger.error('Content quality gate failed', {
+          adapter: 'pdf_vl',
+          stage: 'quality_check',
+          effectiveLines: metrics.effectiveLines,
+          minEffectiveLines: 20,
+          markdownChars: metrics.markdownChars,
+          nonEmptyLines: metrics.nonEmptyLines,
+          symbolOnlyLines: metrics.symbolOnlyLines,
+          sampleHead: metrics.sampleHead,
+          sampleTail: metrics.sampleTail,
+          suspicionFlags: metrics.suspicionFlags,
+          passesQualityGate,
+          hasStrongFailure,
+          failureReason: hasStrongFailure
+            ? 'Strong failure condition triggered'
+            : 'Did not meet any pass condition',
+        });
+
         throw new Error(
-          `Insufficient content quality: only ${effectiveLines} effective lines found (minimum 20 required). ` +
-            'This may indicate the PDF is a scanned image or the OCR failed. ' +
+          `Insufficient content quality: ` +
+            `effectiveLines=${metrics.effectiveLines}, ` +
+            `markdownChars=${metrics.markdownChars}, ` +
+            `nonEmptyLines=${metrics.nonEmptyLines}. ` +
+            (metrics.suspicionFlags.isProbablyHtml
+              ? 'Content appears to be HTML instead of markdown. '
+              : '') +
+            (metrics.suspicionFlags.isProbablyErrorPage
+              ? 'Content appears to be an error page. '
+              : '') +
+            'This may indicate the PDF is a scanned image, the OCR failed, or an error page was returned. ' +
             'Please verify the PDF is text-based and try again.',
         );
       }
@@ -372,7 +489,7 @@ Sunt in culpa qui officia deserunt mollit anim id est laborum.
       logger.info('Markdown processed', {
         adapter: 'pdf_vl',
         stage: 'process',
-        effectiveLines,
+        effectiveLines: metrics.effectiveLines,
       });
 
       // Step 5: Optional translation
@@ -406,7 +523,7 @@ Sunt in culpa qui officia deserunt mollit anim id est laborum.
         status: 'ok',
         fields: {
           title,
-          effectiveLines,
+          effectiveLines: metrics.effectiveLines,
           imagesCount: Object.keys(localImageMap).length,
           markdownLength: markdown.length,
         },
@@ -416,7 +533,7 @@ Sunt in culpa qui officia deserunt mollit anim id est laborum.
         status: 'ok',
         adapter: 'pdf_vl',
         title,
-        effectiveLines,
+        effectiveLines: metrics.effectiveLines,
         imagesCount: Object.keys(localImageMap).length,
         markdownLength: markdown.length,
       });
@@ -433,7 +550,8 @@ Sunt in culpa qui officia deserunt mollit anim id est laborum.
         })),
         diagnostics: {
           extractionMethod: config.ocrProvider === 'local_mock' ? 'local_mock' : 'paddleocr-vl',
-          warnings: effectiveLines < 50 ? ['Content may be sparse (< 50 effective lines)'] : [],
+          warnings:
+            metrics.effectiveLines < 50 ? ['Content may be sparse (< 50 effective lines)'] : [],
         },
       };
     } catch (error) {
