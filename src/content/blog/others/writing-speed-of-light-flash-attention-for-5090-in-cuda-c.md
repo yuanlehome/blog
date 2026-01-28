@@ -175,7 +175,7 @@ __syncthreads();
 
 ### Shared memory 到 Register memory 的数据传输
 
-在进行全局到共享内存的数据传输时，我们以 threadblock tile 和单个 CUDA 线程为单位来思考。对于共享内存到寄存器的数据传输，由于这是为了服务后续的 MMA 指令，我们以 warp tile/MMA tile 和 warp 为单位来思考。遵循 Flash Attention 2（第 3.3 节），我们让线程块中的每个 warp 处理一部分`tile_Q`，沿着 Q 序列长度维度进行分割。这意味着不同的 warp 将索引到`tile_Q`的不同块，但它们都索引到相同的`tile_K`和`tile_V`块在 KV 序列长度循环中。
+在进行全局到共享内存的数据传输时，我们以 threadblock tile 和单个 CUDA 线程为单位来思考。对于共享内存到寄存器的数据传输，由于这是为了服务后续的 MMA 指令，我们以 warp tile/MMA tile 和 warp 为单位来思考。遵循 Flash Attention 2（第 3.3 节），我们让线程块中的每个 warp 处理一部分 `tile_Q`，沿着 Q 序列长度维度进行分割。这意味着不同的 warp 将索引到 `tile_Q` 的不同块，但它们都索引到相同的 `tile_K` 和 `tile_V` 块在 KV 序列长度循环中。
 
 ![Flash Attention warp 分区](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/003-ba293e9f.svg)
 
@@ -188,7 +188,7 @@ Flash Attention 2 中的 warp 分区。
 
 只有 Q 在 MMA 中充当 A。K 和 V 都在各自的 MMA 中充当 B，尽管 K 需要转置的`ldmatrix`以获得正确的布局（所有张量在全局和共享内存中使用行优先布局）。
 
-要使用`ldmatrix`，每个线程提供一行的地址。线程 0-7 选择第一个 8x8 tile，线程 8-15 选择第二个 8x8 tile，依此类推。[A 的布局](https://docs.nvidia.com/cuda/parallel-thread-execution/#warp-level-matrix-fragment-mma-16816-float)在官方的 PTX 文档中可能看起来令人困惑。但更容易（至少对我来说）专注于 MMA tile 内 8x8 tile 的顺序。
+要使用 `ldmatrix`，每个线程提供一行的地址。线程 0-7 选择第一个 8x8 tile，线程 8-15 选择第二个 8x8 tile，依此类推。[A 的布局](https://docs.nvidia.com/cuda/parallel-thread-execution/#warp-level-matrix-fragment-mma-16816-float) 在官方的 PTX 文档中可能看起来令人困惑。但更容易（至少对我来说）专注于 MMA tile 内 8x8 tile 的顺序。
 
 ![MMA 布局的 ldmatrix](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/004-182a0351.svg)
 
@@ -213,20 +213,20 @@ for (int mma_id_q = 0; mma_id_q < WARP_Q / MMA_M; mma_id_q++)
   }
 ```
 
-- 两个嵌套循环将`[MMA_M, MMA_K]`（即`[16, 16]`）在共享内存中 tile 化`[WARP_Q, DIM]`。
-- `(warp_id * WARP_Q)`选择 warp tile。我们不需要为 K 和 V 这样做。
-- `(mma_id_q * MMA_M)`在`row`和`(mma_id_d * MMA_K)`在`col`中选择 MMA tile。
-- `(lane_id % 16)`在`row`和`(lane_id / 16 * 8)`在`col`中为每个线程选择正确的行地址，遵循所需的 Multiplicand A 布局（见上图）。
+- 两个嵌套循环将 `[MMA_M, MMA_K]`（即 `[16, 16]`）在共享内存中 tile 化 `[WARP_Q, DIM]`。
+- `(warp_id * WARP_Q)` 选择 warp tile。我们不需要为 K 和 V 这样做。
+- `(mma_id_q * MMA_M)` 在 `row` 和 `(mma_id_d * MMA_K)` 在 `col` 中选择 MMA tile。
+- `(lane_id % 16)` 在 `row` 和 `(lane_id / 16 * 8)` 在 `col` 中为每个线程选择正确的行地址，遵循所需的 Multiplicand A 布局（见上图）。
 
-`ldmatrix_x4()`是`ldmatrix.sync.aligned.m8n8.x4.b16`PTX 的一个小包装，为了方便。你可以参考[common.h](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/common.h)获取更多细节。
+`ldmatrix_x4()` 是 `ldmatrix.sync.aligned.m8n8.x4.b16` PTX 的一个小包装，为了方便。你可以参考 [common.h](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/common.h) 获取更多细节。
 
-K 和 V 可以类似地从共享内存加载到寄存器内存。需要注意的一点是使用`ldmatrix`时的行优先/列优先布局。无论是否使用`.trans`修饰符，每个线程仍然提供 8x8 tile 中每行的行地址。`.trans`只改变**结果的**寄存器布局`ldmatrix`。
+K 和 V 可以类似地从共享内存加载到寄存器内存。需要注意的一点是使用 `ldmatrix` 时的行优先/列优先布局。无论是否使用 `.trans` 修饰符，每个线程仍然提供 8x8 tile 中每行的行地址。`.trans` 只改变**结果的**寄存器布局 `ldmatrix`。
 
 ![K 和 V 的 ldmatrix](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/005-7d5699b1.svg)
 
 对 V 使用转置版本的`ldmatrix`。
 
-一个判断是否使用转置版本的技巧是查看 K 维度或归约维度。第一个 MMA 的 K 维度沿着`ldmatrix`维度，而第二个 MMA 的 K 维度沿着`DIM`维度。`BLOCK_KV`。
+一个判断是否使用转置版本的技巧是查看 K 维度或归约维度。第一个 MMA 的 K 维度沿着 `ldmatrix` 维度，而第二个 MMA 的 K 维度沿着 `DIM` 维度。`BLOCK_KV`。
 
 ### 草稿版本
 
@@ -374,53 +374,51 @@ void attention_v1(
 
 对于原始解释，你可以参考[softmax 的在线归一化器计算](https://arxiv.org/abs/1805.02867)和 Flash Attention 2 论文。
 
-我们有 softmax 的以下数学定义。对于每行长度为$L\_{kv}$
+我们有 softmax 的以下数学定义。对于每行长度为 $L_{kv}$
 
-$p\_l = \frac{\exp(s\_l-m)}{\exp(s\_0-m) + \exp(s\_1-m) + \dots + \exp(s\_{L\_{kv}-1}-m)}$
-
-$$
-l\in\[0,L\_{kv})
-$$
-
-$m=\max(s\_0,s\_1,\dots,s\_{L\_{kv}-1})$
-
-$-m$是最大减法以提高数值稳定性（$\exp(\cdot)$如果其输入很大，很容易爆炸）。让我们提取分母归一化器并将整行写成一个向量。
+$p_l = \frac{\exp(s_l-m)}{\exp(s_0-m) + \exp(s_1-m) + \dots + \exp(s_{L_{kv}-1}-m)}$
 
 $$
-\vec P = \begin{bmatrix} p\_0 \\\ \vdots \\\ p\_{L\_{kv}-1} \end{bmatrix} = \frac{1}{\sum\_{l\in\[0,L\_{kv})}\exp(s\_l-m)} \begin{bmatrix} \exp(s\_0-m) \\\ \vdots \\\ \exp(s\_{L\_{kv}-1}-m) \end{bmatrix}
+l\in[0,L_{kv})
 $$
 
-在我们的第二个矩阵乘法`O += P @ V`中，P（softmax 输出）的每一行与 V 的相应列进行点积。
+$m=\max(s_0,s_1,\dots,s_{L_{kv}-1})$
+
+$-m$ 是最大减法以提高数值稳定性（$\exp(\cdot)$ 如果其输入很大，很容易爆炸）。让我们提取分母归一化器并将整行写成一个向量。
 
 $$
-o=\vec P \cdot \vec V = \frac{1}{\sum\_{l\in\[0,L\_{kv})}\exp(s\_l-m)} \sum\_{l\in\[0,L\_{kv})}\exp(s\_l-m) \cdot v\_l
+\vec P = \begin{bmatrix} p_0 \\\ \vdots \\\ p_{L_{kv}-1} \end{bmatrix} = \frac{1}{\sum_{l\in[0,L_{kv})}\exp(s_l-m)} \begin{bmatrix} \exp(s_0-m) \\\ \vdots \\\ \exp(s_{L_{kv}-1}-m) \end{bmatrix}
+$$
+
+在我们的第二个矩阵乘法 `O += P @ V` 中，P（softmax 输出）的每一行与 V 的相应列进行点积。
+
+$$
+o=\vec P \cdot \vec V = \frac{1}{\sum_{l\in[0,L_{kv})}\exp(s_l-m)} \sum_{l\in[0,L_{kv})}\exp(s_l-m) \cdot v_l
 $$
 
 额外的点积是塞翁失马——我们不再需要一行中的单个元素来获得最终结果。这使得 Flash Attention 能够一次性计算注意力。为了更清楚地看到这一点，让我们考虑在线计算期间添加新元素的迭代过程。
 
 $$
-o\_{\[0,L)} = \frac{1}{\sum\_{l\in\[0,L)}\exp(s\_l-m\_{\[0,L)})} \sum\_{l\in\[0,L)}\exp(s\_l-m\_{\[0,L)}) \cdot v\_l
+o_{[0,L)} = \frac{1}{\sum_{l\in[0,L)}\exp(s_l-m_{[0,L)})} \sum_{l\in[0,L)}\exp(s_l-m_{[0,L)}) \cdot v_l
 $$
 
 $$
-m\_{\[0,L)}=\max(s\_0,s\_1,\dots,s\_{L-1})
+m_{[0,L)}=\max(s_0,s_1,\dots,s_{L-1})
 $$
 
-我在这里滥用了符号，但我希望传达这个想法。当我们添加一个新元素$s\_{L+1}$
+我在这里滥用了符号，但我希望传达这个想法。当我们添加一个新元素 $s_{L+1}$
 
 $$
-o\_{\[0,L+1)} = \frac{1}{\sum\_{l\in\[0,L+1)}\exp(s\_l-m\_{\[0,L+1)})} \sum\_{l\in\[0,L+1)}\exp(s\_l-m\_{\[0,L+1)}) \cdot v\_l
+o_{[0,L+1)} = \frac{1}{\sum_{l\in[0,L+1)}\exp(s_l-m_{[0,L+1)})} \sum_{l\in[0,L+1)}\exp(s_l-m_{[0,L+1)}) \cdot v_l
 $$
 
 查看归一化器（分母）
 
 $$
-\sum\_{l\in\[0,L+1)}\exp(s\_l-m\_{\[0,L+1)}) = \colorbox{red}{
+\sum_{l\in[0,L+1)}\exp(s_l-m_{[0,L+1)}) = \colorbox{red}{$\displaystyle\exp(m_{[0,L)}-m_{[0,L+1)})$}\colorbox{orange}{$\displaystyle\sum_{l\in[0,L)}\exp(s_l-m_{[0,L)})$} + \colorbox{lime}{$\displaystyle\exp(s_L-m_{[0,L+1)})$}
 $$
 
-\displaystyle\exp(m\_{\[0,L)}-m\_{\[0,L+1)})$}\colorbox{orange}{$\displaystyle\sum\_{l\in\[0,L)}\exp(s_l-m\_{\[0,L)})$} + \colorbox{lime}{$\displaystyle\exp(s_L-m\_{\[0,L+1)})$}$
-
-这个方程意味着我们只需要$\colorbox{red}{rescale}$在添加$\colorbox{orange}{previous normalizer}$之前。$\colorbox{lime}{new term}$相同的逻辑可以应用于与 V 的点积（未归一化输出）。**这是在线 softmax 和 Flash Attention 的关键思想**。
+这个方程意味着我们只需要 $\colorbox{red}{rescale}$ 在添加 $\colorbox{orange}{previous normalizer}$ 之前。$\colorbox{lime}{new term}$ 相同的逻辑可以应用于与 V 的点积（未归一化输出）。**这是在线 softmax 和 Flash Attention 的关键思想**。
 
 定义**注意力状态**
 
@@ -428,12 +426,12 @@ $$
 \begin{bmatrix} m \\\ \tilde{o} \\\ \mathrm{sumexp} \end{bmatrix}
 $$
 
-其中$m$是迄今为止看到的元素的最大值，$\tilde{o}$是**未归一化的**输出，$\mathrm{sumexp}$是归一化器。我们需要$m$来计算如上所示的重新缩放因子。
+其中 $m$ 是迄今为止看到的元素的最大值，$\tilde{o}$ 是**未归一化的**输出，$\mathrm{sumexp}$ 是归一化器。我们需要 $m$ 来计算如上所示的重新缩放因子。
 
 你可以说服自己，更新注意力状态是一个**结合性**操作——元素用于更新注意力状态的顺序无关紧要。
 
 $$
-\begin{aligned} \begin{bmatrix} m\_1 \\\ \tilde{o}\_1 \\\ \mathrm{sumexp}\_1 \end{bmatrix} \oplus \begin{bmatrix} m\_2 \\\ \tilde{o}\_2 \\\ \mathrm{sumexp}\_2 \end{bmatrix} &= \begin{bmatrix} m\_3 \\\ \tilde{o}\_3 \\\ \mathrm{sumexp}\_3 \end{bmatrix} \\\ &= \begin{bmatrix} \max(m\_1,m\_2) \\\ \exp(m\_1-m\_3)\tilde{o}\_1+\exp(m\_2-m\_3)\tilde{o}\_2 \\\ \exp(m\_1-m\_3)\mathrm{sumexp}\_1+\exp(m\_2-m\_3)\mathrm{sumexp}\_2 \end{bmatrix} \end{aligned}
+\begin{aligned} \begin{bmatrix} m_1 \\\ \tilde{o}_1 \\\ \mathrm{sumexp}_1 \end{bmatrix} \oplus \begin{bmatrix} m_2 \\\ \tilde{o}_2 \\\ \mathrm{sumexp}_2 \end{bmatrix} &= \begin{bmatrix} m_3 \\\ \tilde{o}_3 \\\ \mathrm{sumexp}_3 \end{bmatrix} \\\ &= \begin{bmatrix} \max(m_1,m_2) \\\ \exp(m_1-m_3)\tilde{o}_1+\exp(m_2-m_3)\tilde{o}_2 \\\ \exp(m_1-m_3)\mathrm{sumexp}_1+\exp(m_2-m_3)\mathrm{sumexp}_2 \end{bmatrix} \end{aligned}
 $$
 
 这种结合性属性使得诸如[Flash Decoding](https://pytorch.org/blog/flash-decoding/)（注意力的 split-K 版本）成为可能。
@@ -473,19 +471,19 @@ tile_O /= sumexp.unsqueeze(-1)
 
 #### 行最大值
 
-当将其转换为 CUDA C++时，最棘手的部分是理解 MMA 布局。让我们从`tile_S`开始。
+当将其转换为 CUDA C++ 时，最棘手的部分是理解 MMA 布局。让我们从 `tile_S` 开始。
 
 ![MMA m16n8k16 输出布局](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/006-c90e5d1a.png)
 
 MMA m16n8k16 输出的线程和寄存器布局。来源：[NVIDIA PTX 文档](https://docs.nvidia.com/cuda/parallel-thread-execution/#warp-level-matrix-fragment-mma-16816-float)。
 
-Softmax 缩放对所有元素应用相同的缩放，所以这很简单。接下来，我们需要计算当前 tile 的行最大值。记住我们为`tile_S`这样分配寄存器。
+Softmax 缩放对所有元素应用相同的缩放，所以这很简单。接下来，我们需要计算当前 tile 的行最大值。记住我们为 `tile_S` 这样分配寄存器。
 
 ```cpp
 float S_rmem[WARP_Q / MMA_M][BLOCK_KV / MMA_N][4];
 ```
 
-`4`意味着`c0,c1,c2,c3`在上图中，即每个线程持有来自 2 行的 2 个连续元素。要在行内（MMA 输出 tile）进行归约，我们对线程持有的 2 个连续元素进行归约，然后在 4 个线程的组内进行归约，即`T0-T3`、`T4-T7`等等。然而，行归约实际上是在整个`tile_S`内进行的，因此我们还需要循环`BLOCK_KV / MMA_N`的`S_rmem`。这可以与线程级归约结合，在 4 线程归约之前进行。
+`4` 意味着 `c0,c1,c2,c3` 在上图中，即每个线程持有来自 2 行的 2 个连续元素。要在行内（MMA 输出 tile）进行归约，我们对线程持有的 2 个连续元素进行归约，然后在 4 个线程的组内进行归约，即 `T0-T3`、`T4-T7` 等等。然而，行归约实际上是在整个 `tile_S` 内进行的，因此我们还需要循环 `BLOCK_KV / MMA_N` 的 `S_rmem`。这可以与线程级归约结合，在 4 线程归约之前进行。
 
 ![行归约](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/007-9e2fcb2f.svg)
 
@@ -901,7 +899,7 @@ Stall Long Scoreboard 现在已从 Warp 状态统计中消失。我还必须将`
 
 对于最后两个版本，我无法从性能分析数据中识别出任何优化机会（也许只是技能问题）。这些想法主要来自阅读随机资料和盯着内核看。
 
-之前，我们使用`ldmatrix.x2`用于 K 和 V，因为它自然适合`n8k16`MMA tile。然而，既然我们无论如何都在处理更大的 tile，我们可以直接使用`ldmatrix.x4`来发出更少的指令。有两个选项：加载`n16k16` tile，或`n8k32` tile。
+之前，我们使用 `ldmatrix.x2` 用于 K 和 V，因为它自然适合 `n8k16` MMA tile。然而，既然我们无论如何都在处理更大的 tile，我们可以直接使用 `ldmatrix.x4` 来发出更少的指令。有两个选项：加载 `n16k16` tile，或 `n8k32` tile。
 
 ![对 B 使用 ldmatrix.x4](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/016-78fcfc89.svg)
 
