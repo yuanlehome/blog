@@ -60,7 +60,7 @@ function isMenuItemActive(item: { href: string; isExternal: boolean }): boolean 
           />
         )
       }
-      {navConfig.header.brandText}
+      <span class="hidden sm:inline">{navConfig.header.brandText}</span>
     </a>
     <nav class={`flex ${itemsClass} gap-3 items-center`}>
       {
