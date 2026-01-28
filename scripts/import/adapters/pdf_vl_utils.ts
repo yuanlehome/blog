@@ -158,13 +158,15 @@ export async function downloadPdf(
 
       // Don't retry on validation errors
       if (error instanceof NotPdfError || error instanceof PdfDownloadError) {
+        // Don't retry 4xx errors (client errors - won't succeed on retry)
         if (error instanceof PdfDownloadError && error.statusCode && error.statusCode >= 400) {
-          // Don't retry 4xx errors
           throw error;
         }
+        // NotPdfError means the content is invalid, no point retrying
         if (error instanceof NotPdfError) {
           throw error;
         }
+        // For other PdfDownloadError (network, timeout, 5xx), continue to retry
       }
 
       logger?.warn('PDF download attempt failed', {

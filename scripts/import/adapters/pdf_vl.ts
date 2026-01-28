@@ -31,12 +31,14 @@ interface PdfImportConfig {
  * Get PDF import configuration from environment
  */
 function getPdfConfig(): PdfImportConfig {
+  const maxPdfMb = parseInt(process.env.PDF_MAX_MB || '50', 10);
+
   return {
     apiUrl:
       process.env.PADDLEOCR_VL_API_URL ||
       'https://xbe1mb28fa0dz7kb.aistudio-app.com/layout-parsing',
     token: process.env.PADDLEOCR_VL_TOKEN || '',
-    maxPdfMb: parseInt(process.env.PDF_MAX_MB || '50', 10),
+    maxPdfMb: isNaN(maxPdfMb) || maxPdfMb <= 0 ? 50 : maxPdfMb,
     translateEnabled: process.env.MARKDOWN_TRANSLATE_ENABLED === '1',
     translateProvider: process.env.MARKDOWN_TRANSLATE_PROVIDER || 'deepseek',
   };

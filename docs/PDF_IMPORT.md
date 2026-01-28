@@ -139,6 +139,7 @@ npm test
 ```
 
 Tests cover:
+
 - URL detection (PDF vs. non-PDF)
 - Successful PDF import flow
 - Error cases (missing token, download failures, invalid PDFs)
@@ -183,6 +184,7 @@ Solution: Add `PADDLEOCR_VL_TOKEN` to your `.env.local` file or GitHub Secrets.
 ### "File too small" or "Not a valid PDF file"
 
 The downloaded file is not a valid PDF. Check:
+
 - The URL actually points to a PDF
 - The server is accessible
 - No authentication is required
@@ -190,6 +192,7 @@ The downloaded file is not a valid PDF. Check:
 ### "Insufficient content quality"
 
 The OCR returned less than 20 effective lines of content. This may indicate:
+
 - The PDF is a scanned image (OCR may struggle)
 - The PDF is mostly images with little text
 - The OCR service had an issue
@@ -199,6 +202,7 @@ Solution: Verify the PDF contains text (not just scanned images).
 ### "Failed to download PDF after 3 attempts"
 
 Network or server issues. Check:
+
 - The URL is accessible
 - Your network connection is stable
 - The server is responding
@@ -206,6 +210,7 @@ Network or server issues. Check:
 ## Future Enhancements
 
 Potential improvements:
+
 - Support for other document formats (DOCX, PPTX, etc.)
 - Batch PDF processing
 - Custom OCR provider support

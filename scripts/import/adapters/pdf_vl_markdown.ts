@@ -291,9 +291,9 @@ function sanitizeImagePath(imgPath: string): string | null {
  * Get image extension from buffer or URL
  */
 function getImageExtension(buffer: Buffer, url: string): string {
-  // Check magic bytes
-  if (buffer.length >= 8) {
-    const header = buffer.slice(0, 8);
+  // Check magic bytes (need at least 12 bytes for WebP)
+  if (buffer.length >= 12) {
+    const header = buffer.slice(0, 12);
 
     // PNG: 89 50 4E 47
     if (header[0] === 0x89 && header[1] === 0x50 && header[2] === 0x4e && header[3] === 0x47) {
@@ -326,9 +326,13 @@ function getImageExtension(buffer: Buffer, url: string): string {
   }
 
   // Fallback: try to extract from URL
-  const urlExt = path.extname(new URL(url).pathname).toLowerCase();
-  if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'].includes(urlExt)) {
-    return urlExt === '.jpeg' ? '.jpg' : urlExt;
+  try {
+    const urlExt = path.extname(new URL(url).pathname).toLowerCase();
+    if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'].includes(urlExt)) {
+      return urlExt === '.jpeg' ? '.jpg' : urlExt;
+    }
+  } catch {
+    // Invalid URL, ignore and use default
   }
 
   // Default
