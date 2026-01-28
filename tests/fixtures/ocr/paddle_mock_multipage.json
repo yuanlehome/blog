@@ -1,0 +1,33 @@
+{
+  "result": {
+    "layoutParsingResults": [
+      {
+        "markdown": {
+          "text": "# Page 1 Title\n\nThis is the content of the first page.\n\n## Section 1.1\n\nSome text for section 1.1.\n\n![Test Image 1](./img1.png)\n\nMore content after the image.",
+          "images": {
+            "img1.png": "https://example.com/images/page1-img1.png"
+          }
+        },
+        "outputImages": ["https://example.com/output/page1.png"]
+      },
+      {
+        "markdown": {
+          "text": "# Page 2 Title\n\nThis is the content of the second page.\n\n## Section 2.1\n\nSome text for section 2.1.\n\n![Test Image 2](./img2.png)\n\nMore content on page 2.",
+          "images": {
+            "img2.png": "https://example.com/images/page2-img2.png"
+          }
+        },
+        "outputImages": ["https://example.com/output/page2.png"]
+      },
+      {
+        "markdown": {
+          "text": "# Page 3 Title\n\nThis is the content of the third page.\n\n## Section 3.1\n\nSome text for section 3.1 with a conflicting image name.\n\n![Duplicate Image](./img1.png)\n\nThis should be renamed to avoid conflict.",
+          "images": {
+            "img1.png": "https://example.com/images/page3-img1.png"
+          }
+        },
+        "outputImages": []
+      }
+    ]
+  }
+}
