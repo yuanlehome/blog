@@ -156,7 +156,7 @@ describe('buildTagIndex', () => {
       createMockPost('post2', 'Post 2', ['ai'], new Date('2024-01-02')),
     ];
 
-    const { allTags, tagMap } = buildTagIndex(posts);
+    const { allTags } = buildTagIndex(posts);
 
     // Should treat 'AI' and 'ai' as different tags
     expect(allTags).toHaveLength(2);
@@ -167,7 +167,7 @@ describe('buildTagIndex', () => {
   it('handles disambiguation for duplicate slugs', () => {
     const posts = [createMockPost('post1', 'Post 1', ['C++', 'C  '], new Date('2024-01-01'))];
 
-    const { allTags, tagMap } = buildTagIndex(posts);
+    const { allTags } = buildTagIndex(posts);
 
     // Both 'C++' and 'C  ' might normalize to 'c'
     // First one should get 'c', second should get 'c-2'

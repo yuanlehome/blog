@@ -213,7 +213,7 @@ export async function downloadOcrImages(
 /**
  * Download image with retry logic
  */
-async function downloadImageWithRetry(url: string, logger?: Logger): Promise<Buffer> {
+async function downloadImageWithRetry(url: string, _logger?: Logger): Promise<Buffer> {
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < IMAGE_MAX_RETRIES; attempt++) {
@@ -293,7 +293,7 @@ function sanitizeImagePath(imgPath: string): string | null {
 function getImageExtension(buffer: Buffer, url: string): string {
   // Check magic bytes (need at least 12 bytes for WebP)
   if (buffer.length >= 12) {
-    const header = buffer.slice(0, 12);
+    const header = buffer.subarray(0, 12);
 
     // PNG: 89 50 4E 47
     if (header[0] === 0x89 && header[1] === 0x50 && header[2] === 0x4e && header[3] === 0x47) {

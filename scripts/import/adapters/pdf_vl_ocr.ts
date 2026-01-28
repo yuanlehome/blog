@@ -621,7 +621,7 @@ function createIpv4Agent(connectTimeoutMs: number, overrideConfig?: IpOverrideCo
   // Add custom lookup function based on configuration
   if (overrideConfig?.enabled && overrideConfig.ip) {
     // IP override: always return the specified IP address
-    agentConfig.connect.lookup = (hostname: string, _options: any, callback: any) => {
+    agentConfig.connect.lookup = (_hostname: string, _options: any, callback: any) => {
       // Return the override IP directly, bypassing DNS resolution
       // undici expects callback(error, address, family)
       callback(null, overrideConfig.ip, net.isIP(overrideConfig.ip!));

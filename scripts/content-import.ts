@@ -1,4 +1,4 @@
-import { chromium, type BrowserContext, type Page } from '@playwright/test';
+import { chromium, type BrowserContext } from '@playwright/test';
 import fs from 'fs';
 import matter from 'gray-matter';
 import path from 'path';
@@ -16,7 +16,7 @@ import crypto from 'crypto';
 import sharp from 'sharp';
 import { JSDOM } from 'jsdom';
 import readline from 'readline';
-import { ARTIFACTS_DIR, BLOG_CONTENT_DIR, PUBLIC_IMAGES_DIR } from '../src/config/paths';
+import { BLOG_CONTENT_DIR, PUBLIC_IMAGES_DIR } from '../src/config/paths';
 import { slugFromTitle } from '../src/lib/slug';
 import { processMarkdownForImport } from './markdown/index.js';
 import { resolveAdapter } from './import/adapters/index.js';
@@ -45,16 +45,10 @@ type ExtractedArticle = {
 
 const CONTENT_ROOT = BLOG_CONTENT_DIR;
 const IMAGE_ROOT = PUBLIC_IMAGES_DIR;
-const ARTIFACTS_ROOT = ARTIFACTS_DIR;
 
 // Constants for retry and timing
 const MAX_RETRIES = 3;
-const BASE_BACKOFF_MS = 1000;
-const MAX_BACKOFF_MS = 10000;
-const JS_INITIALIZATION_DELAY = 2000;
 const MIN_CONTENT_LENGTH = 100; // Minimum meaningful text length when choosing main article content
-const CONTENT_WAIT_TIMEOUT = 30000;
-const MAX_URL_LENGTH_FOR_FILENAME = 50;
 const WECHAT_PLACEHOLDER_THRESHOLD = 60 * 1024; // ~60KB placeholder guard
 
 // Image download constants
@@ -366,20 +360,6 @@ function sanitizeZhihuUrl(url: string): string {
   }
 }
 
-/**
- * Check if a URL is from a specific domain (secure hostname validation)
- */
-function isFromDomain(url: string, domain: string): boolean {
-  try {
-    const urlObj = new URL(url);
-    const hostname = urlObj.hostname.toLowerCase();
-    // Must be exact match or subdomain of the target domain
-    return hostname === domain || hostname.endsWith(`.${domain}`);
-  } catch {
-    return false;
-  }
-}
-
 function pickFirstText(document: Document, selectors: string[]) {
   for (const selector of selectors) {
     const el = document.querySelector(selector);
@@ -533,90 +513,6 @@ export function extractArticleFromHtml(html: string, url: string): ExtractedArti
     baseUrl: sourceUrl.origin,
     sourceTitle: sourceUrl.hostname,
   };
-}
-
-/**
- * Save debug artifacts (screenshot, HTML, logs) when scraping fails
- */
-async function saveDebugArtifacts(
-  page: Page,
-  url: string,
-  error: Error,
-  logs: { type: string; text: string; timestamp: number }[],
-): Promise<void> {
-  try {
-    fs.mkdirSync(ARTIFACTS_ROOT, { recursive: true });
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const safeUrl = url.replace(/[^a-zA-Z0-9]/g, '_').substring(0, MAX_URL_LENGTH_FOR_FILENAME);
-    const prefix = `${timestamp}_${safeUrl}`;
-
-    // Save screenshot
-    const screenshotPath = path.join(ARTIFACTS_ROOT, `${prefix}_screenshot.png`);
-    await page.screenshot({ path: screenshotPath, fullPage: true }).catch((e) => {
-      console.warn(`Failed to save screenshot: ${e.message}`);
-    });
-    console.log(`Screenshot saved: ${screenshotPath}`);
-
-    // Save HTML
-    const htmlPath = path.join(ARTIFACTS_ROOT, `${prefix}_page.html`);
-    const html = await page.content().catch(() => '<html>Failed to get page content</html>');
-    fs.writeFileSync(htmlPath, html);
-    console.log(`HTML saved: ${htmlPath}`);
-
-    // Save logs
-    const logsPath = path.join(ARTIFACTS_ROOT, `${prefix}_logs.json`);
-    const logData = {
-      url,
-      error: {
-        message: error.message,
-        stack: error.stack,
-      },
-      timestamp: new Date().toISOString(),
-      logs,
-    };
-    fs.writeFileSync(logsPath, JSON.stringify(logData, null, 2));
-    console.log(`Logs saved: ${logsPath}`);
-  } catch (artifactError) {
-    console.error('Failed to save debug artifacts:', artifactError);
-  }
-}
-
-/**
- * Detect if the page is a login/captcha/blocked page
- */
-async function detectBlockedPage(page: Page): Promise<string | null> {
-  try {
-    const pageContent = await page.content();
-    const title = await page.title();
-    const url = page.url();
-
-    // Check for login page
-    if (
-      /登录|login|sign.?in/i.test(title) ||
-      /登录|login|sign.?in/i.test(pageContent) ||
-      url.includes('/signin') ||
-      url.includes('/login')
-    ) {
-      return 'Zhihu blocked request (login page detected)';
-    }
-
-    // Check for captcha/verification page
-    if (
-      /验证|captcha|security.?check|human.?verification/i.test(title) ||
-      /验证|captcha|security.?check/i.test(pageContent)
-    ) {
-      return 'Zhihu blocked request (captcha/security check detected)';
-    }
-
-    // Check for anti-spider page
-    if (/安全验证|反作弊|access.?denied/i.test(pageContent)) {
-      return 'Zhihu blocked request (anti-spider protection)';
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
 }
 
 function resolveImageSrc(node: HastElement, base?: string) {

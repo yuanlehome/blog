@@ -13,7 +13,7 @@ import type {
   SpanOptions,
   SpanEndOptions,
 } from './types.js';
-import { redactFields, sanitizeError, truncateString } from './redaction.js';
+import { redactFields, sanitizeError } from './redaction.js';
 import {
   colors,
   colorize,
@@ -21,7 +21,6 @@ import {
   timestamp,
   shouldLog,
   formatFieldsPretty,
-  formatDuration,
 } from './utils.js';
 
 /**

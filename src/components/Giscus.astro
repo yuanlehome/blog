@@ -4,7 +4,6 @@ import { getPostConfig } from '../config/loaders';
 const postConfig = getPostConfig();
 const lang = Astro.props.lang || postConfig.comments.giscus.lang;
 const giscus = postConfig.comments.giscus;
-const themeMap = postConfig.comments.themeMapping;
 ---
 
 <section id="comments" class="mt-12">

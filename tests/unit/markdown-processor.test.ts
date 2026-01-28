@@ -2,7 +2,7 @@
  * Tests for Translation and Markdown Processing
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   MockTranslator,
   IdentityTranslator,
@@ -17,7 +17,7 @@ import {
 } from '../../scripts/markdown/translator';
 import { processMarkdownForImport } from '../../scripts/markdown/markdown-processor';
 import { createLogger } from '../../scripts/logger/index.js';
-import type { Logger, LogFields } from '../../scripts/logger/types.js';
+import type { LogFields } from '../../scripts/logger/types.js';
 
 describe('Translator', () => {
   describe('MockTranslator', () => {
@@ -838,7 +838,7 @@ print("test")
       return childLogger;
     };
 
-    const result = await processMarkdownForImport(
+    await processMarkdownForImport(
       { markdown },
       {
         enableTranslation: false,

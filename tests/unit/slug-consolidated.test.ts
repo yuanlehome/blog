@@ -8,7 +8,6 @@ import {
   ensureUniqueSlugs,
   normalizeBase,
   buildPostUrl,
-  deriveSlug,
 } from '../../src/lib/slug';
 
 describe('normalizeSlug', () => {
@@ -336,31 +335,6 @@ describe('buildPostUrl', () => {
 
   it('normalizes base without trailing slash', () => {
     expect(buildPostUrl('post', '/blog')).toBe('/blog/post/');
-  });
-});
-
-describe('deriveSlug (legacy)', () => {
-  it('works as alias for slugFromTitle', () => {
-    expect(
-      deriveSlug({
-        explicitSlug: 'custom',
-        title: 'My Title',
-        fallbackId: 'id-123',
-      }),
-    ).toBe('custom');
-
-    expect(
-      deriveSlug({
-        title: 'My Title',
-        fallbackId: 'id-123',
-      }),
-    ).toBe('my-title');
-
-    expect(
-      deriveSlug({
-        fallbackId: 'id-123',
-      }),
-    ).toBe('id-123');
   });
 });
 

@@ -4,7 +4,7 @@ import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
 import Tag from '../../components/Tag.astro';
 import { getPublishedPosts } from '../../lib/content/posts';
-import { buildTagIndex, sortTags } from '../../lib/content/tags';
+import { buildTagIndex } from '../../lib/content/tags';
 import { getSiteConfig } from '../../config/loaders';
 
 const siteConfig = getSiteConfig();
@@ -62,6 +62,7 @@ const description = `Browse all tags on ${siteConfig.title}. Explore articles by
           </div>
 
           <script
+            is:inline
             id="tags-data"
             type="application/json"
             set:html={JSON.stringify(

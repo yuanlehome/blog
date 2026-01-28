@@ -8,7 +8,7 @@
  * @module src/config/loaders/base
  */
 
-import { z, type ZodSchema } from 'zod';
+import type { ZodSchema } from 'zod';
 
 /**
  * Configuration load result

@@ -194,7 +194,7 @@ export async function downloadPdf(
  */
 export function validatePdf(buffer: Buffer): void {
   // Check PDF magic bytes
-  const header = buffer.slice(0, 5).toString('latin1');
+  const header = buffer.subarray(0, 5).toString('latin1');
 
   if (!header.startsWith(PDF_MAGIC_BYTES)) {
     throw new NotPdfError(
