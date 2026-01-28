@@ -9,6 +9,7 @@ import { zhihuAdapter } from '../../scripts/import/adapters/zhihu.js';
 import { wechatAdapter } from '../../scripts/import/adapters/wechat.js';
 import { mediumAdapter } from '../../scripts/import/adapters/medium.js';
 import { othersAdapter } from '../../scripts/import/adapters/others.js';
+import { arxivAdapter } from '../../scripts/import/adapters/arxiv.js';
 import { createLogger } from '../../scripts/logger/index.js';
 import type { LogFields } from '../../scripts/logger/types.js';
 
@@ -264,6 +265,47 @@ describe('Others Adapter', () => {
 
       expect(result.title).toBeTruthy();
       expect(result.source).toBe('others');
+    });
+  });
+});
+
+describe('arXiv Adapter', () => {
+  describe('canHandle', () => {
+    it('should handle arxiv.org URLs', () => {
+      expect(arxivAdapter.canHandle('https://arxiv.org/pdf/2306.00978')).toBe(true);
+      expect(arxivAdapter.canHandle('https://arxiv.org/src/2306.00978')).toBe(true);
+      expect(arxivAdapter.canHandle('https://arxiv.org/abs/2306.00978')).toBe(true);
+      expect(arxivAdapter.canHandle('https://arxiv.org/e-print/2306.00978')).toBe(true);
+    });
+
+    it('should handle arxiv URLs with version numbers', () => {
+      expect(arxivAdapter.canHandle('https://arxiv.org/pdf/2306.00978v5')).toBe(true);
+      expect(arxivAdapter.canHandle('https://arxiv.org/src/1234.5678v12')).toBe(true);
+    });
+
+    it('should not handle non-arXiv URLs', () => {
+      expect(arxivAdapter.canHandle('https://example.com/arxiv')).toBe(false);
+      expect(arxivAdapter.canHandle('https://medium.com/article')).toBe(false);
+    });
+
+    it('should reject malicious URLs with arxiv in hostname', () => {
+      expect(arxivAdapter.canHandle('https://evil-arxiv.org.example.com/pdf/1234.5678')).toBe(
+        false,
+      );
+      expect(arxivAdapter.canHandle('https://arxiv.org.attacker.com/pdf/1234.5678')).toBe(false);
+    });
+  });
+
+  describe('adapter properties', () => {
+    it('should have correct id and name', () => {
+      expect(arxivAdapter.id).toBe('arxiv');
+      expect(arxivAdapter.name).toBe('arXiv');
+    });
+
+    it('should be a function-based adapter that does not require page navigation', () => {
+      // arXiv adapter uses axios for downloads, not Playwright page.goto()
+      // This is a documentation test to verify the adapter design
+      expect(typeof arxivAdapter.fetchArticle).toBe('function');
     });
   });
 });
