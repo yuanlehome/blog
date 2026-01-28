@@ -383,6 +383,7 @@ More content
       try {
         const result = await arxivAdapter.fetchArticle({
           url: 'https://arxiv.org/pdf/2306.00978',
+          page: null as any, // arXiv adapter doesn't use page
           options: {
             slug: 'test-paper',
             imageRoot,
@@ -412,6 +413,7 @@ More content
       await expect(
         arxivAdapter.fetchArticle({
           url: 'https://example.com/not-arxiv',
+          page: null as any,
           options: { slug: 'test', imageRoot: tempDir, logger },
         }),
       ).rejects.toThrow('Invalid arXiv URL');
@@ -438,6 +440,7 @@ More content
       await expect(
         arxivAdapter.fetchArticle({
           url: 'https://arxiv.org/pdf/2306.00978',
+          page: null as any,
           options: { slug: 'test', imageRoot: tempDir, logger },
         }),
       ).rejects.toThrow(/source not found/i);
@@ -465,6 +468,7 @@ More content
       await expect(
         arxivAdapter.fetchArticle({
           url: 'https://arxiv.org/pdf/2306.00978',
+          page: null as any,
           options: { slug: 'test', imageRoot: tempDir, logger },
         }),
       ).rejects.toThrow(/Failed to fetch arXiv metadata/i);
@@ -490,6 +494,7 @@ More content
       await expect(
         arxivAdapter.fetchArticle({
           url: 'https://arxiv.org/pdf/2306.00978',
+          page: null as any,
           options: { slug: 'test', imageRoot: tempDir, logger },
         }),
       ).rejects.toThrow(/No entry found in arXiv API response/i);
