@@ -1165,7 +1165,7 @@ async function withBrowser<T>(fn: (context: BrowserContext) => Promise<T>) {
 /**
  * Check if URL is an arXiv URL (no longer supported)
  */
-function isArxivUrl(url: string): boolean {
+export function isArxivUrl(url: string): boolean {
   try {
     const urlObj = new URL(url);
     // Check for arxiv.org or its subdomains
