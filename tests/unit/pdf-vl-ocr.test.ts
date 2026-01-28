@@ -604,4 +604,489 @@ describe('PDF VL OCR Client', () => {
       }
     });
   });
+
+  describe('IP override configuration', () => {
+    beforeEach(() => {
+      // Clear any IP override env vars
+      delete process.env.PADDLE_OCR_VL_API_IP;
+      delete process.env.PADDLE_OCR_VL_IP;
+      delete process.env.PDF_OCR_API_IP;
+      delete process.env.PADDLEOCR_VL_IP;
+    });
+
+    afterEach(() => {
+      delete process.env.PADDLE_OCR_VL_API_IP;
+      delete process.env.PADDLE_OCR_VL_IP;
+      delete process.env.PDF_OCR_API_IP;
+      delete process.env.PADDLEOCR_VL_IP;
+    });
+
+    it('should not create IP override when config is missing', async () => {
+      process.env.PDF_OCR_RETRY = '0';
+      process.env.PDF_OCR_DIAG = '0';
+
+      let fetchOptions: any = null;
+
+      global.fetch = vi.fn((url: any, options: any) => {
+        fetchOptions = options;
+        const mockResponse = {
+          result: {
+            layoutParsingResults: [
+              {
+                markdown: {
+                  text: '# Test\n\nNo IP override.',
+                  images: {},
+                },
+              },
+            ],
+          },
+        };
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify(mockResponse)),
+        } as Response);
+      }) as any;
+
+      await callPaddleOcrVl(
+        samplePdfBuffer,
+        'https://example.com/layout-parsing',
+        'test-token',
+        mockLogger as any,
+      );
+
+      // Should have dispatcher (always created for IPv4 forcing)
+      expect(fetchOptions.dispatcher).toBeDefined();
+
+      // Verify debug log shows override not enabled
+      const debugCalls = mockLogger.debug.mock.calls;
+      const fetchConfigLog = debugCalls.find(
+        (call: any) => call[1]?.stage === 'fetch_config',
+      );
+      expect(fetchConfigLog).toBeDefined();
+      expect(fetchConfigLog![1].overrideEnabled).toBe(false);
+      expect(fetchConfigLog![1].overrideIpState).toBe('missing');
+    });
+
+    it('should handle empty IP override string', async () => {
+      process.env.PDF_OCR_API_IP = '   '; // Whitespace only
+      process.env.PDF_OCR_RETRY = '0';
+      process.env.PDF_OCR_DIAG = '0';
+
+      global.fetch = vi.fn(() => {
+        const mockResponse = {
+          result: {
+            layoutParsingResults: [
+              {
+                markdown: {
+                  text: '# Test\n\nEmpty IP.',
+                  images: {},
+                },
+              },
+            ],
+          },
+        };
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify(mockResponse)),
+        } as Response);
+      }) as any;
+
+      await callPaddleOcrVl(
+        samplePdfBuffer,
+        'https://example.com/layout-parsing',
+        'test-token',
+        mockLogger as any,
+      );
+
+      // Verify debug log shows override not enabled
+      const debugCalls = mockLogger.debug.mock.calls;
+      const fetchConfigLog = debugCalls.find(
+        (call: any) => call[1]?.stage === 'fetch_config',
+      );
+      expect(fetchConfigLog).toBeDefined();
+      expect(fetchConfigLog![1].overrideEnabled).toBe(false);
+      expect(fetchConfigLog![1].overrideIpState).toBe('missing');
+    });
+
+    it('should handle invalid IP override', async () => {
+      process.env.PDF_OCR_API_IP = 'not-an-ip-address';
+      process.env.PDF_OCR_RETRY = '0';
+      process.env.PDF_OCR_DIAG = '0';
+
+      global.fetch = vi.fn(() => {
+        const mockResponse = {
+          result: {
+            layoutParsingResults: [
+              {
+                markdown: {
+                  text: '# Test\n\nInvalid IP.',
+                  images: {},
+                },
+              },
+            ],
+          },
+        };
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify(mockResponse)),
+        } as Response);
+      }) as any;
+
+      await callPaddleOcrVl(
+        samplePdfBuffer,
+        'https://example.com/layout-parsing',
+        'test-token',
+        mockLogger as any,
+      );
+
+      // Verify warning was logged
+      const warnCalls = mockLogger.warn.mock.calls;
+      const invalidIpWarn = warnCalls.find(
+        (call: any) => call[0]?.includes('Invalid IP override') || call[1]?.reason,
+      );
+      expect(invalidIpWarn).toBeDefined();
+
+      // Verify debug log shows override as invalid
+      const debugCalls = mockLogger.debug.mock.calls;
+      const fetchConfigLog = debugCalls.find(
+        (call: any) => call[1]?.stage === 'fetch_config',
+      );
+      expect(fetchConfigLog).toBeDefined();
+      expect(fetchConfigLog![1].overrideEnabled).toBe(false);
+      expect(fetchConfigLog![1].overrideIpState).toBe('invalid');
+    });
+
+    it('should use valid IPv4 override', async () => {
+      process.env.PDF_OCR_API_IP = '192.168.1.100';
+      process.env.PDF_OCR_RETRY = '0';
+      process.env.PDF_OCR_DIAG = '0';
+
+      global.fetch = vi.fn(() => {
+        const mockResponse = {
+          result: {
+            layoutParsingResults: [
+              {
+                markdown: {
+                  text: '# Test\n\nValid IPv4 override.',
+                  images: {},
+                },
+              },
+            ],
+          },
+        };
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify(mockResponse)),
+        } as Response);
+      }) as any;
+
+      await callPaddleOcrVl(
+        samplePdfBuffer,
+        'https://example.com/layout-parsing',
+        'test-token',
+        mockLogger as any,
+      );
+
+      // Verify debug log shows override enabled
+      const debugCalls = mockLogger.debug.mock.calls;
+      const networkConfigLog = debugCalls.find(
+        (call: any) => call[1]?.stage === 'network_config' && call[1]?.ip === '192.168.1.100',
+      );
+      expect(networkConfigLog).toBeDefined();
+      expect(networkConfigLog![1].ipVersion).toBe('IPv4');
+
+      const fetchConfigLog = debugCalls.find(
+        (call: any) => call[1]?.stage === 'fetch_config',
+      );
+      expect(fetchConfigLog).toBeDefined();
+      expect(fetchConfigLog![1].overrideEnabled).toBe(true);
+      expect(fetchConfigLog![1].overrideIpState).toBe('enabled');
+    });
+
+    it('should use valid IPv6 override', async () => {
+      process.env.PADDLE_OCR_VL_IP = '2001:0db8:85a3::8a2e:0370:7334';
+      process.env.PDF_OCR_RETRY = '0';
+      process.env.PDF_OCR_DIAG = '0';
+
+      global.fetch = vi.fn(() => {
+        const mockResponse = {
+          result: {
+            layoutParsingResults: [
+              {
+                markdown: {
+                  text: '# Test\n\nValid IPv6 override.',
+                  images: {},
+                },
+              },
+            ],
+          },
+        };
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify(mockResponse)),
+        } as Response);
+      }) as any;
+
+      await callPaddleOcrVl(
+        samplePdfBuffer,
+        'https://example.com/layout-parsing',
+        'test-token',
+        mockLogger as any,
+      );
+
+      // Verify debug log shows override enabled with IPv6
+      const debugCalls = mockLogger.debug.mock.calls;
+      const networkConfigLog = debugCalls.find(
+        (call: any) => call[1]?.stage === 'network_config' && call[1]?.ipVersion === 'IPv6',
+      );
+      expect(networkConfigLog).toBeDefined();
+
+      const fetchConfigLog = debugCalls.find(
+        (call: any) => call[1]?.stage === 'fetch_config',
+      );
+      expect(fetchConfigLog).toBeDefined();
+      expect(fetchConfigLog![1].overrideEnabled).toBe(true);
+      expect(fetchConfigLog![1].overrideIpState).toBe('enabled');
+    });
+
+    it('should handle undefined IP without ERR_INVALID_IP_ADDRESS', async () => {
+      // This is the critical test for the bug fix
+      // When IP override is undefined, should NOT pass it to network layer
+      process.env.PDF_OCR_RETRY = '0';
+      process.env.PDF_OCR_DIAG = '0';
+
+      let fetchCalled = false;
+
+      global.fetch = vi.fn(() => {
+        fetchCalled = true;
+        const mockResponse = {
+          result: {
+            layoutParsingResults: [
+              {
+                markdown: {
+                  text: '# Test\n\nNo IP error.',
+                  images: {},
+                },
+              },
+            ],
+          },
+        };
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify(mockResponse)),
+        } as Response);
+      }) as any;
+
+      // Should succeed without ERR_INVALID_IP_ADDRESS
+      const result = await callPaddleOcrVl(
+        samplePdfBuffer,
+        'https://example.com/layout-parsing',
+        'test-token',
+        mockLogger as any,
+      );
+
+      expect(result.markdown).toContain('Test');
+      expect(fetchCalled).toBe(true);
+
+      // Should not have any errors about invalid IP
+      const errorCalls = mockLogger.error.mock.calls;
+      const ipErrors = errorCalls.filter((call: any) =>
+        JSON.stringify(call).includes('ERR_INVALID_IP_ADDRESS'),
+      );
+      expect(ipErrors.length).toBe(0);
+    });
+
+    it('should prioritize PADDLE_OCR_VL_API_IP over other env vars', async () => {
+      process.env.PADDLE_OCR_VL_API_IP = '10.0.0.1';
+      process.env.PDF_OCR_API_IP = '10.0.0.2';
+      process.env.PADDLEOCR_VL_IP = '10.0.0.3';
+      process.env.PDF_OCR_RETRY = '0';
+      process.env.PDF_OCR_DIAG = '0';
+
+      global.fetch = vi.fn(() => {
+        const mockResponse = {
+          result: {
+            layoutParsingResults: [
+              {
+                markdown: {
+                  text: '# Test\n\nPriority test.',
+                  images: {},
+                },
+              },
+            ],
+          },
+        };
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify(mockResponse)),
+        } as Response);
+      }) as any;
+
+      await callPaddleOcrVl(
+        samplePdfBuffer,
+        'https://example.com/layout-parsing',
+        'test-token',
+        mockLogger as any,
+      );
+
+      // Verify the first env var was used
+      const debugCalls = mockLogger.debug.mock.calls;
+      const networkConfigLog = debugCalls.find(
+        (call: any) => call[1]?.stage === 'network_config' && call[1]?.ip,
+      );
+      expect(networkConfigLog).toBeDefined();
+      expect(networkConfigLog![1].ip).toBe('10.0.0.1');
+    });
+  });
+
+  describe('Proxy environment detection', () => {
+    beforeEach(() => {
+      delete process.env.HTTP_PROXY;
+      delete process.env.http_proxy;
+      delete process.env.HTTPS_PROXY;
+      delete process.env.https_proxy;
+      delete process.env.NO_PROXY;
+      delete process.env.no_proxy;
+    });
+
+    afterEach(() => {
+      delete process.env.HTTP_PROXY;
+      delete process.env.http_proxy;
+      delete process.env.HTTPS_PROXY;
+      delete process.env.https_proxy;
+      delete process.env.NO_PROXY;
+      delete process.env.no_proxy;
+    });
+
+    it('should detect HTTP_PROXY presence', async () => {
+      process.env.HTTP_PROXY = 'http://proxy.example.com:8080';
+      process.env.PDF_OCR_RETRY = '0';
+      process.env.PDF_OCR_DIAG = '0';
+
+      global.fetch = vi.fn(() => {
+        const mockResponse = {
+          result: {
+            layoutParsingResults: [
+              {
+                markdown: {
+                  text: '# Test\n\nProxy present.',
+                  images: {},
+                },
+              },
+            ],
+          },
+        };
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify(mockResponse)),
+        } as Response);
+      }) as any;
+
+      await callPaddleOcrVl(
+        samplePdfBuffer,
+        'https://example.com/layout-parsing',
+        'test-token',
+        mockLogger as any,
+      );
+
+      // Verify proxy presence is logged (but not the URL itself)
+      const debugCalls = mockLogger.debug.mock.calls;
+      const fetchConfigLog = debugCalls.find(
+        (call: any) => call[1]?.stage === 'fetch_config',
+      );
+      expect(fetchConfigLog).toBeDefined();
+      expect(fetchConfigLog![1].proxyPresent).toBe(true);
+
+      // Ensure proxy URL is NOT logged (security)
+      const allLogs = JSON.stringify(mockLogger.debug.mock.calls);
+      expect(allLogs).not.toContain('proxy.example.com');
+    });
+
+    it('should detect NO_PROXY presence', async () => {
+      process.env.NO_PROXY = 'localhost,127.0.0.1';
+      process.env.PDF_OCR_RETRY = '0';
+      process.env.PDF_OCR_DIAG = '0';
+
+      global.fetch = vi.fn(() => {
+        const mockResponse = {
+          result: {
+            layoutParsingResults: [
+              {
+                markdown: {
+                  text: '# Test\n\nNo proxy config.',
+                  images: {},
+                },
+              },
+            ],
+          },
+        };
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify(mockResponse)),
+        } as Response);
+      }) as any;
+
+      await callPaddleOcrVl(
+        samplePdfBuffer,
+        'https://example.com/layout-parsing',
+        'test-token',
+        mockLogger as any,
+      );
+
+      const debugCalls = mockLogger.debug.mock.calls;
+      const fetchConfigLog = debugCalls.find(
+        (call: any) => call[1]?.stage === 'fetch_config',
+      );
+      expect(fetchConfigLog).toBeDefined();
+      expect(fetchConfigLog![1].proxyPresent).toBe(true);
+    });
+
+    it('should show proxyPresent=false when no proxy vars set', async () => {
+      process.env.PDF_OCR_RETRY = '0';
+      process.env.PDF_OCR_DIAG = '0';
+
+      global.fetch = vi.fn(() => {
+        const mockResponse = {
+          result: {
+            layoutParsingResults: [
+              {
+                markdown: {
+                  text: '# Test\n\nNo proxy.',
+                  images: {},
+                },
+              },
+            ],
+          },
+        };
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify(mockResponse)),
+        } as Response);
+      }) as any;
+
+      await callPaddleOcrVl(
+        samplePdfBuffer,
+        'https://example.com/layout-parsing',
+        'test-token',
+        mockLogger as any,
+      );
+
+      const debugCalls = mockLogger.debug.mock.calls;
+      const fetchConfigLog = debugCalls.find(
+        (call: any) => call[1]?.stage === 'fetch_config',
+      );
+      expect(fetchConfigLog).toBeDefined();
+      expect(fetchConfigLog![1].proxyPresent).toBe(false);
+    });
+  });
 });
