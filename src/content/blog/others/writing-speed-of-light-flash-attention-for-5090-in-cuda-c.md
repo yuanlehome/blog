@@ -19,13 +19,13 @@ translatedFrom: en
 
 # Writing Speed-of-Light Flash Attention for 5090 in CUDA C++
 
-Aug 23, 2025
+2025 年 8 月 23 日
 
-In this post, I will walkthrough how I learned to implement Flash Attention for 5090 in CUDA C++. The main objective is to learn writing attention in CUDA C++, since many features are not available in [Triton](https://triton-lang.org/main/index.html), such as MXFP8 / NVFP4 MMA for sm120. I also feel this is a natural next step after learning about matmul kernels. Lastly, there are [many](https://alexarmbr.github.io/2024/08/10/How-To-Write-A-Fast-Matrix-Multiplication-From-Scratch-With-Tensor-Cores.html) [excellent](https://www.spatters.ca/mma-matmul) [blogposts](https://cudaforfun.substack.com/p/outperforming-cublas-on-h100-a-worklog) on writing fast matmul kernels, but there is none for attention. So I want to take this chance to write up something nicely.
+在这篇文章中，我将介绍如何在 CUDA C++ 中为 5090 实现 Flash Attention。主要目标是学习在 CUDA C++ 中编写注意力机制，因为许多特性在 [Triton](https://triton-lang.org/main/index.html) 中不可用，例如 sm120 的 MXFP8 / NVFP4 MMA。我还认为这是学习 matmul 内核后的自然下一步。最后，有[很多](https://alexarmbr.github.io/2024/08/10/How-To-Write-A-Fast-Matrix-Multiplication-From-Scratch-With-Tensor-Cores.html)[优秀的](https://www.spatters.ca/mma-matmul)[博客文章](https://cudaforfun.substack.com/p/outperforming-cublas-on-h100-a-worklog)介绍如何编写快速 matmul 内核，但没有关于注意力机制的。所以我想借此机会写点好东西。
 
-Readers are highly recommended to be familiar with CUDA C++ and how to use Tensor cores on NVIDIA GPUs. Of course you can still read along and clarify with your favourite LLMs along the way. Or you can check out GPU-MODE series ([slides](https://github.com/gpu-mode/lectures), [YouTube](https://www.youtube.com/@GPUMODE)) for basic CUDA C++ knowledge, as well as the excellent matmul blogposts mentioned above, to quickly get up to speed.
+强烈建议读者熟悉 CUDA C++ 以及如何在 NVIDIA GPU 上使用 Tensor 核心。当然，你仍然可以继续阅读，并在过程中使用你最喜欢的 LLM 进行澄清。或者你可以查看 GPU-MODE 系列（[幻灯片](https://github.com/gpu-mode/lectures)，[YouTube](https://www.youtube.com/@GPUMODE)）以获得基础的 CUDA C++ 知识，以及上面提到的优秀 matmul 博客文章，以快速上手。
 
-You can find the full implementation discussed in this post here: <https://github.com/gau-nernst/learn-cuda/tree/e83c256/07_attention>. For `bs=1, num_heads=8, len_query=4096, len_kv = 8192`, 5090 @ 400W, compile with CUDA 12.9, I obtained the following benchmark results (theoretical limit of 5090 is 209.5 TFLOPS for BF16)
+你可以在这里找到本文讨论的完整实现：<https://github.com/gau-nernst/learn-cuda/tree/e83c256/07_attention>。对于 `bs=1, num_heads=8, len_query=4096, len_kv = 8192`，5090 @ 400W，使用 CUDA 12.9 编译，我获得了以下基准测试结果（5090 的理论极限为 209.5 TFLOPS，针对 BF16）
 
 | Kernel                         | TFLOPS | % of SOL |
 | ------------------------------ | ------ | -------- |
@@ -38,9 +38,9 @@ You can find the full implementation discussed in this post here: <https://githu
 | v4 (`ldmatrix.x4` for K and V) | 194.33 | 92.76%   |
 | v5 (better pipelining)         | 197.74 | 94.39%   |
 
-Do note that although I only use Ampere features in these implementations (sm120 supports `cp.async.bulk` i.e. TMA, but I don’t use it here), my implementations might not run performantly on earlier generations of GPUs. Due to improvements in newer hardware, you might need to use more tricks to reach Speed-of-Light on older GPUs e.g. pipeline shared memory to register memory data movements.
+请注意，尽管我在这些实现中只使用了 Ampere 特性（sm120 支持 `cp.async.bulk` 即 TMA，但我在这里没有使用它），我的实现可能无法在早期一代的 GPU 上高效运行。由于新硬件的改进，你可能需要使用更多技巧才能在旧 GPU 上达到理论极限速度，例如流水线化 shared memory 到 register memory 的数据移动。
 
-## Flash Attention algorithm
+## Flash Attention 算法
 
 Let’s start with the reference implementation of attention.
 
@@ -59,9 +59,9 @@ def sdpa(q: Tensor, k: Tensor, v: Tensor):
     return out
 ```
 
-Technically, if the inputs are BF16, some computations should remain in FP32, especially softmax. However, for brevity, we omit them.
+从技术上讲，如果输入是 BF16，某些计算应该保持在 FP32，特别是 softmax。但是，为了简洁起见，我们省略了它们。
 
-We are implementing the algorithm outlined in the [Flash Attention 2 paper](https://arxiv.org/abs/2307.08691). Each threadblock is responsible for a chunk of Q, and we will iterate along the sequence length of KV. A Python-like outline of the algorithm looks like below (S and P follow Flash Attention notation).
+我们正在实现 [Flash Attention 2 论文](https://arxiv.org/abs/2307.08691) 中概述的算法。每个 threadblock 负责 Q 的一个块，我们将沿着 KV 的序列长度进行迭代。算法的类 Python 概要如下所示（S 和 P 遵循 Flash Attention 符号）。
 
 ```python
 scale = DIM ** -0.5
@@ -93,28 +93,28 @@ for b_idx in range(B):
         ### end of each threadblock's kernel
 ```
 
-It’s implied `DIM` is small, so that we can hold `tile_Q` in register memory throughout the duration of the kernel. This is the reason pretty much all models nowadays use `head_dim=128`. There are exceptions of course, like [MLA](https://arxiv.org/abs/2405.04434), which uses `head_dim=576` for Q and K, and `head_dim=512` for V. Talking about this, I should study [FlashMLA](https://github.com/deepseek-ai/FlashMLA) some day.
+这里隐含的意思是 `DIM` 很小，这样我们可以在整个内核执行期间将 `tile_Q` 保持在 register memory 中。这就是为什么现在几乎所有模型都使用 `head_dim=128`。当然也有例外，比如 [MLA](https://arxiv.org/abs/2405.04434)，它对 Q 和 K 使用 `head_dim=576`，对 V 使用 `head_dim=512`。说到这个，我哪天应该研究一下 [FlashMLA](https://github.com/deepseek-ai/FlashMLA)。
 
-Online softmax is quite tricky to explain, so let’s delay the explanation of that part. At the high level, you just need to know that online softmax will transform `tile_S` to `tile_P`, and also rescale `tile_O`.
+在线 softmax 的解释相当复杂，所以让我们推迟这部分的解释。在高层次上，你只需要知道在线 softmax 会将 `tile_S` 转换为 `tile_P`，并且还会重新缩放 `tile_O`。
 
-## Version 1 - Basic implementation
+## 版本 1 - 基础实现
 
-We will follow the typical MMA flow
+我们将遵循典型的 MMA 流程
 
-- Load a 2D tile of data from global memory to shared memory using [cp.async](https://docs.nvidia.com/cuda/parallel-thread-execution/#data-movement-and-conversion-instructions-cp-async). This requires Ampere (sm80 and newer).
-- Load data from shared memory to register memory using [ldmatrix](https://docs.nvidia.com/cuda/parallel-thread-execution/#warp-level-matrix-instructions-ldmatrix).
-- Call [mma.m16n8k16](https://docs.nvidia.com/cuda/parallel-thread-execution/#warp-level-matrix-fragment-mma-16816-float) for BF16 matrix multiplication (and accumulate).
+- 使用 [cp.async](https://docs.nvidia.com/cuda/parallel-thread-execution/#data-movement-and-conversion-instructions-cp-async) 从 global memory 加载二维瓦片数据到 shared memory。这需要 Ampere（sm80 及更新版本）。
+- 使用 [ldmatrix](https://docs.nvidia.com/cuda/parallel-thread-execution/#warp-level-matrix-instructions-ldmatrix) 从 shared memory 加载数据到 register memory。
+- 调用 [mma.m16n8k16](https://docs.nvidia.com/cuda/parallel-thread-execution/#warp-level-matrix-fragment-mma-16816-float) 进行 BF16 矩阵乘法（并累加）。
 
-I want to focus on implementing the algorithm correctly first, hence I leave out more complicated tricks like shared memory swizzling and pipelining. This reduces the surface area for mistakes, and we will revisit them later for performance optimization.
+我想首先专注于正确实现算法，因此我省略了更复杂的技巧，如 shared memory swizzling 和流水线化。这减少了出错的可能性，我们稍后会在性能优化时重新讨论它们。
 
-### Global to Shared memory data transfer
+### Global 到 Shared memory 的数据传输
 
-The following templated function does a 2D tile copy from global memory to shared memory.
+以下模板函数执行从 global memory 到 shared memory 的二维瓦片复制。
 
-- Shape of the 2D tile is specified via `HEIGHT` and `WIDTH`.
-- `dst` is shared memory address, `src` is global memory address.
-- Global memory `src` is row-major, so `src_stride` specifies how much to move to the next row.
-- Shared memory `dst` is also row-major, and will be stored as a contiguous block -> `dst_stride = WIDTH`.
+- 二维瓦片的形状通过 `HEIGHT` 和 `WIDTH` 指定。
+- `dst` 是 shared memory 地址，`src` 是 global memory 地址。
+- Global memory `src` 是行优先的，因此 `src_stride` 指定移动到下一行需要移动多少。
+- Shared memory `dst` 也是行优先的，并将作为连续块存储 -> `dst_stride = WIDTH`。
 
 ```cpp
 #include <cuda_bf16.h>
@@ -139,28 +139,28 @@ void global_to_shared(uint32_t dst, const nv_bfloat16 *src, int src_stride, int 
 
 ![Global to Shared data transfer](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/001-d8f57fc4.svg)
 
-2D tile copy from Global memory to Shared memory.
+从 Global memory 到 Shared memory 的二维瓦片复制。
 
-We will use inline assembly to write `cp.async.cg.shared.global`. This PTX does 16-byte transfer, or 8 BF16 elements (`num_elems = 16 / sizeof(nv_bfloat16)`), for each CUDA thread. To ensure coalesced memory access, consecutive threads will be responsible for consecutive groups of 8xBF16.
+我们将使用内联汇编来编写 `cp.async.cg.shared.global`。这个 PTX 指令为每个 CUDA 线程执行 16 字节传输，即 8 个 BF16 元素（`num_elems = 16 / sizeof(nv_bfloat16)`）。为了确保合并内存访问，连续的线程将负责连续的 8xBF16 组。
 
 ![Coalesced memory access](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/002-b5fea70a.svg)
 
-Consecutive threads are responsible for consecutive groups of 8xBF16.
+连续的线程负责连续的 8xBF16 组。
 
-Note:
+注意：
 
-- The loop `for (int iter = 0; iter < num_iters; iter++)` is written this way so that the compiler (`nvcc`) can fully unroll the loop. `num_iters` is known at compile time (guaranteed by `constexpr`). If we mix `tid` in the loop, which is a “dynamic” variable to the compiler, the loop can’t be unrolled, even when we know certain constraints about the variable i.e. `tid < TB_SIZE`.
-- Data type of shared memory pointer `dst` is `uint32_t`. This is intentional. Pretty much all PTX instructions expect shared memory addresses to be in [shared state space](https://docs.nvidia.com/cuda/parallel-thread-execution/#state-spaces). We can convert C++ pointers, which are generic addresses, to shared state space addresses with `static_cast<uint32_t>(__cvta_generic_to_shared(ptr))`. This is done outside of `global_to_shared()`.
+- 循环 `for (int iter = 0; iter < num_iters; iter++)` 这样写是为了让编译器（`nvcc`）可以完全展开循环。`num_iters` 在编译时已知（由 `constexpr` 保证）。如果我们在循环中混入 `tid`，对编译器来说它是一个"动态"变量，即使我们知道变量的某些约束（即 `tid < TB_SIZE`），循环也无法展开。
+- shared memory 指针 `dst` 的数据类型是 `uint32_t`。这是有意为之的。几乎所有 PTX 指令都期望 shared memory 地址位于 [shared state space](https://docs.nvidia.com/cuda/parallel-thread-execution/#state-spaces) 中。我们可以使用 `static_cast<uint32_t>(__cvta_generic_to_shared(ptr))` 将 C++ 指针（通用地址）转换为 shared state space 地址。这是在 `global_to_shared()` 外部完成的。
 
-To finish using `cp.async`, we also need to add the following:
+要完成 `cp.async` 的使用，我们还需要添加以下内容：
 
-- `cp.async.commit_group` (PTX): commit all previously issued `cp.async` instructions into a **`cp.async` group**. This group will be the unit for synchronization.
-- `cp.async.wait_all` (PTX): wait for all committed groups to finish.
-- `__syncthreads()`: make sure all threads (in a threadblock) reach here before reading the loaded data in shared memory (because one thread may read data loaded by another thread). More importantly, this broadcasts **visibility** of the new data to all threads in the threadblock. Without `__syncthreads()`, the compiler is free to optimize away memory accesses.
+- `cp.async.commit_group`（PTX）：将之前发出的所有 `cp.async` 指令提交到一个 **`cp.async` 组**。这个组将成为同步的单位。
+- `cp.async.wait_all`（PTX）：等待所有已提交的组完成。
+- `__syncthreads()`：确保（threadblock 中的）所有线程在读取 shared memory 中加载的数据之前都到达这里（因为一个线程可能读取另一个线程加载的数据）。更重要的是，这会将新数据的**可见性**广播给 threadblock 中的所有线程。没有 `__syncthreads()`，编译器可以自由地优化掉内存访问。
 
-As always, refer to [PTX doc](https://docs.nvidia.com/cuda/parallel-thread-execution/) for more information about the instructions. Basically we issue multiple `cp.async` and wait for them to complete immediately right after. `commit_group` and `wait_group` provide a mechanism for us to implement pipelining later. But for now, just need to know we have to write it that way to use `cp.async`.
+一如既往，请参考 [PTX 文档](https://docs.nvidia.com/cuda/parallel-thread-execution/) 获取有关指令的更多信息。基本上，我们发出多个 `cp.async` 并在之后立即等待它们完成。`commit_group` 和 `wait_group` 为我们提供了一种机制来稍后实现流水线化。但现在，只需知道我们必须这样写才能使用 `cp.async`。
 
-Our code snippet would look something like this.
+我们的代码片段看起来像这样。
 
 ```cpp
 // nv_bfloat16 *Q;
@@ -175,7 +175,7 @@ asm volatile("cp.async.wait_all;");
 __syncthreads();
 ```
 
-### Shared memory to Register memory data transfer
+### Shared memory 到 Register memory 的数据传输
 
 在进行全局到共享内存的数据传输时，我们以线程块瓦片和单个CUDA线程为单位来思考。对于共享内存到寄存器的数据传输，由于这是为了服务后续的MMA指令，我们以warp瓦片/MMA瓦片和warp为单位来思考。遵循Flash Attention 2（第3.3节），我们让线程块中的每个warp处理一部分`tile_Q`，沿着Q序列长度维度进行分割。这意味着不同的warp将索引到`tile_Q`的不同块，但它们都索引到相同的`tile_K`和`tile_V`块在KV序列长度循环中。
 
@@ -567,24 +567,24 @@ rowmax[mma_id_q][1] = this_rowmax[1];
 
 我们不重新缩放`rowsumexp` here because we want to fuse it with addition of the new sumexp term later i.e. FMA - fused multiply add. We can’t fuse multiplication with MMA, hence we need to do a separate multiplication for `O_rmem`.
 
-#### Pack to (and compute row sum exp)
+#### 打包到 BF16 并计算行求和 exp
 
-For the next part, we will loop over the row dimension again (`BLOCK_KV / MMA_N`), to compute and pack `tile_P` from `tile_S`, as well as doing reduction for sumexp. Recall that we declare registers for `S` and `P` as follows.
+对于下一部分，我们将再次循环遍历行维度（`BLOCK_KV / MMA_N`），计算并打包 `tile_S` 到 `tile_P`，同时计算行求和 exp（在线 softmax 的一部分）。
 
 ```cpp
 float S_rmem[WARP_Q / MMA_M][BLOCK_KV / MMA_N][4]      // m16n8
 uint32_t P_rmem[WARP_Q / MMA_M][BLOCK_KV / MMA_K][4];  // m16k16
 ```
 
-Look up the thread/register layout for MMA multiplicand A and output C/D again in PTX doc. Luckily, the layouts are exactly the same - within an 8x8 tile, the arrangement of elements is identical.
+在 PTX 文档中查找 MMA 乘数 A 和输出 C/D 的线程/寄存器布局。幸运的是，它们是相同的。
 
 ![Register layout of MMA m16n8k16](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/009-fe1cdc5e.svg)
 
-The left half of multiplicand A has the same layout as accumulator. Source: [NVIDIA PTX doc](https://docs.nvidia.com/cuda/parallel-thread-execution/#warp-level-matrix-fragment-mma-16816-float).
+乘数 A 的左半部分与累加器具有相同的布局。来源：[NVIDIA PTX 文档](https://docs.nvidia.com/cuda/parallel-thread-execution/#warp-level-matrix-fragment-mma-16816-float)
 
-It means that for all threads, every 2 floats in `S_rmem` can be packed as BF16x2 in a single 32-bit register of `P_rmem`, exactly how `mma.m16n8k16` expects for the 2nd MMA. There are no data movements across threads. Note that this is not always true: if we use INT8 or FP8 MMA for the 1st and/or 2nd MMA, we would need to permute data across threads to pack `tile_S` to `tile_P`.
+这意味着对于所有线程，`S_rmem` 中的每 2 个浮点数可以作为 BF16x2 打包到单个 32 位寄存器中，并存储到 `P_rmem` 中，而无需改变布局。
 
-Our code for the last part of online softmax is below.
+我们的在线 softmax 最后部分的代码如下。
 
 ```cpp
 // rowsumexp
@@ -615,31 +615,31 @@ rowsumexp[mma_id_q][0] = rowsumexp[mma_id_q][0] * rescale[0] + this_rowsumexp[0]
 rowsumexp[mma_id_q][1] = rowsumexp[mma_id_q][1] * rescale[1] + this_rowsumexp[1];
 ```
 
-After this is the 2nd MMA: load V, then compute `tile_O += tile_P @ tile_V`. This completes our 1st version of Flash Attention. Actually we also need to normalize the output before writing `O_rmem` to global memory, but the logic for that should be pretty straightforward.
+之后是第二个 MMA：加载 V，然后计算 `tile_O += tile_P @ tile_V`。这完成了我们的第一个版本。
 
-You can find the full code for Version 1 at [attention_v1.cu](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/attention_v1.cu).
+你可以在 [attention_v1.cu](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/attention_v1.cu) 找到版本 1 的完整代码。
 
-### Benchmark setup
+### 基准测试设置
 
-Wow, that’s plentiful for the 1st version. Indeed, I spent the most time on version 1 trying to implement Flash Attention correctly. Took me 2 days to realize [\_\_shfl_xor_sync()’s mask should be 2 (0b10) instead of 0x10 for butterfly reduction](https://github.com/gau-nernst/learn-cuda/commit/8fdb3e6a).
+哇，第一个版本的内容已经很丰富了。确实，我在版本 1 上花费了最多的时间，试图正确实现算法并消除所有错误。
 
-Anyway, now we need a script for correctness check as well as speed benchmark. I prefer to do these things in Python Pytorch since it’s easy to do, as well as making it simple to compare against other attention kernels with PyTorch bindings. To achieve this, I create:
+无论如何，现在我们需要一个脚本来进行正确性检查和速度基准测试。我更喜欢用 Python 完成这些任务。正确性检查和速度基准测试通常在 `test.py` 和 `benchmark.py` 中分开，但我更喜欢将它们放在同一个脚本中。
 
-1. [attention.cpp](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/attention.cpp): provides PyTorch bindings for my attention kernels.
+[attention.cpp](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/attention.cpp)：为我的注意力内核提供 PyTorch 绑定。
 1. [main.py](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/main.py): correctness check and speed benchmark.
 
-For correctness check, I compare against `F.sdpa()`, which should dispatch Flash Attention 2 by default (at least on my GPU and current PyTorch version). I also purposely add a small bias to the random inputs, which are sampled from the standard normal distribution, so that the output has a positive mean. This is to avoid large relative error caused by zero mean.
+对于正确性检查，我与 `F.sdpa()` 进行比较，默认情况下应该调度 Flash Attention 2（如果可用）。
 
 ```python
 def generate_input(*shape):
     return torch.randn(shape).add(0.5).bfloat16().cuda()
 ```
 
-For speed benchmarks, it’s generally a good idea to compare against (1) theoretical limit of the hardware i.e. Speed-of-Light, and (2) known good implementations. I’m more interested in the compute-bound regime of attention, hence I will be using FLOPS (floating point operations per second, with a capital S) as the metric for comparison.
+对于速度基准测试，通常最好与（1）硬件的理论极限和（2）已知的良好实现进行比较。前者让我们知道还有多少改进空间，后者让我们了解与生产质量代码相比的情况。
 
-To compute FLOPS of a given kernel, we count the number of required floating point operations (FLOPs, with a small s), then divide by the latency. Just counting FLOPs from the MMAs should be good enough, which turns out to be `4 * bsize * num_heads * len_q * len_kv * head_dim`.
+要计算给定内核的 FLOPS，我们计算所需的浮点操作次数（FLOPs）并除以内核运行时间。可以在[这里](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/test.py#L55)找到我的 FLOPs 计数。
 
-The “known good implementations” are FA2 and CuDNN backends of `F.sdpa()`, as well as FA2 from [flash-attn](https://github.com/Dao-AILab/flash-attention) package. For my kernel, I did do some tuning of `BLOCK_Q` and `BLOCK_KV`, and obtained the following results.
+"已知的良好实现"是 `F.sdpa()` 的 FA2 和 CuDNN 后端，以及来自 [flash-attn](https://github.com/Dao-AILab/flash-attention) 库的 FA2。我认为最好在自定义 C++ 扩展内包装它们，这样它们就可以在同一个 Python 脚本中进行基准测试，就像我们的内核一样。请参阅 [reference.cpp](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/reference.cpp) 和 [reference.py](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/reference.py) 了解如何完成。`flash-attn` 库需要单独安装。
 
 | Kernel                       | TFLOPS | % of SOL |
 | ---------------------------- | ------ | -------- |
@@ -648,33 +648,33 @@ The “known good implementations” are FA2 and CuDNN backends of `F.sdpa()`, a
 | `flash-attn`                 | 190.58 | 90.97%   |
 | v1 (basic)                   | 142.87 | 68.20%   |
 
-It doesn’t look too bad for the first version, but we still have some headroom to go. That’s fine, because we still have a few tricks up our sleeves for the next versions. In fact, the tricks are exactly the same as the ones used in optimizing a matmul kernel.
+第一个版本看起来还不错，但我们还有一些改进空间。没关系，因为我们有几个版本要介绍。
 
 #### Profiling
 
-Before moving to the next version, I want to talk about profiling tools. I think it’s always a good idea to use profiling as the guide for optimization. Previously I only knew how to use [ncu](https://docs.nvidia.com/nsight-compute/NsightComputeCli/index.html) at a very basic level. Seeing so many people using [Nsight Compute](https://developer.nvidia.com/nsight-compute) with cool diagrams, I decided to learn how to use it, and it was actually quite easy to use.
+在进入下一个版本之前，我想谈谈分析工具。我认为最好尽早熟悉分析工具——这样可以更快地识别性能瓶颈。
 
-Nsight Compute can run on macOS with SSH access to another machine with NVIDIA GPU, which is exactly the setup I’m using right now (yes, I write code exclusively on my Macbook). If you are unfamiliar with Nsight Compute, I recommend watching a tutorial or two to get acquainted with it.
+Nsight Compute 可以在 macOS 上运行，通过 SSH 访问另一台装有 NVIDIA GPU 的机器，这正是我的设置。请参阅 [Nsight Compute 的远程分析文档](https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html#remote-profiling)。
 
-To enable source inspection feature, remember to pass `-lineinfo` to NVCC (see [here](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/main.py#L22)), and enable “Import Source” in Nsight Compute.
+要启用源代码检查功能，请记住将 `-lineinfo` 传递给 NVCC（请参阅[这里](https://github.com/gau-nernst/learn-cuda/blob/e83c256/07_attention/Makefile#L5)）。
 
-## Version 2 - Shared memory swizzling
+## 版本 2 - Shared memory swizzling
 
 Let’s do a profiling with Nsight Compute, and look at **Warp State Statistics** section.
 
 ![Warp state statistics of v1](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/010-0e73a50b.png)
 
-Warp state statistics of kernel v1.
+内核 v1 的 warp 状态统计。
 
-**Stall Math Pipe Throttle** being the highest is good - it means warps are busy with math operations i.e. Tensor Cores. The second highest is **Stall Short Scoreboard**. This typically means waiting for accesses to and from shared memory. You can check [Nsight Compute doc](https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html) and search for `stalled_short_scoreboard`.
+**Stall Math Pipe Throttle** 最高是好事——这意味着 warp 忙于数学运算，必须等待/停顿以等待数学运算延迟。查看前 2 个停顿原因（Stall Math Pipe Throttle 和 Stall Long Scoreboard），我们似乎确实在最大化利用计算单元。
 
-We can double confirm this by looking at **Memory Workload Analysis**, which reveals several problems.
+我们可以通过查看 **Memory Workload Analysis** 来再次确认这一点，它揭示了几个问题。
 
 ![Memory analsysis of v1](/images/others/writing-speed-of-light-flash-attention-for-5090-in-cuda-c/011-2b867178.png)
 
-Memory analysis of kernel v1.
+内核 v1 的内存分析。
 
-- **L1TEX Global Store Access Pattern** comes from storing the output, since it is the only global write we have. This is not important since the runtime of looping over the sequence length of KV should dominate when `len_kv` is large.
+**L1TEX Global Store Access Pattern** 来自存储输出，因为这是我们唯一的全局写入。这并不重要，因为当 `len_kv` 很大时，循环遍历 KV 序列长度的运行时间应该占主导地位。
 - **L1TEX Local Load/Store Access Pattern** is due to register spilling. Since it’s register spilling, only spilling and reloading 1 element at a time is normal. Reducing `BLOCK_Q` (so that we use fewer registers to hold accumulators) would resolve this issue, but my manual tuning showed that some spilling was actually faster.
 - **Shared Load Bank Conflicts** is exactly what we are looking for - bank conflicts that result in “Stall Short Scoreboard”.
 
