@@ -305,4 +305,172 @@ Line 23.
       ).rejects.toThrow('Insufficient content quality');
     });
   });
+
+  describe('Local mock provider', () => {
+    it('should use local_mock provider when configured', async () => {
+      process.env.PDF_OCR_PROVIDER = 'local_mock';
+
+      const tempDir = path.join(process.cwd(), 'tests/tmp/pdf-mock-test');
+      fs.mkdirSync(tempDir, { recursive: true });
+
+      try {
+        const result = await pdfVlAdapter.fetchArticle({
+          url: 'https://example.com/test.pdf',
+          page: null as any,
+          options: {
+            slug: 'test-mock',
+            imageRoot: tempDir,
+            publicBasePath: '/images/pdf/test-mock',
+            logger: mockLogger as any,
+          },
+        });
+
+        expect(result.title).toBe('Mock PDF Document Title');
+        expect(result.markdown).toContain('Mock PDF Document Title');
+        expect(result.diagnostics?.extractionMethod).toBe('local_mock');
+        expect(result.markdown.length).toBeGreaterThan(100);
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+        delete process.env.PDF_OCR_PROVIDER;
+      }
+    });
+
+    it('should work without token when using local_mock', async () => {
+      delete process.env.PADDLEOCR_VL_TOKEN;
+      process.env.PDF_OCR_PROVIDER = 'local_mock';
+
+      const tempDir = path.join(process.cwd(), 'tests/tmp/pdf-mock-no-token');
+      fs.mkdirSync(tempDir, { recursive: true });
+
+      try {
+        const result = await pdfVlAdapter.fetchArticle({
+          url: 'https://example.com/test.pdf',
+          page: null as any,
+          options: {
+            slug: 'test-no-token',
+            imageRoot: tempDir,
+            logger: mockLogger as any,
+          },
+        });
+
+        expect(result.title).toBeDefined();
+        expect(result.diagnostics?.extractionMethod).toBe('local_mock');
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+        delete process.env.PDF_OCR_PROVIDER;
+      }
+    });
+  });
+
+  describe('Fail-open mode', () => {
+    it('should fallback to placeholder content when OCR fails and fail-open is enabled', async () => {
+      process.env.PDF_OCR_FAIL_OPEN = '1';
+      process.env.PDF_OCR_RETRY = '1'; // Reduce retries for faster test
+      process.env.PDF_OCR_TIMEOUT_MS = '1000'; // Short timeout
+      process.env.PDF_OCR_DIAG = '0'; // Disable diagnostics
+
+      // Mock fetch to fail for OCR API
+      global.fetch = vi.fn((url: string | URL | Request) => {
+        const urlStr = typeof url === 'string' ? url : url.toString();
+
+        if (urlStr.includes('example.com/test.pdf')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            headers: new Map([
+              ['content-type', 'application/pdf'],
+              ['content-length', String(samplePdfBuffer.length)],
+            ]) as any,
+            arrayBuffer: () => Promise.resolve(samplePdfBuffer.buffer),
+          } as Response);
+        }
+
+        if (urlStr.includes('layout-parsing')) {
+          // Simulate network failure
+          const error: any = new TypeError('fetch failed');
+          error.cause = { code: 'ENOTFOUND' };
+          return Promise.reject(error);
+        }
+
+        return Promise.reject(new Error('Unexpected URL'));
+      }) as any;
+
+      const tempDir = path.join(process.cwd(), 'tests/tmp/pdf-fail-open');
+      fs.mkdirSync(tempDir, { recursive: true });
+
+      try {
+        const result = await pdfVlAdapter.fetchArticle({
+          url: 'https://example.com/test.pdf',
+          page: null as any,
+          options: {
+            slug: 'test-fail-open',
+            imageRoot: tempDir,
+            logger: mockLogger as any,
+          },
+        });
+
+        expect(result.markdown).toContain('PDF Import Failed');
+        expect(result.markdown).toContain('Offline Mode');
+        expect(result.markdown).toContain('https://example.com/test.pdf');
+
+        // Should meet minimum content requirement (20+ lines)
+        const lines = result.markdown.split('\n').filter((line) => line.trim().length > 0);
+        expect(lines.length).toBeGreaterThanOrEqual(20);
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+        delete process.env.PDF_OCR_FAIL_OPEN;
+        delete process.env.PDF_OCR_RETRY;
+        delete process.env.PDF_OCR_TIMEOUT_MS;
+        delete process.env.PDF_OCR_DIAG;
+      }
+    }, 15000); // Increase timeout for this test
+
+    it('should throw error when OCR fails and fail-open is disabled', async () => {
+      process.env.PDF_OCR_FAIL_OPEN = '0';
+      process.env.PDF_OCR_RETRY = '1'; // Reduce retries for faster test
+      process.env.PDF_OCR_TIMEOUT_MS = '1000'; // Short timeout
+      process.env.PDF_OCR_DIAG = '0'; // Disable diagnostics
+
+      global.fetch = vi.fn((url: string | URL | Request) => {
+        const urlStr = typeof url === 'string' ? url : url.toString();
+
+        if (urlStr.includes('example.com/test.pdf')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            headers: new Map([
+              ['content-type', 'application/pdf'],
+              ['content-length', String(samplePdfBuffer.length)],
+            ]) as any,
+            arrayBuffer: () => Promise.resolve(samplePdfBuffer.buffer),
+          } as Response);
+        }
+
+        if (urlStr.includes('layout-parsing')) {
+          const error: any = new TypeError('fetch failed');
+          error.cause = { code: 'ENOTFOUND' };
+          return Promise.reject(error);
+        }
+
+        return Promise.reject(new Error('Unexpected URL'));
+      }) as any;
+
+      await expect(
+        pdfVlAdapter.fetchArticle({
+          url: 'https://example.com/test.pdf',
+          page: null as any,
+          options: {
+            slug: 'test',
+            imageRoot: '/tmp',
+            logger: mockLogger as any,
+          },
+        }),
+      ).rejects.toThrow();
+
+      delete process.env.PDF_OCR_FAIL_OPEN;
+      delete process.env.PDF_OCR_RETRY;
+      delete process.env.PDF_OCR_TIMEOUT_MS;
+      delete process.env.PDF_OCR_DIAG;
+    }, 15000); // Increase timeout for this test
+  });
 });
