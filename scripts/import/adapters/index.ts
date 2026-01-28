@@ -8,6 +8,7 @@ import type { Adapter, AdapterRegistry } from './types.js';
 import { zhihuAdapter } from './zhihu.js';
 import { mediumAdapter } from './medium.js';
 import { wechatAdapter } from './wechat.js';
+import { pdfVlAdapter } from './pdf_vl.js';
 import { othersAdapter } from './others.js';
 import type { Logger } from '../../logger/types.js';
 
@@ -79,6 +80,7 @@ function registerDefaultAdapters(): void {
   adapterRegistry.register(zhihuAdapter);
   adapterRegistry.register(mediumAdapter);
   adapterRegistry.register(wechatAdapter);
+  adapterRegistry.register(pdfVlAdapter); // PDF should be checked before generic 'others'
   adapterRegistry.register(othersAdapter);
 }
 
@@ -114,5 +116,5 @@ export function getAdapterById(id: string): Adapter | null {
 }
 
 // Re-export adapters for direct use
-export { zhihuAdapter, mediumAdapter, wechatAdapter, othersAdapter };
+export { zhihuAdapter, mediumAdapter, wechatAdapter, pdfVlAdapter, othersAdapter };
 export * from './types.js';
