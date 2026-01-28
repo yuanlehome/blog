@@ -191,9 +191,9 @@ jq 'select(.level == "error")' .logs/import.jsonl
 
 ## 集成示例
 
-参见 `scripts/examples/content-import-with-logger.ts`，展示了如何在脚本中集成日志系统。
+完整的日志系统集成示例可参考现有脚本（如 `scripts/content-import.ts`、`scripts/notion-sync.ts`）。
 
-完整示例包括：
+基本使用流程：
 
 - 脚本启动时创建 logger
 - 使用 span 记录各阶段耗时
