@@ -16,7 +16,7 @@ updated: '2026-01-29T13:13:00.000Z'
 
 ![](/images/others/awq-llm-activation-aware-weight-quantization/2f722dca-4210-81e8-a731-d27136536435.png)
 
-图1：我们提出 AWQ（通用的 LLM 权重量化方法），并开发 TinyChat 将 4-bit 量化 LLM 部署到多种端侧平台，在桌面与移动 GPU 上相较 FP16 获得 3–4× 性能提升；同时我们还制造了一台 TinyChat 计算机（NVIDIA Jetson Orin Nano，8GB 显存，15W）。Demo：<https://youtu.be/z91a8DrfgEw>
+图1：我们提出 AWQ（通用的 LLM 权重量化方法），并开发 TinyChat 将 4-bit 量化 LLM 部署到多种端侧平台，在桌面与移动 GPU 上相较 FP16 获得 3–4× 性能提升；同时我们还制造了一台 TinyChat 计算机（NVIDIA Jetson Orin Nano，8GB 显存，15W）。演示视频：<https://youtu.be/z91a8DrfgEw>
 
 ## 1 引言
 
@@ -82,7 +82,7 @@ LLM 量化常见两种设置：
 
 我们提出一种逐通道缩放方法来降低显著权重的量化误差，且不会遭遇混合精度带来的硬件低效。
 
-### 量化误差分析
+#### 量化误差分析
 
 考虑一组/块权重
 
@@ -205,7 +205,7 @@ $\frac{\Delta'}{\Delta}\cdot\frac{1}{s}\approx \frac{1}{s}$
 | 平均 $\Delta'/\Delta\cdot 1/s$ | 1     | 0.804  | 0.676 | 0.519 | 0.303 |
 | WikiText‑2 PPL↓                | 23.54 | 12.87  | 12.48 | 11.92 | 12.36 |
 
-### 自动搜索缩放因子
+#### 自动搜索缩放因子
 
 为同时考虑显著与非显著权重，我们对每个（输入）通道搜索一个缩放因子
 
@@ -332,7 +332,7 @@ _图4：面向 ARM NEON（128-bit SIMD） 的 SIMD 感知权重打包：离线�
 
 ### 5.2 评测结果
 
-### LLaMA / Llama‑2 模型结果
+#### LLaMA / Llama‑2 模型结果
 
 我们在表4中给出 LLaMA 与 Llama‑2 在不同规模（7B–70B）与不同 bit‑precision（INT3/INT4，g128）下的困惑度。AWQ 在各设定下均优于 RTN，并在多数情况下优于 GPTQ（无论是否重排）。
 
@@ -351,7 +351,7 @@ _图4：面向 ARM NEON（128-bit SIMD） 的 SIMD 感知权重打包：离线�
 | INT4‑g128 GPTQ‑R  | 5.63        | 4.99     | 3.43     | 5.83      | 5.20     | 4.22     | 3.66     |
 | **INT4‑g128 AWQ** | **5.60**    | **4.97** | **3.41** | **5.78**  | **5.19** | **4.21** | **3.62** |
 
-### Mistral / Mixtral 模型结果
+#### Mistral / Mixtral 模型结果
 
 我们也在表5中评测 Mistral 与 Mixtral（MoE）模型。结果表明 AWQ 在包含 GQA 与 MoE 等结构的不同架构上同样有效。
 
@@ -362,7 +362,7 @@ _图4：面向 ARM NEON（128-bit SIMD） 的 SIMD 感知权重打包：离线�
 | Mixtral‑8×7B‑Instruct‑v0.1 | 5.94 | 6.05      | 6.52      |
 | Mistral‑7B‑Instruct‑v0.2   | 4.14 | 4.30      | 4.83      |
 
-### 指令微调模型量化
+#### 指令微调模型量化
 
 指令微调能显著提升模型可用性（Wei et al., 2021; Sanh et al., 2021; Ouyang et al., 2022; Chung et al., 2022）。我们在 Vicuna（Chiang et al., 2023）上用 GPT‑4 评测协议对比量化模型与 FP16（80 个问题，考虑输入顺序，合计 160 次试验）。如图5，AWQ 在 7B 与 13B 上均能相对 RTN/GPTQ 改善 INT3‑g128 的表现，体现出对指令微调模型的泛化。
 
@@ -370,7 +370,7 @@ _图4：面向 ARM NEON（128-bit SIMD） 的 SIMD 感知权重打包：离线�
 
 _图5：按 GPT‑4 评测协议比较 INT3‑g128 量化 Vicuna 与 FP16（更多“胜”表示更好）。AWQ 在 7B/13B 上均优于 RTN 与 GPTQ。_
 
-### 多模态模型量化
+#### 多模态模型量化
 
 大型多模态/视觉语言模型（VLM）可基于图像/视频条件生成文本（Alayrac et al., 2022; Li et al., 2023b; Koh et al., 2023; Driess et al., 2023; Zhang et al., 2023; Liu et al., 2023a）。由于 AWQ 不易对校准集过拟合，可直接用于 VLM 量化。我们在 OpenFlamingo‑9B（仅量化语言部分）上评测 COCO Captioning（Chen et al., 2015），在不同 few‑shot 设置下统计 5k 样本的平均性能（表6）。AWQ 在 zero‑shot 与 various few‑shot 设置下均优于 RTN/GPTQ，将 32‑shot 下的退化从 4.57 降至 1.17（INT4‑g128），在 4× 模型压缩下几乎无损。我们还在 VILA 上评测 11 个视觉语言基准（表7），展示“无损量化”。
 
@@ -397,7 +397,7 @@ _图5：按 GPT‑4 评测协议比较 INT3‑g128 量化 Vicuna 与 FP16（更�
 > | VILA‑13B     | 80.5  | 63.6 | 63.1   | 70.5  | 64.0  | 86.3 | 1553.6 | 73.8 | 62.8 | 78.3        | 42.6   |
 > | VILA‑13B‑AWQ | 80.4  | 63.6 | 63.0   | 71.2  | 63.5  | 87.0 | 1552.9 | 73.6 | 62.2 | 77.6        | 42.0   |
 
-### 视觉推理与定性示例
+#### 视觉推理与定性示例
 
 图6给出 LLaVA‑13B 的视觉推理示例：AWQ 相对 RTN 能给出更合理的回答。图7展示 OpenFlamingo‑9B 在 COCO captioning（4‑shot, INT4‑g128）上的定性结果：AWQ 明显改善 caption 质量。原论文用颜色标注正确/错误文本，这里仅保留图示。
 
@@ -409,7 +409,7 @@ _图6：LLaVA‑13B 的视觉推理示例。AWQ（INT4‑g128）相对 RTN 给�
 
 _图7：OpenFlamingo‑9B 在 COCO captioning（4‑shot, INT4‑g128）上的定性对比。AWQ 显著改善 caption 质量。_
 
-### 编程与数学任务
+#### 编程与数学任务
 
 为评估复杂生成任务，我们在 MBPP（Austin et al., 2021）与 GSM8K（Cobbe et al., 2021）上测试 AWQ。表8显示：在 CodeLlama‑7B‑Instruct‑hf（MBPP）与 Llama‑2（GSM8K）上，AWQ 优于 RTN 与 GPTQ；在 INT4‑g128 下，AWQ 与原 FP16 性能几乎一致。
 
@@ -423,7 +423,7 @@ _图7：OpenFlamingo‑9B 在 COCO captioning（4‑shot, INT4‑g128）上的�
 | GSM8K | Llama‑2‑13B              | accuracy | 26.16 | 21.23 | 24.26 | **25.25** |
 | GSM8K | Llama‑2‑70B              | accuracy | 56.41 | 53.98 | 56.03 | **56.40** |
 
-### 极低比特量化与与 GPTQ 的正交性
+#### 极低比特量化与 GPTQ 的正交性
 
 我们进一步在 INT2 设置下量化 LLM 以适配更小显存（表9）。RTN 在该设置下几乎完全失效，而 AWQ 结合 GPTQ 能进一步改善 INT2 性能，表明两者正交可叠加。
 
@@ -465,7 +465,7 @@ _图8：左：AWQ 用更小校准集即可达到更好量化效果；右：当�
 | VILA‑13B     | FP16  | 48.5  | OOM   | 6.1  |
 | VILA‑13B‑AWQ | W4A16 | 102.1 | 99.0  | 17.5 |
 
-### 与其他系统对比
+#### 与其他系统对比
 
 我们在图10中将 TinyChat 与 AutoGPTQ、llama.cpp、exllama 对比：在 Jetson Orin 上运行 4-bit 量化 Llama 模型时，TinyChat 可提供 1.2–3.0× 加速；同时它支持更广泛的通用/代码类 LLM（如 StarCoder、StableCode、Mistral、Falcon），并对这些工作负载相对 AutoGPTQ 一致获得显著加速。TinyChat 也能在 Raspberry Pi 4B 等极度受限设备上运行，7B 模型约 0.7 tokens/s。
 
