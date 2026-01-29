@@ -2,7 +2,7 @@
 title: AWQ：面向端侧 LLM 压缩与加速的激活感知权重量化（Activation-aware Weight Quantization）
 slug: awq-llm-activation-aware-weight-quantization
 date: '2026-01-29'
-tags: ['Quantization', 'paper']
+tags: ['Quantization', 'Paper']
 status: published
 cover: >-
   /images/others/awq-llm-activation-aware-weight-quantization/2f722dca-4210-81e8-a731-d27136536435.png
