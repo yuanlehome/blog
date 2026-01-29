@@ -327,9 +327,8 @@ test.describe('Blog smoke journey', () => {
     const found = await openFirstPostWithoutToc(page);
 
     if (!found) {
-      test.skip();
       await context.close();
-      return;
+      test.skip();
     }
 
     await expect(page.locator('[data-toc-container]')).toHaveCount(0);
