@@ -30,7 +30,7 @@ LLM 基于 Transformer 架构，在多种基准上取得了令人瞩目的性能
 
 为将 AWQ 的理论显存收益转化为实际速度提升，我们设计了 TinyChat：一个高效推理框架，用于 4-bit 端侧 LLM 推理。TinyChat 通过 on-the-fly 反量化加速线性层，并通过高效 4-bit 权重打包与 kernel 融合减少推理开销（如中间 DRAM 访问与 kernel 启动开销），从而更好兑现 4-bit 权重量化带来的加速潜力（尽管硬件通常按字节对齐）。
 
-实验表明：AWQ 在不同模型家族（如 LLaMA与 OPT）与不同模型规模上均优于已有方法。得益于更强泛化能力，AWQ 也能在指令微调模型（如 Vicuna）上取得良好效果，并首次在多模态语言模型（如 OpenFlamingo）上表现出色。TinyChat 进一步将约 4× 的权重显存降低转化为实际速度提升：在桌面、笔记本与移动 GPU 上，相较 HuggingFace 的 FP16 实现平均可获得 3.2–3.3× 加速。此外，TinyChat 使得在单台 64GB Jetson Orin 上部署 Llama‑2‑70B 变得轻松；在仅 8GB 显存的 RTX 4070 笔记本 GPU 上也能以约 30 token/s 的交互速度运行 13B 级 LLM。AWQ 已被产业界与开源社区广泛采用（HuggingFace Transformers、NVIDIA TensorRT‑LLM、Microsoft DirectML、Google Vertex AI、Intel Neural Compressor、Amazon Sagemaker、AMD、FastChat、vLLM、LMDeploy 等），并使得 Falcon‑180B 可在单张 H200 GPU 上部署。
+实验表明：AWQ 在不同模型家族（如 LLaMA 与 OPT）与不同模型规模上均优于已有方法。得益于更强泛化能力，AWQ 也能在指令微调模型（如 Vicuna）上取得良好效果，并首次在多模态语言模型（如 OpenFlamingo）上表现出色。TinyChat 进一步将约 4× 的权重显存降低转化为实际速度提升：在桌面、笔记本与移动 GPU 上，相较 HuggingFace 的 FP16 实现平均可获得 3.2–3.3× 加速。此外，TinyChat 使得在单台 64GB Jetson Orin 上部署 Llama‑2‑70B 变得轻松；在仅 8GB 显存的 RTX 4070 笔记本 GPU 上也能以约 30 token/s 的交互速度运行 13B 级 LLM。AWQ 已被产业界与开源社区广泛采用（HuggingFace Transformers、NVIDIA TensorRT‑LLM、Microsoft DirectML、Google Vertex AI、Intel Neural Compressor、Amazon Sagemaker、AMD、FastChat、vLLM、LMDeploy 等），并使得 Falcon‑180B 可在单张 H200 GPU 上部署。
 
 ## 2 相关工作
 
@@ -50,11 +50,11 @@ LLM 量化常见两种设置：
 
 （2）低比特仅权重量化：例如 W4A16，仅将权重量化为低比特整数。
 
-本文关注第二类设置，因为它既能降低硬件门槛（需要更小显存），也能加速 token 生成（缓解 memory‑bound 工作负载）。除基础的 round‑to‑nearest（RTN）外，GPTQ与本文最为接近。但 GPTQ 的重建过程会对校准集过拟合，可能无法保持 LLM 在其他模态与领域的通用能力；此外，它在一些模型上还需要“重排（reordering）”技巧才能工作（如 LLaMA‑7B 与 OPT‑66B）。除面向通用硬件的量化外，SpAtten提出在 softmax 计算中逐步增加比特数的渐进方法。
+本文关注第二类设置，因为它既能降低硬件门槛（需要更小显存），也能加速 token 生成（缓解 memory‑bound 工作负载）。除基础的 round‑to‑nearest（RTN）外，GPTQ 与本文最为接近。但 GPTQ 的重建过程会对校准集过拟合，可能无法保持 LLM 在其他模态与领域的通用能力；此外，它在一些模型上还需要“重排（reordering）”技巧才能工作（如 LLaMA‑7B 与 OPT‑66B）。除面向通用硬件的量化外，SpAtten 提出在 softmax 计算中逐步增加比特数的渐进方法。
 
 ### 2.3 低比特 LLM 的系统支持
 
-低比特量化 LLM 已是降低推理成本的热门方向，系统层面的支持对于实际加速同样关键。GPTQ 提供针对 OPT 的 INT3 kernel；GPTQ‑for‑LLaMA 在 Triton帮助下扩展到 INT4 “重排量化” kernel。FlexGen、`llama.cpp`（<https://github.com/ggerganov/llama.cpp>）与 `exllama`（<https://github.com/turboderp/exllama>）进行 group‑wise INT4 量化以降低 I/O 成本与 offloading。FasterTransformer 支持 FP16×INT4 GEMM 的 per‑tensor 权重量化，但不支持 group 量化。LUT‑GEMM使用查找表在 CUDA core 上进行按位计算。与本文同期的 MLC‑LLM（MLC‑Team, 2023）借助 TVM后端在多种端侧 CPU/GPU 平台上也取得了强结果。
+低比特量化 LLM 已是降低推理成本的热门方向，系统层面的支持对于实际加速同样关键。GPTQ 提供针对 OPT 的 INT3 kernel；GPTQ‑for‑LLaMA 在 Triton 帮助下扩展到 INT4 “重排量化” kernel。FlexGen、`llama.cpp`（<https://github.com/ggerganov/llama.cpp>）与 `exllama`（<https://github.com/turboderp/exllama>）进行 group‑wise INT4 量化以降低 I/O 成本与 offloading。FasterTransformer 支持 FP16×INT4 GEMM 的 per‑tensor 权重量化，但不支持 group 量化。LUT‑GEMM 使用查找表在 CUDA core 上进行按位计算。与本文同期的 MLC‑LLM（MLC‑Team, 2023）借助 TVM 后端在多种端侧 CPU/GPU 平台上也取得了强结果。
 
 ## 3 AWQ：激活感知权重量化
 
@@ -266,13 +266,13 @@ $\alpha$：0 表示不缩放，1 表示搜索空间中最激进的缩放。我�
 
 ## 4 TinyChat：将 AWQ 映射到端侧平台
 
-AWQ 能显著缩小 LLM 规模，但将 W4A16 的理论显存收益转化为实际速度提升并非易事。诸如 SmoothQuant的 W8A8 量化在存储与计算上使用相同精度，反量化可自然集成到 kernel 的 epilogue；而 W4A16 使用不同数据类型进行访存与计算，因此必须将反量化嵌入主计算循环以获得最佳性能，带来实现挑战。
+AWQ 能显著缩小 LLM 规模，但将 W4A16 的理论显存收益转化为实际速度提升并非易事。诸如 SmoothQuant 的 W8A8 量化在存储与计算上使用相同精度，反量化可自然集成到 kernel 的 epilogue；而 W4A16 使用不同数据类型进行访存与计算，因此必须将反量化嵌入主计算循环以获得最佳性能，带来实现挑战。
 
 为此，我们提出 TinyChat：一个轻量系统，用于 AWQ 模型推理。其前端基于 PyTorch，后端利用设备特定指令集（如 CUDA/PTX、Neon、AVX）。
 
 ### 4.1 为什么 AWQ 有助于加速端侧 LLM
 
-为理解端侧量化 LLM 的加速机会，我们以 LLaMA‑7B在 RTX 4090 上进行剖析（batch size=1，FP16，FasterTransformer）。
+为理解端侧量化 LLM 的加速机会，我们以 LLaMA‑7B 在 RTX 4090 上进行剖析（batch size=1，FP16，FasterTransformer）。
 
 **上下文阶段 vs 生成阶段延迟。** 如图 3(a)，生成 20 个 token 需 310ms，而处理含 200 token 的 prompt 仅需 10ms。端侧交互应用中，生成阶段通常比上下文阶段慢得多。
 
@@ -308,7 +308,7 @@ _图 4：面向 ARM NEON（128-bit SIMD） 的 SIMD 感知权重打包：离线�
 
 **评测。** 参考既有文献，我们主要在语言建模任务上评测量化模型（WikiText‑2 困惑度），因为困惑度可稳定反映 LLM 性能。
 
-**基线。** 主要基线为 RTN；在 group size=128 下它本身已很强。我们也对比 GPTQ及其带“重排技巧”的更新版本 GPTQ‑R。其他依赖反向传播更新量化权重的方法（如 AdaRound、BRECQ）不易扩展到大模型，且通常不优于 GPTQ，因此不纳入比较。
+**基线。** 主要基线为 RTN；在 group size=128 下它本身已很强。我们也对比 GPTQ 及其带“重排技巧”的更新版本 GPTQ‑R。其他依赖反向传播更新量化权重的方法（如 AdaRound、BRECQ）不易扩展到大模型，且通常不优于 GPTQ，因此不纳入比较。
 
 ### 5.2 评测结果
 
@@ -344,7 +344,7 @@ _图 4：面向 ARM NEON（128-bit SIMD） 的 SIMD 感知权重打包：离线�
 
 #### 指令微调模型量化
 
-指令微调能显著提升模型可用性。我们在 Vicuna上用 GPT‑4 评测协议对比量化模型与 FP16（80 个问题，考虑输入顺序，合计 160 次试验）。如图 5，AWQ 在 7B 与 13B 上均能相对 RTN/GPTQ 改善 INT3‑g128 的表现，体现出对指令微调模型的泛化。
+指令微调能显著提升模型可用性。我们在 Vicuna 上用 GPT‑4 评测协议对比量化模型与 FP16（80 个问题，考虑输入顺序，合计 160 次试验）。如图 5，AWQ 在 7B 与 13B 上均能相对 RTN/GPTQ 改善 INT3‑g128 的表现，体现出对指令微调模型的泛化。
 
 ![](/images/others/awq-llm-activation-aware-weight-quantization/2f722dca-4210-81a8-a2c2-cbb798fbfb80.png)
 
@@ -391,7 +391,7 @@ _图 7：OpenFlamingo‑9B 在 COCO captioning（4‑shot, INT4‑g128）上的�
 
 #### 编程与数学任务
 
-为评估复杂生成任务，我们在 MBPP与 GSM8K上测试 AWQ。表 8 显示：在 CodeLlama‑7B‑Instruct‑hf（MBPP）与 Llama‑2（GSM8K）上，AWQ 优于 RTN 与 GPTQ；在 INT4‑g128 下，AWQ 与原 FP16 性能几乎一致。
+为评估复杂生成任务，我们在 MBPP 与 GSM8K 上测试 AWQ。表 8 显示：在 CodeLlama‑7B‑Instruct‑hf（MBPP）与 Llama‑2（GSM8K）上，AWQ 优于 RTN 与 GPTQ；在 INT4‑g128 下，AWQ 与原 FP16 性能几乎一致。
 
 **表 8：INT4‑g128 下的 MBPP / GSM8K 结果**
 
