@@ -10,8 +10,6 @@ lastEditedTime: '2026-01-29T13:13:00.000Z'
 updated: '2026-01-29T13:13:00.000Z'
 ---
 
-# AWQ：面向端侧 LLM 压缩与加速的激活感知权重量化（Activation-aware Weight Quantization）
-
 ## 摘要
 
 大型语言模型（LLM）已经改变了众多 AI 应用。端侧（on-device）LLM 变得愈发重要：在边缘设备本地运行 LLM 可以降低云端计算成本并保护用户隐私。然而，天文量级的模型规模与受限的硬件资源给部署带来显著挑战。我们提出**激活感知权重量化**（Activation-aware Weight Quantization, **AWQ**），一种面向硬件友好的 LLM 低比特**仅权重**量化方法。AWQ 的核心发现是：LLM 中并非所有权重同等重要——仅保护约 **1%** 的“显著（salient）”权重即可大幅降低量化误差。为识别显著权重通道，应参考**激活（activation）分布**而非权重本身。为避免硬件上低效的混合精度量化，我们从数学上推导出：放大显著通道能够降低量化误差。AWQ 采用一个等价变换对显著权重通道进行缩放以实现“保护”，缩放因子通过离线收集激活统计得到。AWQ 不依赖反向传播或重建，因此不会对校准集过拟合，能泛化到不同领域与模态。AWQ 在多种语言建模与领域基准（代码与数学）上优于现有工作。得益于更强泛化能力，AWQ 在指令微调语言模型上也能获得优异的量化效果，并且首次在多模态语言模型上实现良好量化表现。与 AWQ 同时，我们实现了 **TinyChat**：一个面向 4-bit 端侧 LLM/VLM 的高效、灵活推理框架。借助 kernel 融合与平台感知的权重打包（weight packing），TinyChat 在桌面与移动 GPU 上相对 HuggingFace 的 FP16 实现可获得 **3× 以上**速度提升，并使得在移动 GPU 上部署 70B Llama‑2 模型成为可能。
@@ -24,43 +22,43 @@ updated: '2026-01-29T13:13:00.000Z'
 
 将大型语言模型（LLM）直接部署到边缘设备至关重要。端侧使用能够避免将数据发送到云端服务器所带来的延迟，并使 LLM 可以离线运行，这对虚拟助手、聊天机器人和自动驾驶等实时应用尤为有利。维护与扩展集中式云基础设施的运营成本也可以因此降低。端侧 LLM 还能将敏感信息保留在本地，从而提升数据安全性并降低数据泄露风险。
 
-LLM 基于 Transformer 架构（Vaswani et al., 2017），在多种基准上取得了令人瞩目的性能（Brown et al., 2020; Zhang et al., 2022; Touvron et al., 2023a; Scao et al., 2022）。然而，模型规模巨大导致服务成本高昂。例如，GPT‑3 拥有 175B 参数，FP16 下约为 350GB，而最新的 B200 GPU 仅有 192GB 显存，更不用说边缘设备。
+LLM 基于 Transformer 架构，在多种基准上取得了令人瞩目的性能。然而，模型规模巨大导致服务成本高昂。例如，GPT‑3 拥有 175B 参数，FP16 下约为 350GB，而最新的 B200 GPU 仅有 192GB 显存，更不用说边缘设备。
 
-对 LLM 做低比特权重量化能够显著降低端侧推理的显存占用，但实现并不容易。量化感知训练（QAT）由于训练成本高而不够高效；后训练量化（PTQ）在低比特场景下往往出现较大精度下降。最接近的工作是 GPTQ（Frantar et al., 2022），其利用二阶信息进行误差补偿，但在重建过程中可能对校准集过拟合，导致在分布外领域上学到的特征被扭曲（见图 8），这对于作为“通用模型”的 LLM 是一个问题。
+对 LLM 做低比特权重量化能够显著降低端侧推理的显存占用，但实现并不容易。量化感知训练（QAT）由于训练成本高而不够高效；后训练量化（PTQ）在低比特场景下往往出现较大精度下降。最接近的工作是 GPTQ，其利用二阶信息进行误差补偿，但在重建过程中可能对校准集过拟合，导致在分布外领域上学到的特征被扭曲（见图 8），这对于作为“通用模型”的 LLM 是一个问题。
 
 本文提出 AWQ：一种硬件友好的、低比特、仅权重量化方法。其基于一个观察：权重并非等价重要。只有极小的一部分（0.1%–1%）权重通道是“显著”的；跳过这些显著权重的量化可以显著降低量化损失（表 1）。识别显著通道的关键洞见是：尽管我们做的是仅权重量化，仍应参考激活分布而非权重分布——与更大激活幅度对应的权重通道更显著，因为它们处理更重要的特征。为避免硬件低效的混合精度实现，我们分析了权重量化误差并推导：放大显著通道可以降低其相对量化误差（式(2)）。据此我们设计了逐通道缩放方法，在全权重量化约束下自动搜索最优缩放以最小化量化误差。AWQ 不依赖反向传播或重建，因此能在多领域、多模态上更好保持泛化能力，而不对校准集过拟合。
 
 为将 AWQ 的理论显存收益转化为实际速度提升，我们设计了 TinyChat：一个高效推理框架，用于 4-bit 端侧 LLM 推理。TinyChat 通过 on-the-fly 反量化加速线性层，并通过高效 4-bit 权重打包与 kernel 融合减少推理开销（如中间 DRAM 访问与 kernel 启动开销），从而更好兑现 4-bit 权重量化带来的加速潜力（尽管硬件通常按字节对齐）。
 
-实验表明：AWQ 在不同模型家族（如 LLaMA（Touvron et al., 2023a）与 OPT（Zhang et al., 2022））与不同模型规模上均优于已有方法。得益于更强泛化能力，AWQ 也能在指令微调模型（如 Vicuna）上取得良好效果，并首次在多模态语言模型（如 OpenFlamingo（Awadalla et al., 2023））上表现出色。TinyChat 进一步将约 4× 的权重显存降低转化为实际速度提升：在桌面、笔记本与移动 GPU 上，相较 HuggingFace 的 FP16 实现平均可获得 3.2–3.3× 加速。此外，TinyChat 使得在单台 64GB Jetson Orin 上部署 Llama‑2‑70B 变得轻松；在仅 8GB 显存的 RTX 4070 笔记本 GPU 上也能以约 30 token/s 的交互速度运行 13B 级 LLM。AWQ 已被产业界与开源社区广泛采用（HuggingFace Transformers、NVIDIA TensorRT‑LLM、Microsoft DirectML、Google Vertex AI、Intel Neural Compressor、Amazon Sagemaker、AMD、FastChat、vLLM、LMDeploy 等），并使得 Falcon‑180B 可在单张 H200 GPU 上部署。
+实验表明：AWQ 在不同模型家族（如 LLaMA 与 OPT）与不同模型规模上均优于已有方法。得益于更强泛化能力，AWQ 也能在指令微调模型（如 Vicuna）上取得良好效果，并首次在多模态语言模型（如 OpenFlamingo）上表现出色。TinyChat 进一步将约 4× 的权重显存降低转化为实际速度提升：在桌面、笔记本与移动 GPU 上，相较 HuggingFace 的 FP16 实现平均可获得 3.2–3.3× 加速。此外，TinyChat 使得在单台 64GB Jetson Orin 上部署 Llama‑2‑70B 变得轻松；在仅 8GB 显存的 RTX 4070 笔记本 GPU 上也能以约 30 token/s 的交互速度运行 13B 级 LLM。AWQ 已被产业界与开源社区广泛采用（HuggingFace Transformers、NVIDIA TensorRT‑LLM、Microsoft DirectML、Google Vertex AI、Intel Neural Compressor、Amazon Sagemaker、AMD、FastChat、vLLM、LMDeploy 等），并使得 Falcon‑180B 可在单张 H200 GPU 上部署。
 
 ## 2 相关工作
 
 ### 2.1 模型量化方法
 
-量化通过降低深度学习模型的比特精度来减少模型大小并加速推理（Han et al., 2016; Jacob et al., 2018; Nagel et al., 2019; Wang et al., 2019; Nagel et al., 2020; Lin et al., 2020）。量化技术通常分为两类：
+量化通过降低深度学习模型的比特精度来减少模型大小并加速推理。量化技术通常分为两类：
 
-（1）量化感知训练（QAT）：依赖反向传播更新量化权重（Bengio et al., 2013; Gholami et al., 2021; Nagel et al., 2021; Choi et al., 2018）。QAT 往往难以扩展到 LLM。
+（1）量化感知训练（QAT）：依赖反向传播更新量化权重。QAT 往往难以扩展到 LLM。
 
-（2）后训练量化（PTQ）：通常无需训练（Jacob et al., 2018; Nagel et al., 2019; 2020）。因此，人们通常采用 PTQ 量化 LLM。
+（2）后训练量化（PTQ）：通常无需训练。因此，人们通常采用 PTQ 量化 LLM。
 
 ### 2.2 LLM 量化
 
 LLM 量化常见两种设置：
 
-（1）W8A8：激活与权重都量化到 INT8（Dettmers et al., 2022; Xiao et al., 2022; Yao et al., 2022; Wei et al., 2022a; 2023）；
+（1）W8A8：激活与权重都量化到 INT8；
 
-（2）低比特仅权重量化：例如 W4A16，仅将权重量化为低比特整数（Frantar et al., 2022; Dettmers & Zettlemoyer, 2022; Sheng et al., 2023; Park et al., 2022）。
+（2）低比特仅权重量化：例如 W4A16，仅将权重量化为低比特整数。
 
-本文关注第二类设置，因为它既能降低硬件门槛（需要更小显存），也能加速 token 生成（缓解 memory‑bound 工作负载）。除基础的 round‑to‑nearest（RTN）外，GPTQ（Frantar et al., 2022）与本文最为接近。但 GPTQ 的重建过程会对校准集过拟合，可能无法保持 LLM 在其他模态与领域的通用能力；此外，它在一些模型上还需要“重排（reordering）”技巧才能工作（如 LLaMA‑7B 与 OPT‑66B）。除面向通用硬件的量化外，SpAtten（Wang et al., 2020）提出在 softmax 计算中逐步增加比特数的渐进方法。
+本文关注第二类设置，因为它既能降低硬件门槛（需要更小显存），也能加速 token 生成（缓解 memory‑bound 工作负载）。除基础的 round‑to‑nearest（RTN）外，GPTQ 与本文最为接近。但 GPTQ 的重建过程会对校准集过拟合，可能无法保持 LLM 在其他模态与领域的通用能力；此外，它在一些模型上还需要“重排（reordering）”技巧才能工作（如 LLaMA‑7B 与 OPT‑66B）。除面向通用硬件的量化外，SpAtten 提出在 softmax 计算中逐步增加比特数的渐进方法。
 
 ### 2.3 低比特 LLM 的系统支持
 
-低比特量化 LLM 已是降低推理成本的热门方向，系统层面的支持对于实际加速同样关键。GPTQ 提供针对 OPT 的 INT3 kernel；GPTQ‑for‑LLaMA 在 Triton（Tillet et al., 2019）帮助下扩展到 INT4 “重排量化” kernel。FlexGen（Sheng et al., 2023）、`llama.cpp`（<https://github.com/ggerganov/llama.cpp>）与 `exllama`（<https://github.com/turboderp/exllama>）进行 group‑wise INT4 量化以降低 I/O 成本与 offloading。FasterTransformer 支持 FP16×INT4 GEMM 的 per‑tensor 权重量化，但不支持 group 量化。LUT‑GEMM（Park et al., 2022）使用查找表在 CUDA core 上进行按位计算。与本文同期的 MLC‑LLM（MLC‑Team, 2023）借助 TVM（Chen et al., 2018; Feng et al., 2023）后端在多种端侧 CPU/GPU 平台上也取得了强结果。
+低比特量化 LLM 已是降低推理成本的热门方向，系统层面的支持对于实际加速同样关键。GPTQ 提供针对 OPT 的 INT3 kernel；GPTQ‑for‑LLaMA 在 Triton 帮助下扩展到 INT4 “重排量化” kernel。FlexGen、`llama.cpp`（<https://github.com/ggerganov/llama.cpp>）与 `exllama`（<https://github.com/turboderp/exllama>）进行 group‑wise INT4 量化以降低 I/O 成本与 offloading。FasterTransformer 支持 FP16×INT4 GEMM 的 per‑tensor 权重量化，但不支持 group 量化。LUT‑GEMM 使用查找表在 CUDA core 上进行按位计算。与本文同期的 MLC‑LLM（MLC‑Team, 2023）借助 TVM 后端在多种端侧 CPU/GPU 平台上也取得了强结果。
 
 ## 3 AWQ：激活感知权重量化
 
-量化将浮点数映射为低比特整数，是减少 LLM 模型大小与推理成本的有效手段（Dettmers et al., 2022; Frantar et al., 2022; Yao et al., 2022; Xiao et al., 2022）。本节先提出一种无需训练/回归、通过保护更“重要”权重来提升仅权重量化精度的方法；随后给出一种数据驱动的搜索策略，以降低量化误差（见图 2）。
+量化将浮点数映射为低比特整数，是减少 LLM 模型大小与推理成本的有效手段。本节先提出一种无需训练/回归、通过保护更“重要”权重来提升仅权重量化精度的方法；随后给出一种数据驱动的搜索策略，以降低量化误差（见图 2）。
 
 ![](/images/others/awq-llm-activation-aware-weight-quantization/2f722dca-4210-81a9-abb6-c7a19f08f9c9.png)
 
@@ -68,7 +66,7 @@ LLM 量化常见两种设置：
 
 ### 3.1 通过保留 1% 显著权重改进 LLM 量化
 
-我们观察到 LLM 的权重并非同等重要：存在极少量显著权重，它们对模型性能更关键。跳过这些显著权重的量化无需任何训练或回归，即可弥补量化损失带来的性能下降（见图 2(b)）。为验证这一点，我们在表 1 中评估了：对 INT3 量化模型，保留一定比例的权重通道为 FP16（其余通道仍量化）对性能的影响。常见的权重重要性度量是权重幅值或 L2 范数（Han et al., 2015; Frankle & Carbin, 2018）。但我们发现，按权重范数选择通道（表 1“基于 W 的 FP16%”）几乎无法显著改善量化性能，与随机选择接近。相反，按激活幅值选择通道，即使仅保留 0.1%–1% 的通道为 FP16，也能显著提升性能。我们推测：幅值更大的输入特征通常更重要；保留与之对应的权重为 FP16 有助于保留这些特征，从而提升整体性能。
+我们观察到 LLM 的权重并非同等重要：存在极少量显著权重，它们对模型性能更关键。跳过这些显著权重的量化无需任何训练或回归，即可弥补量化损失带来的性能下降（见图 2(b)）。为验证这一点，我们在表 1 中评估了：对 INT3 量化模型，保留一定比例的权重通道为 FP16（其余通道仍量化）对性能的影响。常见的权重重要性度量是权重幅值或 L2 范数。但我们发现，按权重范数选择通道（表 1“基于 W 的 FP16%”）几乎无法显著改善量化性能，与随机选择接近。相反，按激活幅值选择通道，即使仅保留 0.1%–1% 的通道为 FP16，也能显著提升性能。我们推测：幅值更大的输入特征通常更重要；保留与之对应的权重为 FP16 有助于保留这些特征，从而提升整体性能。
 
 **局限性。** 尽管保留 0.1% 的权重为 FP16 在总比特数上几乎不增加模型大小，但混合精度数据类型会使系统实现困难。因此需要一种方法：在不实际保留 FP16 的情况下保护重要权重。
 
@@ -88,17 +86,11 @@ LLM 量化常见两种设置：
 
 考虑一组/块权重
 
-$w$
+$w$，线性运算为
 
-，线性运算为
+$y=wx$，量化后的对应为
 
-$y=wx$
-
-，量化后的对应为
-
-$y=Q(w)x$
-
-。量化函数定义为：
+$y=Q(w)x$。量化函数定义为：
 
 $$
 Q(w)=\Delta \cdot \mathrm{Round}\!\left(\frac{w}{\Delta}\right),\qquad
@@ -116,9 +108,7 @@ $\Delta$
 
 为由绝对最大值确定的量化尺度（scale）。考虑某个权重元素
 
-$w\in w$
-
-，若将其乘以
+$w\in w$，若将其乘以
 
 $s>1$
 
@@ -128,9 +118,7 @@ $x$
 
 进行反向缩放，则得到
 
-$Q(w\cdot s)(x/s)$
-
-：
+$Q(w\cdot s)(x/s)$：
 
 $$
 Q(w\cdot s)\cdot\frac{x}{s}
@@ -152,17 +140,13 @@ $\mathrm{Round}(\cdot)$
 
 的期望误差（记为
 
-$\mathrm{RoundErr}(\cdot)$
-
-）近似不变，可视作在
+$\mathrm{RoundErr}(\cdot)$）近似不变，可视作在
 
 $[0,0.5]$
 
 上均匀分布，平均误差约 0.25；（2）放大单个元素通常不会改变该组的最大值，因此
 
-$\Delta'\approx \Delta$
-
-；（3）
+$\Delta'\approx \Delta$；（3）
 
 $\Delta$
 
@@ -192,9 +176,7 @@ $s>1$
 
 时，误差相对比例约为
 
-$\frac{\Delta'}{\Delta}\cdot\frac{1}{s}\approx \frac{1}{s}$
-
-，因此显著权重的相对误差更小。
+$\frac{\Delta'}{\Delta}\cdot\frac{1}{s}\approx \frac{1}{s}$，因此显著权重的相对误差更小。
 
 为验证该想法，我们将 OPT‑6.7B 中 1% 的显著通道乘以 $s>1$，并统计每个 group 的 $\Delta$ 变化（表 2）。缩放显著通道非常有效：困惑度从 $s=1$（即 RTN）时的 23.54 提升到 $s=2$ 时的 11.92。随着 $s$ 增大，$\Delta$ 发生改变的比例增大，显著通道的误差下降也更明显；但 $s$ 过大时会增加非显著通道的误差（当 $\Delta$ 增大时，非显著通道的误差会被放大），从而损害整体精度。因此保护显著通道时也必须兼顾非显著通道。
 
@@ -211,9 +193,7 @@ $\frac{\Delta'}{\Delta}\cdot\frac{1}{s}\approx \frac{1}{s}$
 
 为同时考虑显著与非显著权重，我们对每个（输入）通道搜索一个缩放因子
 
-$s$
-
-，使得量化后输出与原输出的差异最小：
+$s$，使得量化后输出与原输出的差异最小：
 
 $$
 s^\*=\arg\min_s L(s)
@@ -244,11 +224,11 @@ $s$
 
 $\mathrm{diag}(s)^{-1}\cdot X$
 
-通常可融合到前一算子中（Wei et al., 2022b; Xiao et al., 2022）。由于
+通常可融合到前一算子中。由于
 
 $Q(\cdot)$
 
-不可微，无法用标准反向传播直接优化；基于近似梯度的方法（Bengio et al., 2013; Esser et al., 2019）也可能出现不稳定收敛。我们进一步分析影响缩放选择的因素，从而定义更稳定的搜索空间。由于通道显著性由激活尺度决定（“activation-awareness”），我们使用如下形式：
+不可微，无法用标准反向传播直接优化；基于近似梯度的方法也可能出现不稳定收敛。我们进一步分析影响缩放选择的因素，从而定义更稳定的搜索空间。由于通道显著性由激活尺度决定（“activation-awareness”），我们使用如下形式：
 
 $$
 s=s_X^\alpha,\qquad
@@ -270,9 +250,7 @@ $[0,1]$
 
 上做快速网格搜索（网格大小 20）选择最优
 
-$\alpha$
-
-：0 表示不缩放，1 表示搜索空间中最激进的缩放。我们还结合权重裁剪（clipping）以最小化量化 MSE。表 3 给出了在 OPT、INT3‑g128 下的消融：AWQ 持续优于 RTN，并在硬件友好性更强的同时，达到与“1% FP16 混合精度”相近的精度。
+$\alpha$：0 表示不缩放，1 表示搜索空间中最激进的缩放。我们还结合权重裁剪（clipping）以最小化量化 MSE。表 3 给出了在 OPT、INT3‑g128 下的消融：AWQ 持续优于 RTN，并在硬件友好性更强的同时，达到与“1% FP16 混合精度”相近的精度。
 
 **表 3：AWQ 通过缩放保护显著权重并降低量化误差（OPT，INT3‑g128）**
 
@@ -284,17 +262,17 @@ $\alpha$
 | 仅缩放 $s=2$        | 18.63     | 14.94     | 11.92     | 10.80     | 10.32    |
 | **AWQ**             | **16.32** | **13.58** | **11.39** | **10.56** | **9.77** |
 
-**优势。** AWQ 不依赖回归（Frantar et al., 2022）或反向传播，这是许多 QAT 方法所必需的；对校准集依赖极小（仅测量逐通道平均幅值），从而降低过拟合风险（图 8）。因此 AWQ 量化所需数据更少，并能更好保留校准分布之外的知识（见第 5.3 节）。
+**优势。** AWQ 不依赖回归或反向传播，这是许多 QAT 方法所必需的；对校准集依赖极小（仅测量逐通道平均幅值），从而降低过拟合风险（图 8）。因此 AWQ 量化所需数据更少，并能更好保留校准分布之外的知识（见第 5.3 节）。
 
 ## 4 TinyChat：将 AWQ 映射到端侧平台
 
-AWQ 能显著缩小 LLM 规模，但将 W4A16 的理论显存收益转化为实际速度提升并非易事。诸如 SmoothQuant（Xiao et al., 2022）的 W8A8 量化在存储与计算上使用相同精度，反量化可自然集成到 kernel 的 epilogue；而 W4A16 使用不同数据类型进行访存与计算，因此必须将反量化嵌入主计算循环以获得最佳性能，带来实现挑战。
+AWQ 能显著缩小 LLM 规模，但将 W4A16 的理论显存收益转化为实际速度提升并非易事。诸如 SmoothQuant 的 W8A8 量化在存储与计算上使用相同精度，反量化可自然集成到 kernel 的 epilogue；而 W4A16 使用不同数据类型进行访存与计算，因此必须将反量化嵌入主计算循环以获得最佳性能，带来实现挑战。
 
 为此，我们提出 TinyChat：一个轻量系统，用于 AWQ 模型推理。其前端基于 PyTorch，后端利用设备特定指令集（如 CUDA/PTX、Neon、AVX）。
 
 ### 4.1 为什么 AWQ 有助于加速端侧 LLM
 
-为理解端侧量化 LLM 的加速机会，我们以 LLaMA‑7B（Touvron et al., 2023a）在 RTX 4090 上进行剖析（batch size=1，FP16，FasterTransformer）。
+为理解端侧量化 LLM 的加速机会，我们以 LLaMA‑7B 在 RTX 4090 上进行剖析（batch size=1，FP16，FasterTransformer）。
 
 **上下文阶段 vs 生成阶段延迟。** 如图 3(a)，生成 20 个 token 需 310ms，而处理含 200 token 的 prompt 仅需 10ms。端侧交互应用中，生成阶段通常比上下文阶段慢得多。
 
@@ -312,7 +290,7 @@ AWQ 能显著缩小 LLM 规模，但将 W4A16 的理论显存收益转化为实�
 
 **On-the-fly 权重反量化。** 由于硬件通常不提供 INT4×FP16 的乘法指令，量化层需要先将 INT4 权重反量化到 FP16 再做矩阵计算。TinyChat 将反量化与矩阵乘（MM/MV）融合，避免将反量化后的权重写回 DRAM，从而减少中间访存。
 
-**SIMD 感知权重打包。** 尽管融合反量化减少了中间 DRAM 访问，但反量化本身仍昂贵：反量化一个 4-bit 权重通常需要一次 shift、一次 bitwise AND、一次 FMA 缩放，而该权重在计算中仅参与一次 FMA。对偏好向量化的 SIMD CPU 更为不利。我们提出按设备 SIMD 寄存器位宽进行平台特定打包。图 4 展示 ARM NEON（128-bit SIMD）策略：每个寄存器容纳 32 个 4-bit 权重，并按 w0, w16, w1, w17, …, w15, w31 排列，使得运行时可用少量 SIMD 指令（AND/shift）解包全部 32 个权重，相对传统打包可达 1.2× 加速。一般而言，对 $2^n$‑bit SIMD 寄存器，相邻权重索引差约为 $(1/8)\cdot 2^n$。GPU 侧，我们发现更高效的打包方式是将每 8 个权重打包为 w{0,2,4,6,1,3,5,7}（Kim et al., 2022）。
+**SIMD 感知权重打包。** 尽管融合反量化减少了中间 DRAM 访问，但反量化本身仍昂贵：反量化一个 4-bit 权重通常需要一次 shift、一次 bitwise AND、一次 FMA 缩放，而该权重在计算中仅参与一次 FMA。对偏好向量化的 SIMD CPU 更为不利。我们提出按设备 SIMD 寄存器位宽进行平台特定打包。图 4 展示 ARM NEON（128-bit SIMD）策略：每个寄存器容纳 32 个 4-bit 权重，并按 w0, w16, w1, w17, …, w15, w31 排列，使得运行时可用少量 SIMD 指令（AND/shift）解包全部 32 个权重，相对传统打包可达 1.2× 加速。一般而言，对 $2^n$‑bit SIMD 寄存器，相邻权重索引差约为 $(1/8)\cdot 2^n$。GPU 侧，我们发现更高效的打包方式是将每 8 个权重打包为 w{0,2,4,6,1,3,5,7}。
 
 **Kernel 融合。** TinyChat 广泛应用 kernel 融合优化端侧推理：LayerNorm 将乘除与开方等操作融合为单 kernel；注意力层将 QKV 投影融合为单 kernel，并在注意力 kernel 内进行位置编码计算、KV cache 预分配与更新等。对一些前向实现效率较低的模型（如 Falcon 与 StarCoder）尤为有效。值得注意的是，在 4090 上单个 FP16 kernel 的计算时长可低至 0.01ms，与 kernel 启动开销同量级；因此减少 kernel 调用次数能直接带来速度提升。
 
@@ -324,13 +302,13 @@ _图 4：面向 ARM NEON（128-bit SIMD） 的 SIMD 感知权重打包：离线�
 
 ### 5.1 设置
 
-**量化设置。** 本文聚焦仅权重的 group 量化。此前工作表明 group 量化有助于改善精度/模型大小权衡（Dettmers & Zettlemoyer, 2022; Frantar et al., 2022）。除非另有说明，我们统一使用 group size=128，并关注 INT4/INT3 设置，因为它们能在多数情况下保持 LLM 性能（Dettmers & Zettlemoyer, 2022）。AWQ 的校准集从 The Pile（Gao et al., 2020）中采样，以避免对特定下游任务过拟合；我们使用网格大小 20 搜索式(5)中的最优 $\alpha$。
+**量化设置。** 本文聚焦仅权重的 group 量化。此前工作表明 group 量化有助于改善精度/模型大小权衡。除非另有说明，我们统一使用 group size=128，并关注 INT4/INT3 设置，因为它们能在多数情况下保持 LLM 性能。AWQ 的校准集从 The Pile 中采样，以避免对特定下游任务过拟合；我们使用网格大小 20 搜索式(5)中的最优 $\alpha$。
 
 **模型。** 我们在 LLaMA 与 OPT 家族上评测，并在 Vicuna、OpenFlamingo‑9B 与 LLaVA‑13B 等指令微调与多模态模型上验证泛化能力。
 
-**评测。** 参考既有文献，我们主要在语言建模任务上评测量化模型（WikiText‑2 困惑度），因为困惑度可稳定反映 LLM 性能（Dettmers & Zettlemoyer, 2022）。
+**评测。** 参考既有文献，我们主要在语言建模任务上评测量化模型（WikiText‑2 困惑度），因为困惑度可稳定反映 LLM 性能。
 
-**基线。** 主要基线为 RTN；在 group size=128 下它本身已很强（Frantar et al., 2022; Dettmers & Zettlemoyer, 2022）。我们也对比 GPTQ（Frantar et al., 2022）及其带“重排技巧”的更新版本 GPTQ‑R。其他依赖反向传播更新量化权重的方法（如 AdaRound、BRECQ）不易扩展到大模型，且通常不优于 GPTQ，因此不纳入比较。
+**基线。** 主要基线为 RTN；在 group size=128 下它本身已很强。我们也对比 GPTQ 及其带“重排技巧”的更新版本 GPTQ‑R。其他依赖反向传播更新量化权重的方法（如 AdaRound、BRECQ）不易扩展到大模型，且通常不优于 GPTQ，因此不纳入比较。
 
 ### 5.2 评测结果
 
@@ -366,7 +344,7 @@ _图 4：面向 ARM NEON（128-bit SIMD） 的 SIMD 感知权重打包：离线�
 
 #### 指令微调模型量化
 
-指令微调能显著提升模型可用性（Wei et al., 2021; Sanh et al., 2021; Ouyang et al., 2022; Chung et al., 2022）。我们在 Vicuna（Chiang et al., 2023）上用 GPT‑4 评测协议对比量化模型与 FP16（80 个问题，考虑输入顺序，合计 160 次试验）。如图 5，AWQ 在 7B 与 13B 上均能相对 RTN/GPTQ 改善 INT3‑g128 的表现，体现出对指令微调模型的泛化。
+指令微调能显著提升模型可用性。我们在 Vicuna 上用 GPT‑4 评测协议对比量化模型与 FP16（80 个问题，考虑输入顺序，合计 160 次试验）。如图 5，AWQ 在 7B 与 13B 上均能相对 RTN/GPTQ 改善 INT3‑g128 的表现，体现出对指令微调模型的泛化。
 
 ![](/images/others/awq-llm-activation-aware-weight-quantization/2f722dca-4210-81a8-a2c2-cbb798fbfb80.png)
 
@@ -374,7 +352,7 @@ _图 5：按 GPT‑4 评测协议比较 INT3‑g128 量化 Vicuna 与 FP16（更
 
 #### 多模态模型量化
 
-大型多模态/视觉语言模型（VLM）可基于图像/视频条件生成文本（Alayrac et al., 2022; Li et al., 2023b; Koh et al., 2023; Driess et al., 2023; Zhang et al., 2023; Liu et al., 2023a）。由于 AWQ 不易对校准集过拟合，可直接用于 VLM 量化。我们在 OpenFlamingo‑9B（仅量化语言部分）上评测 COCO Captioning（Chen et al., 2015），在不同 few‑shot 设置下统计 5k 样本的平均性能（表 6）。AWQ 在 zero‑shot 与 various few‑shot 设置下均优于 RTN/GPTQ，将 32‑shot 下的退化从 4.57 降至 1.17（INT4‑g128），在 4× 模型压缩下几乎无损。我们还在 VILA 上评测 11 个视觉语言基准（表 7），展示“无损量化”。
+大型多模态/视觉语言模型（VLM）可基于图像/视频条件生成文本。由于 AWQ 不易对校准集过拟合，可直接用于 VLM 量化。我们在 OpenFlamingo‑9B（仅量化语言部分）上评测 COCO Captioning，在不同 few‑shot 设置下统计 5k 样本的平均性能（表 6）。AWQ 在 zero‑shot 与 various few‑shot 设置下均优于 RTN/GPTQ，将 32‑shot 下的退化从 4.57 降至 1.17（INT4‑g128），在 4× 模型压缩下几乎无损。我们还在 VILA 上评测 11 个视觉语言基准（表 7），展示“无损量化”。
 
 **表 6：OpenFlamingo‑9B 在 COCO Captioning 上的 CIDEr↑（不同 in‑context shots）**
 
@@ -413,7 +391,7 @@ _图 7：OpenFlamingo‑9B 在 COCO captioning（4‑shot, INT4‑g128）上的�
 
 #### 编程与数学任务
 
-为评估复杂生成任务，我们在 MBPP（Austin et al., 2021）与 GSM8K（Cobbe et al., 2021）上测试 AWQ。表 8 显示：在 CodeLlama‑7B‑Instruct‑hf（MBPP）与 Llama‑2（GSM8K）上，AWQ 优于 RTN 与 GPTQ；在 INT4‑g128 下，AWQ 与原 FP16 性能几乎一致。
+为评估复杂生成任务，我们在 MBPP 与 GSM8K 上测试 AWQ。表 8 显示：在 CodeLlama‑7B‑Instruct‑hf（MBPP）与 Llama‑2（GSM8K）上，AWQ 优于 RTN 与 GPTQ；在 INT4‑g128 下，AWQ 与原 FP16 性能几乎一致。
 
 **表 8：INT4‑g128 下的 MBPP / GSM8K 结果**
 
