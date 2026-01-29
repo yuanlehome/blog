@@ -12,6 +12,7 @@
     "src/content/blog/*/**",
     "public/images/*/**",
     "README.md",
-    "tests/fixtures"
+    "tests/fixtures",
+    "test-results/**"
   ]
 }
