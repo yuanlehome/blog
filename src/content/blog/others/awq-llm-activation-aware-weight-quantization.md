@@ -2,22 +2,19 @@
 title: AWQ：面向端侧 LLM 压缩与加速的激活感知权重量化（Activation-aware Weight Quantization）
 slug: awq-llm-activation-aware-weight-quantization
 date: '2026-01-29'
-tags: []
+tags: ['Quantization', 'paper']
 status: published
 cover: >-
-  /images/notion/awq-llm-activation-aware-weight-quantization/2f722dca-4210-81e8-a731-d27136536435.png
+  /images/others/awq-llm-activation-aware-weight-quantization/2f722dca-4210-81e8-a731-d27136536435.png
 lastEditedTime: '2026-01-29T13:13:00.000Z'
 updated: '2026-01-29T13:13:00.000Z'
-source: notion
-notion:
-  id: 2f722dca-4210-811f-a098-eeae84f71795
 ---
 
 ## 摘要
 
 大型语言模型（LLM）已经改变了众多 AI 应用。端侧（on-device）LLM 变得愈发重要：在边缘设备本地运行 LLM 可以降低云端计算成本并保护用户隐私。然而，天文量级的模型规模与受限的硬件资源给部署带来显著挑战。我们提出**激活感知权重量化**（Activation-aware Weight Quantization, **AWQ**），一种面向硬件友好的 LLM 低比特**仅权重**量化方法。AWQ 的核心发现是：LLM 中并非所有权重同等重要——仅保护约 **1%** 的“显著（salient）”权重即可大幅降低量化误差。为识别显著权重通道，应参考**激活（activation）分布**而非权重本身。为避免硬件上低效的混合精度量化，我们从数学上推导出：放大显著通道能够降低量化误差。AWQ 采用一个等价变换对显著权重通道进行缩放以实现“保护”，缩放因子通过离线收集激活统计得到。AWQ 不依赖反向传播或重建，因此不会对校准集过拟合，能泛化到不同领域与模态。AWQ 在多种语言建模与领域基准（代码与数学）上优于现有工作。得益于更强泛化能力，AWQ 在指令微调语言模型上也能获得优异的量化效果，并且首次在多模态语言模型上实现良好量化表现。与 AWQ 同时，我们实现了 **TinyChat**：一个面向 4-bit 端侧 LLM/VLM 的高效、灵活推理框架。借助 kernel 融合与平台感知的权重打包（weight packing），TinyChat 在桌面与移动 GPU 上相对 HuggingFace 的 FP16 实现可获得 **3× 以上**速度提升，并使得在移动 GPU 上部署 70B Llama‑2 模型成为可能。
 
-![](/images/notion/awq-llm-activation-aware-weight-quantization/2f722dca-4210-81e8-a731-d27136536435.png)
+![](/images/others/awq-llm-activation-aware-weight-quantization/2f722dca-4210-81e8-a731-d27136536435.png)
 
 图1：我们提出 AWQ（通用的 LLM 权重量化方法），并开发 TinyChat 将 4-bit 量化 LLM 部署到多种端侧平台，在桌面与移动 GPU 上相较 FP16 获得 3–4× 性能提升；同时我们还制造了一台 TinyChat 计算机（NVIDIA Jetson Orin Nano，8GB 显存，15W）。Demo：<https://youtu.be/z91a8DrfgEw>
 
@@ -63,7 +60,7 @@ LLM 量化常见两种设置：
 
 量化将浮点数映射为低比特整数，是减少 LLM 模型大小与推理成本的有效手段（Dettmers et al., 2022; Frantar et al., 2022; Yao et al., 2022; Xiao et al., 2022）。本节先提出一种无需训练/回归、通过保护更“重要”权重来提升仅权重量化精度的方法；随后给出一种数据驱动的搜索策略，以降低量化误差（见图2）。
 
-![](/images/notion/awq-llm-activation-aware-weight-quantization/2f722dca-4210-81a9-abb6-c7a19f08f9c9.png)
+![](/images/others/awq-llm-activation-aware-weight-quantization/2f722dca-4210-81a9-abb6-c7a19f08f9c9.png)
 
 图2：我们观察到可以基于激活分布找到 LLM 中约 1% 的显著权重（中）。将这些显著权重保持为 FP16 能显著提升量化性能（PPL 从 43.2 降到 13.0），但混合精度不利于硬件实现。AWQ（右）通过逐通道缩放在全权重量化下保护显著权重并降低量化误差。这里测量的是 OPT‑6.7B 在 INT3‑g128 下的困惑度（perplexity）。
 
@@ -303,7 +300,7 @@ AWQ 能显著缩小 LLM 规模，但将 W4A16 的理论显存收益转化为实�
 
 **权重访问主导内存流量。** 如图3(c)，权重访问的内存开销比激活访问高出数个数量级，因此仅权重量化对端侧 LLM 更有效。将权重量化为 4 bit 整数可将算术强度提升到约 4 FLOPs/Byte，对应约 4 TFLOPS 的上界（图3(b)）。
 
-![](/images/notion/awq-llm-activation-aware-weight-quantization/2f722dca-4210-8164-95d4-f994b38664d5.png)
+![](/images/others/awq-llm-activation-aware-weight-quantization/2f722dca-4210-8164-95d4-f994b38664d5.png)
 
 图3：RTX 4090 上 Llama‑2‑7B 的瓶颈分析。（a）端侧应用中生成阶段远慢于上下文阶段；（b）生成阶段算术强度低且受带宽限制，W4A16 可将算术强度提升 4×；（c）权重加载远比激活加载昂贵，因此仅权重量化对端侧 LLM 更有效。
 
@@ -317,7 +314,7 @@ AWQ 能显著缩小 LLM 规模，但将 W4A16 的理论显存收益转化为实�
 
 **Kernel 融合。** TinyChat 广泛应用 kernel 融合优化端侧推理：LayerNorm 将乘除与开方等操作融合为单 kernel；注意力层将 QKV 投影融合为单 kernel，并在注意力 kernel 内进行位置编码计算、KV cache 预分配与更新等。对一些前向实现效率较低的模型（如 Falcon 与 StarCoder）尤为有效。值得注意的是，在 4090 上单个 FP16 kernel 的计算时长可低至 0.01ms，与 kernel 启动开销同量级；因此减少 kernel 调用次数能直接带来速度提升。
 
-![](/images/notion/awq-llm-activation-aware-weight-quantization/2f722dca-4210-8190-96dd-e9dc9ba11fd9.png)
+![](/images/others/awq-llm-activation-aware-weight-quantization/2f722dca-4210-8190-96dd-e9dc9ba11fd9.png)
 
 _图4：面向 ARM NEON（128-bit SIMD） 的 SIMD 感知权重打包：离线对权重重排并按位宽打包，使运行时仅用少量 SIMD 位运算（AND/shift）与 mask 即可解包到字节序列，从而加速反量化与计算。_
 
@@ -369,7 +366,7 @@ _图4：面向 ARM NEON（128-bit SIMD） 的 SIMD 感知权重打包：离线�
 
 指令微调能显著提升模型可用性（Wei et al., 2021; Sanh et al., 2021; Ouyang et al., 2022; Chung et al., 2022）。我们在 Vicuna（Chiang et al., 2023）上用 GPT‑4 评测协议对比量化模型与 FP16（80 个问题，考虑输入顺序，合计 160 次试验）。如图5，AWQ 在 7B 与 13B 上均能相对 RTN/GPTQ 改善 INT3‑g128 的表现，体现出对指令微调模型的泛化。
 
-![](/images/notion/awq-llm-activation-aware-weight-quantization/2f722dca-4210-81a8-a2c2-cbb798fbfb80.png)
+![](/images/others/awq-llm-activation-aware-weight-quantization/2f722dca-4210-81a8-a2c2-cbb798fbfb80.png)
 
 _图5：按 GPT‑4 评测协议比较 INT3‑g128 量化 Vicuna 与 FP16（更多“胜”表示更好）。AWQ 在 7B/13B 上均优于 RTN 与 GPTQ。_
 
@@ -404,11 +401,11 @@ _图5：按 GPT‑4 评测协议比较 INT3‑g128 量化 Vicuna 与 FP16（更�
 
 图6给出 LLaVA‑13B 的视觉推理示例：AWQ 相对 RTN 能给出更合理的回答。图7展示 OpenFlamingo‑9B 在 COCO captioning（4‑shot, INT4‑g128）上的定性结果：AWQ 明显改善 caption 质量。原论文用颜色标注正确/错误文本，这里仅保留图示。
 
-![](/images/notion/awq-llm-activation-aware-weight-quantization/2f722dca-4210-81ed-912b-ed21896f5bad.png)
+![](/images/others/awq-llm-activation-aware-weight-quantization/2f722dca-4210-81ed-912b-ed21896f5bad.png)
 
 _图6：LLaVA‑13B 的视觉推理示例。AWQ（INT4‑g128）相对 RTN 给出更合理回答。_
 
-![](/images/notion/awq-llm-activation-aware-weight-quantization/2f722dca-4210-8146-a1b9-e235dfc39e45.png)
+![](/images/others/awq-llm-activation-aware-weight-quantization/2f722dca-4210-8146-a1b9-e235dfc39e45.png)
 
 _图7：OpenFlamingo‑9B 在 COCO captioning（4‑shot, INT4‑g128）上的定性对比。AWQ 显著改善 caption 质量。_
 
@@ -445,7 +442,7 @@ _图7：OpenFlamingo‑9B 在 COCO captioning（4‑shot, INT4‑g128）上的�
 
 **对校准分布更鲁棒。** 我们比较不同校准分布对量化性能的影响（图8(b)）。从 The Pile 选取 PubMed Abstracts 与 Enron Emails 两个子集，分别作为校准集并在两者上评测。总体上校准与评测分布一致最好；但当校准与评测分布不同时，AWQ 仅使困惑度上升 0.5–0.6，而 GPTQ 上升 2.3–4.9，说明 AWQ 更鲁棒。
 
-![](/images/notion/awq-llm-activation-aware-weight-quantization/2f722dca-4210-8143-a639-f4370eb733c8.png)
+![](/images/others/awq-llm-activation-aware-weight-quantization/2f722dca-4210-8143-a639-f4370eb733c8.png)
 
 _图8：左：AWQ 用更小校准集即可达到更好量化效果；右：当校准集分布与评测分布不一致时，AWQ 的困惑度增幅显著小于 GPTQ。_
 
@@ -455,7 +452,7 @@ _图8：左：AWQ 用更小校准集即可达到更好量化效果；右：当�
 
 结果如图9(a)：在 4090 上，TinyChat 相对 HuggingFace FP16 可在 Llama‑2、MPT、Falcon 上获得 2.7–3.9× 加速。以 Llama‑2‑7B 为例，我们通过 FP16 kernel 融合将速度从 52 提升到 62 tokens/s，并在此更强 FP16 基线上进一步获得 3.1× 的量化线性 kernel 加速。对于 Falcon‑7B，官方实现推理时 KV cache 支持不佳导致显著变慢，我们的 FP16 优化带来 1.6× 加速。在仅 8GB 显存的 RTX 4070 笔记本 GPU 上，我们仍能以 33 tokens/s 运行 Llama‑2‑13B，而 FP16 甚至无法容纳 7B。表10进一步给出 VILA 的加速结果：TinyChat 在 A100/4090/Orin 上对 VILA‑7B/13B 均带来约 3× 加速。
 
-![](/images/notion/awq-llm-activation-aware-weight-quantization/2f722dca-4210-8179-b303-c0bb2d104eb0.png)
+![](/images/others/awq-llm-activation-aware-weight-quantization/2f722dca-4210-8179-b303-c0bb2d104eb0.png)
 
 图9：TinyChat 将 W4A16 的理论显存降低转化为可度量的速度提升：在 4090 与 Orin 上分别可达 3.9× 与 3.5×（相对 HuggingFace FP16）。并使 8GB 笔记本 GPU 上部署 Llama‑2‑13B 成为可能。
 
@@ -472,7 +469,7 @@ _图8：左：AWQ 用更小校准集即可达到更好量化效果；右：当�
 
 我们在图10中将 TinyChat 与 AutoGPTQ、llama.cpp、exllama 对比：在 Jetson Orin 上运行 4-bit 量化 Llama 模型时，TinyChat 可提供 1.2–3.0× 加速；同时它支持更广泛的通用/代码类 LLM（如 StarCoder、StableCode、Mistral、Falcon），并对这些工作负载相对 AutoGPTQ 一致获得显著加速。TinyChat 也能在 Raspberry Pi 4B 等极度受限设备上运行，7B 模型约 0.7 tokens/s。
 
-![](/images/notion/awq-llm-activation-aware-weight-quantization/2f722dca-4210-81ac-a483-c390d8990048.png)
+![](/images/others/awq-llm-activation-aware-weight-quantization/2f722dca-4210-81ac-a483-c390d8990048.png)
 
 _图10：TinyChat 在 Jetson Orin 上相对现有系统的速度对比，并展示其在 Raspberry Pi 4 上的可用性。_
 
