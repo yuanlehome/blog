@@ -15,7 +15,7 @@
     "check": "astro check",
     "test": "vitest run --coverage",
     "test:watch": "vitest watch",
-    "test:e2e": "npm run build && PLAYWRIGHT_TEST_BASE_URL=http://127.0.0.1:4173/blog/ playwright test",
+    "test:e2e": "npx playwright install chromium && npm run build && PLAYWRIGHT_TEST_BASE_URL=http://127.0.0.1:4173/blog/ playwright test",
     "test:ci": "npm run check && npm run test && npm run test:e2e && npm run build",
     "ci": "npx playwright install --with-deps chromium && npm run test:ci",
     "format:check": "prettier --plugin=prettier-plugin-astro --check --write \"**/*.{md,astro,js,ts,jsx,tsx,json,yml,yaml,css,scss}\"",
