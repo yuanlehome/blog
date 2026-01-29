@@ -18,6 +18,17 @@ const ensureHashNavigation = async (page: any, tocSelector: string) => {
     .toBe(targetHash);
 };
 
+const navigateToHomePage = async (page: any) => {
+  await page.goto('/');
+  const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
+  if (await notFoundHeading.count()) {
+    const baseLink = page.locator('a[href="/blog/"]');
+    if (await baseLink.count()) {
+      await baseLink.first().click();
+    }
+  }
+};
+
 const openFirstPostWithToc = async (page: any) => {
   await page.goto('/');
   const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
@@ -208,6 +219,60 @@ test.describe('Blog smoke journey', () => {
 
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
     await context.close();
+  });
+
+  test('mobile header hides site title and shows only logo', async ({ browser }) => {
+    // Test mobile viewport (< sm breakpoint = 640px)
+    const mobileContext = await browser.newContext({ viewport: { width: 375, height: 812 } });
+    const mobilePage = await mobileContext.newPage();
+
+    await navigateToHomePage(mobilePage);
+
+    // Check site header exists
+    const header = mobilePage.locator('[data-header]');
+    await expect(header).toBeVisible();
+
+    // Check logo is visible
+    const logo = header.locator('a[href*="/"] img');
+    await expect(logo).toBeVisible();
+
+    // Check site title text is hidden on mobile (hidden sm:inline means hidden until sm breakpoint)
+    const brandText = header.locator('a[href*="/"] span.hidden.sm\\:inline');
+    await expect(brandText).toBeAttached(); // Element exists in DOM
+    await expect(brandText).toBeHidden(); // But is not visible
+
+    // Check navigation items are visible (Home link should be clickable)
+    const homeLink = header.locator('nav a', { hasText: 'Home' });
+    await expect(homeLink).toBeVisible();
+
+    // Verify no horizontal overflow on header
+    const [scrollWidth, clientWidth] = await mobilePage.evaluate(() => [
+      document.documentElement.scrollWidth,
+      document.documentElement.clientWidth,
+    ]);
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
+
+    await mobileContext.close();
+
+    // Test desktop viewport (≥ sm breakpoint = 640px)
+    const desktopContext = await browser.newContext({ viewport: { width: 1024, height: 768 } });
+    const desktopPage = await desktopContext.newPage();
+
+    await navigateToHomePage(desktopPage);
+
+    // Check site header exists
+    const desktopHeader = desktopPage.locator('[data-header]');
+    await expect(desktopHeader).toBeVisible();
+
+    // Check logo is visible
+    const desktopLogo = desktopHeader.locator('a[href*="/"] img');
+    await expect(desktopLogo).toBeVisible();
+
+    // Check site title text is visible on desktop
+    const desktopBrandText = desktopHeader.locator('a[href*="/"] span.hidden.sm\\:inline');
+    await expect(desktopBrandText).toBeVisible();
+
+    await desktopContext.close();
   });
 
   test('mobile toc navigates to heading', async ({ browser }) => {
