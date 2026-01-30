@@ -133,7 +133,7 @@
 
 **权限**：`contents: write`、`pull-requests: write`
 
-**Secrets**：`DEEPSEEK_API_KEY`（翻译可选）、`PADDLEOCR_VL_TOKEN`（PDF 导入可选）、`PADDLEOCR_VL_API_URL`（PDF 导入可选）
+**Secrets**：`DEEPSEEK_API_KEY`（翻译可选）、`PADDLEOCR_VL_TOKEN`（PDF 导入可选）、`PDF_OCR_API_URL` 或 `PADDLEOCR_VL_API_URL`（PDF 导入可选，前者优先）
 
 > **Scripts 参数详情** → [scripts/README.md](../scripts/README.md#22-content-importts)
 

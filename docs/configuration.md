@@ -136,8 +136,10 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com  # 可选
 # PDF 导入（可选，用于 import:content）
 PADDLEOCR_VL_TOKEN=your_token_here
 PDF_OCR_API_URL=https://xbe1mb28fa0dz7kb.aistudio-app.com/layout-parsing
+# 或使用旧变量名（PDF_OCR_API_URL 优先）
+# PADDLEOCR_VL_API_URL=https://xbe1mb28fa0dz7kb.aistudio-app.com/layout-parsing
 PDF_OCR_PROVIDER=paddleocr_vl  # paddleocr_vl（云端）或 local_mock（测试）
-PDF_OCR_FAIL_OPEN=0  # 1=启用失败回退模式
+PDF_OCR_FAIL_OPEN=0  # 1 或 true 启用，0 或 false 禁用失败回退模式
 PDF_MAX_MB=50  # PDF 文件最大大小（MB）
 
 # 站点配置（可选覆盖，通常不需要）

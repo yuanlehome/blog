@@ -23,8 +23,10 @@ PDF 导入功能可将任意 PDF 文档导入为博客文章，流程如下：
 # 必需 - PaddleOCR-VL API token
 PADDLEOCR_VL_TOKEN=your_token_here
 
-# 可选 - API URL（有默认值）
+# 可选 - API URL（有默认值，支持两种变量名，PDF_OCR_API_URL 优先）
 PDF_OCR_API_URL=https://xbe1mb28fa0dz7kb.aistudio-app.com/layout-parsing
+# 或使用旧变量名
+# PADDLEOCR_VL_API_URL=https://xbe1mb28fa0dz7kb.aistudio-app.com/layout-parsing
 
 # 可选 - PDF 文件大小限制（默认 50MB）
 PDF_MAX_MB=50
@@ -33,7 +35,7 @@ PDF_MAX_MB=50
 PDF_OCR_PROVIDER=paddleocr_vl  # paddleocr_vl（云端）或 local_mock（测试）
 
 # 可选 - 失败回退模式（默认关闭）
-PDF_OCR_FAIL_OPEN=0  # 1=启用，0=禁用
+PDF_OCR_FAIL_OPEN=1  # 1 或 true 启用，0 或 false 禁用
 
 # 可选 - 启用翻译
 MARKDOWN_TRANSLATE_ENABLED=1  # 1=启用，0=禁用
