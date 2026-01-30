@@ -112,13 +112,13 @@ scripts/
 
 **环境变量（PDF 导入，可选）**：
 
-| 变量名               | 默认值                                                           | 说明                                                                       |
-| -------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `PDF_OCR_PROVIDER`   | `paddleocr_vl`                                                   | OCR 提供商：`paddleocr_vl`（云端 API）或 `local_mock`（本地测试/离线模式） |
-| `PADDLEOCR_VL_TOKEN` | —                                                                | PaddleOCR-VL API token（仅当 `PDF_OCR_PROVIDER=paddleocr_vl` 时需要）      |
+| 变量名               | 默认值                                                             | 说明                                                                       |
+| -------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| `PDF_OCR_PROVIDER`   | `paddleocr_vl`                                                     | OCR 提供商：`paddleocr_vl`（云端 API）或 `local_mock`（本地测试/离线模式） |
+| `PADDLEOCR_VL_TOKEN` | —                                                                  | PaddleOCR-VL API token（仅当 `PDF_OCR_PROVIDER=paddleocr_vl` 时需要）      |
 | `PDF_OCR_API_URL`    | `https://xbe1mb28fa0dz7kb.aistudio-app.com/layout-parsing`（默认） | PaddleOCR-VL API URL（仅当 `PDF_OCR_PROVIDER=paddleocr_vl` 时需要）        |
-| `PDF_OCR_FAIL_OPEN`  | `false`                                                          | 启用失败回退模式（网络故障时生成占位内容）                                 |
-| `PDF_MAX_MB`         | `50`                                                             | PDF 文件最大大小（MB）                                                     |
+| `PDF_OCR_FAIL_OPEN`  | `false`                                                            | 启用失败回退模式（网络故障时生成占位内容）                                 |
+| `PDF_MAX_MB`         | `50`                                                               | PDF 文件最大大小（MB）                                                     |
 
 **PDF 导入说明**：
 
@@ -128,13 +128,13 @@ scripts/
 
 **支持的平台**：
 
-| 平台   | URL 模式                    | 输出目录                   |
-| ------ | --------------------------- | -------------------------- |
-| 知乎   | `zhuanlan.zhihu.com/p/*`    | `src/content/blog/zhihu/`  |
-| 微信   | `mp.weixin.qq.com/s/*`      | `src/content/blog/wechat/` |
-| Medium | `*.medium.com/*`            | `src/content/blog/medium/` |
+| 平台   | URL 模式                     | 输出目录                   |
+| ------ | ---------------------------- | -------------------------- |
+| 知乎   | `zhuanlan.zhihu.com/p/*`     | `src/content/blog/zhihu/`  |
+| 微信   | `mp.weixin.qq.com/s/*`       | `src/content/blog/wechat/` |
+| Medium | `*.medium.com/*`             | `src/content/blog/medium/` |
 | PDF    | `*.pdf` 或 `--forcePdf` 标志 | `src/content/blog/others/` |
-| 其他   | 任意 URL                    | `src/content/blog/others/` |
+| 其他   | 任意 URL                     | `src/content/blog/others/` |
 
 **使用示例**：
 

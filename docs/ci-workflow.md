@@ -11,17 +11,17 @@
 
 ## 一、Workflow 清单
 
-| Workflow 文件                | 职责                    | 触发条件                              |
-| ---------------------------- | ----------------------- | ------------------------------------- |
-| `validation.yml`             | 质量门禁（含烟测）       | PR → main / Push → main               |
-| `deploy.yml`                 | 构建并发布 GitHub Pages | Push → main / 手动                    |
-| `sync-notion.yml`            | 同步 Notion 内容        | 每日 00:00 UTC / 手动                 |
-| `import-content.yml`         | 导入外部文章/PDF        | 手动                                  |
-| `delete-article.yml`         | 删除文章                | 手动                                  |
-| `post-deploy-smoke-test.yml` | 部署后烟测              | `deploy.yml` 成功后                   |
+| Workflow 文件                | 职责                    | 触发条件                                   |
+| ---------------------------- | ----------------------- | ------------------------------------------ |
+| `validation.yml`             | 质量门禁（含烟测）      | PR → main / Push → main                    |
+| `deploy.yml`                 | 构建并发布 GitHub Pages | Push → main / 手动                         |
+| `sync-notion.yml`            | 同步 Notion 内容        | 每日 00:00 UTC / 手动                      |
+| `import-content.yml`         | 导入外部文章/PDF        | 手动                                       |
+| `delete-article.yml`         | 删除文章                | 手动                                       |
+| `post-deploy-smoke-test.yml` | 部署后烟测              | `deploy.yml` 成功后                        |
 | `link-check.yml`             | 链接有效性检查          | PR → main / Push → main / 每周一 03:00 UTC |
-| `pr-preview.yml`             | PR 预览站点             | PR 打开/同步/关闭                      |
-| `copilot-fix-posts.yml`      | Copilot 修复文章        | 手动                                  |
+| `pr-preview.yml`             | PR 预览站点             | PR 打开/同步/关闭                          |
+| `copilot-fix-posts.yml`      | Copilot 修复文章        | 手动                                       |
 
 ---
 
@@ -115,12 +115,12 @@
 | 参数                          | 类型    | 默认值     | 说明                                            |
 | ----------------------------- | ------- | ---------- | ----------------------------------------------- |
 | `url`                         | string  | —          | 必填，文章 URL（支持知乎/微信/Medium/PDF/其他） |
-| `allow_overwrite`             | boolean | `false`    | 覆盖已存在文章                                   |
-| `dry_run`                     | boolean | `false`    | 预览模式（不写入文件）                           |
-| `use_first_image_as_cover`    | boolean | `true`     | 首图作为封面                                     |
-| `force_pdf`                   | boolean | `false`    | 强制 PDF 导入（绕过受限域名如 arXiv）            |
-| `markdown_translate_enabled`  | boolean | `false`    | 启用翻译                                         |
-| `markdown_translate_provider` | choice  | `deepseek` | 翻译提供商（identity/deepseek）                  |
+| `allow_overwrite`             | boolean | `false`    | 覆盖已存在文章                                  |
+| `dry_run`                     | boolean | `false`    | 预览模式（不写入文件）                          |
+| `use_first_image_as_cover`    | boolean | `true`     | 首图作为封面                                    |
+| `force_pdf`                   | boolean | `false`    | 强制 PDF 导入（绕过受限域名如 arXiv）           |
+| `markdown_translate_enabled`  | boolean | `false`    | 启用翻译                                        |
+| `markdown_translate_provider` | choice  | `deepseek` | 翻译提供商（identity/deepseek）                 |
 
 **调用 Scripts**：`npm run import:content` → `scripts/content-import.ts`
 

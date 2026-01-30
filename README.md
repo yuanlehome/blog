@@ -119,16 +119,16 @@ blog/
 
 ## CI/CD
 
-| Workflow                     | 触发条件              | 职责              |
-| ---------------------------- | --------------------- | ----------------- |
+| Workflow                     | 触发条件              | 职责               |
+| ---------------------------- | --------------------- | ------------------ |
 | `validation.yml`             | PR / Push → main      | 质量门禁（含烟测） |
-| `deploy.yml`                 | Push → main / 手动    | 部署 GitHub Pages |
-| `sync-notion.yml`            | 每日 00:00 UTC / 手动 | 同步 Notion       |
-| `import-content.yml`         | 手动                  | 导入外部文章/PDF  |
-| `delete-article.yml`         | 手动                  | 删除文章          |
-| `post-deploy-smoke-test.yml` | 部署后                | 烟测              |
-| `link-check.yml`             | PR / Push / 每周一    | 链接有效性检查    |
-| `pr-preview.yml`             | PR 打开/同步/关闭     | PR 预览站点       |
+| `deploy.yml`                 | Push → main / 手动    | 部署 GitHub Pages  |
+| `sync-notion.yml`            | 每日 00:00 UTC / 手动 | 同步 Notion        |
+| `import-content.yml`         | 手动                  | 导入外部文章/PDF   |
+| `delete-article.yml`         | 手动                  | 删除文章           |
+| `post-deploy-smoke-test.yml` | 部署后                | 烟测               |
+| `link-check.yml`             | PR / Push / 每周一    | 链接有效性检查     |
+| `pr-preview.yml`             | PR 打开/同步/关闭     | PR 预览站点        |
 
 > **详细说明** → [docs/ci-workflow.md](docs/ci-workflow.md)
 
@@ -145,23 +145,23 @@ blog/
 ```yaml
 ---
 title: '文章标题'
-slug: article-slug  # URL 路径，自动生成或手动指定
-date: '2025-12-30'  # 发布日期 (YYYY-MM-DD)
-tags: ['标签1', '标签2']  # 标签列表（标签系统完全依赖此字段）
-status: published  # 或 draft
+slug: article-slug # URL 路径，自动生成或手动指定
+date: '2025-12-30' # 发布日期 (YYYY-MM-DD)
+tags: ['标签1', '标签2'] # 标签列表（标签系统完全依赖此字段）
+status: published # 或 draft
 ---
 ```
 
 **可选字段**：
 
 ```yaml
-cover: /images/folder/image.png  # 封面图（相对 public/ 路径）
-source_url: https://example.com  # 原文 URL
-source_author: 作者名  # 原文作者
-imported_at: '2025-12-30T10:00:00Z'  # 导入时间
-lang: zh  # 语言（zh/en）
-translatedFrom: en  # 翻译源语言
-comments: false  # 禁用评论（默认启用）
+cover: /images/folder/image.png # 封面图（相对 public/ 路径）
+source_url: https://example.com # 原文 URL
+source_author: 作者名 # 原文作者
+imported_at: '2025-12-30T10:00:00Z' # 导入时间
+lang: zh # 语言（zh/en）
+translatedFrom: en # 翻译源语言
+comments: false # 禁用评论（默认启用）
 ```
 
 ### 标签系统

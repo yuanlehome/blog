@@ -212,7 +212,7 @@ comments: false
 
 ```yaml
 colorMode:
-  default: 'dark'  # 或 'light' / 'system'
+  default: 'dark' # 或 'light' / 'system'
   allowToggle: true
 ```
 
