@@ -7,6 +7,7 @@
  * - Uses ResizeObserver to handle dynamic header height changes
  * - Fallback to window resize events for broader browser support
  * - Sets --site-header-height CSS variable on document root
+ * - Dispatches custom event 'headerheightchange' when height changes
  */
 
 function initHeaderHeightTracking() {
@@ -18,9 +19,21 @@ function initHeaderHeightTracking() {
     return;
   }
 
+  let lastHeight = 0;
+
   const updateHeaderHeight = () => {
     const height = header.getBoundingClientRect().height;
-    document.documentElement.style.setProperty('--site-header-height', `${height}px`);
+    if (Math.abs(height - lastHeight) > 0.5) {
+      // Only update if changed significantly
+      lastHeight = height;
+      document.documentElement.style.setProperty('--site-header-height', `${height}px`);
+      // Dispatch custom event for other components to listen
+      window.dispatchEvent(
+        new CustomEvent('headerheightchange', {
+          detail: { height },
+        }),
+      );
+    }
   };
 
   // Initial measurement

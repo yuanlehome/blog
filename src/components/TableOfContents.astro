@@ -4,10 +4,7 @@ import { buildTocForest, type Heading } from '../lib/content/tocTree';
 
 interface Props {
   headings: Heading[];
-  position?: 'left' | 'right';
 }
-
-const { position = 'right' } = Astro.props;
 
 // Build tree structure supporting multiple H1s
 const tocForest = buildTocForest(Astro.props.headings);
@@ -21,7 +18,6 @@ if (tocForest.length === 0) {
     <div
       class="flex h-full w-full flex-col gap-3 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50/80 p-4 shadow-md backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-800/50 lg:sticky lg:top-[var(--site-header-height)] lg:max-h-[calc(100vh-var(--site-header-height)-16px)] lg:h-[calc(100vh-var(--site-header-height)-16px)]"
       data-toc-container
-      data-toc-position={position}
     >
       <div class="space-y-1">
         <p class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">文章目录</p>
@@ -205,12 +201,8 @@ if (tocForest.length === 0) {
     { once: true },
   );
 
-  // Listen for header height changes (from header-height.ts)
-  const headerHeightObserver = new MutationObserver(() => {
+  // Listen for header height changes via custom event (more efficient than MutationObserver)
+  window.addEventListener('headerheightchange', () => {
     applyScrollMargin();
-  });
-  headerHeightObserver.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ['style'],
   });
 </script>

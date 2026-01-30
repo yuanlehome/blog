@@ -70,11 +70,7 @@ const tocPosition = layoutConfig.toc.position;
       }`}
       data-post-layout
     >
-      {
-        hasToc && tocPosition === 'left' && (
-          <TableOfContents headings={tocHeadings} position="left" />
-        )
-      }
+      {hasToc && tocPosition === 'left' && <TableOfContents headings={tocHeadings} />}
       <article class="prose dark:prose-invert max-w-none prose-img:rounded-xl min-w-0" data-article>
         <header class="mb-8 not-prose">
           <div
@@ -200,11 +196,7 @@ const tocPosition = layoutConfig.toc.position;
         {commentsEnabled && <Giscus lang="zh-CN" loading="lazy" />}
         <div id="page-bottom-anchor" aria-hidden="true" style="height: 1px;"></div>
       </article>
-      {
-        hasToc && tocPosition === 'right' && (
-          <TableOfContents headings={tocHeadings} position="right" />
-        )
-      }
+      {hasToc && tocPosition === 'right' && <TableOfContents headings={tocHeadings} />}
     </div>
     {hasToc && <MobileToc headings={tocHeadings} showTrigger={false} />}
     <FloatingActionStack
