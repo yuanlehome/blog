@@ -26,7 +26,7 @@ sidebar:
 # Table of Contents configuration
 toc:
   enabled: true
-  position: 'right' # Options: "left", "right", "inline"
+  position: 'left' # Options: "left", "right", "inline"
   # Mobile behavior: "drawer" (floating), "inline" (in content), "hidden"
   mobileBehavior: 'drawer'
   defaultOpen: false
