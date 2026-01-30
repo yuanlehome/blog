@@ -11,16 +11,17 @@
 
 ## 一、Workflow 清单
 
-| Workflow 文件                | 职责                    | 触发条件                         |
-| ---------------------------- | ----------------------- | -------------------------------- |
-| `validation.yml`             | 质量门禁                | PR → main / Push → main          |
-| `deploy.yml`                 | 构建并发布 GitHub Pages | Push → main / 手动               |
-| `sync-notion.yml`            | 同步 Notion 内容        | 每日 00:00 UTC / 手动            |
-| `import-content.yml`         | 导入外部文章            | 手动                             |
-| `delete-article.yml`         | 删除文章                | 手动                             |
-| `post-deploy-smoke-test.yml` | 部署后烟测              | `deploy.yml` 成功后              |
-| `link-check.yml`             | 链接有效性检查          | PR → main / Push → main / 每周一 |
-| `pr-preview.yml`             | PR 预览站点             | PR 打开/同步/关闭                |
+| Workflow 文件                | 职责                    | 触发条件                                   |
+| ---------------------------- | ----------------------- | ------------------------------------------ |
+| `validation.yml`             | 质量门禁（含烟测）      | PR → main / Push → main                    |
+| `deploy.yml`                 | 构建并发布 GitHub Pages | Push → main / 手动                         |
+| `sync-notion.yml`            | 同步 Notion 内容        | 每日 00:00 UTC / 手动                      |
+| `import-content.yml`         | 导入外部文章/PDF        | 手动                                       |
+| `delete-article.yml`         | 删除文章                | 手动                                       |
+| `post-deploy-smoke-test.yml` | 部署后烟测              | `deploy.yml` 成功后                        |
+| `link-check.yml`             | 链接有效性检查          | PR → main / Push → main / 每周一 03:00 UTC |
+| `pr-preview.yml`             | PR 预览站点             | PR 打开/同步/关闭                          |
+| `copilot-fix-posts.yml`      | Copilot 修复文章        | 手动                                       |
 
 ---
 
@@ -38,9 +39,9 @@
 1. `validate` job：
    - 类型检查（`npm run check`）
    - Lint 与格式化（`npm run lint`）
-   - 单元测试（`npm run test`）
+   - 单元测试（`npm run test`，含覆盖率）
    - 构建验证（`npm run build`）
-   - E2E 测试（`npm run test:e2e`）
+   - E2E 测试（`npm run test:e2e`，自动安装 chromium）
 
 2. `smoke-test` job（依赖 validate）：
    - 启动静态服务器
@@ -66,9 +67,11 @@
 1. 检出代码、安装依赖
 2. 运行 `npm run build`
 3. 上传 `dist/` 作为 Pages artifact
-4. 部署到 GitHub Pages
+4. 部署到 GitHub Pages（使用 actions/deploy-pages）
 
 **权限**：`contents: read`、`pages: write`、`id-token: write`
+
+**并发控制**：同一部署任务会取消旧的运行
 
 ---
 
@@ -81,10 +84,10 @@
 
 **输入参数（手动触发）**：
 
-| 参数                          | 类型    | 默认值     | 说明               |
-| ----------------------------- | ------- | ---------- | ------------------ |
-| `markdown_translate_enabled`  | boolean | `false`    | 启用 Markdown 翻译 |
-| `markdown_translate_provider` | choice  | `identity` | 翻译提供商         |
+| 参数                          | 类型    | 默认值     | 说明                            |
+| ----------------------------- | ------- | ---------- | ------------------------------- |
+| `markdown_translate_enabled`  | boolean | `false`    | 启用 Markdown 翻译              |
+| `markdown_translate_provider` | choice  | `identity` | 翻译提供商（identity/deepseek） |
 
 **调用 Scripts**：`npm run notion:sync` → `scripts/notion-sync.ts`
 
@@ -109,14 +112,15 @@
 
 **输入参数**：
 
-| 参数                          | 类型    | 默认值     | 说明           |
-| ----------------------------- | ------- | ---------- | -------------- |
-| `url`                         | string  | —          | 必填，文章 URL |
-| `allow_overwrite`             | boolean | `false`    | 覆盖已存在文章 |
-| `dry_run`                     | boolean | `false`    | 预览模式       |
-| `use_first_image_as_cover`    | boolean | `true`     | 首图作为封面   |
-| `markdown_translate_enabled`  | boolean | `false`    | 启用翻译       |
-| `markdown_translate_provider` | choice  | `deepseek` | 翻译提供商     |
+| 参数                          | 类型    | 默认值     | 说明                                            |
+| ----------------------------- | ------- | ---------- | ----------------------------------------------- |
+| `url`                         | string  | —          | 必填，文章 URL（支持知乎/微信/Medium/PDF/其他） |
+| `allow_overwrite`             | boolean | `false`    | 覆盖已存在文章                                  |
+| `dry_run`                     | boolean | `false`    | 预览模式（不写入文件）                          |
+| `use_first_image_as_cover`    | boolean | `true`     | 首图作为封面                                    |
+| `force_pdf`                   | boolean | `false`    | 强制 PDF 导入（绕过受限域名如 arXiv）           |
+| `markdown_translate_enabled`  | boolean | `false`    | 启用翻译                                        |
+| `markdown_translate_provider` | choice  | `deepseek` | 翻译提供商（identity/deepseek）                 |
 
 **调用 Scripts**：`npm run import:content` → `scripts/content-import.ts`
 
@@ -129,7 +133,7 @@
 
 **权限**：`contents: write`、`pull-requests: write`
 
-**Secrets**：`DEEPSEEK_API_KEY`（可选）
+**Secrets**：`DEEPSEEK_API_KEY`（翻译可选）、`PADDLEOCR_VL_TOKEN`（PDF 导入可选）、`PDF_OCR_API_URL` 或 `PADDLEOCR_VL_API_URL`（PDF 导入可选，前者优先）
 
 > **Scripts 参数详情** → [scripts/README.md](../scripts/README.md#22-content-importts)
 
@@ -303,3 +307,50 @@
 2. 更新 [scripts/README.md](../scripts/README.md)
 3. 如有必要，调整调用该 script 的 workflow
 4. 本文档通常不需修改（除非触发条件或 job 结构变化）
+
+---
+
+## 七、本地复现与排查
+
+### 7.1 本地复现 CI 流程
+
+```bash
+# 完整 CI 流程（与 GitHub Actions 一致）
+npm run ci  # 安装浏览器依赖 + test:ci
+
+# 或分步执行
+npm run check       # 类型检查
+npm run lint        # 格式化与 Markdown 检查
+npm run test        # 单元测试（含覆盖率）
+npm run build       # 构建验证
+npm run test:e2e    # E2E 测试（自动安装 chromium + 构建 + 测试）
+```
+
+### 7.2 常见 CI 失败与修复
+
+| 失败类型              | 关键词                          | 修复方法                                             |
+| --------------------- | ------------------------------- | ---------------------------------------------------- |
+| 类型错误              | `Type 'X' is not assignable to` | 修复 TypeScript 类型，运行 `npm run check` 本地验证  |
+| 格式问题              | `[warn] ... Code style issues`  | 运行 `npm run lint` 自动修复                         |
+| Markdown lint 错误    | `markdownlint`                  | 修复 Markdown 语法，参考 `.markdownlint-cli2.jsonc`  |
+| 单元测试失败          | `FAIL tests/unit/`              | 修复测试或代码，运行 `npm run test:watch` 调试       |
+| E2E 测试失败          | `FAIL tests/e2e/`               | 本地运行 `npm run test:e2e`，查看失败截图和日志      |
+| 构建失败              | `astro build` 错误              | 检查 Astro 配置和内容文件，运行 `npm run build` 排查 |
+| 烟测失败（首页/文章） | `Smoke test` 失败               | 检查路由和内容，运行 `npm run preview` 本地验证      |
+| 依赖安装失败          | `npm ci` 错误                   | 删除 `node_modules` 和 `package-lock.json`，重新安装 |
+
+### 7.3 查看 Workflow 日志
+
+**GitHub Actions 界面**：
+
+1. 进入仓库 → Actions 标签
+2. 选择失败的 workflow run
+3. 点击失败的 job
+4. 展开失败的 step 查看详细日志
+
+**常见日志关键词**：
+
+- `[ERROR]`：错误信息
+- `FAIL`：测试失败
+- `✗`：步骤失败
+- `warning`：警告（通常不会导致失败）
