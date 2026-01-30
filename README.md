@@ -189,7 +189,15 @@ npm run lint
 
 1. 阅读 [docs/architecture.md](docs/architecture.md) 了解设计约定
 2. 运行质量检查：`npm run check && npm run lint && npm run test`
-3. 遵循现有代码组织方式
+3. 完整 CI 检查：`npm run ci`（含 E2E 测试，需时较长）
+4. 遵循现有代码组织方式
+
+**本地复现 CI 失败**：
+
+```bash
+# 完整流程（与 CI 一致）
+npm run test:ci  # check + test + test:e2e + build
+```
 
 ---
 

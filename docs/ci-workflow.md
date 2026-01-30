@@ -307,3 +307,50 @@
 2. 更新 [scripts/README.md](../scripts/README.md)
 3. 如有必要，调整调用该 script 的 workflow
 4. 本文档通常不需修改（除非触发条件或 job 结构变化）
+
+---
+
+## 七、本地复现与排查
+
+### 7.1 本地复现 CI 流程
+
+```bash
+# 完整 CI 流程（与 GitHub Actions 一致）
+npm run ci  # 安装浏览器依赖 + test:ci
+
+# 或分步执行
+npm run check       # 类型检查
+npm run lint        # 格式化与 Markdown 检查
+npm run test        # 单元测试（含覆盖率）
+npm run build       # 构建验证
+npm run test:e2e    # E2E 测试（自动安装 chromium + 构建 + 测试）
+```
+
+### 7.2 常见 CI 失败与修复
+
+| 失败类型              | 关键词                          | 修复方法                                             |
+| --------------------- | ------------------------------- | ---------------------------------------------------- |
+| 类型错误              | `Type 'X' is not assignable to` | 修复 TypeScript 类型，运行 `npm run check` 本地验证  |
+| 格式问题              | `[warn] ... Code style issues`  | 运行 `npm run lint` 自动修复                         |
+| Markdown lint 错误    | `markdownlint`                  | 修复 Markdown 语法，参考 `.markdownlint-cli2.jsonc`  |
+| 单元测试失败          | `FAIL tests/unit/`              | 修复测试或代码，运行 `npm run test:watch` 调试       |
+| E2E 测试失败          | `FAIL tests/e2e/`               | 本地运行 `npm run test:e2e`，查看失败截图和日志      |
+| 构建失败              | `astro build` 错误              | 检查 Astro 配置和内容文件，运行 `npm run build` 排查 |
+| 烟测失败（首页/文章） | `Smoke test` 失败               | 检查路由和内容，运行 `npm run preview` 本地验证      |
+| 依赖安装失败          | `npm ci` 错误                   | 删除 `node_modules` 和 `package-lock.json`，重新安装 |
+
+### 7.3 查看 Workflow 日志
+
+**GitHub Actions 界面**：
+
+1. 进入仓库 → Actions 标签
+2. 选择失败的 workflow run
+3. 点击失败的 job
+4. 展开失败的 step 查看详细日志
+
+**常见日志关键词**：
+
+- `[ERROR]`：错误信息
+- `FAIL`：测试失败
+- `✗`：步骤失败
+- `warning`：警告（通常不会导致失败）
