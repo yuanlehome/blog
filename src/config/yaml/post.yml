@@ -68,7 +68,7 @@ comments:
   # Theme mapping for light/dark mode
   themeMapping:
     light: 'light'
-    dark: 'dark_dimmed'
+    dark: 'dark'
 
 # Source attribution
 sourceAttribution:

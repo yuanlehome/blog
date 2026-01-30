@@ -118,7 +118,7 @@ test.describe('Blog smoke journey', () => {
 
     const expectedGiscusTheme = await page.evaluate(() => {
       const resolved = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
-      return resolved === 'dark' ? 'dark_dimmed' : 'light';
+      return resolved === 'dark' ? 'dark' : 'light';
     });
     await expect
       .poll(async () =>
@@ -919,7 +919,7 @@ test.describe('Blog smoke journey', () => {
 
     // Verify initial themes are mapped correctly
     if (initialPageTheme === 'dark') {
-      expect(initialGiscusTheme).toBe('dark_dimmed');
+      expect(initialGiscusTheme).toBe('dark');
     } else {
       expect(initialGiscusTheme).toBe('light');
     }
@@ -940,7 +940,7 @@ test.describe('Blog smoke journey', () => {
 
       // Verify Giscus theme synchronized
       if (newPageTheme === 'dark') {
-        expect(newGiscusTheme).toBe('dark_dimmed');
+        expect(newGiscusTheme).toBe('dark');
       } else {
         expect(newGiscusTheme).toBe('light');
       }
@@ -954,7 +954,7 @@ test.describe('Blog smoke journey', () => {
 
       expect(finalPageTheme).toBe(initialPageTheme);
       if (finalPageTheme === 'dark') {
-        expect(finalGiscusTheme).toBe('dark_dimmed');
+        expect(finalGiscusTheme).toBe('dark');
       } else {
         expect(finalGiscusTheme).toBe('light');
       }
