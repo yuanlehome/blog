@@ -859,4 +859,105 @@ test.describe('Blog smoke journey', () => {
     await expect(page).toHaveURL(new RegExp(`/tags/${tagSlug}/`));
     await expect(page.locator('h1')).toContainText('Tag:');
   });
+
+  test('comment section theme synchronizes with page theme', async ({ page }) => {
+    // Navigate to a post with comments
+    await page.goto('/');
+    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
+    if (await notFoundHeading.count()) {
+      const baseLink = page.locator('a[href="/blog/"]');
+      if (await baseLink.count()) {
+        await baseLink.first().click();
+      }
+    }
+
+    // Find a post link
+    const postLink = page.locator('#post-list li h3 a').first();
+    if ((await postLink.count()) === 0) {
+      test.info().annotations.push({
+        type: 'skip',
+        description: 'No posts available for comment theme test',
+      });
+      return;
+    }
+
+    await postLink.click();
+    await expect(page.locator('[data-article]')).toBeVisible();
+
+    // Check if comments section exists
+    const commentsSection = page.locator('#comments');
+    if ((await commentsSection.count()) === 0) {
+      test.info().annotations.push({
+        type: 'skip',
+        description: 'Comments section not available',
+      });
+      return;
+    }
+
+    await expect(commentsSection).toBeVisible();
+
+    // Get initial theme
+    const getPageTheme = async () => {
+      return await page.evaluate(() => {
+        return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+      });
+    };
+
+    const getGiscusTheme = async () => {
+      return await page.evaluate(() => {
+        const container = document.getElementById('comments');
+        return container?.getAttribute('data-giscus-theme') || '';
+      });
+    };
+
+    // Wait for Giscus to load and sync
+    await page.waitForTimeout(2000);
+
+    // Check initial state
+    const initialPageTheme = await getPageTheme();
+    const initialGiscusTheme = await getGiscusTheme();
+
+    // Verify initial themes are mapped correctly
+    if (initialPageTheme === 'dark') {
+      expect(initialGiscusTheme).toBe('dark_dimmed');
+    } else {
+      expect(initialGiscusTheme).toBe('light');
+    }
+
+    // Toggle theme
+    const themeToggle = page.locator('#theme-toggle');
+    if ((await themeToggle.count()) > 0) {
+      await themeToggle.click();
+      // Wait for theme change to propagate
+      await page.waitForTimeout(500);
+
+      // Check themes after toggle
+      const newPageTheme = await getPageTheme();
+      const newGiscusTheme = await getGiscusTheme();
+
+      // Verify theme changed
+      expect(newPageTheme).not.toBe(initialPageTheme);
+
+      // Verify Giscus theme synchronized
+      if (newPageTheme === 'dark') {
+        expect(newGiscusTheme).toBe('dark_dimmed');
+      } else {
+        expect(newGiscusTheme).toBe('light');
+      }
+
+      // Toggle back and verify again
+      await themeToggle.click();
+      await page.waitForTimeout(500);
+
+      const finalPageTheme = await getPageTheme();
+      const finalGiscusTheme = await getGiscusTheme();
+
+      expect(finalPageTheme).toBe(initialPageTheme);
+      if (finalPageTheme === 'dark') {
+        expect(finalGiscusTheme).toBe('dark_dimmed');
+      } else {
+        expect(finalGiscusTheme).toBe('light');
+      }
+    }
+  });
 });
