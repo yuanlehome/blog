@@ -6,8 +6,8 @@ tags:
   - RoPE
 status: published
 cover: ''
-lastEditedTime: '2026-01-30T14:50:00.000Z'
-updated: '2026-01-30T14:50:00.000Z'
+lastEditedTime: '2026-01-30T16:21:00.000Z'
+updated: '2026-01-30T16:21:00.000Z'
 source: notion
 notion:
   id: 2d322dca-4210-8074-95ce-ec86131a7787
@@ -62,7 +62,7 @@ $x_{\text{rot}} = x \cdot \cos + \text{rotate\_half}(x)\cdot \sin$
 
 假设 head_dim $D=8$，向量：$x=[x_0,x_1,x_2,x_3,x_4,x_5,x_6,x_7]$
 
-### 3.2 NeoX-style（前后半配对 / split-half）
+### 3.1 NeoX-style（前后半配对 / split-half）
 
 配对方式：
 
@@ -72,7 +72,7 @@ $x_{\text{rot}} = x \cdot \cos + \text{rotate\_half}(x)\cdot \sin$
 
 - 输出：`[-x4, -x5, -x6, -x7, x0, x1, x2, x3]`
 
-### 3.1 Adjacent-pair（相邻配对 / even-odd）
+### 3.2 Adjacent-pair（相邻配对 / even-odd）
 
 配对方式：
 
