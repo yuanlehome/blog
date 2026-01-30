@@ -11,15 +11,12 @@ const tocForest = buildTocForest(Astro.props.headings);
 if (tocForest.length === 0) {
   return null;
 }
-
-const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) to avoid overlap
 ---
 
 <div class="w-full" data-toc-shell>
   <aside class="hidden lg:block h-full">
     <div
-      class="flex h-full w-full flex-col gap-3 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50/80 p-4 shadow-md backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-800/50 lg:sticky lg:top-[calc(var(--toc-offset)+1rem)] lg:max-h-[calc(100vh-var(--toc-offset)-1.5rem)] lg:h-[calc(100vh-var(--toc-offset)-1.5rem)]"
-      style={`--toc-offset: ${headerOffset}px`}
+      class="flex h-full w-full flex-col gap-3 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50/80 p-4 shadow-md backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-800/50 lg:sticky lg:top-[var(--site-header-height)] lg:max-h-[calc(100vh-var(--site-header-height)-16px)] lg:h-[calc(100vh-var(--site-header-height)-16px)]"
       data-toc-container
     >
       <div class="space-y-1">
@@ -39,9 +36,15 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
   const tocLinks = Array.from(document.querySelectorAll('[data-toc-link]')) as HTMLAnchorElement[];
   const tocContainer = document.querySelector('[data-toc-container]') as HTMLElement | null;
   const tocShell = document.querySelector('[data-toc-shell]') as HTMLElement | null;
-  const headerOffsetPx =
-    (tocContainer && getComputedStyle(tocContainer).getPropertyValue('--toc-offset')) || '96px';
-  const headerOffset = parseFloat(headerOffsetPx) || 0;
+
+  // Get header offset from CSS variable
+  const getHeaderOffset = (): number => {
+    const headerHeightStr = getComputedStyle(document.documentElement).getPropertyValue(
+      '--site-header-height',
+    );
+    return parseFloat(headerHeightStr) || 0;
+  };
+
   const desktopQuery = window.matchMedia('(min-width: 1024px)');
 
   const headings = tocLinks
@@ -49,6 +52,7 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
     .filter((el): el is HTMLElement => Boolean(el));
 
   const applyScrollMargin = () => {
+    const headerOffset = getHeaderOffset();
     headings.forEach((heading) => {
       heading.style.scrollMarginTop = `${headerOffset + 12}px`;
     });
@@ -68,6 +72,7 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
   const scrollToHeading = (id: string, replace = false) => {
     const target = document.getElementById(id);
     if (!target) return;
+    const headerOffset = getHeaderOffset();
     const top = window.scrollY + target.getBoundingClientRect().top - headerOffset - 12;
     if (replace) {
       history.replaceState(null, '', encodedHash(id));
@@ -102,11 +107,12 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
   const applyFixedFallback = () => {
     if (!tocContainer || !tocShell) return;
     const shellRect = tocShell.getBoundingClientRect();
-    const maxHeight = `calc(100vh - ${headerOffsetPx} - 1.5rem)`;
+    const headerOffset = getHeaderOffset();
+    const maxHeight = `calc(100vh - ${headerOffset}px - 16px)`;
     tocContainer.dataset.fixed = 'true';
     tocShell.style.minHeight = `${tocContainer.offsetHeight}px`;
     tocContainer.style.position = 'fixed';
-    tocContainer.style.top = `calc(${headerOffsetPx} + 1rem)`;
+    tocContainer.style.top = `${headerOffset}px`;
     tocContainer.style.left = `${shellRect.left}px`;
     tocContainer.style.width = `${shellRect.width}px`;
     tocContainer.style.height = maxHeight;
@@ -137,8 +143,6 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
   if (headings.length > 0) {
     applyScrollMargin();
 
-    const rootMarginTop =
-      (tocContainer && getComputedStyle(tocContainer).getPropertyValue('--toc-offset')) || '96px';
     const observer = new IntersectionObserver(
       (entries) => {
         const visible = entries
@@ -160,7 +164,7 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
         if (above[0]) setActive(above[0].target.id);
       },
       {
-        rootMargin: `-${rootMarginTop.trim()} 0% -55% 0%`,
+        rootMargin: `-${getHeaderOffset()}px 0% -55% 0%`,
         threshold: [0, 0.25, 0.5, 1],
       },
     );
@@ -196,4 +200,9 @@ const headerOffset = 96; // px, roughly matches the header height (py-6 + logo) 
     },
     { once: true },
   );
+
+  // Listen for header height changes via custom event (more efficient than MutationObserver)
+  window.addEventListener('headerheightchange', () => {
+    applyScrollMargin();
+  });
 </script>
