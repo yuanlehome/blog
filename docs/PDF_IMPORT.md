@@ -23,15 +23,21 @@ PDF 导入功能可将任意 PDF 文档导入为博客文章，流程如下：
 # 必需 - PaddleOCR-VL API token
 PADDLEOCR_VL_TOKEN=your_token_here
 
-# 可选 - API URL（默认使用 PaddleOCR-VL 端点）
-PADDLEOCR_VL_API_URL=https://xbe1mb28fa0dz7kb.aistudio-app.com/layout-parsing
+# 可选 - API URL（有默认值）
+PDF_OCR_API_URL=https://xbe1mb28fa0dz7kb.aistudio-app.com/layout-parsing
 
 # 可选 - PDF 文件大小限制（默认 50MB）
 PDF_MAX_MB=50
 
-# 可选 - 启用翻译（0 = 禁用，1 = 启用）
-MARKDOWN_TRANSLATE_ENABLED=1
-MARKDOWN_TRANSLATE_PROVIDER=deepseek
+# 可选 - OCR 提供商（默认 paddleocr_vl）
+PDF_OCR_PROVIDER=paddleocr_vl  # paddleocr_vl（云端）或 local_mock（测试）
+
+# 可选 - 失败回退模式（默认关闭）
+PDF_OCR_FAIL_OPEN=0  # 1=启用，0=禁用
+
+# 可选 - 启用翻译
+MARKDOWN_TRANSLATE_ENABLED=1  # 1=启用，0=禁用
+MARKDOWN_TRANSLATE_PROVIDER=deepseek  # identity 或 deepseek
 
 # 可选 - DeepSeek API key（翻译时必需）
 DEEPSEEK_API_KEY=sk-your-api-key-here
@@ -41,9 +47,10 @@ DEEPSEEK_API_KEY=sk-your-api-key-here
 
 导入 workflow 已支持 PDF 导入：
 
-1. 在 GitHub Secrets 中设置 `PADDLEOCR_VL_TOKEN`
+1. 在 GitHub Secrets 中设置 `PADDLEOCR_VL_TOKEN` 和 `PADDLEOCR_VL_API_URL`（可选）
 2. 在 workflow 输入中提供 PDF URL
 3. 系统自动检测 PDF 并使用相应适配器
+4. 受限域名（如 arXiv）需勾选 "Force PDF import mode" 选项
 
 ## 使用方法
 
@@ -54,13 +61,16 @@ DEEPSEEK_API_KEY=sk-your-api-key-here
 npm run import:content -- --url https://example.com/paper.pdf
 
 # 导入 PDF（启用翻译）
-MARKDOWN_TRANSLATE_ENABLED=1 npm run import:content -- --url https://example.com/paper.pdf
+MARKDOWN_TRANSLATE_ENABLED=1 MARKDOWN_TRANSLATE_PROVIDER=deepseek npm run import:content -- --url https://example.com/paper.pdf
 
 # 导入受限域名（如 arXiv）使用 --forcePdf 参数
 npm run import:content -- --url https://arxiv.org/pdf/2306.00978 --forcePdf
 
 # 注意：不加 --forcePdf 时，arXiv URL 默认被阻止
 # --forcePdf 参数强制使用通用 PDF 导入器
+
+# 使用本地测试模式（无需 API token）
+PDF_OCR_PROVIDER=local_mock npm run import:content -- --url https://example.com/paper.pdf
 ```
 
 ### GitHub Actions
@@ -186,15 +196,15 @@ npm test
 
 ### "PADDLEOCR_VL_TOKEN environment variable is required"
 
-解决方案：在 `.env.local` 或 GitHub Secrets 中添加 `PADDLEOCR_VL_TOKEN`。
+解决方案：在 `.env.local` 或 GitHub Secrets 中添加 `PADDLEOCR_VL_TOKEN`。或使用 `PDF_OCR_PROVIDER=local_mock` 进行本地测试。
 
 ### "File too small" 或 "Not a valid PDF file"
 
 下载的文件不是有效 PDF。检查：
 
 - URL 确实指向 PDF 文件
-- 服务器可访问
-- 不需要身份验证
+- 服务器可访问（无需身份验证）
+- 不需要特殊的请求头或 cookies
 
 ### "Insufficient content quality"
 
@@ -213,3 +223,19 @@ OCR 返回少于 20 行有效内容。可能原因：
 - URL 可访问
 - 网络连接稳定
 - 服务器正在响应
+
+### 如何在没有 API token 的情况下测试 PDF 导入？
+
+设置 `PDF_OCR_PROVIDER=local_mock` 使用本地模拟数据：
+
+```bash
+PDF_OCR_PROVIDER=local_mock npm run import:content -- --url="https://example.com/paper.pdf"
+```
+
+### arXiv PDF 导入失败怎么办？
+
+arXiv 域名默认被阻止。使用 `--forcePdf` 标志：
+
+```bash
+npm run import:content -- --url="https://arxiv.org/pdf/2306.00978" --forcePdf
+```

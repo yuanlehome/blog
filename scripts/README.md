@@ -112,13 +112,13 @@ scripts/
 
 **环境变量（PDF 导入，可选）**：
 
-| 变量名               | 默认值         | 说明                                                                       |
-| -------------------- | -------------- | -------------------------------------------------------------------------- |
-| `PDF_OCR_PROVIDER`   | `paddleocr_vl` | OCR 提供商：`paddleocr_vl`（云端 API）或 `local_mock`（本地测试/离线模式） |
-| `PADDLEOCR_VL_TOKEN` | —              | PaddleOCR-VL API token（仅当 `PDF_OCR_PROVIDER=paddleocr_vl` 时需要）      |
-| `PDF_OCR_API_URL`    | —              | PaddleOCR-VL API URL（仅当 `PDF_OCR_PROVIDER=paddleocr_vl` 时需要）        |
-| `PDF_OCR_FAIL_OPEN`  | `false`        | 启用失败回退模式（网络故障时生成占位内容）                                 |
-| `PDF_MAX_MB`         | `50`           | PDF 文件最大大小（MB）                                                     |
+| 变量名               | 默认值                                                           | 说明                                                                       |
+| -------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `PDF_OCR_PROVIDER`   | `paddleocr_vl`                                                   | OCR 提供商：`paddleocr_vl`（云端 API）或 `local_mock`（本地测试/离线模式） |
+| `PADDLEOCR_VL_TOKEN` | —                                                                | PaddleOCR-VL API token（仅当 `PDF_OCR_PROVIDER=paddleocr_vl` 时需要）      |
+| `PDF_OCR_API_URL`    | `https://xbe1mb28fa0dz7kb.aistudio-app.com/layout-parsing`（默认） | PaddleOCR-VL API URL（仅当 `PDF_OCR_PROVIDER=paddleocr_vl` 时需要）        |
+| `PDF_OCR_FAIL_OPEN`  | `false`                                                          | 启用失败回退模式（网络故障时生成占位内容）                                 |
+| `PDF_MAX_MB`         | `50`                                                             | PDF 文件最大大小（MB）                                                     |
 
 **PDF 导入说明**：
 
@@ -128,12 +128,13 @@ scripts/
 
 **支持的平台**：
 
-| 平台   | URL 模式                 | 输出目录                   |
-| ------ | ------------------------ | -------------------------- |
-| 知乎   | `zhuanlan.zhihu.com/p/*` | `src/content/blog/zhihu/`  |
-| 微信   | `mp.weixin.qq.com/s/*`   | `src/content/blog/wechat/` |
-| Medium | `*.medium.com/*`         | `src/content/blog/medium/` |
-| 其他   | 任意 URL                 | `src/content/blog/others/` |
+| 平台   | URL 模式                    | 输出目录                   |
+| ------ | --------------------------- | -------------------------- |
+| 知乎   | `zhuanlan.zhihu.com/p/*`    | `src/content/blog/zhihu/`  |
+| 微信   | `mp.weixin.qq.com/s/*`      | `src/content/blog/wechat/` |
+| Medium | `*.medium.com/*`            | `src/content/blog/medium/` |
+| PDF    | `*.pdf` 或 `--forcePdf` 标志 | `src/content/blog/others/` |
+| 其他   | 任意 URL                    | `src/content/blog/others/` |
 
 **使用示例**：
 
@@ -144,10 +145,10 @@ npm run import:content -- --url="https://zhuanlan.zhihu.com/p/668888063"
 # 覆盖已存在的文章
 npm run import:content -- --url="<URL>" --allow-overwrite
 
-# 预览模式
+# 预览模式（不写入文件）
 npm run import:content -- --url="<URL>" --dry-run
 
-# 导入 arXiv PDF（需要 --forcePdf 标志）
+# 导入 arXiv PDF（需要 --forcePdf 标志绕过域名限制）
 npm run import:content -- --url="https://arxiv.org/pdf/2306.00978" --forcePdf
 
 # 导入 PDF 并使用首图作为封面
@@ -155,6 +156,9 @@ npm run import:content -- --url="https://example.com/document.pdf" --use-first-i
 
 # 使用本地模式导入 PDF（无需 API 凭证，适用于测试）
 PDF_OCR_PROVIDER=local_mock npm run import:content -- --url="https://arxiv.org/pdf/2306.00978" --forcePdf
+
+# 启用翻译
+MARKDOWN_TRANSLATE_ENABLED=1 MARKDOWN_TRANSLATE_PROVIDER=deepseek npm run import:content -- --url="<URL>"
 ```
 
 **CI 调用** → [import-content.yml](../docs/ci-workflow.md#24-import-contentyml--导入外部文章)
