@@ -15,17 +15,9 @@ cover: /images/wechat/gptq-and-smoothquant-and-awq/001-a2d0e0ed.gif
 
 ![图片](/images/wechat/gptq-and-smoothquant-and-awq/001-a2d0e0ed.gif)
 
-作者丨进击的 Killua
-
-来源丨 https\://zhuanlan.zhihu.com/p/697860995
-
-编辑丨 GiantPandaCV
-
----
-
 # GPTQ & SmoothQuant & AWQ 代码解析
 
-本文主要是对 LLM PTQ 量化方向的几个经典算法 (GPTQ、SmoothQuant、AWQ) 的代码实现进行介绍，一方面是为了加深对算法的理解，另一方面也是想看看有什么值得借鉴的地方。
+本文主要是对 LLM PTQ 量化方向的几个经典算法（GPTQ、SmoothQuant、AWQ）的代码实现进行介绍，一方面是为了加深对算法的理解，另一方面也是想看看有什么值得借鉴的地方。
 
 ## 一、GPTQ
 
@@ -33,7 +25,7 @@ GPTQ 在 LLM 量化 W4A16 方向的地位毋庸置疑，它的出发点很朴素
 
 ![图片](/images/wechat/gptq-and-smoothquant-and-awq/002-09cd47df.jpg)
 
-本文以 GPTQ-for-LLaMa (<https://github.com/qwopqwop200/GPTQ-for-LLaMa>) 代码仓库为例来讲解 GPTQ 算法的实现，这个仓库主要是在 LlaMa 模型上应用 GPTQ 算法实现权重的 4 bit 量化。先来看下 Llama 中 DeocoderLayer 的基本结构，主要是由 LlamaAttention、LlamaMLP 和两个 LlamaRMSNorm 构成，GPTQ 会对其中 LlamaAttention 和 LlamaMLP 层中的 Linear 层权重进行量化。
+本文以 GPTQ-for-LLaMa（<https://github.com/qwopqwop200/GPTQ-for-LLaMa>）代码仓库为例来讲解 GPTQ 算法的实现，这个仓库主要是在 LlaMa 模型上应用 GPTQ 算法实现权重的 4 bit 量化。先来看下 Llama 中 DeocoderLayer 的基本结构，主要是由 LlamaAttention、LlamaMLP 和两个 LlamaRMSNorm 构成，GPTQ 会对其中 LlamaAttention 和 LlamaMLP 层中的 Linear 层权重进行量化。
 
 ```text
 LlamaDecoderLayer(
@@ -57,15 +49,13 @@ LlamaDecoderLayer(
 
 整体量化过程大致可以分为 3 个部分：
 
-1. 利用 calibration data 计算 Hessian 矩阵。对模型进行逐层 weight 量化。
-
-1. 保存量化后的 weight。
-
-1. 代码主要在 llama.py、gptq.py、quantizer.py 和 quant_linear.py 几个文件，由于篇幅有限我们仅关注核心代码部分。
+1. 利用 calibration data 计算 Hessian 矩阵，对模型进行逐层 weight 量化。
+2. 保存量化后的 weight。
+3. 代码主要在 llama.py、gptq.py、quantizer.py 和 quant_linear.py 几个文件，由于篇幅有限我们仅关注核心代码部分。
 
 ### 1. 计算 Hessian 矩阵
 
-Hessian 矩阵会用于后面逐层量化过程中的损失和补偿计算，所以需要先离线计算得到。实现方式是在初始化 GPTQ 后在每一层注册 hook，通过 hook 的方式在 layer forward 后使用 calibration data 的 input 来生成 Hessian 矩阵，这种计算方式还挺常见的，后面的算法中也有用到。下面这段代码即添加 hook 函数来利用 calibration data 进行计算，计算 Hessian 矩阵的逻辑体现在`add_batch`函数中。
+Hessian 矩阵会用于后面逐层量化过程中的损失和补偿计算，所以需要先离线计算得到。实现方式是在初始化 GPTQ 后在每一层注册 hook，通过 hook 的方式在 layer forward 后使用 calibration data 的 input 来生成 Hessian 矩阵，这种计算方式还挺常见的，后面的算法中也有用到。下面这段代码即添加 hook 函数来利用 calibration data 进行计算，计算 Hessian 矩阵的逻辑体现在 `add_batch` 函数中。
 
 ```python
             for name in subset:
@@ -123,7 +113,7 @@ Hessian 矩阵会用于后面逐层量化过程中的损失和补偿计算，所
 
 ### 2. 逐层 weight 量化
 
-有了 Hessian 矩阵后，便可以用来计算量化误差从而更新权重了，这里是逐层使用`fasterquant`方法作为入口来进行量化处理。
+有了 Hessian 矩阵后，便可以用来计算量化误差从而更新权重了，这里是逐层使用 `fasterquant` 方法作为入口来进行量化处理。
 
 ```text
             for name in subset:
@@ -131,7 +121,7 @@ Hessian 矩阵会用于后面逐层量化过程中的损失和补偿计算，所
                 quantizers['model.layers.%d.%s' % (i, name)] = (gptq[name].quantizer.cpu(), scale.cpu(), zero.cpu(), g_idx.cpu(), args.wbits, args.groupsize)
 ```
 
-在`fasterquant`方法中首先需要根据给定的权重值确定量化所需要的 scale 和 zeropoint，由于采用的 per-channel 量化所以每个 channel 都需要计算它的 scale 和 zeropoint，这里采用的是最简单的 min-max 方法来计算 scale 和 zeropoint，代码如下：
+在 `fasterquant` 方法中首先需要根据给定的权重值确定量化所需要的 scale 和 zeropoint，由于采用的 per-channel 量化所以每个 channel 都需要计算它的 scale 和 zeropoint，这里采用的是最简单的 min-max 方法来计算 scale 和 zeropoint，代码如下：
 
 ```python
     def find_params(self, x, weight=False):
@@ -220,7 +210,7 @@ Hessian 矩阵会用于后面逐层量化过程中的损失和补偿计算，所
         Hinv = H
 ```
 
-这样准备工作都完成了就可以进行论文中的算法具体代码实现了，下面这段代码就是完全对应论文中的伪代码实现，值得一提的是这里可以指定`groupsize`来对量化的范围进行进一步的缩减，一定程度上可以减少离群值的影响。这里量化的 per-channel scale 和 zero 会随着 W 的迭代更新而发生变化，最终返回 scale, zero, g_idx。
+这样准备工作都完成了就可以进行论文中的算法具体代码实现了，下面这段代码就是完全对应论文中的伪代码实现，值得一提的是这里可以指定 `groupsize` 来对量化的范围进行进一步的缩减，一定程度上可以减少离群值的影响。这里量化的 per-channel scale 和 zero 会随着 $W$ 的迭代更新而发生变化，最终返回 scale, zero, g_idx。
 
 ![图片](/images/wechat/gptq-and-smoothquant-and-awq/004-60185fde.jpg)
 
@@ -285,7 +275,7 @@ Hessian 矩阵会用于后面逐层量化过程中的损失和补偿计算，所
         return scale, zero, g_idx, error
 ```
 
-其中 quantize 函数最终调用的\_quantize 实现如下，本质上是伪量化（包含量化和反量化）。
+其中 quantize 函数最终调用的 \_quantize 实现如下，本质上是伪量化（包含量化和反量化）。
 
 ```python
     def _quantize(self, x, scale, zero, maxq):
@@ -297,7 +287,7 @@ Hessian 矩阵会用于后面逐层量化过程中的损失和补偿计算，所
 
 ### 3. 保存量化 weight
 
-之前的步骤中量化和反量化后计算 lose 都是浮点位数的，所以并没有生成 wbit 位 format 的数值内容，在`llama_pack`方法中通过 model 和之前得到的`quantizer`(scale, zero) 来生成 wbit 位数表达格式的量化模型，其定义如下所示
+之前的步骤中量化和反量化后计算 lose 都是浮点位数的，所以并没有生成 wbit 位 format 的数值内容，在 `llama_pack` 方法中通过 model 和之前得到的 `quantizer`(scale, zero) 来生成 wbit 位数表达格式的量化模型，其定义如下所示
 
 ```python
 def llama_pack(model, quantizers, wbits, groupsize):
@@ -314,13 +304,13 @@ def llama_pack(model, quantizers, wbits, groupsize):
     return model
 ```
 
-其中`quantizers`来自量化后的返回，它是一个 dict 里面保存了每一个层和它对应的`quantizer`、`scale`、`zero`、`group_idx`等信息，其中`quantizer`是 layer-level 的，`zero`和`scale`是 group-level 的。
+其中 `quantizers` 来自量化后的返回，它是一个 dict 里面保存了每一个层和它对应的 `quantizer`、`scale`、`zero`、`group_idx` 等信息，其中 `quantizer` 是 layer-level 的，`zero` 和 `scale` 是 group-level 的。
 
 ```text
 quantizers['model.layers.%d.%s' % (i, name)] = (gptq[name].quantizer.cpu(), scale.cpu(), zero.cpu(), g_idx.cpu(), args.wbits, args.groupsize)
 ```
 
-接下来逐步介绍 llama_pack 的实现，首先由`make_quant_linear`递归地将所有`Linear`替换为`QuantLinear`
+接下来逐步介绍 llama_pack 的实现，首先由 `make_quant_linear` 递归地将所有 `Linear` 替换为 `QuantLinear`
 
 ```python
 def make_quant_linear(module, names, bits, groupsize, name=''):
@@ -336,7 +326,7 @@ def make_quant_linear(module, names, bits, groupsize, name=''):
         make_quant_linear(child, names, bits, groupsize, name + '.' + name1 if name != '' else name1)
 ```
 
-其中`QuantLinear`的定义如下，通过`qweight`、`qzeros`和`scales`、`g_idx`等属性来保存量化后的低比特信息。
+其中 `QuantLinear` 的定义如下，通过 `qweight`、`qzeros` 和 `scales`、`g_idx` 等属性来保存量化后的低比特信息。
 
 ```python
 class QuantLinear(nn.Module):
@@ -361,13 +351,11 @@ class QuantLinear(nn.Module):
             self.bias = None
 ```
 
-接着对每个`QuantLinear`层使用 pack 来重新打包量化后的权重数据。实际的存储数据格式是 uint32，所以针对 4bit 量化值，单个 qweight 可以存储 8 个权重值。
+接着对每个 `QuantLinear` 层使用 pack 来重新打包量化后的权重数据。实际的存储数据格式是 uint32，所以针对 4bit 量化值，单个 qweight 可以存储 8 个权重值。
 
-1\. 首先对原 weight 利用 scale 和 zero 计算出 int4 范围的 int 权重表示。
-
-2\. 再合并成 uint32 格式进行存储，这里采用了 intweight 左移和或运算来完成低比特到 32bit 的转存；zeros 也是类似逻辑转成 qzeros 表示;scales 直接转为 half 格式保存；g_idx 保持不变；这样就完成了对原 weight 的压缩转换。
-
-3\. 推理的时候需要利用 scales 和 zeros 进行反量化再进行计算。
+1. 首先对原 weight 利用 scale 和 zero 计算出 int4 范围的 int 权重表示。
+2. 再合并成 uint32 格式进行存储，这里采用了 intweight 左移和或运算来完成低比特到 32bit 的转存；zeros 也是类似逻辑转成 qzeros 表示；scales 直接转为 half 格式保存；g_idx 保持不变；这样就完成了对原 weight 的压缩转换。
+3. 推理的时候需要利用 scales 和 zeros 进行反量化再进行计算。
 
 这里其实有一点疑惑，就是对权重进行 quant 的过程只用到了之前得到的 per-channel scale 和 zero，没有体现前述逐 block 量化过程中对权重的补偿，因为这里用的 weight 还是原始模型的 weight 并不是第二步量化过程中损失补偿修改后的 weight。
 
@@ -429,33 +417,29 @@ pack 函数实现如下。
 
 ## 二、SmoothQuant
 
-SmoothQuant (<https://arxiv.org/abs/2211.10438>) 也是应用很广泛的 LLM 量化算法，它对权重和激活值都进行量化，是一个 W8A8 算法。它发现权重比较容易量化，激活值不易量化，因为有离群值，因此提出了在 channel 维度上对激活值和权重进行了平滑处理，这样易于量化的方案。本文针对这个算法基于官方 Repo 进行代码分析。Repo 中给出的的`generate_act_scales.py`和`export_int8_model.py` 脚本用于生成一个 INT8 类型的 OPT 模型。整体上它也是分成 3 个步骤：
+SmoothQuant（<https://arxiv.org/abs/2211.10438>）也是应用很广泛的 LLM 量化算法，它对权重和激活值都进行量化，是一个 W8A8 算法。它发现权重比较容易量化，激活值不易量化，因为有离群值，因此提出了在 channel 维度上对激活值和权重进行了平滑处理，这样易于量化的方案。本文针对这个算法基于官方 Repo 进行代码分析。Repo 中给出的 `generate_act_scales.py` 和 `export_int8_model.py` 脚本用于生成一个 INT8 类型的 OPT 模型。整体上它也是分成 3 个步骤：
 
 1. 根据校准数据集生成激活值 scale。
-
-1. 使用激活值 scale smooth 模型。
-
-1. 量化模型。
+2. 使用激活值 scale smooth 模型。
+3. 量化模型。
 
 ### 1. 根据校准数据生成激活值 scale
 
-首先使用`generate_act_scales.py`通过校准数据集统计生成激活值的 scale，即`max(abs(activation))`，方法也是类似的通过添加 hook 函数在遍历校准集的过程中计算激活值中的 max 值并记录到`act_scales`中。
+首先使用 `generate_act_scales.py` 通过校准数据集统计生成激活值的 scale，即 `max(abs(activation))`，方法也是类似的通过添加 hook 函数在遍历校准集的过程中计算激活值中的 max 值并记录到 `act_scales` 中。
 
 ![图片](/images/wechat/gptq-and-smoothquant-and-awq/006-55256259.jpg)
 
 ### 2. smooth 模型
 
-接着再使用 export_int8_model.py 使用激活值 scale 和浮点精度模型生成量化精度模型:
+接着再使用 export_int8_model.py 使用激活值 scale 和浮点精度模型生成量化精度模型：
 
 1. 加载 FP16 模型
-
-1. 加载激活值 scale
-
-1. 使用激活值 scale smooth FP16 模型
+2. 加载激活值 scale
+3. 使用激活值 scale smooth FP16 模型
 
 ![图片](/images/wechat/gptq-and-smoothquant-and-awq/007-a949b542.jpg)
 
-最能体现论文思想的应该是其中第 3 步 smooth 部分，这是一个 attention 前的 laynorm + attention 的 smooth 实现，计算出 smooth scale 后对对激活值的缩放前置到前面的 layernorm 层的 weights/bias 中，再对 fc 的 weight 乘以 scales，由此完成激活值和权重的平滑，对应论文中这个公式。第 4 步重新计算激活值 scale 和第 3 步类似。
+最能体现论文思想的应该是其中第 3 步 smooth 部分，这是一个 attention 前的 laynorm + attention 的 smooth 实现，计算出 smooth scale 后对激活值的缩放前置到前面的 layernorm 层的 weights/bias 中，再对 fc 的 weight 乘以 scales，由此完成激活值和权重的平滑，对应论文中这个公式。第 4 步重新计算激活值 scale 和第 3 步类似。
 
 ![图片](/images/wechat/gptq-and-smoothquant-and-awq/008-b1953144.jpg)
 
@@ -465,17 +449,16 @@ SmoothQuant (<https://arxiv.org/abs/2211.10438>) 也是应用很广泛的 LLM �
 
 ### 3. 量化模型
 
-最后使用 smooth 后的模型进行量化:
+最后使用 smooth 后的模型进行量化：
 
-4\. 使用 smooth 后的模型重新计算激活值 scale。
-
-5\. 使用 smooth 后模型和重新计算的激活值 scale 生成 INT8 模型
+4. 使用 smooth 后的模型重新计算激活值 scale。
+5. 使用 smooth 后模型和重新计算的激活值 scale 生成 INT8 模型
 
 ![图片](/images/wechat/gptq-and-smoothquant-and-awq/011-b4881b75.jpg)
 
 export_int8_model.py
 
-第 5 步中生成的 Int8OPTForCausalLM 是基于一些自定义 layer 实现的，如下所示，完整代码见 https\://github.com/mit-han-lab/smoothquant/blob/main/smoothquant/opt.py （<https://github.com/mit-han-lab/smoothquant/blob/main/smoothquant/opt.py）这些 layer 在项目 https://github.com/Guangxuan-Xiao/torch-int（https://github.com/Guangxuan-Xiao/torch-int）中定义和实现，底层使用 CUTLASS 的 API 实现 Linear 和 BMM，属于比较典型的用法，CUTLASS 使用可以参考这篇文章进击的 Killua：CUTLASS> 基础介绍（<https://zhuanlan.zhihu.com/p/671324125）。>
+第 5 步中生成的 Int8OPTForCausalLM 是基于一些自定义 layer 实现的，如下所示，完整代码见 <https://github.com/mit-han-lab/smoothquant/blob/main/smoothquant/opt.py>。这些 layer 在项目 <https://github.com/Guangxuan-Xiao/torch-int> 中定义和实现，底层使用 CUTLASS 的 API 实现 Linear 和 BMM，属于比较典型的用法，CUTLASS 使用可以参考这篇文章进击的 Killua：CUTLASS 基础介绍（<https://zhuanlan.zhihu.com/p/671324125>）。
 
 ![图片](/images/wechat/gptq-and-smoothquant-and-awq/012-e00a5033.jpg)
 
@@ -487,25 +470,20 @@ linear.cu
 
 ## 三、AWQ
 
-AWQ (<https://arxiv.org/abs/2306.00978>) 是一种 LLM 低比特权重量化方法，可以认为是当前 SOTA，已经被应用到很多低比特量化框架中。AWQ 关注在 low bit(INT3/INT4) weight 量化 (W4A16)，主要被应用在 linear layer(包含最多的参数)。它核心的贡献：
+AWQ（<https://arxiv.org/abs/2306.00978>）是一种 LLM 低比特权重量化方法，可以认为是当前 SOTA，已经被应用到很多低比特量化框架中。AWQ 关注在 low bit(INT3/INT4) weight 量化（W4A16），主要被应用在 linear layer（包含最多的参数）。它核心的贡献：
 
-1. 发现 weight 对模型的重要程度存在极强的不均衡性，1%的参数可能主导的量化过程中损失的性能，假如我们在量化中保护这 1%的参数，就能极大程度保护模型性能不受影响，但是混合精度 (FP16+低比特)对硬件不友好。
-
-1. 用激活值来发现重要 weight。
-
-1. 对 weight 进行 per-channel 的 scale 同时对激活值除以 scale 来保护 weight。
-
-1. 取和激活值相关的值进行 grid search，找到那个让量化误差最小的 scale。
+1. 发现 weight 对模型的重要程度存在极强的不均衡性，1% 的参数可能主导量化过程中损失的性能，假如我们在量化中保护这 1% 的参数，就能极大程度保护模型性能不受影响，但是混合精度（FP16+ 低比特）对硬件不友好。
+2. 用激活值来发现重要 weight。
+3. 对 weight 进行 per-channel 的 scale 同时对激活值除以 scale 来保护 weight。
+4. 取和激活值相关的值进行 grid search，找到那个让量化误差最小的 scale。
 
 ![图片](/images/wechat/gptq-and-smoothquant-and-awq/014-422b9ae0.jpg)
 
-本文围绕官方代码库(<https://github.com/mit-han-lab/llm-awq/tree/main) 进行算法实现的讲解，我们拆成 3 各部分来讲解，分别是：>
+本文围绕官方代码库（<https://github.com/mit-han-lab/llm-awq/tree/main>）进行算法实现的讲解，我们拆成 3 个部分来讲解，分别是：
 
 1. 激活感知的 weight 缩放、扩大调整。
-
-1. 权重量化。
-
-1. 量化层推理。
+2. 权重量化。
+3. 量化层推理。
 
 ### 1. 激活感知的 weight 缩放、扩大调整
 
@@ -620,7 +598,7 @@ model LlamaForCausalLM(
         torch.cuda.empty_cache()
 ```
 
-然后就可以使用 input_feature 针对每个线性层进行 scale 计算，对于 llama3 模型根据权重和激活值的关系拆成 4 个子步骤来进行依次处理，分别是\[q_proj,k_proj,v_proj]，\[o_proj]，\[gate_proj,up_proj]，\[down_proj]。
+然后就可以使用 input_feature 针对每个线性层进行 scale 计算，对于 llama3 模型根据权重和激活值的关系拆成 4 个子步骤来进行依次处理，分别是 [q_proj,k_proj,v_proj]，[o_proj]，[gate_proj,up_proj]，[down_proj]。
 
 ```python
     elif isinstance(module, LlamaDecoderLayer):
@@ -667,7 +645,7 @@ model LlamaForCausalLM(
         )
 ```
 
-在\_auto_get_scale 中主要是调用\_search_module_scale 进行 grid_search 找到最合适的 scale，使得调整权重+伪量化后损失最少，对应于论文这个公式，核心的代码如下所示，这部分的代码实现还是比较简洁的，其中`w_quantize_func` 量化的部分在下个 part 介绍。
+在 \_auto_get_scale 中主要是调用 \_search_module_scale 进行 grid_search 找到最合适的 scale，使得调整权重 + 伪量化后损失最少，对应于论文这个公式，核心的代码如下所示，这部分的代码实现还是比较简洁的，其中 `w_quantize_func` 量化的部分在下个 part 介绍。
 
 ![图片](/images/wechat/gptq-and-smoothquant-and-awq/015-1b66e355.jpg)
 
@@ -751,8 +729,7 @@ def scale_ln_fcs(ln, fcs, scales):
 在权重完成调整后就可以开始进行量化了，AWQ 也是逐层对 Linear 层进行权重量化，主体流程如下：
 
 1. 先伪量化得到伪量化的权重、量化 scales 和 zeropoint，这里最重要的是用于后续 per-channel scales 和 zeropoint
-
-1. 利用 scales 和 zero 来创建自定义的量化线性层 Module `WQLinear`，把模型中的`Linear`层替换为`WQLinear`层。
+2. 利用 scales 和 zero 来创建自定义的量化线性层 Module `WQLinear`，把模型中的 `Linear` 层替换为 `WQLinear` 层。
 
 ```text
                 module.cuda()
@@ -819,7 +796,7 @@ def pseudo_quantize_tensor(
         return w
 ```
 
-得到 scale 和 zero 后就可以对浮点权重进行真正的量化并保存 4bit 的量化结果，这里复杂的不是量化过程而是量化后 4bit pack 保存的环节，即代码中量化后的 int32 类型的`intweight`到 int16 类型的`awq_linear.qweight`转换，是通过`pack_intweight`函数完成的。
+得到 scale 和 zero 后就可以对浮点权重进行真正的量化并保存 4bit 的量化结果，这里复杂的不是量化过程而是量化后 4bit pack 保存的环节，即代码中量化后的 int32 类型的 `intweight` 到 int16 类型的 `awq_linear.qweight` 转换，是通过 `pack_intweight` 函数完成的。
 
 ```text
         intweight = []
@@ -838,7 +815,7 @@ def pseudo_quantize_tensor(
         )
 ```
 
-实现`pack_intweight`函数的开发应该是个 pytorch 好手，通过一系列的`reshape`、`transpose`和或运算把 int32 结果作为 int4 编码压缩到了 int16 的存储格式中，代码如下所示。这里给出了一个简单数据示例，通过这种方式存储的`qweight`在后续加载过程中可以一次高效地由 float4(128bit) 格式指令读取 32 个 int4 权重进行反量化和矩阵乘计算。
+实现 `pack_intweight` 函数的开发应该是个 pytorch 好手，通过一系列的 `reshape`、`transpose` 和或运算把 int32 结果作为 int4 编码压缩到了 int16 的存储格式中，代码如下所示。这里给出了一个简单数据示例，通过这种方式存储的 `qweight` 在后续加载过程中可以一次高效地由 float4(128bit) 格式指令读取 32 个 int4 权重进行反量化和矩阵乘计算。
 
 ```python
 def pack_intweight(unpacked_qweight, interleave, kstride):
@@ -915,7 +892,7 @@ def pack_intweight(unpacked_qweight, interleave, kstride):
 
 ### 3. 量化层推理
 
-在加载了量化后的 WQLinear 表示后就可以进行实际推理了，代码库中实现了相应的 CUDA Kernel 算子来加速推理过程，这里以`gemv_forward_cuda_new`举例来说明，这个函数实现了量化后 Int4 权重和向量乘积的结果，代码中的注释非常详细可读性很好，它的实现参考了 TensorRT-LLM (<https://github.com/NVIDIA/TensorRT-LLM/tree/d37b507f41a87457fe9f10f7459d08f5db235745/cpp/tensorrt_llm/kernels/weightOnlyBatchedGemv>) 中的代码，算是比较中规中矩。其中反量化函数`dequantize_s4_to_fp16x2`的实现也没有重复造轮子，参考了 FasterTransformer(<https://github.com/NVIDIA/FasterTransformer/blob/main/src/fastertransformer/cutlass_extensions/include/cutlass_extensions/interleaved_numeric_conversion.h) 中 cutlass_extention 关于重叠格式转换 (s4_to_fp16x2)的代码，几乎全是内联汇编指令，以后有需要也可以借鉴借鉴，完整代码详见 dequantize.cuh(https://github.com/mit-han-lab/llm-awq/blob/main/awq/kernels/csrc/quantization/dequantize.cuh)。>
+在加载了量化后的 WQLinear 表示后就可以进行实际推理了，代码库中实现了相应的 CUDA Kernel 算子来加速推理过程，这里以 `gemv_forward_cuda_new` 举例来说明，这个函数实现了量化后 Int4 权重和向量乘积的结果，代码中的注释非常详细可读性很好，它的实现参考了 TensorRT-LLM（<https://github.com/NVIDIA/TensorRT-LLM/tree/d37b507f41a87457fe9f10f7459d08f5db235745/cpp/tensorrt_llm/kernels/weightOnlyBatchedGemv>）中的代码，算是比较中规中矩。其中反量化函数 `dequantize_s4_to_fp16x2` 的实现也没有重复造轮子，参考了 FasterTransformer（<https://github.com/NVIDIA/FasterTransformer/blob/main/src/fastertransformer/cutlass_extensions/include/cutlass_extensions/interleaved_numeric_conversion.h>）中 cutlass_extention 关于重叠格式转换（s4_to_fp16x2）的代码，几乎全是内联汇编指令，以后有需要也可以借鉴借鉴，完整代码详见 <https://github.com/mit-han-lab/llm-awq/blob/main/awq/kernels/csrc/quantization/dequantize.cuh>。
 
 ```cpp
 template <int NPerBlock, int Batch, int BlockSize, int GroupSize>
@@ -1052,4 +1029,4 @@ __global__ void gemv_kernel(
 }
 ```
 
-笔者在 Llama3 8B 模型上测 wikitext 数据集，量化后 PPL 从 6.135(FP16)上升到 6.532(INT4+g128)，比论文中 Llama2 的效果要差一些；GTX-4090+CUDA12.2 上单卡推理耗时 0.3224 秒下降到 0.2276 秒，效果看着还行。
+笔者在 Llama3 8B 模型上测 wikitext 数据集，量化后 PPL 从 6.135(FP16) 上升到 6.532(INT4+g128)，比论文中 Llama2 的效果要差一些；GTX-4090+CUDA12.2 上单卡推理耗时 0.3224 秒下降到 0.2276 秒，效果看着还行。
