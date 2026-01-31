@@ -156,8 +156,8 @@ body {
 }
 
 :where(.prose) :where(img) {
-  margin-left: auto;
-  margin-right: auto;
+  display: block;
+  margin-inline: auto;
 }
 
 .prose :where(figure.code-block) {
