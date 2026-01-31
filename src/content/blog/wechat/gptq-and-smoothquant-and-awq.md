@@ -13,8 +13,6 @@ source:
 cover: /images/wechat/gptq-and-smoothquant-and-awq/001-a2d0e0ed.gif
 ---
 
-![图片](/images/wechat/gptq-and-smoothquant-and-awq/001-a2d0e0ed.gif)
-
 # GPTQ & SmoothQuant & AWQ 代码解析
 
 本文主要是对 LLM PTQ 量化方向的几个经典算法（GPTQ、SmoothQuant、AWQ）的代码实现进行介绍，一方面是为了加深对算法的理解，另一方面也是想看看有什么值得借鉴的地方。
@@ -115,7 +113,7 @@ Hessian 矩阵会用于后面逐层量化过程中的损失和补偿计算，所
 
 有了 Hessian 矩阵后，便可以用来计算量化误差从而更新权重了，这里是逐层使用 `fasterquant` 方法作为入口来进行量化处理。
 
-```text
+```python
             for name in subset:
                 scale, zero, g_idx, error = gptq[name].fasterquant(percdamp=args.percdamp, groupsize=args.groupsize, actorder=args.act_order, name=name)
                 quantizers['model.layers.%d.%s' % (i, name)] = (gptq[name].quantizer.cpu(), scale.cpu(), zero.cpu(), g_idx.cpu(), args.wbits, args.groupsize)
@@ -191,7 +189,7 @@ Hessian 矩阵会用于后面逐层量化过程中的损失和补偿计算，所
 
 接着为了增强数值稳定性加速收敛，需要完成完整的 Hessian 矩阵计算和 cholesky 分解，过程见代码注解。
 
-```text
+```python
         dead = torch.diag(H) == 0
         H[dead, dead] = 1
         W[:, dead] = 0
@@ -214,7 +212,7 @@ Hessian 矩阵会用于后面逐层量化过程中的损失和补偿计算，所
 
 ![图片](/images/wechat/gptq-and-smoothquant-and-awq/004-60185fde.jpg)
 
-```text
+```python
         for i1 in range(0, self.columns, blocksize):
             i2 = min(i1 + blocksize, self.columns)
             count = i2 - i1
@@ -306,7 +304,7 @@ def llama_pack(model, quantizers, wbits, groupsize):
 
 其中 `quantizers` 来自量化后的返回，它是一个 dict 里面保存了每一个层和它对应的 `quantizer`、`scale`、`zero`、`group_idx` 等信息，其中 `quantizer` 是 layer-level 的，`zero` 和 `scale` 是 group-level 的。
 
-```text
+```python
 quantizers['model.layers.%d.%s' % (i, name)] = (gptq[name].quantizer.cpu(), scale.cpu(), zero.cpu(), g_idx.cpu(), args.wbits, args.groupsize)
 ```
 
@@ -731,7 +729,7 @@ def scale_ln_fcs(ln, fcs, scales):
 1. 先伪量化得到伪量化的权重、量化 scales 和 zeropoint，这里最重要的是用于后续 per-channel scales 和 zeropoint
 2. 利用 scales 和 zero 来创建自定义的量化线性层 Module `WQLinear`，把模型中的 `Linear` 层替换为 `WQLinear` 层。
 
-```text
+```python
                 module.cuda()
                 module.weight.data, scales, zeros = pseudo_quantize_tensor(
                     module.weight.data, n_bit=w_bit, get_scale_zp=True, **q_config
@@ -798,7 +796,7 @@ def pseudo_quantize_tensor(
 
 得到 scale 和 zero 后就可以对浮点权重进行真正的量化并保存 4bit 的量化结果，这里复杂的不是量化过程而是量化后 4bit pack 保存的环节，即代码中量化后的 int32 类型的 `intweight` 到 int16 类型的 `awq_linear.qweight` 转换，是通过 `pack_intweight` 函数完成的。
 
-```text
+```python
         intweight = []
         for idx in range(awq_linear.in_features):
             intweight.append(
