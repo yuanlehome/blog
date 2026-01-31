@@ -2,7 +2,7 @@
 title: GPTQ & SmoothQuant & AWQ 代码解析
 slug: gptq-and-smoothquant-and-awq
 date: '2026-01-31'
-tags: []
+tags: ['Quantization']
 status: published
 source_url: 'https://mp.weixin.qq.com/s/34a7elkMSDdFVSLEdO7MWg'
 source_author: GiantPandaLLM
@@ -10,7 +10,7 @@ imported_at: '2026-01-31T05:43:02.534Z'
 source:
   title: mp.weixin.qq.com
   url: 'https://mp.weixin.qq.com/s/34a7elkMSDdFVSLEdO7MWg'
-cover: /images/wechat/gptq-and-smoothquant-and-awq/001-a2d0e0ed.gif
+cover: /images/wechat/gptq-and-smoothquant-and-awq/002-09cd47df.jpg
 ---
 
 # GPTQ & SmoothQuant & AWQ 代码解析
@@ -25,7 +25,7 @@ GPTQ 在 LLM 量化 W4A16 方向的地位毋庸置疑，它的出发点很朴素
 
 本文以 GPTQ-for-LLaMa（<https://github.com/qwopqwop200/GPTQ-for-LLaMa>）代码仓库为例来讲解 GPTQ 算法的实现，这个仓库主要是在 LlaMa 模型上应用 GPTQ 算法实现权重的 4 bit 量化。先来看下 Llama 中 DeocoderLayer 的基本结构，主要是由 LlamaAttention、LlamaMLP 和两个 LlamaRMSNorm 构成，GPTQ 会对其中 LlamaAttention 和 LlamaMLP 层中的 Linear 层权重进行量化。
 
-```text
+```python
 LlamaDecoderLayer(
   (self_attn): LlamaAttention(
     (q_proj): Linear(in_features=4096, out_features=4096, bias=False)
@@ -78,8 +78,6 @@ Hessian 矩阵会用于后面逐层量化过程中的损失和补偿计算，所
 ```
 
 为了利用所有的校准数据，这里通过迭代的方式将每组数据计算的 Hessian 矩阵值进行求和然后取平均，代码实现是迭代逐渐平均叠加的过程。
-
-![图片](/images/wechat/gptq-and-smoothquant-and-awq/003-80a15ba3.jpg)
 
 ```python
     def add_batch(self, inp, out):
@@ -439,10 +437,6 @@ SmoothQuant（<https://arxiv.org/abs/2211.10438>）也是应用很广泛的 LLM 
 
 最能体现论文思想的应该是其中第 3 步 smooth 部分，这是一个 attention 前的 laynorm + attention 的 smooth 实现，计算出 smooth scale 后对激活值的缩放前置到前面的 layernorm 层的 weights/bias 中，再对 fc 的 weight 乘以 scales，由此完成激活值和权重的平滑，对应论文中这个公式。第 4 步重新计算激活值 scale 和第 3 步类似。
 
-![图片](/images/wechat/gptq-and-smoothquant-and-awq/008-b1953144.jpg)
-
-![图片](/images/wechat/gptq-and-smoothquant-and-awq/009-87ea1e4d.jpg)
-
 ![图片](/images/wechat/gptq-and-smoothquant-and-awq/010-3bc40cc3.jpg)
 
 ### 3. 量化模型
@@ -644,8 +638,6 @@ model LlamaForCausalLM(
 ```
 
 在 \_auto_get_scale 中主要是调用 \_search_module_scale 进行 grid_search 找到最合适的 scale，使得调整权重 + 伪量化后损失最少，对应于论文这个公式，核心的代码如下所示，这部分的代码实现还是比较简洁的，其中 `w_quantize_func` 量化的部分在下个 part 介绍。
-
-![图片](/images/wechat/gptq-and-smoothquant-and-awq/015-1b66e355.jpg)
 
 scale 求解空间
 
