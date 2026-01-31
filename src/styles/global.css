@@ -155,6 +155,11 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+:where(.prose) :where(img) {
+  display: block;
+  margin-inline: auto;
+}
+
 .prose :where(figure.code-block) {
   margin: 1.25rem 0;
 }
