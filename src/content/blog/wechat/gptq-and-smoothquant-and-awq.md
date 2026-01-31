@@ -275,7 +275,7 @@ Hessian 矩阵会用于后面逐层量化过程中的损失和补偿计算，所
         return scale, zero, g_idx, error
 ```
 
-其中 quantize 函数最终调用的 _quantize 实现如下，本质上是伪量化（包含量化和反量化）。
+其中 quantize 函数最终调用的 \_quantize 实现如下，本质上是伪量化（包含量化和反量化）。
 
 ```python
     def _quantize(self, x, scale, zero, maxq):
@@ -645,7 +645,7 @@ model LlamaForCausalLM(
         )
 ```
 
-在 _auto_get_scale 中主要是调用 _search_module_scale 进行 grid_search 找到最合适的 scale，使得调整权重 + 伪量化后损失最少，对应于论文这个公式，核心的代码如下所示，这部分的代码实现还是比较简洁的，其中 `w_quantize_func` 量化的部分在下个 part 介绍。
+在 \_auto_get_scale 中主要是调用 \_search_module_scale 进行 grid_search 找到最合适的 scale，使得调整权重 + 伪量化后损失最少，对应于论文这个公式，核心的代码如下所示，这部分的代码实现还是比较简洁的，其中 `w_quantize_func` 量化的部分在下个 part 介绍。
 
 ![图片](/images/wechat/gptq-and-smoothquant-and-awq/015-1b66e355.jpg)
 
