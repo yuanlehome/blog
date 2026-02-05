@@ -1,8 +1,8 @@
 ---
-title: "nccl-tests：NCCL 排障与性能定位的“复现机”与标尺"
+title: 'nccl-tests：NCCL 排障与性能定位的“复现机”与标尺'
 slug: nccl-tests
 status: published
-date: "2026-02-05"
+date: '2026-02-05'
 tags:
   - NCCL
 ---
@@ -224,13 +224,13 @@ export NCCL_P2P_DISABLE=1
 
 ## 8. “现象 → 根因假设 → 验证命令”速查（IB + NVLink 专项）
 
-| 现象（训练里看到的） | 高概率根因（从高到低） | nccl-tests 怎么做（建议命令） | 你该看什么证据 |
-|---|---|---|---|
-| 跨机带宽低得离谱（`busbw` 上不去） | 走错接口 / IB 没用上 / 回退 socket / GDR 没生效 | 两机 `-g 1` 跑 `all_reduce_perf`；对照 `NCCL_IB_DISABLE=1` 再跑一遍 | `NET` 日志里是什么 transport；禁 IB 后是否反而更稳 |
-| 单机 8 卡 `busbw` 只有 PCIe 水平 | NVLink/NVSwitch 未被识别（驱动/容器/拓扑暴露） | 单机 `-g 8` sweep；打开 `GRAPH` | `GRAPH` 里拓扑/通道是否合理；曲线是否达到机器上限 |
-| 某个 size 段出现“台阶/掉速/抖动” | algo/proto/transport 在该 size 段切换 | 围绕拐点做小范围 sweep（如 `-b 1M -e 64M -f 2`）；对照 `NCCL_PROTO=^LL128` | 拐点是否移动/消失；日志里是否切了 algo/proto |
-| 偶发 hang/timeout | IB/RoCE 丢包/重传、某节点异常、或路径 bug | 固定 size `-N 0` 无限跑并落盘日志；对照禁 IB | “最后一条日志”在哪个阶段/哪个 rank；禁 IB 后是否不再 hang |
-| `busbw` 看起来超过网卡线速 | 分层/树算法导致节点内带宽贡献大，换算值≠网卡吞吐 | 对照跑 `reduce_scatter` / `all_gather`；看日志 algo | 是否使用 tree/nvlstree 等；注意不要用 `busbw` 当网卡吞吐 |
+| 现象（训练里看到的）               | 高概率根因（从高到低）                           | nccl-tests 怎么做（建议命令）                                              | 你该看什么证据                                            |
+| ---------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 跨机带宽低得离谱（`busbw` 上不去） | 走错接口 / IB 没用上 / 回退 socket / GDR 没生效  | 两机 `-g 1` 跑 `all_reduce_perf`；对照 `NCCL_IB_DISABLE=1` 再跑一遍        | `NET` 日志里是什么 transport；禁 IB 后是否反而更稳        |
+| 单机 8 卡 `busbw` 只有 PCIe 水平   | NVLink/NVSwitch 未被识别（驱动/容器/拓扑暴露）   | 单机 `-g 8` sweep；打开 `GRAPH`                                            | `GRAPH` 里拓扑/通道是否合理；曲线是否达到机器上限         |
+| 某个 size 段出现“台阶/掉速/抖动”   | algo/proto/transport 在该 size 段切换            | 围绕拐点做小范围 sweep（如 `-b 1M -e 64M -f 2`）；对照 `NCCL_PROTO=^LL128` | 拐点是否移动/消失；日志里是否切了 algo/proto              |
+| 偶发 hang/timeout                  | IB/RoCE 丢包/重传、某节点异常、或路径 bug        | 固定 size `-N 0` 无限跑并落盘日志；对照禁 IB                               | “最后一条日志”在哪个阶段/哪个 rank；禁 IB 后是否不再 hang |
+| `busbw` 看起来超过网卡线速         | 分层/树算法导致节点内带宽贡献大，换算值≠网卡吞吐 | 对照跑 `reduce_scatter` / `all_gather`；看日志 algo                        | 是否使用 tree/nvlstree 等；注意不要用 `busbw` 当网卡吞吐  |
 
 ---
 
@@ -238,14 +238,14 @@ export NCCL_P2P_DISABLE=1
 
 目标：把“我感觉是 XX 导致”变成“我有 A/B 证据证明是 XX 导致”。
 
-| 维度 | 取值 | 目的 | 预期/判据 |
-|---|---|---|---|
-| baseline | 无 | 建立 S 曲线 & 拐点 | 曲线平滑、平台值接近线速；异常段明确 |
-| transport | `NCCL_IB_DISABLE=1` | 判断是否 IB 专属问题 | 禁 IB 后 hang 消失/更稳 ⇒ 指向 IB/RoCE/网卡配置 |
-| iface | `NCCL_SOCKET_IFNAME=...` | 验证是否选错网卡 | 限定接口后带宽恢复/初始化更快 |
-| p2p | `NCCL_P2P_DISABLE=1` | 隔离 NVLink/P2P 路径 | 禁 P2P 后变稳 ⇒ 指向 NVLink/PCIe P2P |
-| proto | `NCCL_PROTO=^LL128` | 排除 LL128 路径 | 异常消失/拐点移动 ⇒ 指向协议选择 |
-| algo（仅调试） | `NCCL_ALGO=Ring` | 排除算法切换因素 | 拐点消失 ⇒ 指向算法/拓扑匹配 |
+| 维度           | 取值                     | 目的                 | 预期/判据                                       |
+| -------------- | ------------------------ | -------------------- | ----------------------------------------------- |
+| baseline       | 无                       | 建立 S 曲线 & 拐点   | 曲线平滑、平台值接近线速；异常段明确            |
+| transport      | `NCCL_IB_DISABLE=1`      | 判断是否 IB 专属问题 | 禁 IB 后 hang 消失/更稳 ⇒ 指向 IB/RoCE/网卡配置 |
+| iface          | `NCCL_SOCKET_IFNAME=...` | 验证是否选错网卡     | 限定接口后带宽恢复/初始化更快                   |
+| p2p            | `NCCL_P2P_DISABLE=1`     | 隔离 NVLink/P2P 路径 | 禁 P2P 后变稳 ⇒ 指向 NVLink/PCIe P2P            |
+| proto          | `NCCL_PROTO=^LL128`      | 排除 LL128 路径      | 异常消失/拐点移动 ⇒ 指向协议选择                |
+| algo（仅调试） | `NCCL_ALGO=Ring`         | 排除算法切换因素     | 拐点消失 ⇒ 指向算法/拓扑匹配                    |
 
 ---
 
@@ -299,14 +299,17 @@ export NCCL_DEBUG_SUBSYS=INIT,GRAPH
 你不需要把日志当小说逐行看。按下面流程来：
 
 ### Step A：先确认环境变量真的生效（INIT）
+
 每个 rank 日志开头先看 `INIT`，确认你设的禁用项/限定项真的被采纳。  
 如果 INIT 里看不出来你设的变量，先别分析性能：先把 **变量透传 / 容器环境 / 启动方式** 搞对。
 
 ### Step B：确认路径是不是你以为的路径（NET + GRAPH）
+
 - `NET`：跨节点到底用什么 transport（IB plugin？socket fallback？选错网卡？）
 - `GRAPH`：节点内拓扑/通道怎么铺（NVLink/NVSwitch 是否被识别？通道数是否合理？）
 
 ### Step C：用对照实验把切换原因逼出来（一次只改一个）
+
 围绕拐点做小范围 sweep，然后逐个对照：
 
 - baseline（不强制）
@@ -331,7 +334,7 @@ export NCCL_DEBUG_SUBSYS=INIT,GRAPH
 
 > 默认使用 `mpirun`，也提供 `srun` 分支入口（Slurm 用户可用）。
 
-```bash
+````bash
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -489,7 +492,7 @@ run_cmd "burn_in_${BURN_SIZE}" \
 cat > RESULTS.md <<'MD'
 # nccl-tests Results Summary
 
-> 本文件由 `run_nccl_tests.sh` 自动生成。  
+> 本文件由 `run_nccl_tests.sh` 自动生成。
 > 建议把 `RESULTS.md` + 拐点附近的 `raw/*.out` + 任意一个 rank 的日志尾部一起贴到 Issue。
 
 ## How to read
@@ -564,7 +567,7 @@ summarize_case "raw/burn_in_${BURN_SIZE}.out" "burn_in_${BURN_SIZE}"
 
 popd >/dev/null
 echo "Done. Results are in: ${OUT_DIR}/RESULTS.md"
-```
+````
 
 ---
 
