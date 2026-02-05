@@ -32,7 +32,6 @@ NCCL（NVIDIA Collectives Communications Library）提供了丰富的环境变�
 - `NCCL_DEBUG` 日志级别：可取 `WARN`, `INFO`, `TRACE` 等级别。`WARN` 只在发生错误时输出简要信息，`INFO` 会打印调试信息（如各步连接、算法选择），`TRACE` 则会对每次调用输出可重放的详细跟踪（大量日志，通常只在小规模测试时使用）。另外，`NCCL_DEBUG=VERSION` 可仅打印 NCCL 版本号用于确认版本。一般排查从 `INFO` 开始，在问题复杂或需要反馈 NVIDIA 时再用 `TRACE`。注意：过高日志级别可能显著拖慢程序，应在必要时短期使用。
 
 - `NCCL_DEBUG_SUBSYS` 日志子系统过滤：当使用 `INFO`/`TRACE` 级别时，此变量可选定感兴趣的子系统，以减少无关输出。支持的子系统有 INIT（初始化）、COLL（集合通信算法）、P2P（点对点直连）、SHM（共享内存）、NET（网络传输）、GRAPH（拓扑检测/图搜索）、TUNING（算法/协议调优）、ENV（环境变量设置）、ALLOC（内存分配）、PROXY（Proxy 线程）、NVLS（NVLink SHARP）、BOOTSTRAP（进程间引导连接）、REG（注册内存）、PROFILE（粗粒度性能 profiling）、RAS（可靠性子系统）等，以及 ALL（全部）。默认的子系统列表是 INIT, BOOTSTRAP, ENV。例如：
-
   - `NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=NET,GRAPH` 只看网络连接和拓扑相关日志。
 
   - 使用前缀 `^` 可排除子模块，如 `NCCL_DEBUG_SUBSYS=ALL,^COLL` 表示记录全部但不含集合算法细节。
@@ -55,9 +54,9 @@ NCCL（NVIDIA Collectives Communications Library）提供了丰富的环境变�
 
 PyTorch 特有日志和超时 Dump：PyTorch 的 `ProcessGroupNCCL` 实现有一套 Watchdog 机制，可配合 NCCL 日志定位问题：
 
-  - 设置 `TORCH_CPP_LOG_LEVEL=INFO`（或 DEBUG）可以看到 PyTorch 内部关于 ProcessGroup 和 Watchdog 的日志。
+- 设置 `TORCH_CPP_LOG_LEVEL=INFO`（或 DEBUG）可以看到 PyTorch 内部关于 ProcessGroup 和 Watchdog 的日志。
 
-  - Watchdog 超时 Dump：环境变量 `TORCH_NCCL_DUMP_ON_TIMEOUT=1` 可以让当 NCCL 操作超时/异常时自动转储调试信息。需配合 `TORCH_NCCL_TRACE_BUFFER_SIZE` (如设为几百或几千) 来开启 NCCL 内部“航迹记录”环形缓冲。超时发生时，每个 rank 会将最近的 NCCL 调用事件（开始/结束时间，甚至可选带 C++ 调用栈）写入 `TORCH_NCCL_DEBUG_INFO_*` 文件。这对排查集体调用失同期（desync）或 Hang 特别有用——我们可以比对各 rank 最后完成的操作，推测是哪一个 rank 停滞。此外，`TORCH_NCCL_DESYNC_DEBUG=1` 也可用于打印可能发生不同步的提示信息。
+- Watchdog 超时 Dump：环境变量 `TORCH_NCCL_DUMP_ON_TIMEOUT=1` 可以让当 NCCL 操作超时/异常时自动转储调试信息。需配合 `TORCH_NCCL_TRACE_BUFFER_SIZE` (如设为几百或几千) 来开启 NCCL 内部“航迹记录”环形缓冲。超时发生时，每个 rank 会将最近的 NCCL 调用事件（开始/结束时间，甚至可选带 C++ 调用栈）写入 `TORCH_NCCL_DEBUG_INFO_*` 文件。这对排查集体调用失同期（desync）或 Hang 特别有用——我们可以比对各 rank 最后完成的操作，推测是哪一个 rank 停滞。此外，`TORCH_NCCL_DESYNC_DEBUG=1` 也可用于打印可能发生不同步的提示信息。
 
 日志级别策略：在性能问题排查时，长时间开启 TRACE 日志不现实，可以先 INFO 粗略看每轮是否进展正常，再用 nccl-tests 短跑 TRACE 查看细节。而稳定性问题（Hang/错误）倾向于用 INFO + PyTorch Dump 首先收集线索，然后根据需要放大某子系统日志或使用 TRACE 重现小场景。
 
@@ -68,7 +67,6 @@ PyTorch 特有日志和超时 Dump：PyTorch 的 `ProcessGroupNCCL` 实现有一
 NCCL 在初始化时会探测硬件拓扑结构，包括 GPU 之间以及 GPU 与网络接口之间的连接关系，然后据此决定通信算法（如是否使用 NVLink）和路径选择。因此，排查跨设备通信的问题，往往需要弄清实际数据流经路径与 NCCL 认知的拓扑。常用方法如下：
 
 - 拓扑文件与 Dump：NCCL 提供 `NCCL_TOPO_FILE` 和 `NCCL_TOPO_DUMP_FILE` 环境变量来加载或导出拓扑信息。
-
   - `NCCL_TOPO_FILE=<path>`：指定一个 XML 文件，让 NCCL 在硬件探测前先加载此文件中描述的拓扑（如 PCIe 交换机结构、NVLink 布局等）。这常用于容器或虚拟化场景下，因为这些环境下 `/sys` 提供的拓扑可能是虚拟的。NCCL 默认会尝试加载 `/var/run/nvidia-topologyd/virtualTopology.xml`（如果存在），在某些 GPU 分区或 MIG 场景下这个文件由驱动生成，描述了真实拓扑。如果你怀疑 NCCL 读到了错误的拓扑（导致算法选择不佳），可让管理员提供正确拓扑文件并用此变量加载。
 
   - `NCCL_TOPO_DUMP_FILE=<path>`：让 NCCL 在探测完拓扑后导出检测结果为 XML。这份文件可以用于进一步分析或者在另一环境重现。当遇到跨节点通信异常时，可收集每台节点的 dump 文件，比对差异。
@@ -105,7 +103,6 @@ NCCL 支持多种通信传输方式，包括：GPU 直连（P2P）、共享内�
 - RoCE 定位：`NCCL_IB_GID_INDEX` – 指定 RoCE 情况下使用的 GID 表索引。RoCE v2 常用 index=3 (对应 IPv4) 或 index=0 (根据配置)，如遇跨网段通信问题可以尝试设置正确的 GID index。`NCCL_IB_ROCE_VERSION_NUM` – 指定 RoCE 版本 (1 或 2)，默认 2。`NCCL_IB_SL` 和 `NCCL_IB_TC` – 分别设置 IB Service Level 和 Traffic Class，用于 QoS 优先级，默认都为 0。在拥塞场景下，可考虑给控制报文和数据报文设不同 TC（2.22.3 加入 `NCCL_IB_FIFO_TC` 专门为控制信道设 TC）。
 
 - IB 上的 GPU Direct 开关：早期变量 `NCCL_IB_CUDA_SUPPORT`（2.4.0 前）用于强制或禁用 GPU Direct RDMA。2.4.0 后改为 `NCCL_NET_GDR_LEVEL` 等统一控制。当前：
-
   - `NCCL_NET_GDR_LEVEL` – 控制 NIC 与 GPU 间直连 RDMA 的拓扑距离阈值。可取 `LOC/PIX/PXB/PHB/SYS`（同 P2P_LEVEL 含义但针对 NIC-GPU）。默认 NCCL 会自动选。例如在 CPU 直连 NIC (PHB) 的系统上，如不想用 GPU 直接读写 NIC 内存，可设 `LOC` 禁用 GDR。反之强制 GDR 则可设 `SYS`（始终开）。调试场景：怀疑 GDR DMA-BUF 模式有问题，可暂时降级为 CPU 中转，通过设 `NCCL_NET_GDR_LEVEL=LOC` 来验证性能/稳定性变化。
 
   - `NCCL_NET_GDR_READ` – 控制发送数据时是否用 GDR Read（NIC 从 GPU 内存直接读）。2.4.2 起对 NVLink 平台默认开启（=1），PCIe 平台默认 0，因为某些 PCIe 上 GPU->NIC 直读反而略慢。如果遇到奇怪的性能下降，可尝试切换这个值，看是否 GPU->CPU 拷贝阶段出了问题。
@@ -122,14 +119,13 @@ NCCL 支持多种通信传输方式，包括：GPU 直连（P2P）、共享内�
 
 ### Socket/TCP 相关:
 
-- 接口选择：`NCCL_SOCKET_IFNAME` – 指定 NCCL 使用的网络接口名前缀。缺省下，NCCL 自动选择具有最高带宽/最低延迟的接口（优先 ib 开头接口）。但自动选择可能错误，比如多网卡环境或 Docker 虚接口。通过设此变量可以强制使用特定网卡或排除某些网卡：如 `NCCL_SOCKET_IFNAME=eth0` 只用 eth0，`NCCL_SOCKET_IFNAME=^docker,lo` 排除 docker\* 和回环。。应用场景：多网络环境下防止 NCCL 选错（比如管理网和 RDMA 网都存在），明确限定接口能避免建立连接超时。
+- 接口选择：`NCCL_SOCKET_IFNAME` – 指定 NCCL 使用的网络接口名前缀。缺省下，NCCL 自动选择具有最高带宽/最低延迟的接口（优先 ib 开头接口）。但自动选择可能错误，比如多网卡环境或 Docker 虚接口。通过设此变量可以强制使用特定网卡或排除某些网卡：如 `NCCL_SOCKET_IFNAME=eth0` 只用 eth0，`NCCL_SOCKET_IFNAME=^docker,lo` 排除 docker\* 和回环。应用场景：多网络环境下防止 NCCL 选错（比如管理网和 RDMA 网都存在），明确限定接口能避免建立连接超时。
 
 - 协议族：`NCCL_SOCKET_FAMILY` – 强制使用 IPv4 或 IPv6 接口。可设 `AF_INET` 或 `AF_INET6`。默认情况下，NCCL 会根据接口自动决定。如果遇到 v6 网络问题或名称解析问题，可尝试显式指定。
 
 - 端口重试：`NCCL_SOCKET_RETRY_CNT` / `NCCL_SOCKET_RETRY_SLEEP_MSEC` – 控制 TCP 连接重试次数和间隔（2.24+）。默认重试 34 次，每次等待递增，累计约 60 秒。如果集群初始化时经常因为端口碰撞或连接临时失败，可以增大重试次数或间隔以提高成功率。
 
 - 线程与并发：NCCL Socket 传输采用多线程模型，每条连接可用多个线程和 socket 并行传输以提升带宽：
-
   - `NCCL_SOCKET_NTHREADS` – 每个网络连接使用的 CPU 线程数。默认云环境 AWS=2, GCP gVNIC=4, 其它=1。可调范围 1-16，但需注意 `NCCL_SOCKET_NTHREADS * NCCL_NSOCKS_PERTHREAD <= 64`。在 100Gb 以上网络，可考虑手动设 4 线程以提升利用率。副作用：线程越多 CPU 占用越高，甚至抢占训练线程。
 
   - `NCCL_NSOCKS_PERTHREAD` – 每线程打开的 TCP 套接字数。AWS 默认 8，其它默认 1。如果单连接速度有限（如单 TCP 流跑不满带宽），可以每线程开多个 socket 并行发送。同样乘积受限 64。
@@ -156,7 +152,6 @@ NCCL 支持多种通信传输方式，包括：GPU 直连（P2P）、共享内�
 - 线程数：`NCCL_NTHREADS` – 每个 CUDA 区块的线程数。默认新 GPU=512 线程。可设 64/128/256/512。当 GPU 核心频率很低时，多线程可能提高 pipeline 并行度，但也增大每 block 资源占用。一般无需修改，除非定位到 GPU 核心闲置才尝试。
 
 - 通道数：NCCL 使用多条“通道”（channel）并行通信，对应多个 CUDA block：
-
   - `NCCL_MIN_NCHANNELS` / `NCCL_MAX_NCHANNELS` – 限制最少/最多通道数。旧版本叫 NRINGS。这影响 GPU 参与通信的 block 数。增加 channels 有助于提升大量小消息的重叠效率，但过多会争夺 GPU 计算资源。NCCL 2.5 起推荐通过更细粒度的 `NCCL_MIN_CTAS`/`NCCL_MAX_CTAS` 控制每 SM 并发 CTA 数量。通常除非做性能优化，不建议显式修改这些。
 
 - Check 校验：`NCCL_CHECKS_DISABLE`（已废弃）– 关闭参数合法性检查，可略微降低延迟。2.2.12 后改用 `NCCL_CHECK_POINTERS` 控制是否检查 CUDA 指针有效性。默认关闭检查以提高性能，除非调试内存问题不需要打开。
@@ -170,7 +165,6 @@ NCCL 针对不同规模和拓扑，会在 Ring、Tree、CollNet 等多种算法�
 - 协议选择 (`NCCL_PROTO`): 控制允许使用的消息传输协议，包括 Simple（分段复制，适用于大消息高带宽）、LL（Low Latency，适用于小消息低延迟）、LL128（优化长消息的小延迟算法，需要硬件支持）。用法为列出协议或以 `^` 列出排除协议。默认行为：支持 LL128 的平台开启全部三种，否则 LL128 不用。重要提示：NVIDIA 明确指出，不要随意启用 LL128 在不支持的平台，否则可能导致数据错误。LL128 一般要求 NVLink 拓扑良好的平台（如 DGX），在 PCIe 集群上 NCCL 默认已禁用 LL128。调试中，禁用 LL128 是常用手段：不少 NCCL 已知 Bug（比如 2.8 版本 Collnet 算法配合 LL128 在部分拓扑上出错）可以通过 `NCCL_PROTO=^LL128` 规避。如果问题消失，可据此怀疑 LL128 实现问题然后查找对应补丁或升级 NCCL 版本。
 
 - 算法选择 (`NCCL_ALGO`): 控制集合通信算法，如 Ring、Tree、CollNet 等。2.24+版本支持更复杂的配置语法，可按操作类型分别指定算法列表或排除。例如：
-
   - `NCCL_ALGO=Ring` 强制全部用环形算法；
 
   - `NCCL_ALGO=^Tree` 禁用树算法（如怀疑 Tree 实现有 Bug，NCCL 会自动 fallback 环算法）；
@@ -194,7 +188,6 @@ NCCL 针对不同规模和拓扑，会在 Ring、Tree、CollNet 等多种算法�
 - 异步错误监测：NCCL 内部如果检测到严重异步错误（如网络掉线、GPU 故障）会尝试使通信停止并返回错误。2.23 引入 `NCCL_IB_RETURN_ASYNC_EVENTS`（默认 1）控制 IB 异步事件处理。设为 0 则忽略 IB 驱动的异步错误，仅靠超时。这在某些调试下有用（例如允许程序在错误发生后一段时间继续运行，便于收集状态），但一般保持默认即可。
 
 - NCCL RAS 子系统：从 NCCL 2.24 起，可以通过 RAS 接口查询 NCCL communicator 的运行状态，实现外部监控。相关变量：
-
   - `NCCL_RAS_ENABLE` – 开启 RAS 功能（默认 1 启用）。如不需要可设 0 完全关闭。
 
   - `NCCL_RAS_ADDR` – 指定 RAS 服务监听的 `<ip>:<port>`。默认 `localhost:28028`。在多用户节点上，每个作业应设不同端口避免冲突。
@@ -210,7 +203,6 @@ NCCL 针对不同规模和拓扑，会在 Ring、Tree、CollNet 等多种算法�
 PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超时机制：
 
 - Watchdog 线程 & 阻塞等待：默认情况下，PyTorch 每个进程启动一个 Watchdog 线程监视 NCCL 操作是否卡住。当某 GPU 卡住时，Watchdog 会在一定时间后使所有进程报错退出。可以通过 `torch.distributed.init_process_group(timeout=...)` 设置超时时间（默认一般 30 min）。以下环境变量可调整此行为：
-
   - `TORCH_NCCL_BLOCKING_WAIT` – 设为 `1` 则使得 `dist.all_reduce(...).wait()` 等待调用变为阻塞模式。即发生超时时，会抛出异常而不是静默等待。建议在调试时开启，以便及时捕获 Hang 而不是无限挂住进程。
 
   - `TORCH_NCCL_ASYNC_ERROR_HANDLING` – 控制异步错误处理策略。默认 `3`，表示一旦超时，所有进程一起安全退出（由主进程决定不用先 abort communicator，就直接退出）。选项说明：0=不处理异步错误（可能导致 hang 住不退出）；1=检测到错误后调用 NCCL Comm.abort 并 kill 进程；2=仅 abort communicator 但不杀进程；3=直接杀进程不做 abort。调试中推荐用默认 3 或选 1。设 0 则可能某些 rank 卡死无法退出。
@@ -218,7 +210,6 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
   - 实用组合：`TORCH_NCCL_BLOCKING_WAIT=1` + `NCCL_DEBUG=WARN` 是 PyTorch 官方建议用于 debug hang 的设置，可让在超时发生时抛异常并打印 NCCL 错误日志。
 
   - 超时信息收集：前述 `TORCH_NCCL_DUMP_ON_TIMEOUT=1` 配合 Trace Buffer，可以在 Watchdog 认定超时时，自动收集调试信息。另外还有：
-
     - `TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC` – Watchdog 心跳检测的周期，默认约 5 s。`TORCH_NCCL_ENABLE_MONITORING=1` 时，PyTorch 会再启一个监控线程，如果发现 Watchdog 本身卡死（可能因为死锁），则在此时间后强制 kill 进程。一般不需改这个值，除非调试环境下希望更快触发监控。
 
     - `TORCH_NCCL_COORD_CHECK_MS` / `TORCH_NCCL_WAIT_TIMEOUT_DUMP_MS` – 这些控制多个 rank 协调 dump 的时序和等待时间。除非深入分析，否则用默认即可（1000 ms 间隔，额外等待同样长收集完 dump）。
@@ -244,7 +235,6 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 - 可能原因：跨节点通信握手不通。常见包括：防火墙未关闭导致 TCP/IB 端口无法建立；节点间网络配置不一致（如一台走 IB 一台却无 IB）；`init_process_group` 参数 world_size 等不匹配；或 IB 的 GID 配置导致握手包丢弃。
 
 - 排查步骤：
-
   1. 基础连通性：确认各节点间彼此能 ping 通，并且没有防火墙阻挡 NCCL 默认使用的端口 (NCCL 默认随机挑选高位端口，可通过 `net.ipv4.ip_local_port_range` 调整范围)。对使用 IB/RoCE 的，检查 `ibstat` 状态、子网管理器（Subnet Manager）正常。
 
   2. 接口选择：在环境中显式 `NCCL_DEBUG=INFO` 看日志哪个接口在尝试连接。若看到 fallback 到 Socket 或 `[0] NET/IB: No device found` 则 IB 未被识别。可以尝试设置 `NCCL_SOCKET_IFNAME` 明确指定正确的网络，例如 `NCCL_SOCKET_IFNAME=^eth,ib0`（排除无关接口）。
@@ -252,11 +242,10 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
   3. 禁用 IB 验证：若怀疑 IB 配置问题，临时 `NCCL_IB_DISABLE=1` 强制走 TCP。如果这样就能初始化成功（尽管后续 AllReduce 慢），说明 IB 通信有问题。接下来重点检查 RoCE 配置（例如 `NCCL_IB_GID_INDEX` 是否一致）以及 IB 固件/驱动。
 
   4. 分步缩小：编写一个最小复现脚本，例如使用 nccl-tests：\
-   `mpirun -np 2 -H host1:1,host2:1./build/all_reduce_perf -b 8 -e 8M -f 2`\
-   尝试在两节点上跑简单 AllReduce，看能否 Hang 复现。加上 `NCCL_DEBUG=INFO` 捕获在哪一步挂。
+     `mpirun -np 2 -H host1:1,host2:1./build/all_reduce_perf -b 8 -e 8M -f 2`\
+     尝试在两节点上跑简单 AllReduce，看能否 Hang 复现。加上 `NCCL_DEBUG=INFO` 捕获在哪一步挂。
 
 - 建议 env 组合：
-
   - _保守调试_：`NCCL_DEBUG=INFO NCCL_SOCKET_IFNAME=<iface>` 用于观察和纠偏。
 
   - _激进尝试_：`NCCL_IB_DISABLE=1 NCCL_SOCKET_IFNAME=<iface>` 验证是否 IB 专有问题；若确认为 IB 问题，进一步 `NCCL_IB_GID_INDEX` 等配置比对两端。
@@ -270,7 +259,6 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 - 可能原因：这通常是 Collective 调用失去同步（Desynchronization）造成的死锁。可能一个 rank 跳过或提前退出导致其余 rank 卡在对应的 AllReduce/AllGather。也可能某 rank 上发生了 CUDA 错误被吞掉，导致 NCCL 等待永远不返回。NCCL 本身 Bug（比如 2.7.x 曾有 LL128 算法在特定拓扑卡死的问题）也可能导致所有 rank hang。
 
 - 排查步骤：
-
   1. 判断哪种 Hang：首先区分是所有 rank 都在等（典型集体不同步），还是个别 rank 崩溃导致 others 在等。可以通过 `dmesg` 查看是否有 GPU 异常日志（如 kernel 打印 Xid 错误表示某 rank GPU 出问题），也可使用 PyTorch 的 `TORCH_NCCL_BLOCKING_WAIT=1` 让出问题 rank 抛异常而不是静默挂住。
 
   2. Desync Debug：设置 `TORCH_NCCL_DUMP_ON_TIMEOUT=1` 并将超时设短（例如 5 分钟）来触发超时 dump。同时开 `TORCH_NCCL_DESYNC_DEBUG=1` 以帮助发现不同步信息。超时后检查每个 rank 转储的 trace，找出哪个 rank 在某 collective 上没有进入或没有退出。比如可能 rank7 停在 allreduce(stream X) 未调用，而其他都完成，则说明 rank7 代码有分支漏调。
@@ -295,7 +283,6 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 - 可能原因：数据路径未充分利用带宽。单机情况可能 NCCL 未用 NVSwitch 而退化为 PCIe4（约 64–80 GB/s，符合观测）。原因如拓扑探测问题、NVSwitch 驱动问题等。多机情况，则可能只用了单端口而非 Bond、或 GPU Direct RDMA 未启用导致受 CPU 内存复制瓶颈（典型 CPU copy 速率 ~10-20 GB/s），或者线程并行度不够未填满带宽。
 
 - 排查步骤：
-
   1. 查看 Bus BW vs Alg BW：用 `NCCL_DEBUG=INFO` 跑 `all_reduce_perf -g 8 -n 10` 并观察输出。例如 8 卡 NVSwitch 理论一来一回 BusBW=144 GB/s，而 Algbw=120 GB/s 时 BusBW 应达 ~240 GB/s。如果 BusBW 恰好等于当前物理接口峰值，比如 80 GB/s ~ PCIe4 x16 极限，那么说明 NCCL 只用了 PCIe 没有 NVSwitch。
 
   2. 拓扑检测：检查 NCCL 拓扑日志是否识别 NVSwitch/NVLink（见 C 节内容）。若没有，可考虑驱动或环境问题：确保裸机运行、CUDA driver 正确加载 NVSwitch 控制器。尝试升级驱动或补丁。
@@ -318,7 +305,6 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 - 可能原因：系统资源或调用失败。典型如：/dev/shm 空间不足导致共享内存 segment 扩展失败；无限制内存锁定不允许导致 GDR mapping 失败；或 CUDA Driver 内部错误比如显存访问非法。
 
 - 排查步骤：
-
   1. 错误码判断：`ncclSystemError` 通常表示某个系统 API 返回错误，可以配合前面的 NCCL WARN 日志找上下文。例如若紧随 “unable to allocate shared memory” 则很明确。`ncclUnhandledCudaError` 则需看是不是之前有 kernel failed 日志。
 
   1. 共享内存问题：容器环境下，默认 /dev/shm 仅 64MB，远不够多 GPU 全通信 buffer。NCCL 初始化时若失败，会 WARN 提示扩展 shm 失败。解决：Docker 跑容器加 `--shm-size=1g --ulimit memlock=-1`。另外检查 systemd 是否移除了用户 IPC（需要 /etc/systemd/logind.conf 设置 RemoveIPC=no）。
@@ -343,7 +329,6 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 - 可能原因：网络拥塞或丢包导致。InfiniBand 网络中，当流量大时可能触发拥塞管理或 QOS，Adaptive Routing 的切换也会导致波动。RoCE 如果 PFC 配置不完善，可能出现丢包超时重试，使性能断崖式下降。NCCL 检测到 IB 异步错误时（比如链路波动）默认会 Warn 然后重连。
 
 - 排查步骤：
-
   1. NCCL 日志：观察 NCCL INFO 日志中是否频繁出现 `...Disconnecting`、`...Reconnecting`，或 RNR NACK 等 IB 级别消息。这些表明网络不稳导致重试。
 
   2. 底层监控：使用 Infiniband 自带工具查看错误计数，如 `ibporterr` 是否增长，`sar -n EDEV` 看各网卡丢包。
@@ -366,7 +351,6 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 - 可能原因：NCCL 的 float16 AllReduce 默认分两阶段（First reduce in FP16, then finalize in FP32）。精度一般足够。但在极端大规模下，累加顺序可能引入些许不确定。另外 LL128 协议会对数据分块应用低精度 accumulate，存在微小误差。这通常不会导致 NaN，NaN 更多由于网络错误或算子本身。
 
 - 排查步骤：
-
   1. 验证 NaN 来源：使用 `TORCH_NCCL_NAN_CHECK=1` 提前检测各步输出 NaN。看看是否某 rank 的激活值先成为 NaN，而非 AllReduce 过程注入。
 
   2. 关闭融合：禁用 GradScaler 或将 accumulation 降低，看看 NaN 是否还出现。可能是数值本身爆了而非通信。
@@ -376,7 +360,6 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
   4. Check 通信正确性：用 nccl-tests 自带的验证模式运行几千轮：`all_reduce_perf -c 1 -check` 开启数据正确性检查。如果都有 Pass，则 NCCL 本身逻辑没问题。
 
 - 建议 env 组合：
-
   - 为安全，可将 `NCCL_ALGO=Ring NCCL_PROTO=Simple` 在要验证精度的实验中使用，确保按最高精度路径汇总。
 
   - 如果多节点间有可能数据不一致，也可利用 `TORCH_DISTRIBUTED_DEBUG=INFO` PyTorch 在不同步时会有提示。
@@ -390,7 +373,6 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 - 可能原因：在单机多进程场景，NCCL 需要通过 socket 进行 out-of-band 引导（交换 ncclUniqueId 等）。如果本机开启了很多 docker 虚接口或 loopback 优先而其他线程还没起来，可能 NCCL 在尝试接口时超时重试。NCCL 默认排除 lo 和 docker\* 除非没其他接口。另一个原因是生成 UniqueId 采用全员通信，MPI 或文件系统差导致慢。
 
 - 排查步骤：
-
   1. 日志观察：开启 `NCCL_DEBUG=INFO`，看每个 rank 在初始化阶段的时间戳。如果卡很久，多半在`ncclCommInitRank`内部。INFO 日志可能打印 “Trying to bootstrap via x.x.x.x” 之类，可发现如果选错接口。
 
   1. 指定接口：设置 `NCCL_SOCKET_IFNAME=<eth_name>`，确保 NCCL 用正确的本地高速接口而非虚拟接口。
@@ -398,7 +380,6 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
   1. UniqueId 交换：PyTorch 中默认使用 TCP socket 交换 uniqueId，如果机器 DNS 不好或者需翻墙，会拖慢。可以尝试 `init_process_group(..., store=...)` 用本地文件或 shared memory 作为 store，绕过 DNS。NCCL 2.23+ 还提供 `NCCL_OOB_NET_ENABLE=1` 可以让引导也走 NCCL 网络插件而不是系统 socket。但这需要配置，不是默认路径。
 
 - 建议 env 组合：
-
   - `NCCL_SOCKET_IFNAME=eth0 NCCL_IB_DISABLE=1`（单机无 IB，也可禁 IB 插件让其别无选择用 socket）。
 
   - `NCCL_UID_RUNTIME_BINARY=1` (如果适用，理论上可以缩短 uniqueId 生成方式，不过这通常不是瓶颈)。
@@ -412,7 +393,6 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 - 可能原因：NCCL 某算法在当前硬件不适用但被错误启用。如 CollNet 需要服务器有独立网络分层，但混合场景无此条件，如果 NCCL 版本判断有误可能导致 hang。
 
 - 排查步骤：
-
   1. 禁用高级特性：`NCCL_ALGO=^CollNet`，`NCCL_NVLS_ENABLE=0` 禁用 NVLink SHARP，`NCCL_PXN_DISABLE=1` 禁用 PXN。基本回退到经典 Ring/Tree。
 
   2. 查看 issue：搜索 NVIDIA NCCL release notes 或 GitHub issue，有无针对 TPU or multi-node NVSwitch 的已知问题和补丁。
@@ -512,7 +492,7 @@ _注：每次仅改动一个变量，观察效果，避免多项变化难以定�
 
 ### 信息收集与版本检查
 
-- 版本：确保所有节点 NCCL 版本一致（`NCCL_DEBUG=VERSION` 可打印版本）。注意 PyTorch 内置 NCCL 版本，可通过 `torch.cuda.nccl.version()` 获取。已知问题可在 \[NCCL Release Notes] 中查找修复。
+- 版本：确保所有节点 NCCL 版本一致（`NCCL_DEBUG=VERSION` 可打印版本）。注意 PyTorch 内置 NCCL 版本，可通过 `torch.cuda.nccl.version()` 获取。已知问题可在 [NCCL Release Notes] 中查找修复。
 
 - 驱动/CUDA：CUDA Driver >= NCCL 要求版本，否则可能发生挂起（Release Notes 中通常注明）。尽量使用 NVIDIA 官方稳定的驱动+CUDA 组合。
 
