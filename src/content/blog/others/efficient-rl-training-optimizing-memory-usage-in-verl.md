@@ -11,28 +11,12 @@ source:
   title: hebiao064.github.io
   url: 'https://hebiao064.github.io/rl-memory-management'
 cover: >-
-  /images/others/efficient-rl-training-optimizing-memory-usage-in-verl/001-d1241118.svg
+  /images/others/efficient-rl-training-optimizing-memory-usage-in-verl/004-7d38101b.png
 lang: zh
 translatedFrom: en
 ---
 
 # Efficient RL Training - Optimizing Memory Usage in verl
-
-June 21, 2025
-
-Authored by
-
-<!-- Author 1 -->
-
-### Biao He
-
-[![LinkedIn](/images/others/efficient-rl-training-optimizing-memory-usage-in-verl/001-d1241118.svg) ](https://www.linkedin.com/in/biao-he/)[![X](/images/others/efficient-rl-training-optimizing-memory-usage-in-verl/002-b0e70309.svg) ](https://x.com/hebiao064)[![GitHub](/images/others/efficient-rl-training-optimizing-memory-usage-in-verl/003-09285634.svg)](https://github.com/hebiao064)
-
-<!-- Author 2 -->
-
-### Ata Fatahi
-
-[![LinkedIn](/images/others/efficient-rl-training-optimizing-memory-usage-in-verl/001-d1241118.svg) ](https://www.linkedin.com/in/atafatahibaarzi/)[![GitHub](/images/others/efficient-rl-training-optimizing-memory-usage-in-verl/003-09285634.svg)](https://github.com/MrAta)
 
 ## 1. Introduction
 
