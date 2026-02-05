@@ -1,8 +1,8 @@
 ---
-title: "nccl-tests：NCCL 排障与性能定位的“复现机”与标尺"
+title: 'nccl-tests：NCCL 排障与性能定位的“复现机”与标尺'
 slug: nccl-tests
 status: published
-date: "2026-02-05"
+date: '2026-02-05'
 tags:
   - NCCL
 ---
@@ -30,7 +30,7 @@ tags:
 
 ---
 
-## 2. 构建：单机 vs 多机（MPI 版本别忘了）
+## 2. 构建：单机 vs 多机
 
 ### 2.1 单机最简
 
@@ -48,14 +48,9 @@ make -j
 make -j MPI=1 MPI_HOME=/path/to/mpi CUDA_HOME=/path/to/cuda NCCL_HOME=/path/to/nccl
 ```
 
-**常见坑：**
-
-- 多机起得来但行为怪 / 变量没透传 / 日志缺失，回头看发现没编 MPI 版本。
-- `mpirun` 没有用 `-x` 透传环境变量（尤其 `LD_LIBRARY_PATH`、`NCCL_*`）。
-
 ---
 
-## 3. 运行参数：我真正会频繁改的只有这些
+## 3. 运行参数
 
 如果你只想记最少的东西：**message sweep + 稳定性 + rank 形态**。
 
@@ -71,13 +66,13 @@ make -j MPI=1 MPI_HOME=/path/to/mpi CUDA_HOME=/path/to/cuda NCCL_HOME=/path/to/n
 ./build/all_reduce_perf -b 8 -e 1G -f 2 -g 8
 ```
 
-### 3.2 rank 形态（尽量贴近你的训练）
+### 3.2 rank 形态
 
 - `-g`：每进程使用的 GPU 数
   - 单机单进程多卡：`-g 8`
   - 多机：通常 `-g 1`，每 GPU 一个进程（最贴近 DDP ranks）
 
-### 3.3 稳定性（让结果“能比”，也能复现偶发）
+### 3.3 稳定性
 
 - `-w`：warmup 次数（建议 `>= 5`）
 - `-n`：计时迭代次数（建议 `>= 50`）
@@ -116,7 +111,7 @@ busbw = algbw * 2*(n-1)/n
 
 ---
 
-## 5. 三条“黄金命令模板”：单机 / 两机 / N 机（含日志落盘）
+## 5. 三条“黄金命令模板”：单机 / 两机 / N 机
 
 下面三条命令建议直接收藏。目标不是“调到最好”，而是：**先拿到可信 baseline + 关键证据**。
 
@@ -132,7 +127,7 @@ export NCCL_DEBUG_FILE=/tmp/nccl.%h.%p.log   # 每进程一个文件
 
 ### 5.2 两机（每节点 8 卡）：验证 IB/RoCE + GDR 形态
 
-每 GPU 一个进程（最贴近训练 ranks），MPI 透传 NCCL 变量：
+每 GPU 一个进程，MPI 透传 NCCL 变量：
 
 ```bash
 mpirun -np 16 -N 8 \
@@ -190,7 +185,7 @@ export NCCL_DEBUG_FILE=/tmp/nccl.%h.%p.log
 
 ---
 
-## 7. 对照实验：一次只改一个变量（别一把梭把 NCCL 调死）
+## 7. 对照实验
 
 `nccl-tests` 最厉害的一点就是：你可以做 **控制变量实验**。我推荐的策略是：
 
@@ -222,49 +217,34 @@ export NCCL_P2P_DISABLE=1
 
 ---
 
-## 8. “现象 → 根因假设 → 验证命令”速查（IB + NVLink 专项）
+## 8. “现象 → 根因假设 → 验证命令”速查
 
-| 现象（训练里看到的） | 高概率根因（从高到低） | nccl-tests 怎么做（建议命令） | 你该看什么证据 |
-|---|---|---|---|
-| 跨机带宽低得离谱（`busbw` 上不去） | 走错接口 / IB 没用上 / 回退 socket / GDR 没生效 | 两机 `-g 1` 跑 `all_reduce_perf`；对照 `NCCL_IB_DISABLE=1` 再跑一遍 | `NET` 日志里是什么 transport；禁 IB 后是否反而更稳 |
-| 单机 8 卡 `busbw` 只有 PCIe 水平 | NVLink/NVSwitch 未被识别（驱动/容器/拓扑暴露） | 单机 `-g 8` sweep；打开 `GRAPH` | `GRAPH` 里拓扑/通道是否合理；曲线是否达到机器上限 |
-| 某个 size 段出现“台阶/掉速/抖动” | algo/proto/transport 在该 size 段切换 | 围绕拐点做小范围 sweep（如 `-b 1M -e 64M -f 2`）；对照 `NCCL_PROTO=^LL128` | 拐点是否移动/消失；日志里是否切了 algo/proto |
-| 偶发 hang/timeout | IB/RoCE 丢包/重传、某节点异常、或路径 bug | 固定 size `-N 0` 无限跑并落盘日志；对照禁 IB | “最后一条日志”在哪个阶段/哪个 rank；禁 IB 后是否不再 hang |
-| `busbw` 看起来超过网卡线速 | 分层/树算法导致节点内带宽贡献大，换算值≠网卡吞吐 | 对照跑 `reduce_scatter` / `all_gather`；看日志 algo | 是否使用 tree/nvlstree 等；注意不要用 `busbw` 当网卡吞吐 |
-
----
-
-## 9. 排障实验矩阵模板（建议贴到 Issue 里）
-
-目标：把“我感觉是 XX 导致”变成“我有 A/B 证据证明是 XX 导致”。
-
-| 维度 | 取值 | 目的 | 预期/判据 |
-|---|---|---|---|
-| baseline | 无 | 建立 S 曲线 & 拐点 | 曲线平滑、平台值接近线速；异常段明确 |
-| transport | `NCCL_IB_DISABLE=1` | 判断是否 IB 专属问题 | 禁 IB 后 hang 消失/更稳 ⇒ 指向 IB/RoCE/网卡配置 |
-| iface | `NCCL_SOCKET_IFNAME=...` | 验证是否选错网卡 | 限定接口后带宽恢复/初始化更快 |
-| p2p | `NCCL_P2P_DISABLE=1` | 隔离 NVLink/P2P 路径 | 禁 P2P 后变稳 ⇒ 指向 NVLink/PCIe P2P |
-| proto | `NCCL_PROTO=^LL128` | 排除 LL128 路径 | 异常消失/拐点移动 ⇒ 指向协议选择 |
-| algo（仅调试） | `NCCL_ALGO=Ring` | 排除算法切换因素 | 拐点消失 ⇒ 指向算法/拓扑匹配 |
+| 现象（训练里看到的）               | 高概率根因（从高到低）                           | nccl-tests 怎么做（建议命令）                                              | 你该看什么证据                                            |
+| ---------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 跨机带宽低得离谱（`busbw` 上不去） | 走错接口 / IB 没用上 / 回退 socket / GDR 没生效  | 两机 `-g 1` 跑 `all_reduce_perf`；对照 `NCCL_IB_DISABLE=1` 再跑一遍        | `NET` 日志里是什么 transport；禁 IB 后是否反而更稳        |
+| 单机 8 卡 `busbw` 只有 PCIe 水平   | NVLink/NVSwitch 未被识别（驱动/容器/拓扑暴露）   | 单机 `-g 8` sweep；打开 `GRAPH`                                            | `GRAPH` 里拓扑/通道是否合理；曲线是否达到机器上限         |
+| 某个 size 段出现“台阶/掉速/抖动”   | algo/proto/transport 在该 size 段切换            | 围绕拐点做小范围 sweep（如 `-b 1M -e 64M -f 2`）；对照 `NCCL_PROTO=^LL128` | 拐点是否移动/消失；日志里是否切了 algo/proto              |
+| 偶发 hang/timeout                  | IB/RoCE 丢包/重传、某节点异常、或路径 bug        | 固定 size `-N 0` 无限跑并落盘日志；对照禁 IB                               | “最后一条日志”在哪个阶段/哪个 rank；禁 IB 后是否不再 hang |
+| `busbw` 看起来超过网卡线速         | 分层/树算法导致节点内带宽贡献大，换算值≠网卡吞吐 | 对照跑 `reduce_scatter` / `all_gather`；看日志 algo                        | 是否使用 tree/nvlstree 等；注意不要用 `busbw` 当网卡吞吐  |
 
 ---
 
-## 10. 推荐的“结果产物”：S 曲线 + 日志落盘 + 一句话结论
+## 9. 排障实验矩阵模板
 
-跑完 nccl-tests，最好留下三个东西（后续写排障报告会非常省事）：
-
-1. **S 曲线数据**：至少贴出拐点附近几行（size / algbw / busbw）
-2. **每 rank 日志文件**：`NCCL_DEBUG_FILE=/tmp/nccl.%h.%p.log`
-3. **一句话结论**（强可判定、可复现）：
-   - “禁 IB 后 hang 消失 ⇒ 怀疑 IB/RoCE 链路不稳”
-   - “排除 LL128 后台阶消失 ⇒ 怀疑协议切换相关”
-   - “单机 NVLink 没跑满 ⇒ 优先查拓扑暴露/驱动/容器”
+| 维度           | 取值                     | 目的                 | 预期/判据                                       |
+| -------------- | ------------------------ | -------------------- | ----------------------------------------------- |
+| baseline       | 无                       | 建立 S 曲线 & 拐点   | 曲线平滑、平台值接近线速；异常段明确            |
+| transport      | `NCCL_IB_DISABLE=1`      | 判断是否 IB 专属问题 | 禁 IB 后 hang 消失/更稳 ⇒ 指向 IB/RoCE/网卡配置 |
+| iface          | `NCCL_SOCKET_IFNAME=...` | 验证是否选错网卡     | 限定接口后带宽恢复/初始化更快                   |
+| p2p            | `NCCL_P2P_DISABLE=1`     | 隔离 NVLink/P2P 路径 | 禁 P2P 后变稳 ⇒ 指向 NVLink/PCIe P2P            |
+| proto          | `NCCL_PROTO=^LL128`      | 排除 LL128 路径      | 异常消失/拐点移动 ⇒ 指向协议选择                |
+| algo（仅调试） | `NCCL_ALGO=Ring`         | 排除算法切换因素     | 拐点消失 ⇒ 指向算法/拓扑匹配                    |
 
 ---
 
-## 11. 常用跑法组合（拷贝即用）
+## 10. 常用跑法组合（拷贝即用）
 
-### 11.1 只想确认“变量是否被 NCCL 采纳”（看 INIT）
+### 10.1 只想确认“变量是否被 NCCL 采纳”（看 INIT）
 
 ```bash
 export NCCL_DEBUG=INFO
@@ -272,7 +252,7 @@ export NCCL_DEBUG_SUBSYS=INIT
 ./build/all_reduce_perf -b 1M -e 1M -g 8 -w 1 -n 5
 ```
 
-### 11.2 专门抓跨机网络证据（NET 为主）
+### 10.2 专门抓跨机网络证据（NET 为主）
 
 ```bash
 export NCCL_DEBUG=INFO
@@ -284,7 +264,7 @@ mpirun -np 16 -N 8 \
   ./build/all_reduce_perf -b 8M -e 8M -g 1 -w 3 -n 20 -N 0
 ```
 
-### 11.3 专门看拓扑与通道（GRAPH 为主）
+### 10.3 专门看拓扑与通道（GRAPH 为主）
 
 ```bash
 export NCCL_DEBUG=INFO
@@ -294,19 +274,20 @@ export NCCL_DEBUG_SUBSYS=INIT,GRAPH
 
 ---
 
-## 12. 把“拐点 size”映射回 NCCL 日志：三步读法（效率最高）
-
-你不需要把日志当小说逐行看。按下面流程来：
+## 11. 把“拐点 size”映射回 NCCL 日志：三步读法
 
 ### Step A：先确认环境变量真的生效（INIT）
+
 每个 rank 日志开头先看 `INIT`，确认你设的禁用项/限定项真的被采纳。  
 如果 INIT 里看不出来你设的变量，先别分析性能：先把 **变量透传 / 容器环境 / 启动方式** 搞对。
 
 ### Step B：确认路径是不是你以为的路径（NET + GRAPH）
+
 - `NET`：跨节点到底用什么 transport（IB plugin？socket fallback？选错网卡？）
 - `GRAPH`：节点内拓扑/通道怎么铺（NVLink/NVSwitch 是否被识别？通道数是否合理？）
 
-### Step C：用对照实验把切换原因逼出来（一次只改一个）
+### Step C：用对照实验把切换原因逼出来
+
 围绕拐点做小范围 sweep，然后逐个对照：
 
 - baseline（不强制）
@@ -318,7 +299,7 @@ export NCCL_DEBUG_SUBSYS=INIT,GRAPH
 
 ---
 
-## 13. 一键脚本：跑曲线、落盘日志、生成 RESULTS.md（可直接用）
+## 12. 一键脚本：跑曲线、落盘日志、生成 RESULTS.md
 
 下面脚本做了这些事：
 
@@ -331,7 +312,7 @@ export NCCL_DEBUG_SUBSYS=INIT,GRAPH
 
 > 默认使用 `mpirun`，也提供 `srun` 分支入口（Slurm 用户可用）。
 
-```bash
+````bash
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -489,7 +470,7 @@ run_cmd "burn_in_${BURN_SIZE}" \
 cat > RESULTS.md <<'MD'
 # nccl-tests Results Summary
 
-> 本文件由 `run_nccl_tests.sh` 自动生成。  
+> 本文件由 `run_nccl_tests.sh` 自动生成。
 > 建议把 `RESULTS.md` + 拐点附近的 `raw/*.out` + 任意一个 rank 的日志尾部一起贴到 Issue。
 
 ## How to read
@@ -564,31 +545,6 @@ summarize_case "raw/burn_in_${BURN_SIZE}.out" "burn_in_${BURN_SIZE}"
 
 popd >/dev/null
 echo "Done. Results are in: ${OUT_DIR}/RESULTS.md"
-```
+````
 
 ---
-
-## 14. 如何把结果写进 Issue/排障记录（建议模板）
-
-建议贴四样东西（沟通成本最低）：
-
-- `RESULTS.md`（脚本自动生成）
-- baseline 的 `raw/multi_zoom_baseline.out`（拐点放大镜）
-- 对照实验的 `raw/multi_zoom_no_ib.out` / `raw/multi_zoom_no_ll128.out`
-- 任意一个“出问题 rank”的日志尾部 50 行：
-  ```bash
-  tail -n 50 logs/nccl.*.log
-  ```
-
-结论尽量写成**可判定**的句式，例如：
-
-- “禁 IB 后不再 hang ⇒ 指向 IB/RoCE 链路或网卡配置”
-- “排除 LL128 后台阶消失 ⇒ 指向协议切换相关（继续结合版本对照）”
-- “禁 P2P 后单机更稳但带宽掉 ⇒ 指向 NVLink/P2P 路径（先保稳定，再谈性能）”
-
----
-
-## 15. 两个最后提醒（真的会踩）
-
-1. `busbw` 是换算值，不是“真实网卡吞吐”。不要拿它当 `ib_write_bw` 的替代品。
-2. 排障阶段别把 NCCL 一把梭“调死”。优先排除法：`^LL128`、禁 IB、禁 P2P……先定性，再调优。
