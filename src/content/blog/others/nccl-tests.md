@@ -570,28 +570,3 @@ echo "Done. Results are in: ${OUT_DIR}/RESULTS.md"
 ````
 
 ---
-
-## 14. 如何把结果写进 Issue/排障记录（建议模板）
-
-建议贴四样东西（沟通成本最低）：
-
-- `RESULTS.md`（脚本自动生成）
-- baseline 的 `raw/multi_zoom_baseline.out`（拐点放大镜）
-- 对照实验的 `raw/multi_zoom_no_ib.out` / `raw/multi_zoom_no_ll128.out`
-- 任意一个“出问题 rank”的日志尾部 50 行：
-  ```bash
-  tail -n 50 logs/nccl.*.log
-  ```
-
-结论尽量写成**可判定**的句式，例如：
-
-- “禁 IB 后不再 hang ⇒ 指向 IB/RoCE 链路或网卡配置”
-- “排除 LL128 后台阶消失 ⇒ 指向协议切换相关（继续结合版本对照）”
-- “禁 P2P 后单机更稳但带宽掉 ⇒ 指向 NVLink/P2P 路径（先保稳定，再谈性能）”
-
----
-
-## 15. 两个最后提醒（真的会踩）
-
-1. `busbw` 是换算值，不是“真实网卡吞吐”。不要拿它当 `ib_write_bw` 的替代品。
-2. 排障阶段别把 NCCL 一把梭“调死”。优先排除法：`^LL128`、禁 IB、禁 P2P……先定性，再调优。
