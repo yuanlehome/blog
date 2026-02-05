@@ -1,5 +1,7 @@
 ---
 title: "nccl-tests：NCCL 排障与性能定位的“复现机”与标尺"
+slug: nccl-tests
+status: published
 date: "2026-02-05"
 tags:
   - NCCL
