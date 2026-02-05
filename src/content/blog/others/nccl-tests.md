@@ -185,7 +185,7 @@ export NCCL_DEBUG_FILE=/tmp/nccl.%h.%p.log
 
 ---
 
-## 7. 对照实验：一次只改一个变量
+## 7. 对照实验
 
 `nccl-tests` 最厉害的一点就是：你可以做 **控制变量实验**。我推荐的策略是：
 
@@ -286,7 +286,7 @@ export NCCL_DEBUG_SUBSYS=INIT,GRAPH
 - `NET`：跨节点到底用什么 transport（IB plugin？socket fallback？选错网卡？）
 - `GRAPH`：节点内拓扑/通道怎么铺（NVLink/NVSwitch 是否被识别？通道数是否合理？）
 
-### Step C：用对照实验把切换原因逼出来（一次只改一个）
+### Step C：用对照实验把切换原因逼出来
 
 围绕拐点做小范围 sweep，然后逐个对照：
 
