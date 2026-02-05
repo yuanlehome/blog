@@ -235,6 +235,7 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 可能原因：跨节点通信握手不通。常见包括：防火墙未关闭导致 TCP/IB 端口无法建立；节点间网络配置不一致（如一台走 IB 一台却无 IB）；`init_process_group` 参数 world_size 等不匹配；或 IB 的 GID 配置导致握手包丢弃。
 
 排查步骤：
+
 1. 基础连通性：确认各节点间彼此能 ping 通，并且没有防火墙阻挡 NCCL 默认使用的端口 (NCCL 默认随机挑选高位端口，可通过 `net.ipv4.ip_local_port_range` 调整范围)。对使用 IB/RoCE 的，检查 `ibstat` 状态、子网管理器（Subnet Manager）正常。
 
 2. 接口选择：在环境中显式 `NCCL_DEBUG=INFO` 看日志哪个接口在尝试连接。若看到 fallback 到 Socket 或 `[0] NET/IB: No device found` 则 IB 未被识别。可以尝试设置 `NCCL_SOCKET_IFNAME` 明确指定正确的网络，例如 `NCCL_SOCKET_IFNAME=^eth,ib0`（排除无关接口）。
@@ -242,10 +243,11 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 3. 禁用 IB 验证：若怀疑 IB 配置问题，临时 `NCCL_IB_DISABLE=1` 强制走 TCP。如果这样就能初始化成功（尽管后续 AllReduce 慢），说明 IB 通信有问题。接下来重点检查 RoCE 配置（例如 `NCCL_IB_GID_INDEX` 是否一致）以及 IB 固件/驱动。
 
 4. 分步缩小：编写一个最小复现脚本，例如使用 nccl-tests：\
-   `mpirun -np 2 -H host1:1,host2:1./build/all_reduce_perf -b 8 -e 8M -f 2`\
-  尝试在两节点上跑简单 AllReduce，看能否 Hang 复现。加上 `NCCL_DEBUG=INFO` 捕获在哪一步挂。
+    `mpirun -np 2 -H host1:1,host2:1./build/all_reduce_perf -b 8 -e 8M -f 2`\
+   尝试在两节点上跑简单 AllReduce，看能否 Hang 复现。加上 `NCCL_DEBUG=INFO` 捕获在哪一步挂。
 
 建议 env 组合：
+
 - _保守调试_：`NCCL_DEBUG=INFO NCCL_SOCKET_IFNAME=<iface>` 用于观察和纠偏。
 
 - _激进尝试_：`NCCL_IB_DISABLE=1 NCCL_SOCKET_IFNAME=<iface>` 验证是否 IB 专有问题；若确认为 IB 问题，进一步 `NCCL_IB_GID_INDEX` 等配置比对两端。
@@ -259,6 +261,7 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 可能原因：这通常是 Collective 调用失去同步（Desynchronization）造成的死锁。可能一个 rank 跳过或提前退出导致其余 rank 卡在对应的 AllReduce/AllGather。也可能某 rank 上发生了 CUDA 错误被吞掉，导致 NCCL 等待永远不返回。NCCL 本身 Bug（比如 2.7.x 曾有 LL128 算法在特定拓扑卡死的问题）也可能导致所有 rank hang。
 
 排查步骤：
+
 1. 判断哪种 Hang：首先区分是所有 rank 都在等（典型集体不同步），还是个别 rank 崩溃导致 others 在等。可以通过 `dmesg` 查看是否有 GPU 异常日志（如 kernel 打印 Xid 错误表示某 rank GPU 出问题），也可使用 PyTorch 的 `TORCH_NCCL_BLOCKING_WAIT=1` 让出问题 rank 抛异常而不是静默挂住。
 
 2. Desync Debug：设置 `TORCH_NCCL_DUMP_ON_TIMEOUT=1` 并将超时设短（例如 5 分钟）来触发超时 dump。同时开 `TORCH_NCCL_DESYNC_DEBUG=1` 以帮助发现不同步信息。超时后检查每个 rank 转储的 trace，找出哪个 rank 在某 collective 上没有进入或没有退出。比如可能 rank7 停在 allreduce(stream X) 未调用，而其他都完成，则说明 rank7 代码有分支漏调。
@@ -268,6 +271,7 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 4. 外部介入：利用 `gdb` attach 到挂住的一个进程，打印堆栈。如果看到某 NCCL kernel 卡在 CUDA sync，可能 CUDA 这端有异常（如非法内存访问未报）。这时设置环境 `CUDA_LAUNCH_BLOCKING=1` 重运行一次，方便让 CUDA 错误暴露。
 
 建议 env 组合：
+
 - _配合监控_：`TORCH_NCCL_BLOCKING_WAIT=1 TORCH_NCCL_ASYNC_ERROR_HANDLING=1` 使任何 rank 出错立刻中止所有进程，防止部分 hang。
 
 - _Dump 信息_：`TORCH_NCCL_DUMP_ON_TIMEOUT=1 TORCH_NCCL_TRACE_BUFFER_SIZE=1000000 TORCH_NCCL_DEBUG_INFO_TEMP_FILE=/tmp/nccl_dump_%h_%p.json` 收集大量调用踪迹。一旦触发，可用工具/脚本汇总对比各 rank 日志。
@@ -283,6 +287,7 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 可能原因：数据路径未充分利用带宽。单机情况可能 NCCL 未用 NVSwitch 而退化为 PCIe4（约 64–80 GB/s，符合观测）。原因如拓扑探测问题、NVSwitch 驱动问题等。多机情况，则可能只用了单端口而非 Bond、或 GPU Direct RDMA 未启用导致受 CPU 内存复制瓶颈（典型 CPU copy 速率 ~10-20 GB/s），或者线程并行度不够未填满带宽。
 
 排查步骤：
+
 1. 查看 Bus BW vs Alg BW：用 `NCCL_DEBUG=INFO` 跑 `all_reduce_perf -g 8 -n 10` 并观察输出。例如 8 卡 NVSwitch 理论一来一回 BusBW=144 GB/s，而 Algbw=120 GB/s 时 BusBW 应达 ~240 GB/s。如果 BusBW 恰好等于当前物理接口峰值，比如 80 GB/s ~ PCIe4 x16 极限，那么说明 NCCL 只用了 PCIe 没有 NVSwitch。
 
 2. 拓扑检测：检查 NCCL 拓扑日志是否识别 NVSwitch/NVLink（见 C 节内容）。若没有，可考虑驱动或环境问题：确保裸机运行、CUDA driver 正确加载 NVSwitch 控制器。尝试升级驱动或补丁。
@@ -292,6 +297,7 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 4. 并行调优：排除以上因素后，如果仍然低于理论，可以尝试增加并发：调整 `NCCL_SOCKET_NTHREADS` 和 `NCCL_NSOCKS_PERTHREAD`。特别在高速以太网上，默认 (1 线程, 1 socket) 很可能跑不满 100Gb。尝试值如 4 和 4（总 16 socket 并行），观察 busbw 是否接近物理线速。注意此调整需在较大 batch 下观察平均性能，并警惕 CPU 占用上升。
 
 建议 env 组合：
+
 - _拓扑修正_：容器中建议 `--cap-add SYS_NICE` 以启用 NUMA 支持，或挂载正确的 /sys。针对 NVSwitch 可用 `NCCL_TOPO_DUMP_FILE` 确认拓扑识别结果。
 
 - _性能调优_：`NCCL_SOCKET_NTHREADS=4 NCCL_NSOCKS_PERTHREAD=4 NCCL_NET_GDR_LEVEL=PXB`（例如只允许在同 PCI 域用 GDR，跨 CPU 用 bounce 缓冲）。这些组合需根据观察逐步调整。并仅在确认稳定后用于生产。
@@ -305,6 +311,7 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 可能原因：系统资源或调用失败。典型如：/dev/shm 空间不足导致共享内存 segment 扩展失败；无限制内存锁定不允许导致 GDR mapping 失败；或 CUDA Driver 内部错误比如显存访问非法。
 
 排查步骤：
+
 1. 错误码判断：`ncclSystemError` 通常表示某个系统 API 返回错误，可以配合前面的 NCCL WARN 日志找上下文。例如若紧随 “unable to allocate shared memory” 则很明确。`ncclUnhandledCudaError` 则需看是不是之前有 kernel failed 日志。
 
 1. 共享内存问题：容器环境下，默认 /dev/shm 仅 64MB，远不够多 GPU 全通信 buffer。NCCL 初始化时若失败，会 WARN 提示扩展 shm 失败。解决：Docker 跑容器加 `--shm-size=1g --ulimit memlock=-1`。另外检查 systemd 是否移除了用户 IPC（需要 /etc/systemd/logind.conf 设置 RemoveIPC=no）。
@@ -314,6 +321,7 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 1. CUDA 异常：NCCL 使用 CUDA 流，如果用户前面发生了 CUDA illegal memory access，可能在 ncclGroupWait 时抛出 unhandled cuda error。此类应回溯定位之前的 CUDA 调用 bug，不是 NCCL 自身问题。可以利用 `cuda-memcheck` 工具运行程序，早期发现非法访问。
 
 建议 env 组合：
+
 - 针对 shm/内存问题，`NCCL_SHM_DISABLE=0 NCCL_CUMEM_HOST_ENABLE=0` 可尝试不用 cuMem host 机制强制用 /dev/shm，以验证是哪种方式问题（2.24+ 默认用 cuMemHost，有时 NUMA 不支持）。
 
 - 对 IB MR 问题，可设 `NCCL_IB_HCA=<specific>` 只用一块 HCA 测试，或 `NCCL_P2P_DISABLE=1` 绕过 GPUDirect RDMA。
@@ -329,6 +337,7 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 可能原因：网络拥塞或丢包导致。InfiniBand 网络中，当流量大时可能触发拥塞管理或 QOS，Adaptive Routing 的切换也会导致波动。RoCE 如果 PFC 配置不完善，可能出现丢包超时重试，使性能断崖式下降。NCCL 检测到 IB 异步错误时（比如链路波动）默认会 Warn 然后重连。
 
 排查步骤：
+
 1. NCCL 日志：观察 NCCL INFO 日志中是否频繁出现 `...Disconnecting`、`...Reconnecting`，或 RNR NACK 等 IB 级别消息。这些表明网络不稳导致重试。
 
 2. 底层监控：使用 Infiniband 自带工具查看错误计数，如 `ibporterr` 是否增长，`sar -n EDEV` 看各网卡丢包。
@@ -338,6 +347,7 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 4. NCCL 调参：尝试暂时关闭 Adaptive Routing：`NCCL_IB_ADAPTIVE_ROUTING=0` 看看波动是否减少。如果有效，可能 AR 机制不成熟导致 reorder，可考虑升级 FW 或者先禁用。对 RoCE，可以通过降低 `NCCL_IB_TIMEOUT`（比如设 18）使超时更敏感，但这治标不治本。
 
 建议 env 组合：
+
 - `NCCL_IB_SL=` 设一个高优先级 SL 用于 NCCL，确保交换机 QoS 优待；配合 `NCCL_IB_FIFO_TC` 把控控制消息 TC。
 
 - `NCCL_IB_ADAPTIVE_ROUTING=0` 如上，避免路由波动。
@@ -351,6 +361,7 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 可能原因：NCCL 的 float16 AllReduce 默认分两阶段（First reduce in FP16, then finalize in FP32）。精度一般足够。但在极端大规模下，累加顺序可能引入些许不确定。另外 LL128 协议会对数据分块应用低精度 accumulate，存在微小误差。这通常不会导致 NaN，NaN 更多由于网络错误或算子本身。
 
 排查步骤：
+
 1. 验证 NaN 来源：使用 `TORCH_NCCL_NAN_CHECK=1` 提前检测各步输出 NaN。看看是否某 rank 的激活值先成为 NaN，而非 AllReduce 过程注入。
 
 2. 关闭融合：禁用 GradScaler 或将 accumulation 降低，看看 NaN 是否还出现。可能是数值本身爆了而非通信。
@@ -360,6 +371,7 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 4. Check 通信正确性：用 nccl-tests 自带的验证模式运行几千轮：`all_reduce_perf -c 1 -check` 开启数据正确性检查。如果都有 Pass，则 NCCL 本身逻辑没问题。
 
 建议 env 组合：
+
 - 为安全，可将 `NCCL_ALGO=Ring NCCL_PROTO=Simple` 在要验证精度的实验中使用，确保按最高精度路径汇总。
 
 - 如果多节点间有可能数据不一致，也可利用 `TORCH_DISTRIBUTED_DEBUG=INFO` PyTorch 在不同步时会有提示。
@@ -373,6 +385,7 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 可能原因：在单机多进程场景，NCCL 需要通过 socket 进行 out-of-band 引导（交换 ncclUniqueId 等）。如果本机开启了很多 docker 虚接口或 loopback 优先而其他线程还没起来，可能 NCCL 在尝试接口时超时重试。NCCL 默认排除 lo 和 docker\* 除非没其他接口。另一个原因是生成 UniqueId 采用全员通信，MPI 或文件系统差导致慢。
 
 排查步骤：
+
 1. 日志观察：开启 `NCCL_DEBUG=INFO`，看每个 rank 在初始化阶段的时间戳。如果卡很久，多半在`ncclCommInitRank`内部。INFO 日志可能打印 “Trying to bootstrap via x.x.x.x” 之类，可发现如果选错接口。
 
 1. 指定接口：设置 `NCCL_SOCKET_IFNAME=<eth_name>`，确保 NCCL 用正确的本地高速接口而非虚拟接口。
@@ -380,9 +393,10 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 1. UniqueId 交换：PyTorch 中默认使用 TCP socket 交换 uniqueId，如果机器 DNS 不好或者需翻墙，会拖慢。可以尝试 `init_process_group(..., store=...)` 用本地文件或 shared memory 作为 store，绕过 DNS。NCCL 2.23+ 还提供 `NCCL_OOB_NET_ENABLE=1` 可以让引导也走 NCCL 网络插件而不是系统 socket。但这需要配置，不是默认路径。
 
 建议 env 组合：
-  - `NCCL_SOCKET_IFNAME=eth0 NCCL_IB_DISABLE=1`（单机无 IB，也可禁 IB 插件让其别无选择用 socket）。
 
-  - `NCCL_UID_RUNTIME_BINARY=1` (如果适用，理论上可以缩短 uniqueId 生成方式，不过这通常不是瓶颈)。
+- `NCCL_SOCKET_IFNAME=eth0 NCCL_IB_DISABLE=1`（单机无 IB，也可禁 IB 插件让其别无选择用 socket）。
+
+- `NCCL_UID_RUNTIME_BINARY=1` (如果适用，理论上可以缩短 uniqueId 生成方式，不过这通常不是瓶颈)。
 
 验证修复：调整后再次初始化，测量耗时。如果下降到 <5 秒，则说明确实接口选择或配置改善了。如仍慢，可以在 profile 中查看是否 Python 端 store 阻塞长，定位问题。
 
@@ -393,6 +407,7 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 可能原因：NCCL 某算法在当前硬件不适用但被错误启用。如 CollNet 需要服务器有独立网络分层，但混合场景无此条件，如果 NCCL 版本判断有误可能导致 hang。
 
 排查步骤：
+
 1. 禁用高级特性：`NCCL_ALGO=^CollNet`，`NCCL_NVLS_ENABLE=0` 禁用 NVLink SHARP，`NCCL_PXN_DISABLE=1` 禁用 PXN。基本回退到经典 Ring/Tree。
 
 2. 查看 issue：搜索 NVIDIA NCCL release notes 或 GitHub issue，有无针对 TPU or multi-node NVSwitch 的已知问题和补丁。
