@@ -46,30 +46,30 @@ for prompts, pretrain_batch in dataloader:
 
 Each iteration involves a rollout (inference) phase using the actor model, followed by training. [verl](https://github.com/volcengine/verl)’s design co-locates both the rollout and training versions of the actor model on the same GPUs, optimizing resource sharing but complicating memory management. This post focuses on addressing the actor model’s memory challenges.
 
-## 3. The Memory Challenge
+## 3. 内存挑战
 
-RL training in [verl](https://github.com/volcengine/verl) requires seamless transitions between rollout and training phases, both of which are memory-intensive. Co-locating these phases on the same GPUs risks out-of-memory (OOM) errors, especially with large models. Below is the memory breakdown for **[Qwen2.5-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct)** on an H200 GPU node (8 GPUs, \~141 GB VRAM each) using [FSDP](https://pytorch.org/docs/stable/fsdp.html) for training and [SGLang](https://github.com/sgl-project/sglang) for rollout.
+verl 中的 RL 训练需要在 rollout 和训练阶段之间无缝切换，这两个阶段都是内存密集型的。在同一 GPU 上共同放置这些阶段会面临内存不足（OOM）错误的风险，尤其是对于大型模型。以下是在 H200 GPU 节点（8 个 GPU，每个约 141 GB VRAM）上使用 FSDP 进行训练和 SGLang 进行 rollout 的 **Qwen2.5-7B-Instruct** 的内存分解。
 
-#### Training Phase Memory Breakdown
+### 训练阶段内存分解
 
-With [FSDP](https://pytorch.org/docs/stable/fsdp.html) sharding across 8 GPUs, and enable FULLY SHARDED mode with Full Activation Checkpointing, each GPU holds:
+使用 FSDP 在 8 个 GPU 上进行分片，并启用完全分片模式和完全激活检查点，每个 GPU 持有：
 
-![training phase memory breakdown](/images/others/efficient-rl-training-optimizing-memory-usage-in-verl/005-86e69d17.png)
+![训练阶段内存分解](/images/others/efficient-rl-training-optimizing-memory-usage-in-verl/005-86e69d17.png)
 
-**Peak Training Memory**: \~48 GB per GPU
+**训练峰值内存**：每个 GPU 约 48 GB
 
-#### Rollout Phase Memory Breakdown
+### Rollout 阶段内存分解
 
-During inference, the full model is typically loaded (not sharded):
+在推理期间，通常加载完整模型（不分片）：
 
-- **Model Weights**: \~15.4 GB (full model for inference efficiency)
-- **KV Cache**: \~60-90 GB (dominant factor, can be tuned by `mem-fraction` in SGLang, assuming `0.7-0.9` ratio)
-- **CUDA Graph**: \~1-3 GB (captures computation graph for inference acceleration)
-- **Input/Output Buffers**: \~3-7 GB (request batching and response generation)
+- **模型权重**：约 15.4 GB（为推理效率而加载的完整模型）
+- **KV 缓存**：约 60-90 GB（主导因素，可通过 SGLang 中的 `mem-fraction` 调整，假设比率为 0.7-0.9）
+- **CUDA Graph**：约 1-3 GB（捕获计算图以加速推理）
+- **输入/输出缓冲区**：约 3-7 GB（请求批处理和响应生成）
 
-**Total Rollout Memory**: \~80-115 GB per GPU
+**Rollout 总内存**：每个 GPU 约 80-115 GB
 
-Managing these memory demands on the same GPUs requires careful optimization to avoid OOM errors during phase transitions.
+在同一 GPU 上管理这些内存需求需要仔细优化，以避免阶段转换期间的 OOM 错误。
 
 ## 4. Memory Optimization Journey
 
@@ -151,14 +151,14 @@ These APIs enabled a custom memory allocator to preserve virtual memory addresse
 
 This releases physical memory while retaining virtual addresses.
 
-#### Resuming Tensors
+#### 恢复张量
 
 ![恢复张量](/images/others/efficient-rl-training-optimizing-memory-usage-in-verl/010-098c4127.png)
 
 1. 使用 `cuMemCreate` 创建一个新的物理内存句柄。
-1. 使用 `cuMemAlloc` 分配物理内存。
-1. 使用 `cuMemMap` 将新的物理内存映射到存储的虚拟地址。
-1. 更新 **元数据映射** 以包含新的句柄。
+2. 使用 `cuMemAlloc` 分配物理内存。
+3. 使用 `cuMemMap` 将新的物理内存映射到存储的虚拟地址。
+4. 更新**元数据映射**以包含新的句柄。
 
 到目前为止，我们针对内存挑战已经有了一个相当不错的解决方案。
 
@@ -166,24 +166,24 @@ This releases physical memory while retaining virtual addresses.
 
 #### 权重加载优化
 
-为了解决权重加载缓慢的问题，我们避免了磁盘序列化。相反，我们将训练模型权重加载到GPU上，并通过CUDA进程间通信更新rollout引擎的权重。这显著减少了训练到rollout切换的时间（例如，对于7B模型，时间小于0.5秒）。
+为了解决权重加载缓慢的问题，我们避免了磁盘序列化。相反，我们将训练模型权重加载到 GPU 上，并通过 CUDA 进程间通信更新 rollout 引擎的权重。这显著减少了训练到 rollout 切换的时间（例如，对于 7B 模型，时间小于 0.5 秒）。
 
 ### 4.4：多阶段唤醒
 
-尽管有这些改进，我们的用户报告在使用更大模型或高KV缓存比率（>0.7）时，在训练-rollout切换期间出现内存不足（OOM）错误。我们发现在恢复过程中存在内存浪费（上图中的红色块）。为了优化，我们将恢复过程分为多个阶段：
+尽管有这些改进，我们的用户报告在使用更大模型或高 KV 缓存比率（>0.7）时，在训练-rollout 切换期间出现内存不足（OOM）错误。我们发现在恢复过程中存在内存浪费（上图中的红色块）。为了优化，我们将恢复过程分为多个阶段：
 
-1. 将训练模型权重加载到GPU上。
-1. 恢复推理模型权重。
-1. 同步权重。
-1. 卸载训练模型。
-1. 为rollout恢复KV缓存。
+1. 将训练模型权重加载到 GPU 上。
+2. 恢复推理模型权重。
+3. 同步权重。
+4. 卸载训练模型。
+5. 为 rollout 恢复 KV 缓存。
 
 最初，`torch_memory_saver` 的单例设计不支持选择性暂停/恢复内存区域。我们探索了两种解决方案：
 
 - 多个 `torch_memory_saver` 实例。
-- 基于标签的暂停/恢复API。
+- 基于标签的暂停/恢复 API。
 
-我们选择了基于标签的方法，以最小化对SGLang代码库的更改，因为SGLang严重依赖单例设计。您可以在 [RFC](https://github.com/sgl-project/sglang/issues/7009) 中找到两种实现的详细信息。
+我们选择了基于标签的方法，以最小化对 SGLang 代码库的更改，因为 SGLang 严重依赖单例设计。您可以在 RFC 中找到两种实现的详细信息。
 
 #### 基于标签的内存管理
 
@@ -194,8 +194,8 @@ This releases physical memory while retaining virtual addresses.
 **暂停过程：**
 
 1. 检查每个张量的元数据以匹配标签。
-1. 如果匹配，使用 `cuMemUnmap` 取消映射内存。
-1. 使用 `cuMemRelease` 释放物理内存。
+2. 如果匹配，使用 `cuMemUnmap` 取消映射内存。
+3. 使用 `cuMemRelease` 释放物理内存。
 
 **新接口：**
 
@@ -204,19 +204,19 @@ import torch_memory_saver
 
 memory_saver = torch_memory_saver.torch_memory_saver
 
-# Create tensors with specific tags
+# 使用特定标签创建张量
 with torch_memory_saver.region(tag="weights"):
     tensor1 = torch.full((5_000_000_000,), 100, dtype=torch.uint8, device='cuda')
 
 with torch_memory_saver.region(tag="kv_cache"):
     tensor2 = torch.full((5_000_000_000,), 100, dtype=torch.uint8, device='cuda')
 
-# Pause and resume selectively
+# 选择性暂停和恢复
 torch_memory_saver.pause("weights")
 torch_memory_saver.pause("kv_cache")
 
 torch_memory_saver.resume("weights")
-# Sync weights and offload training model
+# 同步权重并卸载训练模型
 torch_memory_saver.resume("kv_cache")
 ```
 
@@ -224,22 +224,12 @@ torch_memory_saver.resume("kv_cache")
 
 ![v3：多阶段恢复](/images/others/efficient-rl-training-optimizing-memory-usage-in-verl/013-33b532fa.png)
 
-这种方法最小化了内存浪费，解决了OOM问题，并提高了大模型和高KV缓存比率的效率。
+这种方法最小化了内存浪费，解决了 OOM 问题，并提高了大模型和高 KV 缓存比率的效率。
 
 ## 5. 结论
 
-通过本旅程中概述的优化，我们成功地在 **Qwen 32B** 上训练了模型，KV缓存内存比率为 **0.9**，使用了 **8个H200 GPU**——这一成就最初是无法实现的。这篇博客文章总结了SGLang RL团队的内存优化努力，为强化学习（RL）训练的高效内存管理提供了见解。我们希望它能作为理解和应对类似挑战的宝贵资源。
+通过本文概述的优化，我们成功地在 **Qwen 32B** 上训练了模型，KV 缓存内存比率为 **0.9**，使用了 **8 个 H200 GPU** - 这一成就最初是无法实现的。本文总结了 SGLang RL 团队的内存优化努力，为强化学习（RL）训练的高效内存管理提供了见解。我们希望它能作为理解和应对类似挑战的宝贵资源。
 
 ## 6. 致谢
 
-我们向SGLang RL团队和verl团队表示诚挚的感谢，特别感谢 [Tom](https://github.com/fzyzcjy) 开发了紧凑而强大的 `torch_memory_saver` 库，并为SGLang和 [Chenyang](https://www.linkedin.com/in/chayennezhao/) 领导SGLang RL计划并提供关键指导和支持奠定了基础。
-
-## 7. 脚注
-
-1. [LlamaRL论文](https://arxiv.org/pdf/2505.24034) [↩](#fnref:1)
-
-1. [Torch Memory Saver：一个PyTorch库，允许张量内存被临时释放并在稍后恢复](https://github.com/fzyzcjy/torch_memory_saver) [↩](#fnref:2)
-
-1. [CUDA 10.2：引入低级GPU虚拟内存管理](https://developer.nvidia.com/blog/introducing-low-level-gpu-virtual-memory-management/) [↩](#fnref:3) [↩2](#fnref:3:1)
-
-1. [LD_PRELOAD](https://catonmat.net/simple-ld-preload-tutorial) [↩](#fnref:4)
+我们向 SGLang RL 团队和 verl 团队表示诚挚的感谢，特别感谢 Tom 开发了紧凑而强大的 `torch_memory_saver` 库，并为 SGLang 奠定了基础，以及 Chenyang 领导 SGLang RL 计划并提供关键指导和支持。
