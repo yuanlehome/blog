@@ -3,14 +3,7 @@ title: "nccl-tests：NCCL 排障与性能定位的“复现机”与标尺"
 date: "2026-02-05"
 tags:
   - NCCL
-  - nccl-tests
-  - Distributed Training
-  - Performance Debugging
-  - RDMA
-  - NVLink
 ---
-
-# nccl-tests：NCCL 排障与性能定位的“复现机”与标尺
 
 `nccl-tests` 是 NVIDIA 官方维护的一组 NCCL 基准 / 正确性测试程序。它最有价值的地方不在“跑个分”，而在于：把训练框架里一堆复杂因素剥离掉，只剩下 **NCCL 本身 + 你的硬件与网络**，从而让问题变得 **可复现、可对比、可定位**。
 
