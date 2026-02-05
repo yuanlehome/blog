@@ -98,7 +98,7 @@ NCCL 支持多种通信传输方式，包括：GPU 直连（P2P）、共享内�
 
 - **设备选择**：`NCCL_IB_HCA` – 指定哪几个 HCA（IB 主机通道适配器）用于 NCCL 通信。可用格式如：`NCCL_IB_HCA=mlx5_0:1,mlx5_1:1`（精确指定两个卡的 1 号端口）；或 `^=mlx5_3`（排除特定卡）等。默认情况下，NCCL 会自动选择所有可用 IB 设备，优先同名端口。但在多 IB 网卡且某些用于其他用途时，常通过此变量**限制 NCCL 用某些端口**。有上限 32 个 HCA 设备。
 
-- **连接超时与重试**：`NCCL_IB_TIMEOUT` – 控制 IB Verbs 的**超时时间**，影响 QP 连接和数据超时。缺省值 20，对应 4.096 µs * 2^20 ≈ 4 秒的链路层超时。大规模集群上可能需要增大（如 NCCL 初始化报 `ibv_poll_cq error 12` 则尝试调大此值）。`NCCL_IB_RETRY_CNT` 控制 IB 层重试次数，默认 7 次（对应 InfiniBand spec 默认）。一般保留默认，除非特别需要避免过早断开。
+- **连接超时与重试**：`NCCL_IB_TIMEOUT` – 控制 IB Verbs 的**超时时间**，影响 QP 连接和数据超时。缺省值 20，对应 4.096 µs \* 2^20 ≈ 4 秒的链路层超时。大规模集群上可能需要增大（如 NCCL 初始化报 `ibv_poll_cq error 12` 则尝试调大此值）。`NCCL_IB_RETRY_CNT` 控制 IB 层重试次数，默认 7 次（对应 InfiniBand spec 默认）。一般保留默认，除非特别需要避免过早断开。
 
 - **RoCE 定位**：`NCCL_IB_GID_INDEX` – 指定 RoCE 情况下使用的 GID 表索引。RoCE v2 常用 index=3 (对应 IPv4) 或 index=0 (根据配置)，如遇跨网段通信问题可以尝试设置正确的 GID index。`NCCL_IB_ROCE_VERSION_NUM` – 指定 RoCE 版本 (1 或 2)，默认 2。`NCCL_IB_SL` 和 `NCCL_IB_TC` – 分别设置 IB Service Level 和 Traffic Class，用于 QoS 优先级，默认都为 0。在拥塞场景下，可考虑给控制报文和数据报文设不同 TC（2.22.3 加入 `NCCL_IB_FIFO_TC` 专门为控制信道设 TC）。
 
@@ -232,16 +232,15 @@ PyTorch 自己也提供了**环境变量**来控制 NCCL 后端的错误处理�
 - **可能原因**：跨节点通信握手不通。常见包括：防火墙未关闭导致 TCP/IB 端口无法建立；节点间网络配置不一致（如一台走 IB 一台却无 IB）；`init_process_group` 参数 world_size 等不匹配；或 IB 的 GID 配置导致握手包丢弃。
 
 - **排查步骤**：
+  1. **基础连通性**：确认各节点间彼此能 ping 通，并且没有防火墙阻挡 NCCL 默认使用的端口 (NCCL 默认随机挑选高位端口，可通过 `net.ipv4.ip_local_port_range` 调整范围)。对使用 IB/RoCE 的，检查 `ibstat` 状态、子网管理器（Subnet Manager）正常。
 
-    1. **基础连通性**：确认各节点间彼此能 ping 通，并且没有防火墙阻挡 NCCL 默认使用的端口 (NCCL 默认随机挑选高位端口，可通过 `net.ipv4.ip_local_port_range` 调整范围)。对使用 IB/RoCE 的，检查 `ibstat` 状态、子网管理器（Subnet Manager）正常。
+  2. **接口选择**：在环境中显式 `NCCL_DEBUG=INFO` 看日志哪个接口在尝试连接。若看到 fallback 到 Socket 或 `[0] NET/IB: No device found` 则 IB 未被识别。可以尝试设置 `NCCL_SOCKET_IFNAME` 明确指定正确的网络，例如 `NCCL_SOCKET_IFNAME=^eth,ib0`（排除无关接口）。
 
-    2. **接口选择**：在环境中显式 `NCCL_DEBUG=INFO` 看日志哪个接口在尝试连接。若看到 fallback 到 Socket 或 `[0] NET/IB: No device found` 则 IB 未被识别。可以尝试设置 `NCCL_SOCKET_IFNAME` 明确指定正确的网络，例如 `NCCL_SOCKET_IFNAME=^eth,ib0`（排除无关接口）。
+  3. **禁用 IB 验证**：若怀疑 IB 配置问题，临时 `NCCL_IB_DISABLE=1` 强制走 TCP。如果这样就能初始化成功（尽管后续 AllReduce 慢），说明 IB 通信有问题。接下来重点检查 RoCE 配置（例如 `NCCL_IB_GID_INDEX` 是否一致）以及 IB 固件/驱动。
 
-    3. **禁用 IB 验证**：若怀疑 IB 配置问题，临时 `NCCL_IB_DISABLE=1` 强制走 TCP。如果这样就能初始化成功（尽管后续 AllReduce 慢），说明 IB 通信有问题。接下来重点检查 RoCE 配置（例如 `NCCL_IB_GID_INDEX` 是否一致）以及 IB 固件/驱动。
-
-    4. **分步缩小**：编写一个最小复现脚本，例如使用 nccl-tests：\
-        `mpirun -np 2 -H host1:1,host2:1./build/all_reduce_perf -b 8 -e 8M -f 2`\
-        尝试在两节点上跑简单 AllReduce，看能否 Hang 复现。加上 `NCCL_DEBUG=INFO` 捕获在哪一步挂。
+  4. **分步缩小**：编写一个最小复现脚本，例如使用 nccl-tests：\
+     `mpirun -np 2 -H host1:1,host2:1./build/all_reduce_perf -b 8 -e 8M -f 2`\
+     尝试在两节点上跑简单 AllReduce，看能否 Hang 复现。加上 `NCCL_DEBUG=INFO` 捕获在哪一步挂。
 
 - **建议 env 组合**：
   - _保守调试_：`NCCL_DEBUG=INFO NCCL_SOCKET_IFNAME=<iface>` 用于观察和纠偏。
@@ -257,14 +256,13 @@ PyTorch 自己也提供了**环境变量**来控制 NCCL 后端的错误处理�
 - **可能原因**：这通常是**Collective 调用失去同步**（Desynchronization）造成的死锁。可能一个 rank 跳过或提前退出导致其余 rank 卡在对应的 AllReduce/AllGather。也可能某 rank 上发生了 CUDA 错误被吞掉，导致 NCCL 等待永远不返回。NCCL 本身 Bug（比如 2.7.x 曾有 LL128 算法在特定拓扑卡死的问题）也可能导致所有 rank hang。
 
 - **排查步骤**：
+  1. **判断哪种 Hang**：首先区分是**所有 rank 都在等**（典型集体不同步），还是**个别 rank 崩溃**导致 others 在等。可以通过 `dmesg` 查看是否有 GPU 异常日志（如 kernel 打印 Xid 错误表示某 rank GPU 出问题），也可使用 PyTorch 的 `TORCH_NCCL_BLOCKING_WAIT=1` 让出问题 rank 抛异常而不是静默挂住。
 
-    1. **判断哪种 Hang**：首先区分是**所有 rank 都在等**（典型集体不同步），还是**个别 rank 崩溃**导致 others 在等。可以通过 `dmesg` 查看是否有 GPU 异常日志（如 kernel 打印 Xid 错误表示某 rank GPU 出问题），也可使用 PyTorch 的 `TORCH_NCCL_BLOCKING_WAIT=1` 让出问题 rank 抛异常而不是静默挂住。
+  2. **Desync Debug**：设置 `TORCH_NCCL_DUMP_ON_TIMEOUT=1` 并将超时设短（例如 5 分钟）来触发超时 dump。同时开 `TORCH_NCCL_DESYNC_DEBUG=1` 以帮助发现不同步信息。超时后检查每个 rank 转储的 trace，找出哪个 rank 在某 collective 上没有进入或没有退出。比如可能 rank7 停在 allreduce(stream X) 未调用，而其他都完成，则说明 rank7 代码有分支漏调。
 
-    2. **Desync Debug**：设置 `TORCH_NCCL_DUMP_ON_TIMEOUT=1` 并将超时设短（例如 5 分钟）来触发超时 dump。同时开 `TORCH_NCCL_DESYNC_DEBUG=1` 以帮助发现不同步信息。超时后检查每个 rank 转储的 trace，找出哪个 rank 在某 collective 上没有进入或没有退出。比如可能 rank7 停在 allreduce(stream X) 未调用，而其他都完成，则说明 rank7 代码有分支漏调。
+  3. **协议算法角度**：如果所有 rank 显示都进入了一次 AllReduce 但出不来，考虑是否 NCCL 内部死锁。这种情况下可尝试 `NCCL_PROTO=^LL128` 或 `NCCL_ALGO=Ring` 等（逐一改变），看问题是否不再复现。如果禁用 LL128 后不 hang 了，则很可能碰到 NCCL 已知 Bug，需要升级 NCCL 版本。
 
-    3. **协议算法角度**：如果所有 rank 显示都进入了一次 AllReduce 但出不来，考虑是否 NCCL 内部死锁。这种情况下可尝试 `NCCL_PROTO=^LL128` 或 `NCCL_ALGO=Ring` 等（逐一改变），看问题是否不再复现。如果禁用 LL128 后不 hang 了，则很可能碰到 NCCL 已知 Bug，需要升级 NCCL 版本。
-
-    4. **外部介入**：利用 `gdb` attach 到挂住的一个进程，打印堆栈。如果看到某 NCCL kernel 卡在 CUDA sync，可能 CUDA 这端有异常（如非法内存访问未报）。这时设置环境 `CUDA_LAUNCH_BLOCKING=1` 重运行一次，方便让 CUDA 错误暴露。
+  4. **外部介入**：利用 `gdb` attach 到挂住的一个进程，打印堆栈。如果看到某 NCCL kernel 卡在 CUDA sync，可能 CUDA 这端有异常（如非法内存访问未报）。这时设置环境 `CUDA_LAUNCH_BLOCKING=1` 重运行一次，方便让 CUDA 错误暴露。
 
 - **建议 env 组合**：
   - _配合监控_：`TORCH_NCCL_BLOCKING_WAIT=1 TORCH_NCCL_ASYNC_ERROR_HANDLING=1` 使任何 rank 出错立刻中止所有进程，防止部分 hang。
@@ -282,14 +280,13 @@ PyTorch 自己也提供了**环境变量**来控制 NCCL 后端的错误处理�
 - **可能原因**：**数据路径未充分利用带宽**。单机情况可能 NCCL 未用 NVSwitch 而退化为 PCIe4（约 64–80 GB/s，符合观测）。原因如拓扑探测问题、NVSwitch 驱动问题等。多机情况，则可能只用了单端口而非 Bond、或 GPU Direct RDMA 未启用导致受 CPU 内存复制瓶颈（典型 CPU copy 速率 ~10-20 GB/s），或者线程并行度不够未填满带宽。
 
 - **排查步骤**：
+  1. **查看 Bus BW vs Alg BW**：用 `NCCL_DEBUG=INFO` 跑 `all_reduce_perf -g 8 -n 10` 并观察输出。例如 8 卡 NVSwitch 理论一来一回 BusBW=144 GB/s，而 Algbw=120 GB/s 时 BusBW 应达 ~240 GB/s。如果 BusBW 恰好等于当前物理接口峰值，比如 80 GB/s ~ PCIe4 x16 极限，那么说明 NCCL 只用了 PCIe 没有 NVSwitch。
 
-    1. **查看 Bus BW vs Alg BW**：用 `NCCL_DEBUG=INFO` 跑 `all_reduce_perf -g 8 -n 10` 并观察输出。例如 8 卡 NVSwitch 理论一来一回 BusBW=144 GB/s，而 Algbw=120 GB/s 时 BusBW 应达 ~240 GB/s。如果 BusBW 恰好等于当前物理接口峰值，比如 80 GB/s ~ PCIe4 x16 极限，那么说明 NCCL 只用了 PCIe 没有 NVSwitch。
+  2. **拓扑检测**：检查 NCCL 拓扑日志是否识别 NVSwitch/NVLink（见 C 节内容）。若没有，可考虑驱动或环境问题：确保裸机运行、CUDA driver 正确加载 NVSwitch 控制器。尝试升级驱动或补丁。
 
-    2. **拓扑检测**：检查 NCCL 拓扑日志是否识别 NVSwitch/NVLink（见 C 节内容）。若没有，可考虑驱动或环境问题：确保裸机运行、CUDA driver 正确加载 NVSwitch 控制器。尝试升级驱动或补丁。
+  3. **网络瓶颈**：在多机上，对比 `algbw` 和 `busbw`：busbw 代表实际流经网络数据速率。如 2 机 100Gbps 网络理想 busbw≈12.5 GB/s。但若 busbw 只有 6 GB/s 且 algbw 更低，则可能 GPU->NIC GDR 未用上（需要 CPU 中转耗时）。验证方法：比较使用 GDR 与否性能，手动 `NCCL_NET_GDR_LEVEL=SYS` 强制 GPU 直 RDMA。如果性能提升，说明之前 GPUDirect 未启用，可能因为需要加载 `nvidia-peermem` 模块或 NIC 不支持 DMA-BUF。反之如强制 GDR 性能下降甚至不稳定，则可能是 ROCE PFC 没配好造成丢包重传。
 
-    3. **网络瓶颈**：在多机上，对比 `algbw` 和 `busbw`：busbw 代表实际流经网络数据速率。如 2 机 100Gbps 网络理想 busbw≈12.5 GB/s。但若 busbw 只有 6 GB/s 且 algbw 更低，则可能 GPU->NIC GDR 未用上（需要 CPU 中转耗时）。验证方法：比较使用 GDR 与否性能，手动 `NCCL_NET_GDR_LEVEL=SYS` 强制 GPU 直 RDMA。如果性能提升，说明之前 GPUDirect 未启用，可能因为需要加载 `nvidia-peermem` 模块或 NIC 不支持 DMA-BUF。反之如强制 GDR 性能下降甚至不稳定，则可能是 ROCE PFC 没配好造成丢包重传。
-
-    4. **并行调优**：排除以上因素后，如果仍然低于理论，可以尝试**增加并发**：调整 `NCCL_SOCKET_NTHREADS` 和 `NCCL_NSOCKS_PERTHREAD`。特别在高速以太网上，默认 (1 线程, 1 socket) 很可能跑不满 100Gb。尝试值如 4 和 4（总 16 socket 并行），观察 busbw 是否接近物理线速。注意此调整需在较大 batch 下观察平均性能，并警惕 CPU 占用上升。
+  4. **并行调优**：排除以上因素后，如果仍然低于理论，可以尝试**增加并发**：调整 `NCCL_SOCKET_NTHREADS` 和 `NCCL_NSOCKS_PERTHREAD`。特别在高速以太网上，默认 (1 线程, 1 socket) 很可能跑不满 100Gb。尝试值如 4 和 4（总 16 socket 并行），观察 busbw 是否接近物理线速。注意此调整需在较大 batch 下观察平均性能，并警惕 CPU 占用上升。
 
 - **建议 env 组合**：
   - _拓扑修正_：容器中建议 `--cap-add SYS_NICE` 以启用 NUMA 支持，或挂载正确的 /sys。针对 NVSwitch 可用 `NCCL_TOPO_DUMP_FILE` 确认拓扑识别结果。
@@ -330,14 +327,13 @@ PyTorch 自己也提供了**环境变量**来控制 NCCL 后端的错误处理�
 - **可能原因**：**网络拥塞或丢包**导致。InfiniBand 网络中，当流量大时可能触发拥塞管理或 QOS，Adaptive Routing 的切换也会导致波动。RoCE 如果 PFC 配置不完善，可能出现丢包超时重试，使性能断崖式下降。NCCL 检测到 IB 异步错误时（比如链路波动）默认会 Warn 然后重连。
 
 - **排查步骤**：
+  1. **NCCL 日志**：观察 NCCL INFO 日志中是否频繁出现 `...Disconnecting`、`...Reconnecting`，或 RNR NACK 等 IB 级别消息。这些表明网络不稳导致重试。
 
-    1. **NCCL 日志**：观察 NCCL INFO 日志中是否频繁出现 `...Disconnecting`、`...Reconnecting`，或 RNR NACK 等 IB 级别消息。这些表明网络不稳导致重试。
+  2. **底层监控**：使用 Infiniband 自带工具查看错误计数，如 `ibporterr` 是否增长，`sar -n EDEV` 看各网卡丢包。
 
-    2. **底层监控**：使用 Infiniband 自带工具查看错误计数，如 `ibporterr` 是否增长，`sar -n EDEV` 看各网卡丢包。
+  3. **拥塞控制**：如果是 RoCEv2 网络，确认交换机和网卡配置了 PFC（优先级流控）和 ECN，否则遇到深度缓冲拥塞会丢包导致 NCCL 重试超时。对于 InfiniBand HDR/EDR 网络，可检查是否启用了动态拥塞控制（需要 NIC FW 支持）。
 
-    3. **拥塞控制**：如果是 RoCEv2 网络，确认交换机和网卡配置了 PFC（优先级流控）和 ECN，否则遇到深度缓冲拥塞会丢包导致 NCCL 重试超时。对于 InfiniBand HDR/EDR 网络，可检查是否启用了动态拥塞控制（需要 NIC FW 支持）。
-
-    4. **NCCL 调参**：尝试暂时关闭 Adaptive Routing：`NCCL_IB_ADAPTIVE_ROUTING=0` 看看波动是否减少。如果有效，可能 AR 机制不成熟导致 reorder，可考虑升级 FW 或者先禁用。对 RoCE，可以通过降低 `NCCL_IB_TIMEOUT`（比如设 18）使超时更敏感，但这治标不治本。
+  4. **NCCL 调参**：尝试暂时关闭 Adaptive Routing：`NCCL_IB_ADAPTIVE_ROUTING=0` 看看波动是否减少。如果有效，可能 AR 机制不成熟导致 reorder，可考虑升级 FW 或者先禁用。对 RoCE，可以通过降低 `NCCL_IB_TIMEOUT`（比如设 18）使超时更敏感，但这治标不治本。
 
 - **建议 env 组合**：
   - `NCCL_IB_SL=` 设一个高优先级 SL 用于 NCCL，确保交换机 QoS 优待；配合 `NCCL_IB_FIFO_TC` 把控控制消息 TC。
@@ -355,14 +351,13 @@ PyTorch 自己也提供了**环境变量**来控制 NCCL 后端的错误处理�
 - **可能原因**：NCCL 的 float16 AllReduce 默认分两阶段（First reduce in FP16, then finalize in FP32）。精度一般足够。但在极端大规模下，累加顺序可能引入些许不确定。另外 LL128 协议会对数据分块应用低精度 accumulate，存在微小误差。这通常不会导致 NaN，NaN 更多由于网络错误或算子本身。
 
 - **排查步骤**：
+  1. **验证 NaN 来源**：使用 `TORCH_NCCL_NAN_CHECK=1` 提前检测各步输出 NaN。看看是否某 rank 的激活值先成为 NaN，而非 AllReduce 过程注入。
 
-    1. **验证 NaN 来源**：使用 `TORCH_NCCL_NAN_CHECK=1` 提前检测各步输出 NaN。看看是否某 rank 的激活值先成为 NaN，而非 AllReduce 过程注入。
+  2. **关闭融合**：禁用 GradScaler 或将 accumulation 降低，看看 NaN 是否还出现。可能是数值本身爆了而非通信。
 
-    2. **关闭融合**：禁用 GradScaler 或将 accumulation 降低，看看 NaN 是否还出现。可能是数值本身爆了而非通信。
+  3. **协议替换**：试 `NCCL_PROTO=Simple` 强制不用 LL/LL128。如果 NaN 不再出现，可能 LL128 某 bug 引发错误 sum。也可尝试 `NCCL_ALGO=Tree` 改变累加次序看看。
 
-    3. **协议替换**：试 `NCCL_PROTO=Simple` 强制不用 LL/LL128。如果 NaN 不再出现，可能 LL128 某 bug 引发错误 sum。也可尝试 `NCCL_ALGO=Tree` 改变累加次序看看。
-
-    4. **Check 通信正确性**：用 nccl-tests 自带的验证模式运行几千轮：`all_reduce_perf -c 1 -check` 开启数据正确性检查。如果都有 Pass，则 NCCL 本身逻辑没问题。
+  4. **Check 通信正确性**：用 nccl-tests 自带的验证模式运行几千轮：`all_reduce_perf -c 1 -check` 开启数据正确性检查。如果都有 Pass，则 NCCL 本身逻辑没问题。
 
 - **建议 env 组合**：
   - 为安全，可将 `NCCL_ALGO=Ring NCCL_PROTO=Simple` 在要验证精度的实验中使用，确保按最高精度路径汇总。
@@ -399,12 +394,11 @@ PyTorch 自己也提供了**环境变量**来控制 NCCL 后端的错误处理�
 - **可能原因**：NCCL 某算法在当前硬件不适用但被错误启用。如 CollNet 需要服务器有独立网络分层，但混合场景无此条件，如果 NCCL 版本判断有误可能导致 hang。
 
 - **排查步骤**：
+  1. **禁用高级特性**：`NCCL_ALGO=^CollNet`，`NCCL_NVLS_ENABLE=0` 禁用 NVLink SHARP，`NCCL_PXN_DISABLE=1` 禁用 PXN。基本回退到经典 Ring/Tree。
 
-    1. **禁用高级特性**：`NCCL_ALGO=^CollNet`，`NCCL_NVLS_ENABLE=0` 禁用 NVLink SHARP，`NCCL_PXN_DISABLE=1` 禁用 PXN。基本回退到经典 Ring/Tree。
+  2. **查看 issue**：搜索 NVIDIA NCCL release notes 或 GitHub issue，有无针对 TPU or multi-node NVSwitch 的已知问题和补丁。
 
-    2. **查看 issue**：搜索 NVIDIA NCCL release notes 或 GitHub issue，有无针对 TPU or multi-node NVSwitch 的已知问题和补丁。
-
-    3. **版本回退**：有时新特性 Bug，可以尝试 NCCL 降级或升级到最新补丁看是否解决。
+  3. **版本回退**：有时新特性 Bug，可以尝试 NCCL 降级或升级到最新补丁看是否解决。
 
 - **建议 env 组合**：保守期间对非典型架构统一加上述禁用的变量，确保 NCCL 仅用最稳妥路径（虽然可能性能不最高）。
 
