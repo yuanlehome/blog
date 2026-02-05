@@ -1,5 +1,5 @@
 ---
-title: "NCCL Debug 全栈手段：常用环境变量、日志/拓扑/通信诊断与 Hang/性能/数据异常排查"
+title: 'NCCL Debug 全栈手段：常用环境变量、日志/拓扑/通信诊断与 Hang/性能/数据异常排查'
 slug: nccl-debug-hang
 date: '2026-02-05'
 tags: []
@@ -39,8 +39,8 @@ NCCL（NVIDIA Collectives Communications Library）提供了丰富的环境变�
 - 使用前缀 `^` 可排除子模块，如 `NCCL_DEBUG_SUBSYS=ALL,^COLL` 表示记录全部但不含集合算法细节。
 
 - `NCCL_DEBUG_FILE` 日志重定向：默认日志输出到 stdout/stderr。设置该变量可将日志写入文件。例如：\
- `NCCL_DEBUG=WARN NCCL_DEBUG_FILE=/tmp/nccl_log.%h.%p`\
- 将 WARN 级日志写到文件，文件名中 `%h` 和 `%p` 会分别替换为 hostname 和进程 PID。这在多进程/多节点场景下很有用，每个进程写自己的日志文件，避免交织。需注意文件名必须唯一，否则多个进程写入同一文件会混乱。
+  `NCCL_DEBUG=WARN NCCL_DEBUG_FILE=/tmp/nccl_log.%h.%p`\
+  将 WARN 级日志写到文件，文件名中 `%h` 和 `%p` 会分别替换为 hostname 和进程 PID。这在多进程/多节点场景下很有用，每个进程写自己的日志文件，避免交织。需注意文件名必须唯一，否则多个进程写入同一文件会混乱。
 
 - 时间戳格式与线程命名：`NCCL_DEBUG_TIMESTAMP_FORMAT` 可定制日志时间戳格式（例如打印相对时间方便计算耗时）。`NCCL_SET_THREAD_NAME=1` 则让 NCCL 后台线程有易读名称（如 `NCCL I/O Thr`），便于使用 `htop` 等工具观察 CPU 线程状态。
 
@@ -100,7 +100,7 @@ NCCL 支持多种通信传输方式，包括：GPU 直连（P2P）、共享内�
 
 - 设备选择：`NCCL_IB_HCA` – 指定哪几个 HCA（IB 主机通道适配器）用于 NCCL 通信。可用格式如：`NCCL_IB_HCA=mlx5_0:1,mlx5_1:1`（精确指定两个卡的 1 号端口）；或 `^=mlx5_3`（排除特定卡）等。默认情况下，NCCL 会自动选择所有可用 IB 设备，优先同名端口。但在多 IB 网卡且某些用于其他用途时，常通过此变量限制 NCCL 用某些端口。有上限 32 个 HCA 设备。
 
-- 连接超时与重试：`NCCL_IB_TIMEOUT` – 控制 IB Verbs 的超时时间，影响 QP 连接和数据超时。缺省值 20，对应 4.096 µs \* 2^20 ≈ 4 秒的链路层超时。大规模集群上可能需要增大（如 NCCL 初始化报 `ibv_poll_cq error 12` 则尝试调大此值）。`NCCL_IB_RETRY_CNT` 控制 IB 层重试次数，默认 7 次（对应 InfiniBand spec 默认）。一般保留默认，除非特别需要避免过早断开。
+- 连接超时与重试：`NCCL_IB_TIMEOUT` – 控制 IB Verbs 的超时时间，影响 QP 连接和数据超时。缺省值 20，对应 $4.096 \mu\text{s} \times 2^{20} \approx 4$ 秒的链路层超时。大规模集群上可能需要增大（如 NCCL 初始化报 `ibv_poll_cq error 12` 则尝试调大此值）。`NCCL_IB_RETRY_CNT` 控制 IB 层重试次数，默认 7 次（对应 InfiniBand spec 默认）。一般保留默认，除非特别需要避免过早断开。
 
 - RoCE 定位：`NCCL_IB_GID_INDEX` – 指定 RoCE 情况下使用的 GID 表索引。RoCE v2 常用 index=3 (对应 IPv4) 或 index=0 (根据配置)，如遇跨网段通信问题可以尝试设置正确的 GID index。`NCCL_IB_ROCE_VERSION_NUM` – 指定 RoCE 版本 (1 或 2)，默认 2。`NCCL_IB_SL` 和 `NCCL_IB_TC` – 分别设置 IB Service Level 和 Traffic Class，用于 QoS 优先级，默认都为 0。在拥塞场景下，可考虑给控制报文和数据报文设不同 TC（2.22.3 加入 `NCCL_IB_FIFO_TC` 专门为控制信道设 TC）。
 
@@ -139,7 +139,7 @@ NCCL 支持多种通信传输方式，包括：GPU 直连（P2P）、共享内�
 ### GPU 直连 (P2P) 与 SHM 相关:
 
 - `NCCL_P2P_LEVEL` – 控制 GPU 间直连 P2P 的最大拓扑距离。可选：\
- `LOC`（同板直连才用 P2P），`NVL`（有 NVLink 则用），`PIX`（同 PCIe 开关用），`PXB`（跨 PCI 开关但同 CPU 用），`PHB`（同 NUMA 节点用，即跨 CPU 但不跨 QPI），`SYS`（即使跨 QPI/UPI 的 NUMA 也用 P2P）。默认为 NCCL 自动判断。用途：若某拓扑层次的 P2P 性能不佳甚至出错，可通过降低此级别迫使走其它通道。例如某虚拟化下 NVLink 不可用却错误标识，可设 `PIX` 让远端 NVLink 不被采用。
+  `LOC`（同板直连才用 P2P），`NVL`（有 NVLink 则用），`PIX`（同 PCIe 开关用），`PXB`（跨 PCI 开关但同 CPU 用），`PHB`（同 NUMA 节点用，即跨 CPU 但不跨 QPI），`SYS`（即使跨 QPI/UPI 的 NUMA 也用 P2P）。默认为 NCCL 自动判断。用途：若某拓扑层次的 P2P 性能不佳甚至出错，可通过降低此级别迫使走其它通道。例如某虚拟化下 NVLink 不可用却错误标识，可设 `PIX` 让远端 NVLink 不被采用。
 
 - `NCCL_P2P_DISABLE` – 完全禁用 GPU Direct P2P 通信。设为 1 后，同机 GPU 间将不走直连（无论 NVLink/PCIe），而统一经 SHM 或网络。调试：如果怀疑某些 P2P 通信导致 hang（如已知 NVLink 某驱动 Bug），可关掉验证。如果禁用后问题消失，则可以进一步细分（例如用 NCCL_P2P_LEVEL 控制不用 NVLink 但仍允许同 PCIe 直连）。
 
@@ -167,10 +167,10 @@ NCCL 针对不同规模和拓扑，会在 Ring、Tree、CollNet 等多种算法�
 - 协议选择 (`NCCL_PROTO`): 控制允许使用的消息传输协议，包括 Simple（分段复制，适用于大消息高带宽）、LL（Low Latency，适用于小消息低延迟）、LL128（优化长消息的小延迟算法，需要硬件支持）。用法为列出协议或以 `^` 列出排除协议。默认行为：支持 LL128 的平台开启全部三种，否则 LL128 不用。重要提示：NVIDIA 明确指出，不要随意启用 LL128 在不支持的平台，否则可能导致数据错误。LL128 一般要求 NVLink 拓扑良好的平台（如 DGX），在 PCIe 集群上 NCCL 默认已禁用 LL128。调试中，禁用 LL128 是常用手段：不少 NCCL 已知 Bug（比如 2.8 版本 Collnet 算法配合 LL128 在部分拓扑上出错）可以通过 `NCCL_PROTO=^LL128` 规避。如果问题消失，可据此怀疑 LL128 实现问题然后查找对应补丁或升级 NCCL 版本。
 
 - 算法选择 (`NCCL_ALGO`): 控制集合通信算法，如 Ring、Tree、CollNet 等。2.24+版本支持更复杂的配置语法，可按操作类型分别指定算法列表或排除。例如：\
- `NCCL_ALGO=Ring` 强制全部用环形算法；\
- `NCCL_ALGO=^Tree` 禁用树算法（如怀疑 Tree 实现有 Bug，NCCL 会自动 fallback 环算法）；\
- `NCCL_ALGO="allreduce:tree,ring"` 仅 AllReduce 用树或环，其它操作不变。\
- 默认 NCCL 会根据节点拓扑和消息大小自动混用多种算法，避免盲目固定导致性能下降。然而调试时，当某算法路径怀疑有问题，可以用排除法验证。例如树形算法在跨机时延较大，可以暂禁 Tree 看性能是否提升，从而确认是否需要调整树算法触发阈值（老版本通过 NCCL_TREE_THRESHOLD 控制消息大小阈值）。又如 CollNet 算法（要求特殊网络硬件）在不支持场景下应该自动不用，但如怀疑错误触发，可直接 `^CollNet`。
+  `NCCL_ALGO=Ring` 强制全部用环形算法；\
+  `NCCL_ALGO=^Tree` 禁用树算法（如怀疑 Tree 实现有 Bug，NCCL 会自动 fallback 环算法）；\
+  `NCCL_ALGO="allreduce:tree,ring"` 仅 AllReduce 用树或环，其它操作不变。\
+  默认 NCCL 会根据节点拓扑和消息大小自动混用多种算法，避免盲目固定导致性能下降。然而调试时，当某算法路径怀疑有问题，可以用排除法验证。例如树形算法在跨机时延较大，可以暂禁 Tree 看性能是否提升，从而确认是否需要调整树算法触发阈值（老版本通过 NCCL_TREE_THRESHOLD 控制消息大小阈值）。又如 CollNet 算法（要求特殊网络硬件）在不支持场景下应该自动不用，但如怀疑错误触发，可直接 `^CollNet`。
 
 - 链路聚合算法 (NVLS/Multi-NIC 等)：新版本 NCCL 针对 NVSwitch 平台引入 NVLS（NVLink SHARP）算法，以及 MNNVL（跨节点 NVLink）支持等。环境变量如 `NCCL_NVLS_ENABLE` 控制 NVLS 开/关（默认 2=自动），`NCCL_MNNVL_ENABLE` 控制多节点 NVLink。这些一般 NCCL 默认自动处理。如果遇到 NVLS 资源分配失败引起 hang（2.27 版一度出现 silent fallback hang 问题），可以临时 `NCCL_NVLS_ENABLE=0` 来禁用 NVLS 验证是否问题消失，然后升级新版修复。
 
@@ -242,8 +242,8 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 3. 禁用 IB 验证：若怀疑 IB 配置问题，临时 `NCCL_IB_DISABLE=1` 强制走 TCP。如果这样就能初始化成功（尽管后续 AllReduce 慢），说明 IB 通信有问题。接下来重点检查 RoCE 配置（例如 `NCCL_IB_GID_INDEX` 是否一致）以及 IB 固件/驱动。
 
 4. 分步缩小：编写一个最小复现脚本，例如使用 nccl-tests：\
- `mpirun -np 2 -H host1:1,host2:1./build/all_reduce_perf -b 8 -e 8M -f 2`\
- 尝试在两节点上跑简单 AllReduce，看能否 Hang 复现。加上 `NCCL_DEBUG=INFO` 捕获在哪一步挂。
+   `mpirun -np 2 -H host1:1,host2:1./build/all_reduce_perf -b 8 -e 8M -f 2`\
+   尝试在两节点上跑简单 AllReduce，看能否 Hang 复现。加上 `NCCL_DEBUG=INFO` 捕获在哪一步挂。
 
 - 建议 env 组合：
 - _保守调试_：`NCCL_DEBUG=INFO NCCL_SOCKET_IFNAME=<iface>` 用于观察和纠偏。
@@ -484,18 +484,18 @@ PyTorch 自己也提供了环境变量来控制 NCCL 后端的错误处理和超
 
 在排障时，可采用以下实验矩阵逐项尝试，并记录现象变化：
 
-| 调试手段 | 操作 | 预期效果/判断依据 |
+| 调试手段         | 操作                                              | 预期效果/判断依据                                |
 | ---------------- | ------------------------------------------------- | ------------------------------------------------ |
-| 禁用 IB 改 TCP | `NCCL_IB_DISABLE=1` | 若问题消失：指向 IB 相关（配置/驱动/FW 问题）。 |
-| 禁用 P2P 直连 | `NCCL_P2P_DISABLE=1` | 若问题消失：GPU 直连模块异常（NVLink/P2P Bug）。 |
-| 禁用 LL128 协议 | `NCCL_PROTO=^LL128` | 若问题消失：LL128 协议 bug 或数据精度问题。 |
-| 改用 Tree 算法 | `NCCL_ALGO=Tree` 或 `^Ring` | 若性能改善：环拓扑瓶颈，树算法更优（或反之）。 |
-| Socket 线程并行 | `NCCL_SOCKET_NTHREADS=4, NCCL_NSOCKS_PERTHREAD=4` | 若性能改善：之前单线程未压满网络，可考虑保留。 |
-| 固定接口 | `NCCL_SOCKET_IFNAME=<dev>` | 若初始化成功：多网卡下原先选错接口导致握手失败。 |
-| GPU 直连级别 | `NCCL_P2P_LEVEL=SYS` / `PIX` 等 | 性能/稳定性变化：确认跨 CPU 直连是否有问题。 |
-| 禁用 SHM | `NCCL_SHM_DISABLE=1` | 若初始化通过：原问题来自 /dev/shm 受限。 |
-| Relaxed Ordering | `NCCL_IB_PCI_RELAXED_ORDERING=0` | 若性能变化：RO 参数影响虚拟化环境中的 IB 性能。 |
-| Adaptive Routing | `NCCL_IB_ADAPTIVE_ROUTING=0` | 若抖动减少：AR 在网络中引发波动。 |
+| 禁用 IB 改 TCP   | `NCCL_IB_DISABLE=1`                               | 若问题消失：指向 IB 相关（配置/驱动/FW 问题）。  |
+| 禁用 P2P 直连    | `NCCL_P2P_DISABLE=1`                              | 若问题消失：GPU 直连模块异常（NVLink/P2P Bug）。 |
+| 禁用 LL128 协议  | `NCCL_PROTO=^LL128`                               | 若问题消失：LL128 协议 bug 或数据精度问题。      |
+| 改用 Tree 算法   | `NCCL_ALGO=Tree` 或 `^Ring`                       | 若性能改善：环拓扑瓶颈，树算法更优（或反之）。   |
+| Socket 线程并行  | `NCCL_SOCKET_NTHREADS=4, NCCL_NSOCKS_PERTHREAD=4` | 若性能改善：之前单线程未压满网络，可考虑保留。   |
+| 固定接口         | `NCCL_SOCKET_IFNAME=<dev>`                        | 若初始化成功：多网卡下原先选错接口导致握手失败。 |
+| GPU 直连级别     | `NCCL_P2P_LEVEL=SYS` / `PIX` 等                   | 性能/稳定性变化：确认跨 CPU 直连是否有问题。     |
+| 禁用 SHM         | `NCCL_SHM_DISABLE=1`                              | 若初始化通过：原问题来自 /dev/shm 受限。         |
+| Relaxed Ordering | `NCCL_IB_PCI_RELAXED_ORDERING=0`                  | 若性能变化：RO 参数影响虚拟化环境中的 IB 性能。  |
+| Adaptive Routing | `NCCL_IB_ADAPTIVE_ROUTING=0`                      | 若抖动减少：AR 在网络中引发波动。                |
 
 _注：每次仅改动一个变量，观察效果，避免多项变化难以定位原因。_
 
@@ -524,13 +524,3 @@ _注：每次仅改动一个变量，观察效果，避免多项变化难以定�
 ---
 
 通过以上方法和技巧，我们可以逐步掌握 NCCL Debug 的“全栈手段”，从环境变量调优到日志诊断、从协议算法选择到实际案例排查，在遇到 NCCL hang、性能瓶颈或数据异常时做到心中有数、手中有方。现代大规模分布式训练系统复杂多变，但相信凭借扎实的官方资料和工程实践经验，我们能够将 NCCL 的行为透明化、问题可解化，为训练任务保驾护航。
-
-参考文献：
-
-- NVIDIA NCCL 官方文档 – _Environment Variables_、*Troubleshooting*等章节
-
-- PyTorch Distributed 官方文档 – _ProcessGroupNCCL Environment Variables_
-
-- NVIDIA/nccl-tests 项目文档 – _PERFORMANCE.md_（算法带宽与总线带宽解释）
-
-- NVIDIA Developer Forums – NCCL 性能与错误相关讨论
