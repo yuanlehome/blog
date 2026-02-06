@@ -2,7 +2,7 @@
 title: 高效强化学习训练 - 优化 verl 中的内存使用
 slug: efficient-rl-training-optimizing-memory-usage-in-verl
 date: '2026-02-05'
-tags: []
+tags: ['RL Infra']
 status: published
 source_url: 'https://hebiao064.github.io/rl-memory-management'
 source_author: hebiao064.github.io
@@ -20,7 +20,7 @@ translatedFrom: en
 
 ## 简介
 
-大型语言模型（LLM）的强化学习（RL）面临独特的挑战，因为它在每一步都整合了推理和训练，需要显著的可扩展性和资源效率。[verl](https://github.com/volcengine/verl) 库专为 LLM 的 RL 训练而设计，将先进的训练策略如 Fully Sharded Data Parallel （[FSDP](https://pytorch.org/docs/stable/fsdp.html)）和 [Megatron-LM](https://github.com/NVIDIA/Megatron-LM) 与推理引擎（如 [SGLang](https://github.com/sgl-project/sglang)）相结合，以实现高效的 rollout 生成。本文详细介绍了 SGLang RL 团队在优化 [verl](https://github.com/volcengine/verl) 中的内存使用方面所做的努力，重点介绍了减少峰值内存需求并在有限的 GPU 资源上训练更大模型的技术。
+大型语言模型（LLM）的强化学习（RL）面临独特的挑战，因为它在每一步都整合了推理和训练，需要显著的可扩展性和资源效率。[verl](https://github.com/volcengine/verl) 库专为 LLM 的 RL 训练而设计，将先进的训练策略如 Fully Sharded Data Parallel（[FSDP](https://pytorch.org/docs/stable/fsdp.html)）和 [Megatron-LM](https://github.com/NVIDIA/Megatron-LM) 与推理引擎（如 [SGLang](https://github.com/sgl-project/sglang)）相结合，以实现高效的 rollout 生成。本文详细介绍了 SGLang RL 团队在优化 [verl](https://github.com/volcengine/verl) 中的内存使用方面所做的努力，重点介绍了减少峰值内存需求并在有限的 GPU 资源上训练更大模型的技术。
 
 ## 高层 RL 训练工作流
 
@@ -170,7 +170,7 @@ memory_saver.resume()
 
 ### 多阶段唤醒
 
-尽管有这些改进，我们的用户报告在使用更大模型或高 KV 缓存比率（>0.7）时，在训练-rollout 切换期间出现内存不足（OOM）错误。我们发现在恢复过程中存在内存浪费（上图中的红色块）。为了优化，我们将恢复过程分为多个阶段：
+尽管有这些改进，我们的用户报告在使用更大模型或高 KV 缓存比率（> 0.7）时，在训练-rollout 切换期间出现内存不足（OOM）错误。我们发现在恢复过程中存在内存浪费（上图中的红色块）。为了优化，我们将恢复过程分为多个阶段：
 
 1. 将训练模型权重加载到 GPU 上。
 2. 恢复推理模型权重。
