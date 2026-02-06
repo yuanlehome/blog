@@ -2,7 +2,7 @@
 title: 高效强化学习训练 - 优化 verl 中的内存使用
 slug: efficient-rl-training-optimizing-memory-usage-in-verl
 date: '2026-02-05'
-tags: []
+tags: ['RL Infra']
 status: published
 source_url: 'https://hebiao064.github.io/rl-memory-management'
 source_author: hebiao064.github.io
