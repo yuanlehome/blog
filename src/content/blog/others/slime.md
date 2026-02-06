@@ -83,7 +83,7 @@ slime 主要由三个核心模块组成：
 
 #### 利用 CUDA IPC Handler 同卡零拷贝传输
 
-![CUDA IPC如何工作](/images/others/slime/009-2c135d72.png)
+![CUDA IPC 如何工作](/images/others/slime/009-2c135d72.png)
 
 #### 主要优势：
 
@@ -110,7 +110,7 @@ slime 主要由三个核心模块组成：
 
 ```python
 def async_tensor_gathering():
-    # 阶段1：同时启动所有异步操作
+    # 阶段 1：同时启动所有异步操作
     handles = []
     for param in tensor_parallel_params:
         handle = dist.all_gather(
@@ -119,11 +119,11 @@ def async_tensor_gathering():
         )
         handles.append(handle)
 
-    # 阶段2：等待所有操作完成
+    # 阶段 2：等待所有操作完成
     for handle in handles:
         handle.wait()  # 通过批量等待最大化并行性
 
-    # 阶段3：所有通信完成后处理所有结果
+    # 阶段 3：所有通信完成后处理所有结果
     gathered_params = []
     for info, direct_param, handle, param_partitions, partition_dim in gather_tasks:
         param = torch.cat(param_partitions, dim=partition_dim)
