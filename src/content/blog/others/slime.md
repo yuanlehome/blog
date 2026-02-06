@@ -10,14 +10,10 @@ imported_at: '2026-02-05T18:37:38.790Z'
 source:
   title: hebiao064.github.io
   url: 'https://hebiao064.github.io/rl-weight-sync-chinese'
-cover: /images/others/slime/001-d1241118.svg
+cover: /images/others/slime/004-13d2092f.png
 ---
 
-# 高效强化学习训练 - 优化 slime 中的权重同步
-
-发布时间：2025 年 8 月 27 日
-
-> 本文也在知乎专栏中发布：[知乎链接](https://zhuanlan.zhihu.com/p/1945671848684658923)
+本文介绍了如何优化 slime 框架中的权重同步机制，将 QWen3-30B-A3B 模型的权重更新时间从 60 秒优化到 7 秒。
 
 ## 1. 什么是 slime？
 
@@ -26,9 +22,9 @@ cover: /images/others/slime/001-d1241118.svg
 - **多功能** – 拥有完全可定制的 rollout 接口和灵活的训练设置（同卡或分离、同步或异步、RL 或 SFT）。
 - **高性能** - 原生集成 Megatron 和 SGLang 进行训练和推理。
 - **易维护** - 轻量级代码库，并可从 Megatron 预训练平滑过渡到 SGLang 部署。
-- **大规模验证** - 最近发布的 [zai-org/GLM-4.5(355B)](https://github.com/zai-org/GLM-4.5) 和 [zai-org/GLM-4.5-Air(106B)](https://huggingface.co/zai-org/GLM-4.5-Air) 都是通过 slime 做的 RL 训练。
+- **大规模验证** - 最近发布的 [zai-org/GLM-4.5 (355B)](https://github.com/zai-org/GLM-4.5) 和 [zai-org/GLM-4.5-Air (106B)](https://huggingface.co/zai-org/GLM-4.5-Air) 都是通过 slime 做的 RL 训练。
 
-![什么是slime？](/images/others/slime/004-13d2092f.png)
+![什么是 slime？](/images/others/slime/004-13d2092f.png)
 
 slime 主要由三个核心模块组成：
 
@@ -40,7 +36,7 @@ slime 主要由三个核心模块组成：
 
 ![什么是权重同步？](/images/others/slime/005-99567543.png)
 
-在 LLM 强化学习中，**权重同步**是指**将更新好的训练端的模型权重传输给到推理端**的过程，以确保推理工作节点始终使用最新的模型参数。
+在 LLM 强化学习中，**权重同步**是指**将更新好的训练端的模型权重同步到推理端**的过程，以确保推理工作节点始终使用最新的模型参数。
 
 ### 为什么需要权重同步？
 
@@ -54,9 +50,9 @@ slime 主要由三个核心模块组成：
 
 ## 3. 权重同步在 slime 中如何工作？
 
-![权重同步在slime中如何工作？](/images/others/slime/006-fe1529d1.png)
+![权重同步在 slime 中如何工作？](/images/others/slime/006-fe1529d1.png)
 
-在 slime 的同卡 (Colocate) 模式下，**Megatron** 的工作进程和 **SGLang** 的工作进程共同位于相同的物理 GPU 上。为了实现零拷贝权重传输，Megatron 不发送数据本身，而是通过将 Tensor 序列化成 CudaIpcHandlers 再将其发送给 SGLang 的工作进程，而 SGLang 可以直接通过这些 CudaIpcHandlers 来访问权重数据进行映射，这样可以极大的提高传输效率。
+在 slime 的同卡 (Colocate) 模式下，**Megatron** 的工作进程和 **SGLang** 的工作进程共同位于相同的物理 GPU 上。为了实现零拷贝权重传输，Megatron 不发送数据本身，而是通过将 Tensor 序列化成 CudaIpcHandlers 再将其发送给 SGLang 的工作进程，而 SGLang 可以直接通过这些 CudaIpcHandlers 来访问权重数据进行映射，这样可以极大地提高传输效率。
 
 以下是详细的 5 步工作流程：
 
@@ -68,12 +64,8 @@ slime 主要由三个核心模块组成：
 
 ### 为什么采用基于服务器的架构？
 
-1. **保证训推一致**。因为线上任务肯定是用的 server based。所以 RL 这里用完全相同的配置，可以
-   - 避免训出来的模型上线或者单独评测的指标不匹配
-   - 可以充分复用 sglang 对 server 做的测试和性能优化
-2. **为了减少用户自定义 rollout 时的心智负担**
-   - 通过 server based + router，让写 rollout 就像是常规打线上服务。这样比较好配合让算法老师自定义 rollout function 的思路
-   - 可以把 router address 对外暴露，从而让外部的 agent 环境可以随意调用 slime 内部的 sglang server，从而实现纯异步训练
+1. **保证训推一致**。因为线上任务使用 server based 架构，所以 RL 这里使用完全相同的配置，可以避免模型上线或评测时的指标不匹配，并充分复用 sglang 对 server 做的测试和性能优化。
+2. **减少用户自定义 rollout 时的心智负担**。通过 server based + router 架构，让编写 rollout 就像调用常规线上服务，同时可以将 router address 对外暴露，让外部的 agent 环境调用 slime 内部的 sglang server，实现纯异步训练。
 
 ## 4. 我们的工作：将 QWen3-30B-A3B 模型的权重更新时间从 60 秒优化到 7 秒
 
@@ -95,7 +87,7 @@ slime 主要由三个核心模块组成：
 
 #### 主要优势：
 
-1. **零拷贝传输** 通过内存映射来传输数据，避免在进程间传送大量的数据
+1. **零拷贝传输**：通过内存映射来传输数据，避免在进程间传送大量的数据
 2. **最小 CPU 内存开销**：CUDA IPC Handler 非常小 vs 序列化数据的 GB 级别
 
 这其实只是我们的 baseline 实现，虽然比直接传数据要快得多，但仍然花了 60 秒，显然有很多优化空间。
@@ -156,7 +148,7 @@ def async_tensor_gathering():
 #### 问题：太多小的 API 调用
 
 ```python
-# 低效：每个Tensor一个API调用
+# 低效：每个 Tensor 一个 API 调用
 for name, tensor in named_tensors.items():
     response = requests.post(
         f"http://{server_host}/update_weights_from_tensor",
@@ -189,7 +181,7 @@ def get_param_info_buckets(args, model) -> list[list[ParamInfo]]:
 
 self.param_info_buckets = get_param_info_buckets(args, model)
 
-# 发送桶而不是单个Tensor
+# 发送桶而不是单个 Tensor
 for param_infos in tqdm(self.param_info_buckets, disable=rank != 0, desc="Update weights"):
     self._update_bucket_weights_from_tensor(param_infos)
 ```
@@ -210,7 +202,7 @@ for param_infos in tqdm(self.param_info_buckets, disable=rank != 0, desc="Update
 
 #### 问题：太多 CUDA IPC 操作
 
-![太多CUDA IPC操作](/images/others/slime/010-c78ae1b2.png)
+![太多 CUDA IPC 操作](/images/others/slime/010-c78ae1b2.png)
 
 #### 性能分析
 
@@ -267,19 +259,19 @@ params_dict = self._cached_params_dict
 **2. 重复的 Expert Map GPU Device Sync 优化**
 
 ```python
-# 避免专家映射的重复GPU到CPU同步
+# 避免专家映射的重复 GPU 到 CPU 同步
 if self.expert_map_cpu is not None and self.expert_map_gpu is None:
-    # 将专家映射移动到GPU一次并缓存
+    # 将专家映射移动到 GPU 一次并缓存
     self.expert_map_gpu = self.expert_map_cpu.to(device="cuda")
 ```
 
 **3. 重复的 CUDA Device 查询优化**
 
 ```python
-# 缓存CUDA设备查询以避免重复的昂贵调用
+# 缓存 CUDA 设备查询以避免重复的昂贵调用
 @lru_cache(maxsize=8)
 def get_device(device_id: Optional[int] = None) -> str:
-    # 缓存的设备查找消除了重复的torch.cuda.is_available()调用
+    # 缓存的设备查找消除了重复的 torch.cuda.is_available() 调用
 ```
 
 #### 性能影响：

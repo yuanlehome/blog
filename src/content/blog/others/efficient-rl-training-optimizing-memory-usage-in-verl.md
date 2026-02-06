@@ -16,11 +16,11 @@ lang: zh
 translatedFrom: en
 ---
 
-# 高效强化学习训练 - 优化 verl 中的内存使用
+本文详细介绍了 SGLang RL 团队在优化 verl 中的内存使用方面所做的努力，重点介绍了减少峰值内存需求并在有限的 GPU 资源上训练更大模型的技术。
 
 ## 简介
 
-大型语言模型（LLM）的强化学习（RL）面临独特的挑战，因为它在每一步都整合了推理和训练，需要显著的可扩展性和资源效率。[verl](https://github.com/volcengine/verl) 库专为 LLM 的 RL 训练而设计，将先进的训练策略如 Fully Sharded Data Parallel（[FSDP](https://pytorch.org/docs/stable/fsdp.html)）和 [Megatron-LM](https://github.com/NVIDIA/Megatron-LM) 与推理引擎（如 [SGLang](https://github.com/sgl-project/sglang)）相结合，以实现高效的 rollout 生成。本文详细介绍了 SGLang RL 团队在优化 [verl](https://github.com/volcengine/verl) 中的内存使用方面所做的努力，重点介绍了减少峰值内存需求并在有限的 GPU 资源上训练更大模型的技术。
+大型语言模型（LLM）的强化学习（RL）面临独特的挑战，因为它在每一步都整合了推理和训练，需要显著的可扩展性和资源效率。[verl](https://github.com/volcengine/verl) 库专为 LLM 的 RL 训练而设计，将先进的训练策略如 Fully Sharded Data Parallel （[FSDP](https://pytorch.org/docs/stable/fsdp.html)）和 [Megatron-LM](https://github.com/NVIDIA/Megatron-LM) 与推理引擎（如 [SGLang](https://github.com/sgl-project/sglang)）相结合，以实现高效的 rollout 生成。本文详细介绍了 SGLang RL 团队在优化 [verl](https://github.com/volcengine/verl) 中的内存使用方面所做的努力，重点介绍了减少峰值内存需求并在有限的 GPU 资源上训练更大模型的技术。
 
 ## 高层 RL 训练工作流
 
@@ -28,7 +28,7 @@ translatedFrom: en
 
 上图展示了**在线 RL 训练**过程，为简化起见，省略了参考模型和 critic 模型，并假设使用基本奖励函数（在代码和推理任务中很常见）而不是奖励模型。策略模型存在两个实例：一个针对训练进行优化（使用 [FSDP](https://pytorch.org/docs/stable/fsdp.html) 或 [Megatron-LM](https://github.com/NVIDIA/Megatron-LM)），另一个用于推理（使用 [SGLang](https://github.com/sgl-project/sglang) 或 [vLLM](https://github.com/vllm-project/vllm)）。
 
-#### 简化的 PPO 示例
+### 简化的 PPO 示例
 
 以下是使用 Proximal Policy Optimization（PPO）的简化实现：
 
@@ -123,7 +123,7 @@ memory_saver.pause()
 memory_saver.resume()
 ```
 
-#### 使用 CUDA 虚拟内存 API 实现
+### 使用 CUDA 虚拟内存 API 实现
 
 在 **CUDA 10.2** 之前，内存管理依赖于 `cudaMalloc`、`cudaFree` 和 `cudaMemcpy`，这些缺乏对虚拟内存地址的控制。**CUDA 10.2** 引入了用于细粒度虚拟内存管理的 API：
 
@@ -133,7 +133,7 @@ memory_saver.resume()
 
 这些 API 使自定义内存分配器能够保留虚拟内存地址。在 [SGLang](https://github.com/sgl-project/sglang) 和 [verl](https://github.com/volcengine/verl) 系统中，我们利用 `LD_PRELOAD` 用我们的自定义分配器替换默认的 cuda malloc 和 free。
 
-#### 修改的 CUDA Malloc
+### 修改的 CUDA Malloc
 
 ![cuda malloc](/images/others/efficient-rl-training-optimizing-memory-usage-in-verl/008-80b3ab26.png)
 
@@ -142,7 +142,7 @@ memory_saver.resume()
 3. 使用 `cuMemMap` 将物理内存映射到虚拟地址。
 4. 将虚拟内存指针和物理内存句柄存储在**元数据映射**中。
 
-#### 暂停张量
+### 暂停张量
 
 ![暂停张量](/images/others/efficient-rl-training-optimizing-memory-usage-in-verl/009-5abe350c.png)
 
@@ -151,7 +151,7 @@ memory_saver.resume()
 
 这释放了物理内存，同时保留了虚拟地址。
 
-#### 恢复张量
+### 恢复张量
 
 ![恢复张量](/images/others/efficient-rl-training-optimizing-memory-usage-in-verl/010-098c4127.png)
 
@@ -164,7 +164,7 @@ memory_saver.resume()
 
 ![v2：休眠推理引擎](/images/others/efficient-rl-training-optimizing-memory-usage-in-verl/011-a8399ff5.png)
 
-#### 权重加载优化
+### 权重加载优化
 
 为了解决权重加载缓慢的问题，我们避免了磁盘序列化。相反，我们将训练模型权重加载到 GPU 上，并通过 CUDA 进程间通信更新 rollout 引擎的权重。这显著减少了训练到 rollout 切换的时间（例如，对于 7B 模型，时间小于 0.5 秒）。
 
@@ -185,7 +185,7 @@ memory_saver.resume()
 
 我们选择了基于标签的方法，以最小化对 SGLang 代码库的更改，因为 SGLang 严重依赖单例设计。您可以在 RFC 中找到两种实现的详细信息。
 
-#### 基于标签的内存管理
+### 基于标签的内存管理
 
 我们向张量元数据添加了一个标签参数，实现了选择性暂停/恢复。
 
