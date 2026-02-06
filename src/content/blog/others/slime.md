@@ -10,12 +10,10 @@ imported_at: '2026-02-05T18:37:38.790Z'
 source:
   title: hebiao064.github.io
   url: 'https://hebiao064.github.io/rl-weight-sync-chinese'
-cover: /images/others/slime/001-d1241118.svg
+cover: /images/others/slime/004-13d2092f.png
 ---
 
 本文介绍了如何优化 slime 框架中的权重同步机制，将 QWen3-30B-A3B 模型的权重更新时间从 60 秒优化到 7 秒。
-
-> 本文也在知乎专栏中发布：[知乎链接](https://zhuanlan.zhihu.com/p/1945671848684658923)
 
 ## 1. 什么是 slime？
 
