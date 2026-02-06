@@ -81,7 +81,23 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
+      - name: Restore Zhihu storage state
+        env:
+          ZHIHU_STORAGE_STATE_B64: ${{ secrets.ZHIHU_STORAGE_STATE_B64 }}
+        run: |
+          if [ -n "$ZHIHU_STORAGE_STATE_B64" ]; then
+            echo "Restoring Zhihu storage state from secret..."
+            echo "$ZHIHU_STORAGE_STATE_B64" | base64 -d > zhihu-storage-state.json
+            echo "ZHIHU_STORAGE_STATE_PATH=zhihu-storage-state.json" >> "$GITHUB_ENV"
+            echo "Zhihu storage state restored successfully."
+          else
+            echo "ZHIHU_STORAGE_STATE_B64 secret is not configured."
+            echo "Zhihu imports may fail if login is required."
+            echo "To configure, run 'npm run zhihu:auth' locally and add the base64-encoded storage state as a GitHub secret."
+          fi
+
       - name: Import content
+        id: import
         env:
           URL: ${{ inputs.url }}
           ALLOW_OVERWRITE: ${{ inputs.allow_overwrite && 'true' || 'false' }}
@@ -119,6 +135,15 @@ jobs:
           echo "Force PDF mode: $FORCE_PDF"
           echo "PDF import enabled: $([ -n "$PADDLEOCR_VL_TOKEN" ] && echo "yes" || echo "no (token not set)")"
           npm run import:content -- "${ARGS[@]}"
+
+      - name: Upload debug artifacts on failure
+        if: failure() && steps.import.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: zhihu-debug-${{ github.run_id }}-${{ github.sha }}
+          path: .artifacts/zhihu/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Check for changes
         id: changes
