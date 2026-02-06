@@ -2,7 +2,7 @@
 title: 高效强化学习训练 - 优化 slime 中的权重同步
 slug: slime
 date: '2026-02-05'
-tags: []
+tags: ['RL Infra']
 status: published
 source_url: 'https://hebiao064.github.io/rl-weight-sync-chinese'
 source_author: hebiao064.github.io
