@@ -1,16 +1,19 @@
 ---
 title: Understanding Conway’s Law（康威定律）
 slug: understanding-conways-law
-date: '2025-12-25'
-tags: ['Soft Skills']
+date: '2026-02-07'
+tags:
+  - Soft Skills
 status: published
 cover: ''
-lastEditedTime: '2025-12-25T18:15:00.000Z'
+lastEditedTime: '2026-02-07T17:55:00.000Z'
+updated: '2026-02-07T17:55:00.000Z'
+source: notion
 notion:
   id: 2ab22dca-4210-80fe-9549-e360ee12db5e
 ---
 
-<u>_**康威定律（Conway’s Law）：设计系统的组织，其产生的系统设计，必然反映该组织的沟通结构。**_</u>
+<u>**_康威定律（Conway’s Law）：设计系统的组织，其产生的系统设计，必然反映该组织的沟通结构。_**</u>
 
 软件代码结构是部门组织形态的体现，分支管理则是这种组织形态在时间维度上的投影。组织如何沟通、如何划分责任、如何整合成果，都会直接在代码仓库的结构与分支策略中体现。优秀的组织会通过良好的分支策略促进协作，糟糕的分支策略则会放大组织壁垒。
 
