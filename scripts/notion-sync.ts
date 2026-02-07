@@ -116,8 +116,8 @@ export function extractCoverUrl(props: any): string | null {
   }
   if (prop.type === 'url' && prop.url) return prop.url;
   if (prop.type === 'file' && prop.file?.url) return prop.file.url;
-  if (prop.type === 'rich_text' && prop.rich_text?.[0]?.plain_text) {
-    return prop.rich_text[0].plain_text;
+  if (prop.type === 'rich_text' && prop.rich_text && prop.rich_text.length > 0) {
+    return prop.rich_text.map((t: any) => t.plain_text).join('');
   }
   return null;
 }
@@ -314,10 +314,13 @@ export async function sync() {
       try {
         // Extract Frontmatter fields
         const titleProp = props.Name || props.title || props.Title;
-        const title = titleProp?.title?.[0]?.plain_text || 'Untitled';
+        const title =
+          titleProp?.title?.map((t: any) => t.plain_text).join('') || 'Untitled';
 
         const propSlug =
-          props.slug?.rich_text?.[0]?.plain_text || props.Slug?.rich_text?.[0]?.plain_text || null;
+          props.slug?.rich_text?.map((t: any) => t.plain_text).join('') ||
+          props.Slug?.rich_text?.map((t: any) => t.plain_text).join('') ||
+          null;
         const baseSlug = slugFromTitle({ explicitSlug: propSlug, title, fallbackId: pageId });
         let slug = ensureUniqueSlug(baseSlug, pageId, usedSlugs);
         if (slug !== baseSlug) {

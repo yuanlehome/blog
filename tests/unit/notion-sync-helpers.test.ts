@@ -638,4 +638,137 @@ describe('notion sync helpers', () => {
     );
     expect(data.tags.length).toBe(4);
   });
+
+  it('handles multi-part titles with special characters', async () => {
+    const contentDir = process.env.NOTION_CONTENT_DIR!;
+    fs.mkdirSync(contentDir, { recursive: true });
+
+    // Mock a page with multi-part title (simulating Notion's behavior with special chars)
+    queryMock.mockResolvedValue({
+      results: [
+        {
+          id: 'page-multipart',
+          last_edited_time: '2024-08-01T00:00:00.000Z',
+          cover: null,
+          properties: {
+            Name: {
+              title: [
+                { plain_text: '在 PyTorch 中正确使用 ' },
+                { plain_text: 'non_blocking' },
+                { plain_text: ' 和 ' },
+                { plain_text: 'pin_memory()' },
+              ],
+            },
+            tags: { multi_select: [] },
+            date: { date: { start: '2024-08-01' } },
+            Status: { type: 'select', select: { name: 'Published' } },
+          },
+        },
+      ],
+    });
+    blocksListMock.mockResolvedValue({ results: [], has_more: false, next_cursor: null });
+
+    const mod = await import('../../scripts/notion-sync');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(Buffer.from('img'), { status: 200 })),
+    );
+    await mod.sync();
+
+    // Verify that the full title is preserved
+    const files = fs.readdirSync(contentDir);
+    expect(files.length).toBeGreaterThan(0);
+
+    const file = files[0];
+    const content = fs.readFileSync(path.join(contentDir, file), 'utf-8');
+    const { data } = matter(content);
+
+    expect(data.title).toBe('在 PyTorch 中正确使用 non_blocking 和 pin_memory()');
+  });
+
+  it('handles title with parentheses and underscores', async () => {
+    const contentDir = process.env.NOTION_CONTENT_DIR!;
+    fs.mkdirSync(contentDir, { recursive: true });
+
+    queryMock.mockResolvedValue({
+      results: [
+        {
+          id: 'page-special-chars',
+          last_edited_time: '2024-09-01T00:00:00.000Z',
+          cover: null,
+          properties: {
+            Name: {
+              title: [
+                { plain_text: 'Using ' },
+                { plain_text: 'func_name()' },
+                { plain_text: ' in Code' },
+              ],
+            },
+            tags: { multi_select: [] },
+            date: { date: { start: '2024-09-01' } },
+          },
+        },
+      ],
+    });
+    blocksListMock.mockResolvedValue({ results: [], has_more: false, next_cursor: null });
+
+    const mod = await import('../../scripts/notion-sync');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(Buffer.from('img'), { status: 200 })),
+    );
+    await mod.sync();
+
+    const files = fs.readdirSync(contentDir);
+    const file = files[0];
+    const content = fs.readFileSync(path.join(contentDir, file), 'utf-8');
+    const { data } = matter(content);
+
+    expect(data.title).toBe('Using func_name() in Code');
+  });
+
+  it('handles multi-part explicit slugs', async () => {
+    const contentDir = process.env.NOTION_CONTENT_DIR!;
+    fs.mkdirSync(contentDir, { recursive: true });
+
+    queryMock.mockResolvedValue({
+      results: [
+        {
+          id: 'page-multipart-slug',
+          last_edited_time: '2024-10-01T00:00:00.000Z',
+          cover: null,
+          properties: {
+            Name: { title: [{ plain_text: 'Some Post' }] },
+            slug: {
+              rich_text: [
+                { plain_text: 'custom' },
+                { plain_text: '-' },
+                { plain_text: 'slug' },
+                { plain_text: '-' },
+                { plain_text: 'test' },
+              ],
+            },
+            tags: { multi_select: [] },
+            date: { date: { start: '2024-10-01' } },
+          },
+        },
+      ],
+    });
+    blocksListMock.mockResolvedValue({ results: [], has_more: false, next_cursor: null });
+
+    const mod = await import('../../scripts/notion-sync');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(Buffer.from('img'), { status: 200 })),
+    );
+    await mod.sync();
+
+    const files = fs.readdirSync(contentDir);
+    expect(files).toContain('custom-slug-test.md');
+
+    const content = fs.readFileSync(path.join(contentDir, 'custom-slug-test.md'), 'utf-8');
+    const { data } = matter(content);
+
+    expect(data.slug).toBe('custom-slug-test');
+  });
 });
