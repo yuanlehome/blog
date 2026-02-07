@@ -1,12 +1,12 @@
 ---
-title: non_blocking
-slug: nonblocking
+title: '在 PyTorch 中正确使用 '
+slug: pytorch
 date: '2026-02-07'
 tags: []
 status: published
-cover: /images/notion/nonblocking/30022dca-4210-8190-8ff7-d3d77aadbd24.png
-lastEditedTime: '2026-02-07T17:26:00.000Z'
-updated: '2026-02-07T17:26:00.000Z'
+cover: /images/notion/pytorch/30022dca-4210-8190-8ff7-d3d77aadbd24.png
+lastEditedTime: '2026-02-07T17:35:00.000Z'
+updated: '2026-02-07T17:35:00.000Z'
 source: notion
 notion:
   id: 30022dca-4210-81df-bfa3-d96fb7f335a5
@@ -59,7 +59,7 @@ assert torch.cuda.is_available(), "需要一块 CUDA 设备才能运行本教程
 
 与可分页内存不同，固定（或锁页、不可分页）内存是一种不能被换出到磁盘的内存类型，它提供更快、更可预测的访问时间，但代价是容量比可分页内存（即主存）更有限。
 
-![](/images/notion/nonblocking/30022dca-4210-8190-8ff7-d3d77aadbd24.png)
+![](/images/notion/pytorch/30022dca-4210-8190-8ff7-d3d77aadbd24.png)
 
 固定内存与分页内存示意图
 
@@ -131,7 +131,7 @@ r2 = pin_mem_to_device / pageable_to_device
 
 然而，与一些普遍的看法相反，在可分页张量上先调用 `pin_memory()` 再 cast 到 GPU 通常不会带来显著加速，反而往往比直接传输更慢。这是合乎逻辑的，因为我们实际上是在要求 Python 执行一个 CUDA 在将数据从主机复制到设备之前无论如何都会执行的操作。
 
-![](/images/notion/nonblocking/30022dca-4210-816b-bcdb-d138a057e0de.png)
+![](/images/notion/pytorch/30022dca-4210-816b-bcdb-d138a057e0de.png)
 
 设备转换运行时间（pin-memory）
 
@@ -166,7 +166,7 @@ tensors = [torch.randn(1000) for _ in range(1000)]
 
 实验结果表明，使用 `non_blocking=True` 明显更快，因为主机端可以一次性启动所有传输，只需在最后同步一次。收益程度取决于张量数量、大小以及硬件。
 
-![](/images/notion/nonblocking/30022dca-4210-814b-963b-fc2e9572e29d.png)
+![](/images/notion/pytorch/30022dca-4210-814b-963b-fc2e9572e29d.png)
 
 设备转换运行时间（非阻塞）
 
@@ -195,7 +195,7 @@ def pin_copy_to_device_nonblocking(*tensors):
 
 对于一批较大的大张量来说，使用 `pin_memory` 的优势更加明显。下图展示了不同策略（仅从可分页内存传输、仅从锁页内存传输、先锁页再传输）在阻塞与非阻塞情况下的运行时间比较：
 
-![](/images/notion/nonblocking/30022dca-4210-81c6-ad2f-fbaec4e8c020.png)
+![](/images/notion/pytorch/30022dca-4210-81c6-ad2f-fbaec4e8c020.png)
 
 运行时间（pin-mem 与 non-blocking）
 
@@ -246,7 +246,7 @@ PyTorch 提供了一个 `DataLoader` 类，其构造函数接受 `pin_memory` �
 
 例如，将许多大型张量从 CPU 传输到 GPU 的情形适合使用多线程 `pin_memory()`：
 
-![](/images/notion/nonblocking/30022dca-4210-8122-a365-d21d82fd8654.png)
+![](/images/notion/pytorch/30022dca-4210-8122-a365-d21d82fd8654.png)
 
 设备转换运行时间
 
