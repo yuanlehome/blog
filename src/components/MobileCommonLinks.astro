@@ -93,7 +93,9 @@ const showTrigger = Astro.props.showTrigger ?? false;
                       )}
                     </span>
                     {link.description && (
-                      <span class="text-xs text-zinc-500 dark:text-zinc-400">{link.description}</span>
+                      <span class="text-xs text-zinc-500 dark:text-zinc-400">
+                        {link.description}
+                      </span>
                     )}
                   </div>
                 </a>
@@ -113,9 +115,7 @@ const showTrigger = Astro.props.showTrigger ?? false;
     '[data-mobile-common-links-backdrop]',
   ) as HTMLElement | null;
   const getOpenButtons = () =>
-    Array.from(
-      document.querySelectorAll('[data-mobile-common-links-open]'),
-    ) as HTMLButtonElement[];
+    Array.from(document.querySelectorAll('[data-mobile-common-links-open]')) as HTMLButtonElement[];
   const closeButton = document.querySelector(
     '[data-mobile-common-links-close]',
   ) as HTMLButtonElement | null;
