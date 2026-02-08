@@ -4,6 +4,7 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import PostList from '../components/PostList.astro';
 import CommonLinksSidebar from '../components/CommonLinksSidebar.astro';
+import MobileCommonLinks from '../components/MobileCommonLinks.astro';
 import { getPublishedPosts } from '../lib/content/posts';
 import { normalizeBase } from '../lib/slug';
 import { getPaginationPages } from '../lib/ui/pagination';
@@ -130,4 +131,5 @@ const commonLinksPosition = commonLinksConfig.position;
     </div>
   </main>
   <Footer />
+  {showCommonLinks && commonLinksPosition !== 'off' && <MobileCommonLinks showTrigger={true} />}
 </Layout>
