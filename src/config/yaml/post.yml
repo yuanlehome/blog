@@ -65,10 +65,10 @@ comments:
     theme: 'preferred_color_scheme'
     lang: 'zh-CN'
 
-  # Theme mapping for light/dark mode
+  # Theme mapping for light/dark mode (cyberpunk themes)
   themeMapping:
-    light: 'light'
-    dark: 'dark'
+    light: 'dark' # Use dark theme even in light mode for cyberpunk consistency
+    dark: 'dark_tritanopia' # Use high-contrast dark theme
 
 # Source attribution
 sourceAttribution:

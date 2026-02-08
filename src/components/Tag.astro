@@ -22,17 +22,17 @@ const href = `${BASE}tags/${slug}/`;
 
 <a
   href={href}
-  class={`tag-chip inline-flex items-center gap-1.5 rounded-full border transition-colors duration-200 font-medium cursor-pointer ${sizeClasses[size]} 
-    border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 hover:border-sky-300 
-    dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300 dark:hover:bg-sky-900 dark:hover:border-sky-700
-    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900`}
+  class={`tag-chip inline-flex items-center gap-1.5 rounded-full border transition-all duration-200 font-medium cursor-pointer ${sizeClasses[size]} 
+    border-pink-500/30 bg-pink-900/20 text-pink-300 hover:bg-pink-900/40 hover:border-pink-400 hover:shadow-[0_0_12px_rgba(236,72,153,0.3)]
+    dark:border-pink-400/40 dark:bg-pink-950/30 dark:text-pink-200 dark:hover:bg-pink-950/50 dark:hover:border-pink-300 dark:hover:shadow-[0_0_16px_rgba(244,114,182,0.4)]
+    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900`}
   data-tag-slug={slug}
   data-testid={`tag-${slug}`}
 >
   <span class="tag-name pointer-events-none">{name}</span>
   {
     variant === 'count-badge' && count !== undefined && (
-      <span class="tag-count inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[0.7rem] font-semibold bg-sky-200/50 text-sky-800 dark:bg-sky-800/50 dark:text-sky-200 pointer-events-none">
+      <span class="tag-count inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[0.7rem] font-semibold bg-pink-500/20 text-pink-200 dark:bg-pink-400/20 dark:text-pink-100 pointer-events-none">
         {count}
       </span>
     )

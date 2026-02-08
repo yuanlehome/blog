@@ -3,9 +3,9 @@
 @tailwind utilities;
 
 /* ============================================
-   Technical Blog Typography System
-   - Engineering documentation style
-   - Low-saturation, professional appearance
+   Cyberpunk/Synthwave Design System
+   - Neon accents + Dark base + Scanlines
+   - Glass morphism + Metal borders
    ============================================ */
 
 :root {
@@ -14,31 +14,31 @@
     'JetBrains Mono', 'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono',
     'Courier New', monospace;
   --code-radius: 0.9rem;
-  --code-border: 1px solid rgb(228 228 231 / 0.7);
-  --code-bg: #f4f4f5;
-  --code-fg: #18181b;
-  --code-scrollbar: rgb(161 161 170 / 0.6);
-  --code-highlight-bg: rgb(2 132 199 / 0.1);
-  --code-highlight-accent: rgb(2 132 199);
-  --header-bg: rgb(250 250 250 / 0.92);
-  --header-bg-scrolled: rgb(250 250 250 / 0.98);
-  --header-border: rgb(228 228 231 / 0.9);
-  --header-shadow: 0 8px 24px rgb(24 24 27 / 0.06);
-  --header-shadow-strong: 0 10px 30px rgb(24 24 27 / 0.1);
+  --code-border: 1px solid rgb(63 63 70 / 0.7);
+  --code-bg: #18181b;
+  --code-fg: #e4e4e7;
+  --code-scrollbar: rgb(82 82 91 / 0.6);
+  --code-highlight-bg: rgb(6 182 212 / 0.15);
+  --code-highlight-accent: rgb(6 182 212);
+  --header-bg: rgba(26, 26, 31, 0.85);
+  --header-bg-scrolled: rgba(26, 26, 31, 0.95);
+  --header-border: rgb(63 63 70 / 0.7);
+  --header-shadow: 0 8px 24px rgb(0 0 0 / 0.3);
+  --header-shadow-strong: 0 10px 30px rgb(0 0 0 / 0.4);
 }
 
 .dark {
   --code-border: 1px solid rgb(63 63 70 / 0.7);
-  --code-bg: #1f1f23;
-  --code-fg: #e4e4e7;
-  --code-scrollbar: rgb(63 63 70 / 0.8);
-  --code-highlight-bg: rgb(56 189 248 / 0.15);
-  --code-highlight-accent: rgb(56 189 248);
-  --header-bg: rgb(24 24 27 / 0.72);
-  --header-bg-scrolled: rgb(24 24 27 / 0.88);
-  --header-border: rgb(63 63 70 / 0.8);
-  --header-shadow: 0 10px 32px rgb(0 0 0 / 0.24);
-  --header-shadow-strong: 0 16px 40px rgb(0 0 0 / 0.3);
+  --code-bg: #0f0f14;
+  --code-fg: #f4f4f5;
+  --code-scrollbar: rgb(63 63 70 / 0.7);
+  --code-highlight-bg: rgb(34 211 238 / 0.2);
+  --code-highlight-accent: rgb(34 211 238);
+  --header-bg: rgba(10, 10, 15, 0.75);
+  --header-bg-scrolled: rgba(10, 10, 15, 0.92);
+  --header-border: rgb(82 82 91 / 0.6);
+  --header-shadow: 0 10px 32px rgb(0 0 0 / 0.5);
+  --header-shadow-strong: 0 16px 40px rgb(0 0 0 / 0.6);
 }
 
 html,
@@ -48,12 +48,44 @@ body {
   overflow-x: hidden;
 }
 
+/* Cyberpunk Background Effects */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  pointer-events: none;
+  /* Subtle noise texture */
+  background-image: 
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(34, 211, 238, var(--scanline-opacity, 0.02)) 2px,
+      rgba(34, 211, 238, var(--scanline-opacity, 0.02)) 4px
+    ),
+    url('data:image/svg+xml,%3Csvg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noise"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noise)" opacity="0.05"/%3E%3C/svg%3E');
+  opacity: var(--noise-opacity, 0.03);
+}
+
+/* Dark mode more visible effects */
+.dark body::before {
+  opacity: calc(var(--noise-opacity, 0.04) * 1.2);
+}
+
 .site-header {
   position: sticky;
   top: 0;
   z-index: 30;
   background: var(--header-bg);
   border-bottom: 1px solid var(--header-border);
+  /* Cyberpunk glow effect on border */
+  box-shadow: 0 1px 0 0 rgba(34, 211, 238, 0.2);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
@@ -66,7 +98,9 @@ body {
 
 .site-header.is-scrolled {
   background: var(--header-bg-scrolled);
-  box-shadow: var(--header-shadow);
+  box-shadow: 
+    var(--header-shadow),
+    0 1px 0 0 rgba(34, 211, 238, 0.3);
 }
 
 .header-variant-subtle {
@@ -171,11 +205,19 @@ body {
   color: var(--code-fg);
   overflow: hidden;
   position: relative;
-  box-shadow: 0 8px 24px rgb(15 23 42 / 0.08);
+  /* Cyberpunk glow effect */
+  box-shadow: 
+    0 8px 24px rgb(0 0 0 / 0.3),
+    0 0 0 1px rgba(6, 182, 212, 0.2),
+    inset 0 1px 0 0 rgba(6, 182, 212, 0.1);
 }
 
 .dark .code-block {
-  box-shadow: 0 10px 30px rgb(0 0 0 / 0.28);
+  box-shadow: 
+    0 10px 30px rgb(0 0 0 / 0.5),
+    0 0 0 1px rgba(34, 211, 238, 0.3),
+    inset 0 1px 0 0 rgba(34, 211, 238, 0.15),
+    var(--neon-glow-subtle);
 }
 
 .code-block__header {
@@ -185,11 +227,24 @@ body {
   gap: 0.75rem;
   padding: 0.75rem 1rem;
   font-size: 0.85rem;
-  background: linear-gradient(90deg, transparent, rgb(2 132 199 / 0.06));
+  /* Cyberpunk gradient with neon accent */
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(6, 182, 212, 0.08),
+    rgba(168, 85, 247, 0.06)
+  );
+  border-bottom: 1px solid rgba(6, 182, 212, 0.2);
 }
 
 .dark .code-block__header {
-  background: linear-gradient(90deg, transparent, rgb(56 189 248 / 0.1));
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(34, 211, 238, 0.12),
+    rgba(192, 132, 252, 0.08)
+  );
+  border-bottom: 1px solid rgba(34, 211, 238, 0.3);
 }
 
 .code-block__title {
@@ -201,8 +256,8 @@ body {
 
 .code-block__copy {
   position: relative;
-  border: 1px solid rgb(161 161 170 / 0.5);
-  background: transparent;
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  background: rgba(6, 182, 212, 0.05);
   border-radius: 0.65rem;
   padding: 0.4rem 0.8rem;
   font-size: 0.85rem;
@@ -214,16 +269,27 @@ body {
 .code-block__copy:hover,
 .code-block__copy:focus-visible {
   outline: none;
-  border-color: rgb(2 132 199 / 0.8);
-  color: rgb(2 132 199);
-  box-shadow: 0 0 0 3px rgb(2 132 199 / 0.12);
+  border-color: rgba(6, 182, 212, 0.8);
+  background: rgba(6, 182, 212, 0.12);
+  color: rgb(6 182 212);
+  box-shadow: 
+    0 0 0 3px rgba(6, 182, 212, 0.15),
+    var(--neon-glow-subtle);
+}
+
+.dark .code-block__copy {
+  border: 1px solid rgba(34, 211, 238, 0.4);
+  background: rgba(34, 211, 238, 0.08);
 }
 
 .dark .code-block__copy:hover,
 .dark .code-block__copy:focus-visible {
-  color: rgb(56 189 248);
-  border-color: rgb(56 189 248 / 0.7);
-  box-shadow: 0 0 0 3px rgb(56 189 248 / 0.15);
+  color: rgb(34 211 238);
+  border-color: rgb(34 211 238);
+  background: rgba(34, 211, 238, 0.15);
+  box-shadow: 
+    0 0 0 3px rgba(34, 211, 238, 0.2),
+    var(--neon-glow-cyan);
 }
 
 .code-block__copy[data-state='copied']::after,

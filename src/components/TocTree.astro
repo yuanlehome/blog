@@ -19,16 +19,19 @@ const { nodes, depth = 0 } = Astro.props;
         data-target={node.slug}
         title={node.text}
         class:list={[
-          'group flex items-start gap-2 truncate underline-offset-2 transition',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2',
+          'group flex items-start gap-2 truncate underline-offset-2 transition-all duration-200',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2',
           'dark:focus-visible:ring-offset-zinc-900',
+          'hover:text-cyan-400 dark:hover:text-cyan-300',
+          'data-[active=true]:text-cyan-400 dark:data-[active=true]:text-cyan-300',
+          'data-[active=true]:drop-shadow-[0_0_6px_rgba(34,211,238,0.5)]',
           {
             // H1 - Chapter title style
-            'text-base font-semibold text-zinc-900 dark:text-zinc-100': node.depth === 1,
+            'text-base font-semibold text-zinc-200 dark:text-zinc-100': node.depth === 1,
             // H2 - Regular style with indent
-            'text-sm text-zinc-700 dark:text-zinc-200 pl-3': node.depth === 2,
+            'text-sm text-zinc-300 dark:text-zinc-200 pl-3': node.depth === 2,
             // H3 - Smaller with more indent
-            'text-sm text-zinc-600 dark:text-zinc-300 pl-6': node.depth === 3,
+            'text-sm text-zinc-400 dark:text-zinc-300 pl-6': node.depth === 3,
             // H4+ - Even smaller with more indent
             'text-xs text-zinc-500 dark:text-zinc-400 pl-9': node.depth >= 4,
           },
@@ -36,11 +39,12 @@ const { nodes, depth = 0 } = Astro.props;
       >
         <span
           class:list={[
-            'mt-0.5 text-xs transition-colors',
-            'group-data-[active=true]:text-sky-600 dark:group-data-[active=true]:text-sky-400',
+            'mt-0.5 text-xs transition-colors duration-200',
+            'group-data-[active=true]:text-cyan-300 dark:group-data-[active=true]:text-cyan-200',
+            'group-hover:text-cyan-400 dark:group-hover:text-cyan-300',
             {
-              'text-zinc-600 dark:text-zinc-400': node.depth === 1,
-              'text-zinc-400 dark:text-zinc-500': node.depth > 1,
+              'text-zinc-400 dark:text-zinc-500': node.depth === 1,
+              'text-zinc-500 dark:text-zinc-600': node.depth > 1,
             },
           ]}
         >

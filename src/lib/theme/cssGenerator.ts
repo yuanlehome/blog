@@ -149,20 +149,30 @@ ${componentVars}
   /* Light Mode Colors */
 ${lightColors}
 
+  /* Cyberpunk Neon Effects - Light Mode */
+  --neon-glow-cyan: 0 0 10px rgb(6 182 212 / 0.5), 0 0 20px rgb(6 182 212 / 0.3);
+  --neon-glow-purple: 0 0 10px rgb(168 85 247 / 0.5), 0 0 20px rgb(168 85 247 / 0.3);
+  --neon-glow-pink: 0 0 10px rgb(236 72 153 / 0.5), 0 0 20px rgb(236 72 153 / 0.3);
+  --neon-glow-subtle: 0 0 8px rgb(6 182 212 / 0.3);
+  --glass-bg: rgba(39, 39, 42, 0.75);
+  --glass-border: rgba(63, 63, 70, 0.5);
+  --scanline-opacity: 0.02;
+  --noise-opacity: 0.03;
+
   /* Code block specific (legacy support) */
   --code-font: var(--font-mono);
   --code-radius: ${theme.codeBlock.radius};
   --code-border: 1px solid var(--color-code-border);
   --code-bg: var(--color-code-background);
   --code-fg: var(--color-code-foreground);
-  --code-scrollbar: rgb(203 213 225 / 0.75);
-  --code-highlight-bg: rgb(59 130 246 / 0.12);
-  --code-highlight-accent: rgb(59 130 246);
+  --code-scrollbar: rgb(82 82 91 / 0.6);
+  --code-highlight-bg: rgb(6 182 212 / 0.15);
+  --code-highlight-accent: rgb(6 182 212);
 
   /* Header specific (legacy support) */
-  --header-bg: rgb(248 250 252 / ${theme.header.backgroundOpacity});
-  --header-bg-scrolled: rgb(248 250 252 / ${Math.min(theme.header.backgroundOpacity + 0.06, 1)});
-  --header-border: rgb(226 232 240 / 0.9);
+  --header-bg: rgba(26, 26, 31, 0.85);
+  --header-bg-scrolled: rgba(26, 26, 31, 0.95);
+  --header-border: rgb(63 63 70 / 0.7);
   --header-shadow: var(--shadow-header);
   --header-shadow-strong: ${components.shadowValues.lg};
 }
@@ -176,18 +186,28 @@ ${darkColors}
   --shadow-code-block: ${darkCodeBlockShadow};
   --shadow-header: ${darkHeaderShadow};
 
+  /* Cyberpunk Neon Effects - Dark Mode (more intense) */
+  --neon-glow-cyan: 0 0 15px rgb(34 211 238 / 0.6), 0 0 30px rgb(34 211 238 / 0.4), 0 0 45px rgb(34 211 238 / 0.2);
+  --neon-glow-purple: 0 0 15px rgb(192 132 252 / 0.6), 0 0 30px rgb(192 132 252 / 0.4), 0 0 45px rgb(192 132 252 / 0.2);
+  --neon-glow-pink: 0 0 15px rgb(244 114 182 / 0.6), 0 0 30px rgb(244 114 182 / 0.4), 0 0 45px rgb(244 114 182 / 0.2);
+  --neon-glow-subtle: 0 0 12px rgb(34 211 238 / 0.4), 0 0 24px rgb(34 211 238 / 0.2);
+  --glass-bg: rgba(24, 24, 27, 0.65);
+  --glass-border: rgba(82, 82, 91, 0.4);
+  --scanline-opacity: 0.03;
+  --noise-opacity: 0.04;
+
   /* Code block specific (legacy support) */
   --code-border: 1px solid var(--color-code-border);
   --code-bg: var(--color-code-background);
   --code-fg: var(--color-code-foreground);
-  --code-scrollbar: rgb(71 85 105 / 0.8);
-  --code-highlight-bg: rgb(59 130 246 / 0.2);
-  --code-highlight-accent: rgb(96 165 250);
+  --code-scrollbar: rgb(63 63 70 / 0.7);
+  --code-highlight-bg: rgb(34 211 238 / 0.2);
+  --code-highlight-accent: rgb(34 211 238);
 
   /* Header specific (legacy support) */
-  --header-bg: rgb(15 23 42 / ${theme.header.backgroundOpacity - 0.2});
-  --header-bg-scrolled: rgb(15 23 42 / ${Math.min(theme.header.backgroundOpacity - 0.08, 0.92)});
-  --header-border: rgb(71 85 105 / 0.8);
+  --header-bg: rgba(10, 10, 15, 0.75);
+  --header-bg-scrolled: rgba(10, 10, 15, 0.92);
+  --header-border: rgb(82 82 91 / 0.6);
   --header-shadow: var(--shadow-header);
   --header-shadow-strong: ${components.shadowValuesDark.lg};
 }

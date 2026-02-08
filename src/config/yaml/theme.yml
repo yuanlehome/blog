@@ -29,58 +29,66 @@ labels:
   dark: 'Dark'
 
 # Color palette for light mode
-# Low-saturation, professional, technical documentation style
+# Cyberpunk/Synthwave inspired - dark base with neon accents
 colors:
-  # Single accent color (cyan-blue, engineering style)
-  brand: '#0284c7' # sky-600 - primary links, buttons, accents
-  # Keep accent same as brand for unified appearance
-  accent: '#0284c7' # sky-600 - tags, highlights
-  # Off-white background (not pure white, reduces eye strain)
-  background: '#fafafa' # neutral-50
-  # Dark gray foreground (not pure black, softer on eyes)
-  foreground: '#18181b' # zinc-900
+  # Neon cyan - primary accent
+  brand: '#06b6d4' # cyan-500 - primary links, buttons, accents
+  # Neon cyan for consistency
+  accent: '#06b6d4' # cyan-500 - tags, highlights
+  # Neon secondary colors
+  secondary: '#a855f7' # purple-500 - secondary accents
+  tertiary: '#ec4899' # pink-500 - tertiary accents  
+  warning: '#facc15' # yellow-400 - warning/attention
+  # Dark gray background (cyberpunk light theme still leans dark)
+  background: '#1a1a1f' # deep charcoal
+  # Light text for dark bg
+  foreground: '#e4e4e7' # zinc-200
   # Muted text color for secondary content
-  muted: '#71717a' # zinc-500
-  # Subtle border color
-  border: '#e4e4e7' # zinc-200
-  # Card/panel background (slightly elevated)
-  card: '#f4f4f5' # zinc-100
-  # Code-specific colors (low contrast, technical feel)
-  code:
-    background: '#f4f4f5' # zinc-100
-    foreground: '#18181b' # zinc-900
-    border: '#e4e4e7' # zinc-200
-    # Syntax highlighting - single accent approach
-    keyword: '#0284c7' # sky-600
-    string: '#059669' # emerald-600
-    comment: '#a1a1aa' # zinc-400
-    function: '#0284c7' # sky-600
-
-# Color palette for dark mode
-# Low-saturation, comfortable for long reading sessions
-darkColors:
-  # Accent color (slightly brighter for dark mode)
-  brand: '#38bdf8' # sky-400
-  accent: '#38bdf8' # sky-400
-  # Dark background (not pure black, reduces eye strain)
-  background: '#18181b' # zinc-900
-  # Light foreground (not pure white, softer)
-  foreground: '#fafafa' # neutral-50
-  # Muted text for secondary content
   muted: '#a1a1aa' # zinc-400
-  # Subtle border color
-  border: '#3f3f46' # zinc-700
-  # Card/panel background
-  card: '#27272a' # zinc-800
-  # Code-specific colors for dark mode
+  # Neon-tinted border
+  border: '#3f3f46' # zinc-700 with slight glow
+  # Card/panel background (glass morphism)
+  card: '#27272a' # zinc-800/90
+  # Code-specific colors (cyberpunk high contrast)
   code:
-    background: '#1f1f23' # custom dark (between zinc-800 and zinc-900)
+    background: '#18181b' # zinc-900
     foreground: '#e4e4e7' # zinc-200
     border: '#3f3f46' # zinc-700
-    keyword: '#38bdf8' # sky-400
-    string: '#34d399' # emerald-400
+    # Syntax highlighting - neon approach
+    keyword: '#06b6d4' # cyan-500
+    string: '#a855f7' # purple-500
     comment: '#71717a' # zinc-500
-    function: '#38bdf8' # sky-400
+    function: '#ec4899' # pink-500
+
+# Color palette for dark mode
+# Cyberpunk/Synthwave - deep blacks with vibrant neons
+darkColors:
+  # Brighter neon cyan for dark mode
+  brand: '#22d3ee' # cyan-400
+  accent: '#22d3ee' # cyan-400
+  # Neon secondary colors
+  secondary: '#c084fc' # purple-400 - secondary accents
+  tertiary: '#f472b6' # pink-400 - tertiary accents
+  warning: '#fde047' # yellow-300 - warning/attention
+  # Pure dark background (cyberpunk aesthetic)
+  background: '#0a0a0f' # near-black with blue tint
+  # Bright foreground for maximum contrast
+  foreground: '#f4f4f5' # zinc-100
+  # Muted text with slight neon tint
+  muted: '#a1a1aa' # zinc-400
+  # Neon-glow border
+  border: '#52525b' # zinc-600
+  # Card/panel background (glass morphism)
+  card: '#18181b' # zinc-900/85
+  # Code-specific colors for dark mode (vibrant neon)
+  code:
+    background: '#0f0f14' # deep black-blue
+    foreground: '#f4f4f5' # zinc-100
+    border: '#3f3f46' # zinc-700
+    keyword: '#22d3ee' # cyan-400
+    string: '#c084fc' # purple-400
+    comment: '#71717a' # zinc-500
+    function: '#f472b6' # pink-400
 
 # Link styling
 emphasis:
