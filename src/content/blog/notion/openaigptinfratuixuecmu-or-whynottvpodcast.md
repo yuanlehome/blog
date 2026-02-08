@@ -7,7 +7,6 @@ tags:
 status: published
 cover: >-
   /images/notion/openaigptinfratuixuecmu-or-whynottvpodcast/2ec22dca-4210-80b7-ae83-f6e437b19bf2.png
-lastEditedTime: '2026-02-07T17:55:00.000Z'
 updated: '2026-02-07T17:55:00.000Z'
 source: notion
 notion:

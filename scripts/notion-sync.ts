@@ -180,7 +180,7 @@ n2m.setCustomTransformer('image', async (block) =>
 
 type ExistingPostMeta = {
   slug: string;
-  lastEdited?: string;
+  updated?: string;
   path: string;
   notionId?: string;
   tags?: string[];
@@ -200,7 +200,7 @@ async function getExistingPosts() {
     const tags = Array.isArray(data.tags) ? data.tags : [];
     const meta: ExistingPostMeta = {
       slug,
-      lastEdited: data.lastEditedTime,
+      updated: data.updated,
       path: file,
       notionId,
       tags,
@@ -339,7 +339,7 @@ export async function sync() {
         currentPageSlug = slug; // Set context for image transformer
 
         const existingBySlug = existingPosts.bySlug.get(slug);
-        if (existingBySlug && existingBySlug.lastEdited === lastEditedTime) {
+        if (existingBySlug && existingBySlug.updated === lastEditedTime) {
           logger.debug('Skipping unchanged page', { slug, pageId });
           processSpan.end({ status: 'ok', fields: { slug, skipped: true } });
           skippedCount++;
@@ -391,7 +391,6 @@ export async function sync() {
           tags,
           status: 'published',
           cover,
-          lastEditedTime, // Important for incremental sync
           updated: lastEditedTime,
           source: 'notion',
           notion: { id: pageId },

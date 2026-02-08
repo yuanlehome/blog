@@ -32,13 +32,12 @@ describe('date display helpers', () => {
     expect(dates.updatedLabel).toBe('');
   });
 
-  it('uses last edited time as a fallback', () => {
+  it('uses lastmod as a fallback', () => {
     const dates = getDisplayDates(
       withData({
         updated: undefined,
         updatedAt: undefined,
-        lastmod: undefined,
-        lastEditedTime: new Date('2024-02-10'),
+        lastmod: new Date('2024-02-10'),
       }),
     );
 
