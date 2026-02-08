@@ -918,10 +918,11 @@ test.describe('Blog smoke journey', () => {
     const initialGiscusTheme = await getGiscusTheme();
 
     // Verify initial themes are mapped correctly
+    // Cyberpunk theme: both light and dark modes use dark Giscus themes
     if (initialPageTheme === 'dark') {
-      expect(initialGiscusTheme).toBe('dark');
+      expect(initialGiscusTheme).toBe('dark_tritanopia');
     } else {
-      expect(initialGiscusTheme).toBe('light');
+      expect(initialGiscusTheme).toBe('dark');
     }
 
     // Toggle theme
@@ -939,10 +940,11 @@ test.describe('Blog smoke journey', () => {
       expect(newPageTheme).not.toBe(initialPageTheme);
 
       // Verify Giscus theme synchronized
+      // Cyberpunk theme: both light and dark modes use dark Giscus themes
       if (newPageTheme === 'dark') {
-        expect(newGiscusTheme).toBe('dark');
+        expect(newGiscusTheme).toBe('dark_tritanopia');
       } else {
-        expect(newGiscusTheme).toBe('light');
+        expect(newGiscusTheme).toBe('dark');
       }
 
       // Toggle back and verify again
@@ -953,10 +955,11 @@ test.describe('Blog smoke journey', () => {
       const finalGiscusTheme = await getGiscusTheme();
 
       expect(finalPageTheme).toBe(initialPageTheme);
+      // Cyberpunk theme: both light and dark modes use dark Giscus themes
       if (finalPageTheme === 'dark') {
-        expect(finalGiscusTheme).toBe('dark');
+        expect(finalGiscusTheme).toBe('dark_tritanopia');
       } else {
-        expect(finalGiscusTheme).toBe('light');
+        expect(finalGiscusTheme).toBe('dark');
       }
     }
   });

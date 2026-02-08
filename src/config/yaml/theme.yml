@@ -37,7 +37,7 @@ colors:
   accent: '#06b6d4' # cyan-500 - tags, highlights
   # Neon secondary colors
   secondary: '#a855f7' # purple-500 - secondary accents
-  tertiary: '#ec4899' # pink-500 - tertiary accents  
+  tertiary: '#ec4899' # pink-500 - tertiary accents
   warning: '#facc15' # yellow-400 - warning/attention
   # Dark gray background (cyberpunk light theme still leans dark)
   background: '#1a1a1f' # deep charcoal

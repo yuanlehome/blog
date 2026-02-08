@@ -59,7 +59,7 @@ body::before {
   z-index: -1;
   pointer-events: none;
   /* Subtle noise texture */
-  background-image: 
+  background-image:
     repeating-linear-gradient(
       0deg,
       transparent,
@@ -98,7 +98,7 @@ body::before {
 
 .site-header.is-scrolled {
   background: var(--header-bg-scrolled);
-  box-shadow: 
+  box-shadow:
     var(--header-shadow),
     0 1px 0 0 rgba(34, 211, 238, 0.3);
 }
@@ -206,14 +206,14 @@ body::before {
   overflow: hidden;
   position: relative;
   /* Cyberpunk glow effect */
-  box-shadow: 
+  box-shadow:
     0 8px 24px rgb(0 0 0 / 0.3),
     0 0 0 1px rgba(6, 182, 212, 0.2),
     inset 0 1px 0 0 rgba(6, 182, 212, 0.1);
 }
 
 .dark .code-block {
-  box-shadow: 
+  box-shadow:
     0 10px 30px rgb(0 0 0 / 0.5),
     0 0 0 1px rgba(34, 211, 238, 0.3),
     inset 0 1px 0 0 rgba(34, 211, 238, 0.15),
@@ -272,7 +272,7 @@ body::before {
   border-color: rgba(6, 182, 212, 0.8);
   background: rgba(6, 182, 212, 0.12);
   color: rgb(6 182 212);
-  box-shadow: 
+  box-shadow:
     0 0 0 3px rgba(6, 182, 212, 0.15),
     var(--neon-glow-subtle);
 }
@@ -287,7 +287,7 @@ body::before {
   color: rgb(34 211 238);
   border-color: rgb(34 211 238);
   background: rgba(34, 211, 238, 0.15);
-  box-shadow: 
+  box-shadow:
     0 0 0 3px rgba(34, 211, 238, 0.2),
     var(--neon-glow-cyan);
 }
