@@ -72,3 +72,7 @@ commonLinks:
       href: 'https://godbolt.org/'
       description: 'Online environment of C/C++'
       newTab: true
+    - label: 'Jupyter-Notebook'
+      href: 'https://mybinder.org/v2/gh/yuanlehome/Online-Jupyter-Notebook/HEAD?labpath=notebooks%2Fdemo.ipynb'
+      description: 'Simple Online Jupyter Notebook'
+      newTab: true
