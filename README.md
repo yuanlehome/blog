@@ -156,6 +156,7 @@ status: published # 或 draft
 
 ```yaml
 cover: /images/folder/image.png # 封面图（相对 public/ 路径）
+updated: '2025-12-31' # 更新日期（更新文章时自动设置，仅当与 date 不同时显示）
 source_url: https://example.com # 原文 URL
 source_author: 作者名 # 原文作者
 imported_at: '2025-12-30T10:00:00Z' # 导入时间
