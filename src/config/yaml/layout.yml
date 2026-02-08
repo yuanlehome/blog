@@ -56,3 +56,15 @@ commonLinks:
       href: 'https://chat.deepseek.com/'
       description: 'AI 助手'
       newTab: true
+    - label: 'Awesome-ML-SYS-Tutorial'
+      href: 'https://github.com/zhaochenyang20/Awesome-ML-SYS-Tutorial/tree/main'
+      description: 'RL Infra 学习资料'
+      newTab: true
+    - label: 'Blog | LMSYS org'
+      href: 'https://lmsys.org/blog/'
+      description: 'AI Infra 系列博客'
+      newTab: true
+    - label: 'How to Scale Your Model'
+      href: 'https://jax-ml.github.io/scaling-book/'
+      description: 'A Systems View of LLMs on TPUs'
+      newTab: true
