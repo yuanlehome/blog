@@ -45,18 +45,14 @@ alignment:
 # Common Links Sidebar configuration (for home page)
 commonLinks:
   enabled: true
-  position: 'right' # Options: "left", "right", "off"
+  position: 'left' # Options: "left", "right", "off"
   title: '常用链接'
   links:
-    - label: 'GitHub'
-      href: 'https://github.com'
-      description: '代码托管平台'
+    - label: 'ChatGPT'
+      href: 'https://chatgpt.com/'
+      description: 'AI 助手'
       newTab: true
-    - label: 'Stack Overflow'
-      href: 'https://stackoverflow.com'
-      description: '编程问答社区'
-      newTab: true
-    - label: 'MDN Web Docs'
-      href: 'https://developer.mozilla.org'
-      description: 'Web开发文档'
+    - label: 'DeepSeek'
+      href: 'https://chat.deepseek.com/'
+      description: 'AI 助手'
       newTab: true
