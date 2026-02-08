@@ -53,6 +53,24 @@ export const layoutConfigSchema = z.object({
       postMetaAlign: z.enum(['left', 'center']).default('left'),
     })
     .default({}),
+  commonLinks: z
+    .object({
+      enabled: z.boolean().default(true),
+      position: z.enum(['left', 'right', 'off']).default('right'),
+      title: z.string().default('常用链接'),
+      links: z
+        .array(
+          z.object({
+            label: z.string(),
+            href: z.string(),
+            description: z.string().optional(),
+            icon: z.string().optional(),
+            newTab: z.boolean().default(true),
+          }),
+        )
+        .default([]),
+    })
+    .default({}),
 });
 
 export type LayoutConfig = z.infer<typeof layoutConfigSchema>;
@@ -88,6 +106,12 @@ export const defaultLayoutConfig: LayoutConfig = {
     headerAlign: 'left',
     footerAlign: 'left',
     postMetaAlign: 'left',
+  },
+  commonLinks: {
+    enabled: true,
+    position: 'right',
+    title: '常用链接',
+    links: [],
   },
 };
 

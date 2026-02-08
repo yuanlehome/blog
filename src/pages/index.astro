@@ -3,14 +3,16 @@ import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import PostList from '../components/PostList.astro';
+import CommonLinksSidebar from '../components/CommonLinksSidebar.astro';
 import { getPublishedPosts } from '../lib/content/posts';
 import { normalizeBase } from '../lib/slug';
 import { getPaginationPages } from '../lib/ui/pagination';
-import { getHomeConfig, getSiteConfig } from '../config/loaders';
+import { getHomeConfig, getSiteConfig, getLayoutConfig } from '../config/loaders';
 
 const posts = await getPublishedPosts();
 const homeConfig = getHomeConfig();
 const siteConfig = getSiteConfig();
+const layoutConfig = getLayoutConfig();
 const PAGE_SIZE = homeConfig.pagination.pageSize;
 const currentPage = 1;
 const totalPages = Math.max(1, Math.ceil(posts.length / PAGE_SIZE));
@@ -20,90 +22,112 @@ const paginationPages =
   totalPages > 1
     ? getPaginationPages({ currentPage, totalPages, windowSize: homeConfig.pagination.windowSize })
     : [];
+
+// Get CommonLinks position from config
+const commonLinksConfig = layoutConfig.commonLinks;
+const showCommonLinks = commonLinksConfig.enabled && commonLinksConfig.links.length > 0;
+const commonLinksPosition = commonLinksConfig.position;
 ---
 
 <Layout title={siteConfig.siteName}>
   <Header />
-  <main class="container mx-auto px-4 py-8 max-w-4xl">
-    <div class="flex flex-col gap-2 mb-6">
-      <h2 class="text-2xl font-bold">{homeConfig.title}</h2>
-      {
-        homeConfig.showPostCount && (
-          <p class="text-sm text-zinc-500">
-            {posts.length} {homeConfig.postCountText}
-          </p>
-        )
-      }
-    </div>
-    <PostList posts={pagePosts} />
+  <main class="container mx-auto px-4 py-8 max-w-6xl">
+    <div
+      class={`flex flex-col gap-6 ${
+        showCommonLinks && commonLinksPosition === 'left'
+          ? 'lg:grid lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start lg:gap-12'
+          : showCommonLinks && commonLinksPosition === 'right'
+            ? 'lg:grid lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start lg:gap-12'
+            : 'lg:grid lg:grid-cols-1'
+      }`}
+    >
+      {showCommonLinks && commonLinksPosition === 'left' && <CommonLinksSidebar />}
+      <div class="min-w-0">
+        <div class="flex flex-col gap-2 mb-6">
+          <h2 class="text-2xl font-bold">{homeConfig.title}</h2>
+          {
+            homeConfig.showPostCount && (
+              <p class="text-sm text-zinc-500">
+                {posts.length} {homeConfig.postCountText}
+              </p>
+            )
+          }
+        </div>
+        <PostList posts={pagePosts} />
 
-    {
-      totalPages > 1 && (
-        <nav class="flex justify-center items-center gap-2 mt-10" aria-label="Pagination">
-          {currentPage > 1 ? (
-            <a
-              href={`${BASE}`}
-              class="px-3 py-2 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
-              aria-label="Go to previous page"
-            >
-              {homeConfig.navigation.newerText}
-            </a>
-          ) : (
-            <span
-              class="px-3 py-2 rounded bg-zinc-100 dark:bg-zinc-800 opacity-50 cursor-not-allowed"
-              aria-disabled="true"
-              aria-label="No previous page"
-            >
-              {homeConfig.navigation.newerText}
-            </span>
-          )}
-
-          <div class="flex gap-1 md:gap-2" role="list">
-            {paginationPages.map((page) =>
-              page === 'ellipsis' ? (
-                <span class="px-2 md:px-3 py-2 text-zinc-500 dark:text-zinc-400" aria-hidden="true">
-                  …
-                </span>
-              ) : page === currentPage ? (
-                <span
-                  class="px-3 py-2 rounded bg-sky-600 text-white font-semibold"
-                  aria-current="page"
-                  aria-label={`${homeConfig.navigation.pageLabel} ${page}, current page`}
-                >
-                  {page}
-                </span>
-              ) : (
+        {
+          totalPages > 1 && (
+            <nav class="flex justify-center items-center gap-2 mt-10" aria-label="Pagination">
+              {currentPage > 1 ? (
                 <a
-                  href={page === 1 ? `${BASE}` : `${BASE}page/${page}/`}
+                  href={`${BASE}`}
                   class="px-3 py-2 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
-                  aria-label={`Go to page ${page}`}
+                  aria-label="Go to previous page"
                 >
-                  {page}
+                  {homeConfig.navigation.newerText}
                 </a>
-              ),
-            )}
-          </div>
+              ) : (
+                <span
+                  class="px-3 py-2 rounded bg-zinc-100 dark:bg-zinc-800 opacity-50 cursor-not-allowed"
+                  aria-disabled="true"
+                  aria-label="No previous page"
+                >
+                  {homeConfig.navigation.newerText}
+                </span>
+              )}
 
-          {currentPage < totalPages ? (
-            <a
-              href={`${BASE}page/${currentPage + 1}/`}
-              class="px-3 py-2 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
-              aria-label="Go to next page"
-            >
-              {homeConfig.navigation.olderText}
-            </a>
-          ) : (
-            <span
-              class="px-3 py-2 rounded bg-zinc-100 dark:bg-zinc-800 opacity-50 cursor-not-allowed"
-              aria-disabled="true"
-              aria-label="No next page"
-            >
-              {homeConfig.navigation.olderText}
-            </span>
-          )}
-        </nav>
-      )
-    }
+              <div class="flex gap-1 md:gap-2" role="list">
+                {paginationPages.map((page) =>
+                  page === 'ellipsis' ? (
+                    <span
+                      class="px-2 md:px-3 py-2 text-zinc-500 dark:text-zinc-400"
+                      aria-hidden="true"
+                    >
+                      …
+                    </span>
+                  ) : page === currentPage ? (
+                    <span
+                      class="px-3 py-2 rounded bg-sky-600 text-white font-semibold"
+                      aria-current="page"
+                      aria-label={`${homeConfig.navigation.pageLabel} ${page}, current page`}
+                    >
+                      {page}
+                    </span>
+                  ) : (
+                    <a
+                      href={page === 1 ? `${BASE}` : `${BASE}page/${page}/`}
+                      class="px-3 py-2 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                      aria-label={`Go to page ${page}`}
+                    >
+                      {page}
+                    </a>
+                  ),
+                )}
+              </div>
+
+              {currentPage < totalPages ? (
+                <a
+                  href={`${BASE}page/${currentPage + 1}/`}
+                  class="px-3 py-2 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                  aria-label="Go to next page"
+                >
+                  {homeConfig.navigation.olderText}
+                </a>
+              ) : (
+                <span
+                  class="px-3 py-2 rounded bg-zinc-100 dark:bg-zinc-800 opacity-50 cursor-not-allowed"
+                  aria-disabled="true"
+                  aria-label="No next page"
+                >
+                  {homeConfig.navigation.olderText}
+                </span>
+              )}
+            </nav>
+          )
+        }
+      </div>
+      {showCommonLinks && commonLinksPosition === 'right' && <CommonLinksSidebar />}
+    </div>
   </main>
   <Footer />
 </Layout>
