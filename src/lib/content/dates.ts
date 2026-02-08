@@ -15,10 +15,7 @@ export const formatDate = (value: Date | string | undefined | null) => {
 };
 
 export const resolveUpdatedDate = (data: BlogData) =>
-  normalizeDate(data.updatedAt) ??
-  normalizeDate(data.updated) ??
-  normalizeDate(data.lastmod) ??
-  normalizeDate(data.lastEditedTime);
+  normalizeDate(data.updatedAt) ?? normalizeDate(data.updated) ?? normalizeDate(data.lastmod);
 
 export const getDisplayDates = (data: BlogData) => {
   const published = normalizeDate(data.date);

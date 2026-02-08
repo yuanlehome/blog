@@ -269,7 +269,7 @@ describe('notion sync helpers', () => {
     const existing = matter.stringify('old', {
       slug: 'should-skip',
       notion: { id: 'page-status' },
-      lastEditedTime: '2024-02-02T00:00:00.000Z',
+      updated: '2024-02-02T00:00:00.000Z',
     });
     fs.writeFileSync(path.join(contentDir, 'should-skip.md'), existing);
 
@@ -541,7 +541,7 @@ describe('notion sync helpers', () => {
       matter.stringify('body', {
         slug: 'old-slug',
         notion: { id: 'page-rename' },
-        lastEditedTime: '2024-01-01T00:00:00.000Z',
+        updated: '2024-01-01T00:00:00.000Z',
       }),
     );
     const sourceImageDir = path.join(imagesDir, 'page-rename');
@@ -598,7 +598,7 @@ describe('notion sync helpers', () => {
       title: 'Test Article',
       slug: 'test-article',
       notion: { id: 'page-preserve-tags' },
-      lastEditedTime: '2024-01-01T00:00:00.000Z',
+      updated: '2024-01-01T00:00:00.000Z',
       tags: ['Local Tag 1', 'Local Tag 2'],
       date: '2024-01-01',
     });

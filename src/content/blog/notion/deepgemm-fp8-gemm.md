@@ -7,7 +7,6 @@ tags:
   - DeepGEMM
 status: published
 cover: /images/notion/deepgemm-fp8-gemm/2e022dca-4210-803e-8c55-c9cc383313ea.png
-lastEditedTime: '2026-02-07T17:53:00.000Z'
 updated: '2026-02-07T17:53:00.000Z'
 source: notion
 notion:

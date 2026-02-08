@@ -6,7 +6,6 @@ tags:
   - RoPE
 status: published
 cover: ''
-lastEditedTime: '2026-02-07T17:52:00.000Z'
 updated: '2026-02-07T17:52:00.000Z'
 source: notion
 notion:

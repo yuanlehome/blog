@@ -161,6 +161,5 @@ describe('notion sync cover fallback', () => {
     const secondSync = matter(fs.readFileSync(generatedFile, 'utf-8'));
     expect(secondSync.data.date).toBe(originalDate); // Date should be preserved
     expect(secondSync.data.updated).toBe('2024-02-15T00:00:00.000Z'); // Updated field should change
-    expect(secondSync.data.lastEditedTime).toBe('2024-02-15T00:00:00.000Z');
   });
 });

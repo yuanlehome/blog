@@ -6,7 +6,6 @@ tags: ['Quantization', 'Paper']
 status: published
 cover: >-
   /images/others/awq-llm-activation-aware-weight-quantization/2f722dca-4210-81e8-a731-d27136536435.png
-lastEditedTime: '2026-01-29T13:13:00.000Z'
 updated: '2026-01-29T13:13:00.000Z'
 ---
 
