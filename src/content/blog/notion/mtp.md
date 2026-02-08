@@ -1,13 +1,12 @@
 ---
 title: MTP 理论加速比分析：从公式到工程决策
 slug: mtp
-date: '2026-02-07'
-tags:
-  - Speculative Decoding
+date: '2026-01-06'
+tags: ['Speculative Decoding']
 status: published
 cover: ''
-lastEditedTime: '2026-02-07T17:55:00.000Z'
-updated: '2026-02-07T17:55:00.000Z'
+lastEditedTime: '2026-01-06T11:18:00.000Z'
+updated: '2026-01-06T11:18:00.000Z'
 source: notion
 notion:
   id: 2d822dca-4210-8062-81fc-e99d289d0603

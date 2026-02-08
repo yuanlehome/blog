@@ -1,13 +1,13 @@
 ---
 title: RoPE 究竟是怎么计算的
 slug: rope
-date: '2026-02-07'
+date: '2026-01-30'
 tags:
   - RoPE
 status: published
 cover: ''
-lastEditedTime: '2026-02-07T17:52:00.000Z'
-updated: '2026-02-07T17:52:00.000Z'
+lastEditedTime: '2026-01-30T16:21:00.000Z'
+updated: '2026-01-30T16:21:00.000Z'
 source: notion
 notion:
   id: 2d322dca-4210-8074-95ce-ec86131a7787
