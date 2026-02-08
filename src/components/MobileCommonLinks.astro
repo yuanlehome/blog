@@ -1,0 +1,212 @@
+---
+/**
+ * MobileCommonLinks Component
+ *
+ * Mobile drawer for displaying CommonLinks sidebar on small screens.
+ * Reuses the same drawer pattern as MobileToc for consistency.
+ */
+import { getLayoutConfig } from '../config/loaders';
+
+interface Props {
+  /** Whether to render the built-in floating trigger button */
+  showTrigger?: boolean;
+}
+
+const layoutConfig = getLayoutConfig();
+const { enabled, title, links } = layoutConfig.commonLinks;
+
+// Don't render if disabled or no links
+if (!enabled || links.length === 0) {
+  return null;
+}
+
+const showTrigger = Astro.props.showTrigger ?? false;
+---
+
+<>
+  {
+    showTrigger && (
+      <button
+        type="button"
+        class="fixed bottom-6 left-4 z-40 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-neutral-50/90 px-4 py-2 text-sm font-medium text-zinc-900 shadow-lg backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-sky-200 hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-zinc-800 dark:bg-zinc-900/80 dark:text-zinc-100 dark:hover:border-sky-500/50 dark:hover:text-sky-400 dark:focus-visible:ring-offset-zinc-900 lg:hidden"
+        data-mobile-common-links-open
+        aria-haspopup="dialog"
+        aria-expanded="false"
+        aria-controls="mobile-common-links-drawer"
+      >
+        🔗 {title}
+      </button>
+    )
+  }
+
+  <div
+    class="fixed inset-0 z-50 pointer-events-none data-[open=true]:pointer-events-auto lg:hidden"
+    data-mobile-common-links
+    data-open="false"
+    aria-hidden="true"
+  >
+    <div
+      class="absolute inset-0 bg-zinc-900/40 opacity-0 transition duration-200 data-[open=true]:opacity-100 dark:bg-black/50"
+      data-mobile-common-links-backdrop
+    >
+    </div>
+    <div
+      id="mobile-common-links-drawer"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      class="absolute inset-x-0 bottom-0 translate-y-full rounded-t-2xl border border-zinc-200 bg-neutral-50/95 shadow-2xl ring-1 ring-black/5 transition duration-200 data-[open=true]:translate-y-0 dark:border-zinc-800 dark:bg-zinc-900/95 dark:ring-white/10"
+      data-mobile-common-links-drawer
+    >
+      <div class="flex items-center justify-between gap-3 px-4 pt-4 pb-3">
+        <div>
+          <p class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">{title}</p>
+          <p class="text-xs text-zinc-500 dark:text-zinc-400">快速访问常用工具和资源</p>
+        </div>
+        <button
+          type="button"
+          class="rounded-full border border-zinc-200 bg-neutral-50 px-3 py-1 text-sm font-medium text-zinc-800 shadow-sm transition hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:text-sky-400 dark:focus-visible:ring-offset-zinc-900"
+          data-mobile-common-links-close
+          aria-label="Close"
+        >
+          关闭
+        </button>
+      </div>
+      <div class="max-h-[60vh] overflow-y-auto px-4 pb-5" data-mobile-common-links-scroll>
+        <ul class="space-y-2">
+          {
+            links.map((link) => (
+              <li>
+                <a
+                  href={link.href}
+                  target={link.newTab ? '_blank' : undefined}
+                  rel={link.newTab ? 'noopener noreferrer' : undefined}
+                  class="group block rounded-lg border border-zinc-200/60 bg-white/50 px-3 py-2.5 text-sm transition-all hover:border-sky-300 hover:bg-sky-50/50 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 dark:border-zinc-700/60 dark:bg-zinc-900/30 dark:hover:border-sky-600 dark:hover:bg-sky-950/30 dark:focus-visible:ring-sky-400"
+                >
+                  <div class="flex flex-col gap-1">
+                    <span class="font-medium text-zinc-900 group-hover:text-sky-700 dark:text-zinc-100 dark:group-hover:text-sky-300">
+                      {link.label}
+                      {link.newTab && (
+                        <span class="ml-1 inline-block text-xs opacity-60" aria-hidden="true">
+                          ↗
+                        </span>
+                      )}
+                    </span>
+                    {link.description && (
+                      <span class="text-xs text-zinc-500 dark:text-zinc-400">
+                        {link.description}
+                      </span>
+                    )}
+                  </div>
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </div>
+  </div>
+</>
+
+<script>
+  const root = document.querySelector('[data-mobile-common-links]') as HTMLElement | null;
+  const drawer = document.querySelector('[data-mobile-common-links-drawer]') as HTMLElement | null;
+  const backdrop = document.querySelector(
+    '[data-mobile-common-links-backdrop]',
+  ) as HTMLElement | null;
+  const getOpenButtons = () =>
+    Array.from(document.querySelectorAll('[data-mobile-common-links-open]')) as HTMLButtonElement[];
+  const closeButton = document.querySelector(
+    '[data-mobile-common-links-close]',
+  ) as HTMLButtonElement | null;
+  const body = document.body;
+
+  let scrollYBeforeLock = 0;
+  let activeButtonBeforeOpen: HTMLElement | null = null;
+
+  const emitToggle = (open: boolean) =>
+    window.dispatchEvent(new CustomEvent('mobile-common-links:toggle', { detail: { open } }));
+
+  const setAriaExpanded = (open: boolean) => {
+    getOpenButtons().forEach((button) =>
+      button.setAttribute('aria-expanded', open ? 'true' : 'false'),
+    );
+  };
+
+  const handleOpenTrigger = (event: Event) => {
+    event.preventDefault();
+    activeButtonBeforeOpen = event.currentTarget as HTMLElement;
+    setOpen(true);
+  };
+
+  const syncOpenButtons = () => {
+    getOpenButtons().forEach((button) => {
+      button.removeEventListener('click', handleOpenTrigger);
+      button.addEventListener('click', handleOpenTrigger);
+    });
+  };
+
+  const lockScroll = () => {
+    scrollYBeforeLock = window.scrollY;
+    body.style.position = 'fixed';
+    body.style.width = '100%';
+    body.style.top = `-${scrollYBeforeLock}px`;
+  };
+
+  const unlockScroll = () => {
+    body.style.position = '';
+    body.style.width = '';
+    body.style.top = '';
+    window.scrollTo({ top: scrollYBeforeLock });
+  };
+
+  const setOpen = (open: boolean) => {
+    if (!root || !drawer) return;
+    root.dataset.open = String(open);
+    drawer.dataset.open = String(open);
+    backdrop?.setAttribute('data-open', String(open));
+    root.setAttribute('aria-hidden', open ? 'false' : 'true');
+    setAriaExpanded(open);
+    emitToggle(open);
+
+    if (open) {
+      lockScroll();
+      // Focus management: focus on close button when opened
+      requestAnimationFrame(() => {
+        closeButton?.focus();
+      });
+    } else {
+      unlockScroll();
+      // Return focus to trigger button when closed
+      requestAnimationFrame(() => {
+        if (activeButtonBeforeOpen && document.contains(activeButtonBeforeOpen)) {
+          activeButtonBeforeOpen.focus();
+        }
+        activeButtonBeforeOpen = null;
+      });
+    }
+  };
+
+  syncOpenButtons();
+
+  // Sync buttons dynamically added to the DOM
+  const openButtonObserver = new MutationObserver(syncOpenButtons);
+  openButtonObserver.observe(document.body, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ['data-mobile-common-links-open'],
+  });
+
+  closeButton?.addEventListener('click', () => setOpen(false));
+  backdrop?.addEventListener('click', (event) => {
+    if (event.target === backdrop) setOpen(false);
+  });
+
+  // Support Esc key to close
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && root?.dataset.open === 'true') {
+      setOpen(false);
+    }
+  });
+</script>
