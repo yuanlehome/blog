@@ -68,3 +68,7 @@ commonLinks:
       href: 'https://jax-ml.github.io/scaling-book/'
       description: 'A Systems View of LLMs on TPUs'
       newTab: true
+    - label: 'Compiler Explorer'
+      href: 'https://godbolt.org/'
+      description: 'Online environment of C/C++'
+      newTab: true
