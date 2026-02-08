@@ -157,7 +157,7 @@ const showTrigger = Astro.props.showTrigger ?? false;
     body.style.position = '';
     body.style.width = '';
     body.style.top = '';
-    window.scrollTo({ top: scrollYBeforeLock });
+    window.scrollTo({ top: scrollYBeforeLock, behavior: 'auto' });
   };
 
   const setOpen = (open: boolean) => {
@@ -173,14 +173,14 @@ const showTrigger = Astro.props.showTrigger ?? false;
       lockScroll();
       // Focus management: focus on close button when opened
       requestAnimationFrame(() => {
-        closeButton?.focus();
+        closeButton?.focus({ preventScroll: true });
       });
     } else {
       unlockScroll();
       // Return focus to trigger button when closed
       requestAnimationFrame(() => {
         if (activeButtonBeforeOpen && document.contains(activeButtonBeforeOpen)) {
-          activeButtonBeforeOpen.focus();
+          activeButtonBeforeOpen.focus({ preventScroll: true });
         }
         activeButtonBeforeOpen = null;
       });
