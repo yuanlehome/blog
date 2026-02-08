@@ -184,6 +184,7 @@ type ExistingPostMeta = {
   path: string;
   notionId?: string;
   tags?: string[];
+  date?: string;
 };
 
 async function getExistingPosts() {
@@ -203,6 +204,7 @@ async function getExistingPosts() {
       path: file,
       notionId,
       tags,
+      date: data.date,
     };
     bySlug.set(slug, meta);
     if (notionId) byNotionId.set(notionId, meta);
@@ -314,8 +316,7 @@ export async function sync() {
       try {
         // Extract Frontmatter fields
         const titleProp = props.Name || props.title || props.Title;
-        const title =
-          titleProp?.title?.map((t: any) => t.plain_text).join('') || 'Untitled';
+        const title = titleProp?.title?.map((t: any) => t.plain_text).join('') || 'Untitled';
 
         const propSlug =
           props.slug?.rich_text?.map((t: any) => t.plain_text).join('') ||
@@ -345,7 +346,11 @@ export async function sync() {
           continue;
         }
 
-        const date = props.date?.date?.start || new Date().toISOString().split('T')[0];
+        // Use existing date if post already exists, otherwise use Notion date or current date
+        // This preserves the original publication date
+        const existingDate = existingBySlug?.date || previousMeta?.date;
+        const notionDate = props.date?.date?.start;
+        const date = existingDate || notionDate || new Date().toISOString().split('T')[0];
         const notionTags = props.tags?.multi_select?.map((t: any) => t.name) || [];
 
         // Merge existing local tags with Notion tags
