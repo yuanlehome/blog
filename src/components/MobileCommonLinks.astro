@@ -154,10 +154,14 @@ const showTrigger = Astro.props.showTrigger ?? false;
   };
 
   const unlockScroll = () => {
+    const scrollY = scrollYBeforeLock;
     body.style.position = '';
     body.style.width = '';
     body.style.top = '';
-    window.scrollTo({ top: scrollYBeforeLock, behavior: 'auto' });
+    // Restore scroll position immediately after style changes take effect
+    requestAnimationFrame(() => {
+      window.scrollTo(0, scrollY);
+    });
   };
 
   const setOpen = (open: boolean) => {
