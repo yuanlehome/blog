@@ -231,5 +231,3 @@ export function buildPostUrl(slug: string, base?: string): string {
 
   return `${normalizedBase}${normalizedSlug}/`;
 }
-
-

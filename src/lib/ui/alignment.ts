@@ -56,5 +56,3 @@ export function alignToJustifyClass(align: AlignmentValue): string {
 export function alignToItemsClass(align: AlignmentValue): string {
   return align === 'center' ? 'items-center' : 'items-start';
 }
-
-
