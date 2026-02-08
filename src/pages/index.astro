@@ -45,7 +45,23 @@ const commonLinksPosition = commonLinksConfig.position;
       {showCommonLinks && commonLinksPosition === 'left' && <CommonLinksSidebar />}
       <div class="min-w-0">
         <div class="flex flex-col gap-2 mb-6">
-          <h2 class="text-2xl font-bold">{homeConfig.title}</h2>
+          <div class="flex items-center justify-between">
+            <h2 class="text-2xl font-bold">{homeConfig.title}</h2>
+            {
+              showCommonLinks && commonLinksPosition !== 'off' && (
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-neutral-50/90 px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm backdrop-blur-sm transition hover:border-sky-200 hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-zinc-800 dark:bg-zinc-900/80 dark:text-zinc-100 dark:hover:border-sky-500/50 dark:hover:text-sky-400 dark:focus-visible:ring-offset-zinc-900 lg:hidden"
+                  data-mobile-common-links-open
+                  aria-haspopup="dialog"
+                  aria-expanded="false"
+                  aria-controls="mobile-common-links-drawer"
+                >
+                  🔗 {commonLinksConfig.title}
+                </button>
+              )
+            }
+          </div>
           {
             homeConfig.showPostCount && (
               <p class="text-sm text-zinc-500">
@@ -131,5 +147,5 @@ const commonLinksPosition = commonLinksConfig.position;
     </div>
   </main>
   <Footer />
-  {showCommonLinks && commonLinksPosition !== 'off' && <MobileCommonLinks showTrigger={true} />}
+  {showCommonLinks && commonLinksPosition !== 'off' && <MobileCommonLinks showTrigger={false} />}
 </Layout>
