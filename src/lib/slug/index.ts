@@ -232,17 +232,4 @@ export function buildPostUrl(slug: string, base?: string): string {
   return `${normalizedBase}${normalizedSlug}/`;
 }
 
-/**
- * Legacy compatibility export (for gradual migration)
- * @deprecated Use slugFromTitle instead
- */
-export function deriveSlug(options: {
-  explicitSlug?: string | null;
-  title?: string;
-  fallbackId?: string;
-}): string {
-  return slugFromTitle({
-    ...options,
-    fallbackId: options.fallbackId || '',
-  });
-}
+
