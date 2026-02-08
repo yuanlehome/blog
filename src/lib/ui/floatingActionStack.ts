@@ -9,12 +9,6 @@ export interface FloatingActionDescriptor {
   dataAttributes?: Record<string, string>;
 }
 
-export interface FloatingActionProps {
-  enableTop?: boolean;
-  enableToc?: boolean;
-  enableBottom?: boolean;
-}
-
 export const STACK_CLASSNAMES =
   'floating-action-stack fixed z-40 flex flex-col items-end gap-3 lg:hidden pointer-events-auto transition-opacity data-[toc-open=true]:opacity-0 data-[toc-open=true]:pointer-events-none';
 
@@ -27,7 +21,11 @@ export const buildActions = ({
   enableTop = true,
   enableToc = true,
   enableBottom = true,
-}: FloatingActionProps): FloatingActionDescriptor[] => {
+}: {
+  enableTop?: boolean;
+  enableToc?: boolean;
+  enableBottom?: boolean;
+}): FloatingActionDescriptor[] => {
   const actions: FloatingActionDescriptor[] = [
     {
       kind: 'top',

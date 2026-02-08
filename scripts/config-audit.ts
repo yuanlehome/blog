@@ -160,8 +160,7 @@ function scanConfigUsage(inventory: ConfigItem[]): void {
           key.includes('Align') &&
           (content.includes('alignToTextClass') ||
             content.includes('alignToJustifyClass') ||
-            content.includes('alignToItemsClass') ||
-            content.includes('getAllAlignmentClasses'))
+            content.includes('alignToItemsClass'))
         ) {
           hasUtilityMapping = true;
         }
