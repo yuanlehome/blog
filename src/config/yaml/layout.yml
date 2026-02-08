@@ -48,7 +48,11 @@ commonLinks:
   position: 'left' # Options: "left", "right", "off"
   title: '常用链接'
   links:
+    - label: 'ChatGPT'
+      href: 'https://chatgpt.com/'
+      description: 'AI 助手'
+      newTab: true
     - label: 'DeepSeek'
       href: 'https://chat.deepseek.com/'
-      description: 'AI 对话'
+      description: 'AI 助手'
       newTab: true
