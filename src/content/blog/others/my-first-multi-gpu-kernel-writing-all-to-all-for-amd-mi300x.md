@@ -495,7 +495,7 @@ if (bid == 0 && tid < WORLD_SIZE)
 
 ### 内核内性能分析
 
-One of the coolest tricks that I learned from my teammate was **intra-kernel profiling**. CUDA events (and PyTorch Profiler) can only do profiling at the kernel level - how long a particular kernel, or a group of kernels, takes. To understand the bottleneck at the code level, we need to profile within the kernel itself.
+我从队友那里学到的最酷的技巧之一是**内核内性能分析**。CUDA 事件（以及 PyTorch Profiler）只能在内核级别进行性能分析 —— 衡量特定内核或一组内核需要多长时间。要理解代码级别的瓶颈，我们需要在内核内部进行性能分析。
 
 对于 NVIDIA GPU，通常我会使用 [Nsight Compute](https://developer.nvidia.com/nsight-compute) 的 Source 视图来检查哪行代码占用最多的 warp 停顿。我找不到 AMD 的等效工具，因此内核内性能分析技巧特别有用。
 
@@ -543,11 +543,11 @@ void profile_stop(int64_t *profile, int i, int tag, int tid) {
 }
 ```
 
-`int64_t *profile` is just a buffer in global memory. Its first element `profile[0]` is the number of events recorded so far, thus `atomicAdd()` returns the index of a new event to be recorded. After the first element, each event occupies 4 elements:
+`int64_t *profile` 只是全局内存中的一个缓冲区。它的第一个元素 `profile[0]` 是到目前为止记录的事件数量，因此 `atomicAdd()` 返回要记录的新事件的索引。在第一个元素之后，每个事件占用 4 个元素：
 
-1. Starting timestamp
-1. Ending timestamp
-1. Numerical tag
+1. 起始时间戳
+1. 结束时间戳
+1. 数值标签
 1. ID
 
 这种设计允许多个线程独立记录其事件，而无需提前规划布局。数值标签可以稍后使用名称列表查找。要添加新的事件名称，我们可以向此查找列表添加更多元素。
