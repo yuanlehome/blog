@@ -402,16 +402,16 @@ PyTorch Profiling trace，显示 `dispatch-send` 异常缓慢。
 
 我将问题缩小到令牌计数的自旋锁定循环。我最好的猜测是 AMD 性能分析器后端与多 GPU 代码有奇怪的交互。无论如何，由于这个问题，我切换到手动 CUDA 事件计时（[submission_v6.py#L893-L913](https://github.com/gau-nernst/gpu-mode-kernels/blob/5ab701b2/amd-distributed/all2all/submission_v6.py#L893-L913)），并获得了以下最大问题形状（`num_experts=256`，`experts_per_token=8`，`hidden_dim=7168`，`max_num_tokens=256`，`world_size=8`）的结果。
 
-| Rank | Dispatch | Grouped GEMM | Combine | Total  |
-| ---- | -------- | ------------ | ------- | ------ |
-| 0    | 348.60   | 115.66       | 342.94  | 807.20 |
-| 1    | 334.80   | 115.98       | 342.18  | 792.97 |
-| 2    | 377.98   | 115.78       | 333.76  | 827.53 |
-| 3    | 330.19   | 115.30       | 317.28  | 762.78 |
-| 4    | 333.96   | 115.22       | 349.44  | 798.62 |
-| 5    | 314.84   | 115.46       | 326.59  | 756.89 |
-| 6    | 327.07   | 115.02       | 325.34  | 767.43 |
-| 7    | 329.03   | 115.42       | 336.49  | 780.94 |
+| 秩（Rank） | Dispatch | Grouped GEMM | Combine | 总计（Total） |
+| ---------- | -------- | ------------ | ------- | ------------- |
+| 0          | 348.60   | 115.66       | 342.94  | 807.20        |
+| 1          | 334.80   | 115.98       | 342.18  | 792.97        |
+| 2          | 377.98   | 115.78       | 333.76  | 827.53        |
+| 3          | 330.19   | 115.30       | 317.28  | 762.78        |
+| 4          | 333.96   | 115.22       | 349.44  | 798.62        |
+| 5          | 314.84   | 115.46       | 326.59  | 756.89        |
+| 6          | 327.07   | 115.02       | 325.34  | 767.43        |
+| 7          | 329.03   | 115.42       | 336.49  | 780.94        |
 
 到目前为止，我只专注于 `dispatch` 和 `combine`，将“fake” grouped GEMM 单独留下。性能分析数据显示 grouped GEMM 对整体运行时间贡献相当大。将其与 `combine` 融合将减少约 100μs 的延迟，而且也很简单：“fake” grouped GEMM 只是一个逐点乘法。在与组织者确认这是一个有效的优化后，我实现了它，并将运行时间减少到**421μs**。
 
@@ -425,29 +425,29 @@ PyTorch Profiling trace，显示 `dispatch-send` 异常缓慢。
 
 使用 `grid_size=256` 进行 `combine`。
 
-| Rank | `dispatch-send` | `dispatch-recv` | `combine-send` | `combine-recv` | Total  |
-| ---- | --------------- | --------------- | -------------- | -------------- | ------ |
-| 0    | 225.99          | 78.78           | 300.92         | 46.26          | 651.96 |
-| 1    | 225.35          | 77.50           | 310.66         | 53.48          | 666.99 |
-| 2    | 289.38          | 38.29           | 311.23         | 47.15          | 686.03 |
-| 3    | 289.58          | 32.51           | 299.80         | 49.71          | 671.60 |
-| 4    | 231.08          | 77.17           | 307.38         | 62.30          | 677.94 |
-| 5    | 211.76          | 90.44           | 302.80         | 65.03          | 670.04 |
-| 6    | 279.92          | 32.95           | 292.10         | 48.07          | 653.04 |
-| 7    | 205.35          | 87.68           | 305.97         | 47.99          | 646.99 |
+| 秩（Rank） | `dispatch-send` | `dispatch-recv` | `combine-send` | `combine-recv` | 总计（Total） |
+| ---------- | --------------- | --------------- | -------------- | -------------- | ------------- |
+| 0          | 225.99          | 78.78           | 300.92         | 46.26          | 651.96        |
+| 1          | 225.35          | 77.50           | 310.66         | 53.48          | 666.99        |
+| 2          | 289.38          | 38.29           | 311.23         | 47.15          | 686.03        |
+| 3          | 289.58          | 32.51           | 299.80         | 49.71          | 671.60        |
+| 4          | 231.08          | 77.17           | 307.38         | 62.30          | 677.94        |
+| 5          | 211.76          | 90.44           | 302.80         | 65.03          | 670.04        |
+| 6          | 279.92          | 32.95           | 292.10         | 48.07          | 653.04        |
+| 7          | 205.35          | 87.68           | 305.97         | 47.99          | 646.99        |
 
 使用 `grid_size=304` 进行 `combine`。
 
-| Rank | `dispatch-send` | `dispatch-recv` | `combine-send` | `combine-recv` | Total  |
-| ---- | --------------- | --------------- | -------------- | -------------- | ------ |
-| 0    | 219.33          | 95.70           | 108.88         | 60.02          | 483.93 |
-| 1    | 216.93          | 106.40          | 115.42         | 50.75          | 489.50 |
-| 2    | 283.88          | 64.19           | 117.95         | 46.54          | 512.56 |
-| 3    | 291.94          | 32.27           | 97.66          | 56.09          | 477.96 |
-| 4    | 236.97          | 60.94           | 126.17         | 43.06          | 467.13 |
-| 5    | 211.08          | 106.96          | 113.14         | 54.24          | 485.41 |
-| 6    | 304.65          | 32.83           | 113.46         | 46.02          | 496.96 |
-| 7    | 214.08          | 106.68          | 113.17         | 52.04          | 485.97 |
+| 秩（Rank） | `dispatch-send` | `dispatch-recv` | `combine-send` | `combine-recv` | 总计（Total） |
+| ---------- | --------------- | --------------- | -------------- | -------------- | ------------- |
+| 0          | 219.33          | 95.70           | 108.88         | 60.02          | 483.93        |
+| 1          | 216.93          | 106.40          | 115.42         | 50.75          | 489.50        |
+| 2          | 283.88          | 64.19           | 117.95         | 46.54          | 512.56        |
+| 3          | 291.94          | 32.27           | 97.66          | 56.09          | 477.96        |
+| 4          | 236.97          | 60.94           | 126.17         | 43.06          | 467.13        |
+| 5          | 211.08          | 106.96          | 113.14         | 54.24          | 485.41        |
+| 6          | 304.65          | 32.83           | 113.46         | 46.02          | 496.96        |
+| 7          | 214.08          | 106.68          | 113.17         | 52.04          | 485.97        |
 
 `grid_size=304` 为 `combine-send` 提供了近 3 倍的加速！像 MI300X 上的许多其他观察一样，我没有解释。调优 `dispatch` 没有产生任何明显的加速。
 
@@ -495,7 +495,7 @@ if (bid == 0 && tid < WORLD_SIZE)
 
 ### 内核内性能分析
 
-One of the coolest tricks that I learned from my teammate was **intra-kernel profiling**. CUDA events (and PyTorch Profiler) can only do profiling at the kernel level - how long a particular kernel, or a group of kernels, takes. To understand the bottleneck at the code level, we need to profile within the kernel itself.
+我从队友那里学到的最酷的技巧之一是**内核内性能分析**。CUDA 事件（以及 PyTorch Profiler）只能在内核级别进行性能分析 —— 衡量特定内核或一组内核需要多长时间。要理解代码级别的瓶颈，我们需要在内核内部进行性能分析。
 
 对于 NVIDIA GPU，通常我会使用 [Nsight Compute](https://developer.nvidia.com/nsight-compute) 的 Source 视图来检查哪行代码占用最多的 warp 停顿。我找不到 AMD 的等效工具，因此内核内性能分析技巧特别有用。
 
@@ -543,11 +543,11 @@ void profile_stop(int64_t *profile, int i, int tag, int tid) {
 }
 ```
 
-`int64_t *profile` is just a buffer in global memory. Its first element `profile[0]` is the number of events recorded so far, thus `atomicAdd()` returns the index of a new event to be recorded. After the first element, each event occupies 4 elements:
+`int64_t *profile` 只是全局内存中的一个缓冲区。它的第一个元素 `profile[0]` 是到目前为止记录的事件数量，因此 `atomicAdd()` 返回要记录的新事件的索引。在第一个元素之后，每个事件占用 4 个元素：
 
-1. Starting timestamp
-1. Ending timestamp
-1. Numerical tag
+1. 起始时间戳
+1. 结束时间戳
+1. 数值标签
 1. ID
 
 这种设计允许多个线程独立记录其事件，而无需提前规划布局。数值标签可以稍后使用名称列表查找。要添加新的事件名称，我们可以向此查找列表添加更多元素。
@@ -561,7 +561,7 @@ void profile_stop(int64_t *profile, int i, int tag, int tid) {
 
 ![Intra-kernel profiling of v8](/images/others/my-first-multi-gpu-kernel-writing-all-to-all-for-amd-mi300x/008-5350c0d3.png)
 
-[trace_v8.json.gz](https://github.com/gau-nernst/gpu-mode-kernels/blob/5ab701b2/amd-distributed/all2all/trace_v8.json.gz). Intra-kernel profiling of v8, showing uneven work distribution across threadblocks in `dispatch-recv`. Process 4 Thread 4 means GPU4 threadblock 0.
+[trace_v8.json.gz](https://github.com/gau-nernst/gpu-mode-kernels/blob/5ab701b2/amd-distributed/all2all/trace_v8.json.gz)。v8 的内核内性能分析，显示 `dispatch-recv` 中线程块之间不均匀的工作分配。Process 4 Thread 4 表示 GPU4 的线程块 0。
 
 在 `dispatch-recv` 内核中存在明显的不均匀工作分配。进程 4 线程 7，映射到 GPU4 线程块 3，必须接收 3 个 token，而大多数其他线程块只接收了 1 个 token。这是由于我在 `dispatch-recv` 中分配线程块工作的方式。
 
