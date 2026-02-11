@@ -455,17 +455,17 @@ PyTorch Profiling trace，显示 `dispatch-send` 异常缓慢。
 
 ## 消除开销
 
-I mentioned that PyTorch Profiler didn’t show very meaningful traces in the previous section, but occasionally it was fine on some ranks. Inspecting one of such traces revealed unacceptable overheads coming from **dynamic allocations** (malloc) and **zeroing out buffers** (memset).
+我在上一节中提到，PyTorch Profiler 没有显示非常有意义的跟踪，但偶尔在某些秩上是正常的。检查其中一个这样的跟踪揭示了来自**动态分配**（malloc）和**清零缓冲区**（memset）的不可接受的开销。
 
 ![Overheads](/images/others/my-first-multi-gpu-kernel-writing-all-to-all-for-amd-mi300x/007-53a143c2.png)
 
-Malloc and zeros overheads.
+Malloc 和清零开销。
 
-It was strange that there were `hipMalloc` calls, as PyTorch’s caching allocator should have taken care of them. Regardless, eliminating malloc calls was simple - move [torch.empty()](https://github.com/gau-nernst/gpu-mode-kernels/blob/5ab701b2/amd-distributed/all2all/submission_v7.py#L748-L749) outside of the main kernel, and reuse the buffers.
+奇怪的是，存在 `hipMalloc` 调用，因为 PyTorch 的缓存分配器应该已经处理了它们。无论如何，消除 malloc 调用很简单——将 [torch.empty()](https://github.com/gau-nernst/gpu-mode-kernels/blob/5ab701b2/amd-distributed/all2all/submission_v7.py#L748-L749) 移到主内核之外，并重用缓冲区。
 
-Zeroing out buffers was more problematic. In my kernels, I rely on the fact that the buffers are initialized with zeros for correct logic, such as token count with `atomicAdd()`. One solution is to switch to `cudaMemsetAsync()` in C++ to remove Python overheads as well as unnecessary kernel launches, but I think we can do better.
+清零缓冲区更成问题。在我的内核中，我依赖于缓冲区初始化为零的事实以实现正确的逻辑，例如使用 `atomicAdd()` 的 token 计数。一种解决方案是在 C++ 中切换到 `cudaMemsetAsync()` 以消除 Python 开销以及不必要的内核启动，但我认为我们可以做得更好。
 
-The main idea is that we can **sneak in memset in later kernels** to restore the invariance. Logically, we are doing the following.
+主要思想是我们可以在后续内核中**偷偷插入 memset** 以恢复不变性。从逻辑上讲，我们正在执行以下操作。
 
 ```python
 # allocation, initialized to zeros
@@ -489,7 +489,7 @@ if (bid == 0 && tid < WORLD_SIZE)
   send_counts[tid] = 0;
 ```
 
-As I was already doing overhead reduction, I also moved most of the code to C++, including slicing of the symmetric heap. Hence, [submission_v7b.py](https://github.com/gau-nernst/gpu-mode-kernels/blob/5ab701b2/amd-distributed/all2all/submission_v7b.py) focused solely on removing overheads, achieving **303μs**.
+由于我已经在进行开销减少，我还将大部分代码移至 C++，包括对称堆的切片。因此，[submission_v7b.py](https://github.com/gau-nernst/gpu-mode-kernels/blob/5ab701b2/amd-distributed/all2all/submission_v7b.py) 专注于消除开销，实现了 **303μs**。
 
 ## 优化变长工作分配
 
@@ -497,9 +497,9 @@ As I was already doing overhead reduction, I also moved most of the code to C++,
 
 One of the coolest tricks that I learned from my teammate was **intra-kernel profiling**. CUDA events (and PyTorch Profiler) can only do profiling at the kernel level - how long a particular kernel, or a group of kernels, takes. To understand the bottleneck at the code level, we need to profile within the kernel itself.
 
-For NVIDIA GPUs, usually I will use [Nsight Compute](https://developer.nvidia.com/nsight-compute)’s Source view to check which line of code accounts for the most warp stalls. I couldn’t find the equivalent for AMD, hence the intra-kernel profiling trick was particularly useful.
+对于 NVIDIA GPU，通常我会使用 [Nsight Compute](https://developer.nvidia.com/nsight-compute) 的 Source 视图来检查哪行代码占用最多的 warp 停顿。我找不到 AMD 的等效工具，因此内核内性能分析技巧特别有用。
 
-The goal is to produce a Chrome trace that I can visualize with <https://ui.perfetto.dev/>. The [format](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/edit?usp=sharing) is quite simple - we only need the starting and ending timestamps of a particular event, and some extra metadata. To obtain a timestamp within a kernel on AMD GPUs, I borrowed the code from [Iris](https://github.com/ROCm/iris/blob/0dfc460e/examples/common/utils.py#L157-L169).
+目标是生成一个 Chrome 跟踪，我可以用 <https://ui.perfetto.dev/> 可视化。[格式](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/edit?usp=sharing) 非常简单——我们只需要特定事件的开始和结束时间戳，以及一些额外的元数据。要在 AMD GPU 的内核中获取时间戳，我借用了 [Iris](https://github.com/ROCm/iris/blob/0dfc460e/examples/common/utils.py#L157-L169) 的代码。
 
 ```cpp
 __device__
@@ -550,20 +550,20 @@ void profile_stop(int64_t *profile, int i, int tag, int tid) {
 1. Numerical tag
 1. ID
 
-This design allows multiple threads to record their events independently without ahead-of-time layout planning. The numerical tag can be looked up later with a list of names. To add new event names, we can add more elements to this lookup list.
+这种设计允许多个线程独立记录其事件，而无需提前规划布局。数值标签可以稍后使用名称列表查找。要添加新的事件名称，我们可以向此查找列表添加更多元素。
 
 ### 不均匀工作分配
 
-With the ability to do intra-kernel profiling, we can now obtain a more fine-grained trace of the kernel. I recorded the sending and receiving events of each token, for both `dispatch` and `combine`. I also merged the traces of all GPUs into a single file for ease of visualization.
+通过内核内性能分析的能力，我们现在可以获得更细粒度的内核跟踪。我记录了每个 token 的发送和接收事件，对于 `dispatch` 和 `combine` 都是如此。我还将所有 GPU 的跟踪合并到一个文件中以便于可视化。
 
-- Chrome’s `pid` (Process ID) is mapped to GPU rank, Chrome’s `tid` (Thread ID) is mapped to GPU threadblock ID. For each threadblock, I only recorded the first warp.
-- There are some quirks in Chrome trace format and/or UI Perfetto. For `pid=N`, `tid` must start with `N`. To display the data correctly, I had to increment threadblock IDs for rank N by `N`. Thus, in the screenshot below, for Process 4, you should subtract Thread ID by 4 to obtain the original threadblock ID.
+- Chrome 的 `pid`（进程 ID）映射到 GPU 秩，Chrome 的 `tid`（线程 ID）映射到 GPU 线程块 ID。对于每个线程块，我只记录了第一个 warp。
+- Chrome 跟踪格式和/或 UI Perfetto 存在一些怪癖。对于 `pid=N`，`tid` 必须以 `N` 开头。为了正确显示数据，我必须将秩 N 的线程块 ID 增加 `N`。因此，在下面的屏幕截图中，对于进程 4，您应该将线程 ID 减去 4 以获得原始线程块 ID。
 
 ![Intra-kernel profiling of v8](/images/others/my-first-multi-gpu-kernel-writing-all-to-all-for-amd-mi300x/008-5350c0d3.png)
 
 [trace_v8.json.gz](https://github.com/gau-nernst/gpu-mode-kernels/blob/5ab701b2/amd-distributed/all2all/trace_v8.json.gz). Intra-kernel profiling of v8, showing uneven work distribution across threadblocks in `dispatch-recv`. Process 4 Thread 4 means GPU4 threadblock 0.
 
-There was an obvious uneven work distribution in the `dispatch-recv` kernel. Process 4 Thread 7, which mapped to GPU4 threadblock 3, had to receive 3 tokens, while most other threadblocks only received 1 token. This was due to the way I distributed work among threadblocks in `dispatch-recv`.
+在 `dispatch-recv` 内核中存在明显的不均匀工作分配。进程 4 线程 7，映射到 GPU4 线程块 3，必须接收 3 个 token，而大多数其他线程块只接收了 1 个 token。这是由于我在 `dispatch-recv` 中分配线程块工作的方式。
 
 ```cpp
 // each block is assigned a src_rank based on its bid (round-robin)
