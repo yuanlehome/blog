@@ -17,7 +17,7 @@ lang: zh
 translatedFrom: en
 ---
 
-# 我的首个多GPU内核：为AMD MI300X编写All-to-all
+# 我的首个多 GPU 内核：为 AMD MI300X 编写 All-to-all
 
 上个月，我参加了由 [GPU MODE](https://www.gpumode.com/v2/home) 主办的 AMD 分布式挑战赛。这对我来说非常令人兴奋，因为这是我第一次学习如何编写多 GPU 内核！尽管我通过 all-reduce 和 reduce-scatter 等集体原语对 DDP 和 FSDP 的工作原理有初步了解，但我不知道可以直接在内核中执行远程内存访问！这为多 GPU 优化（特别是计算与 GPU 间通信的重叠）开辟了许多机会。
 
@@ -25,41 +25,41 @@ translatedFrom: en
 
 ## 问题描述
 
-### 单GPU MoE
+### 单 GPU MoE
 
 在描述问题之前，让我们简要回顾一下混合专家（MoE）模型的架构。MoE 层通常包含多个专家，在运行时每个 token 只有部分专家被激活。有一个小型**路由器（router）**决定为特定 token 选择哪些专家。[DeepSeek-V3](https://huggingface.co/deepseek-ai/DeepSeek-V3) 为每个 token 激活 256 个总专家中的 8 个。
 
-在实现层面，假设我们正在处理`M`个token，那么我们有以下张量：
+在实现层面，假设我们正在处理 $M$ 个 token，那么我们有以下张量：
 
 - 输入 token，形状 `(M, dim)`
 - Top-k 索引显示每个 token 选择了哪些专家，形状 `(M, topk)`
 - Top-k 权重用于在每个选定专家处理其输入份额后进行加权平均，形状 `(M, topk)`
 
-当 `M` 较大时，输入数据的布局不理想——分配给特定专家的 token 可能在输入 token 张量中分散各处，使得高效数据加载变得困难。这个问题的常见解决方案是将属于同一专家的 token 分组在一起。对于单 GPU 情况，vLLM 称之为 [moe_align_block_size()](https://github.com/vllm-project/vllm/blob/v0.11.0/csrc/moe/moe_align_sum_kernels.cu)（取自 SGLang？）。
+当 $M$ 较大时，输入数据的布局不理想——分配给特定专家的 token 可能在输入 token 张量中分散各处，使得高效数据加载变得困难。这个问题的常见解决方案是将属于同一专家的 token 分组在一起。对于单 GPU 情况，vLLM 称之为 [moe_align_block_size()](https://github.com/vllm-project/vllm/blob/v0.11.0/csrc/moe/moe_align_sum_kernels.cu)（取自 SGLang？）。
 
-- 我不知道这个命名的历史背景，但感觉专注于“对齐块大小”方面有点奇怪（如果我没记错的话，它会填充专家边界，使每个专家的输入是`BLOCK_M`的倍数）。我认为这无论如何都不是必要的。
+- 我不知道这个命名的历史背景，但感觉专注于“对齐块大小”方面有点奇怪（如果我没记错的话，它会填充专家边界，使每个专家的输入是 `BLOCK_M` 的倍数）。我认为这无论如何都不是必要的。
 
 分组 token 后，我们可以执行**分组 GEMM**，这是一种在一个内核中执行多个矩阵乘法的花哨说法。这很重要，因为我们不想单独启动 256 个 GEMM 内核，每个可能只执行一个小型 GEMM。然后，所有专家的结果可以发送回其原始位置，按它们的 `topk_weights` 缩放，并在 `topk` 个 token 上求和。
 
-- 当我们使用特定映射将输入token转换为分组GEMM布局时，这是一个**收集（gather）**&#x64CD;作。当我们使用相同映射恢复原始布局时，这是一个**分散-归约（scatter-reduce）**&#x64CD;作。我们有一个“归约”，因为每个原始token被索引`topk`次，因此会有`topk`个来自分组GEMM输出的token返回到同一位置。
+- 当我们使用特定映射将输入 token 转换为分组 GEMM 布局时，这是一个**收集（gather）**操作。当我们使用相同映射恢复原始布局时，这是一个**分散-归约（scatter-reduce）**操作。我们有一个“归约”，因为每个原始 token 被索引 `topk` 次，因此会有 `topk` 个来自分组 GEMM 输出的 token 返回到同一位置。
 
 ![单 GPU MoE 中的 token 重排](/images/others/my-first-multi-gpu-kernel-writing-all-to-all-for-amd-mi300x/001-169158dd.svg)
 
 单 GPU MoE 中的 token 重排。收集将分配给同一专家的 token 分组在一起。分组 GEMM 执行 MLP。分散-归约将结果聚合回原始 token 位置。
 
-### 多GPU MoE
+### 多 GPU MoE
 
-在使用专家并行（EP）的多GPU情况下，与上述算法没有太大不同，尽管它们有新名称。`dispatch`将token发送到它们各自的专家，这些专家现在分布在GPU之间。`combine`将分组GEMM输出发送回其原始GPU和位置。
+在使用专家并行（EP）的多 GPU 情况下，与上述算法没有太大不同，尽管它们有新名称。`dispatch` 将 token 发送到它们各自的专家，这些专家现在分布在 GPU 之间。`combine` 将分组 GEMM 输出发送回其原始 GPU 和位置。
 
-EP通常与数据并行（DP）一起启用。每个GPU持有一个不相交的token集合，即输入数据被分片。`dispatch`将数据从所有GPU发送到“所有”其他GPU，类似地`combine`，因此得名`all-to-all`。
+EP 通常与数据并行（DP）一起启用。每个 GPU 持有一个不相交的 token 集合，即输入数据被分片。`dispatch` 将数据从所有 GPU 发送到“所有”其他 GPU，类似地 `combine`，因此得名 `all-to-all`。
 
 ![多 GPU MoE 中的 token 重排](/images/others/my-first-multi-gpu-kernel-writing-all-to-all-for-amd-mi300x/002-319eecfb.svg)
 
 多 GPU MoE 中的 token 重排。此图与单 GPU 图完全相同。唯一的区别是表示跨 GPU 边界的额外空间。
 
-问题在于实现`dispatch()`和`combine()`内核。听起来足够简单！
+问题在于实现 `dispatch()` 和 `combine()` 内核。听起来足够简单！
 
-## 优化的纯PyTorch解决方案
+## 优化的纯 PyTorch 解决方案
 
 这个[参考内核](https://github.com/gpu-mode/reference-kernels/blob/0080199b/problems/amd_distributed/all2all/reference.py)相当慢，因为有很多 Python 循环。消除它们是我的第一个目标。
 
@@ -115,15 +115,15 @@ all2all 之后，token 位于其分配的 GPU 中，但未完全按其本地专�
 
 ![使用两次排序的调度](/images/others/my-first-multi-gpu-kernel-writing-all-to-all-for-amd-mi300x/003-4418c427.svg)
 
-调度的纯PyTorch实现。
+调度的纯 PyTorch 实现。
 
-由于此问题专注于`dispatch()`和`combine()`内核，分组GEMM用简单的逐点乘法模拟。
+由于此问题专注于 `dispatch()` 和 `combine()` 内核，分组 GEMM 用简单的逐点乘法模拟。
 
-对于`combine()`，如问题描述部分所述，它是`dispatch()`的逆操作。我们在`dispatch()`中执行两次收集，一次在原始GPU中，一次在分组GEMM GPU中。因此，在`combine()`中，我们也按相反顺序执行两次分散。查看上图，您可以反转箭头方向以获得`combine()`的流程。
+对于 `combine()`，如问题描述部分所述，它是 `dispatch()` 的逆操作。我们在 `dispatch()` 中执行两次收集，一次在原始 GPU 中，一次在分组 GEMM GPU 中。因此，在 `combine()` 中，我们也按相反顺序执行两次分散。查看上图，您可以反转箭头方向以获得 `combine()` 的流程。
 
 这是我的 [submission_v2.py](https://github.com/gau-nernst/gpu-mode-kernels/blob/0080199b/amd-distributed/all2all/submission_v2.py)。在排行榜上，此版本达到 **1,311μs**，而参考内核为 **93,540μs**。这种加速并没有太大意义，因为参考实现是故意设计得很差的。此时，我认为纯 PyTorch 实现已经没有多少提升空间了。因此，我开始研究 HIP 实现。
 
-## 多GPU编程简介
+## 多 GPU 编程简介
 
 ### 点对点（P2P）
 
@@ -239,11 +239,11 @@ T *translate(T *ptr, int64_t src_base, int64_t dst_base) {
 
 在典型的通信内核中，你有一个**生产者**和一个**消费者**。生产者写入一些数据，消费者读取这些数据。棘手的部分是**同步**：消费者如何知道数据何时到达，以及何时可以安全读取？我们可以使用一个**信号标志**来实现这一点。
 
-- 标志初始化为`0`，表示数据尚未到达。
-- 一旦生产者完成写入要发送的数据，它可以将此标志设置为`1`。
-- 从消费者方面，它执行一个**自旋锁**：持续检查标志是否为`1`。如果是，那么消费者可以安全地继续读取传输的数据。
+- 标志初始化为 `0`，表示数据尚未到达。
+- 一旦生产者完成写入要发送的数据，它可以将此标志设置为 `1`。
+- 从消费者方面，它执行一个**自旋锁**：持续检查标志是否为 `1`。如果是，那么消费者可以安全地继续读取传输的数据。
 
-然而，在没有额外约束的情况下，两个内存指令之间没有**内存排序**的保证。当我们顺序写入A和B时，B可能在A之前到达。类似地，当我们顺序读取C和D时，D可能在C之前被获取。这不是C/C++的限制，而是指令集架构（ISA）与程序员之间从汇编级别开始的内置契约。
+然而，在没有额外约束的情况下，两个内存指令之间没有**内存排序**的保证。当我们顺序写入 A 和 B 时，B 可能在 A 之前到达。类似地，当我们顺序读取 C 和 D 时，D 可能在 C 之前被获取。这不是 C/C++的限制，而是指令集架构（ISA）与程序员之间从汇编级别开始的内置契约。
 
 这对我们来说非常成问题。这意味着当消费者看到 `flag = 1` 时，并不表示数据已经到达。消费者也可能在看到 `flag = 1` 之前预取数据。这就是为什么我们需要**内存语义**。在我们特定的情况下，我们需要的是**获取-释放语义**，这在 Dave Kilian 的上述博客文章中有精彩的解释。
 
@@ -276,14 +276,14 @@ def consumer(data, flag):
 
 确切的措辞通常包含“可见”和“观察”等术语，因为仅仅数据到达还不够，它还必须对消费者**可见**。一个可能的原因是内存缓存——所有全局内存事务都会经过某些级别的缓存。因此，在读取数据之前，有必要**使相关缓存级别无效**。
 
-在NVIDIA GPU上，你可以直接在它们的[PTX指令](https://docs.nvidia.com/cuda/parallel-thread-execution/#release-acquire-patterns)中指定内存语义。
+在 NVIDIA GPU 上，你可以直接在它们的[PTX 指令](https://docs.nvidia.com/cuda/parallel-thread-execution/#release-acquire-patterns)中指定内存语义。
 
 ```cpp
 asm volatile("st.release.sys.global.u32 [%1], %0;" ::"r"(flag), "l"(flag_addr));
 asm volatile("ld.acquire.sys.global.u32 %0, [%1];" : "=r"(flag) : "l"(flag_addr));
 ```
 
-在AMD GPU上，我找不到任何关于如何做到这一点的明确文档。[Triton的原子操作](https://triton-lang.org/main/python-api/generated/triton.language.atomic_add.html)有一个选项可以指定内存语义，这将被正确编译用于AMD GPU，如Iris所示。但它们缺少简单的加载和存储，我原本希望在HIP C++中找到一些可用的东西。幸运的是，我遇到了“未文档化”的`__hip_atomic_load()`/`__hip_atomic_store()` 内在函数，用于[rocSHMEM](https://github.com/ROCm/rocSHMEM/blob/rocm-7.0.2/src/atomic.hpp)。
+在 AMD GPU 上，我找不到任何关于如何做到这一点的明确文档。[Triton 的原子操作](https://triton-lang.org/main/python-api/generated/triton.language.atomic_add.html)有一个选项可以指定内存语义，这将被正确编译用于 AMD GPU，如 Iris 所示。但它们缺少简单的加载和存储，我原本希望在 HIP C++中找到一些可用的东西。幸运的是，我遇到了“未文档化”的 `__hip_atomic_load()`/`__hip_atomic_store()` 内在函数，用于[rocSHMEM](https://github.com/ROCm/rocSHMEM/blob/rocm-7.0.2/src/atomic.hpp)。
 
 ```cpp
 __hip_atomic_store(flag_addr, flag, __ATOMIC_RELEASE, __HIP_MEMORY_SCOPE_SYSTEM);
@@ -300,7 +300,7 @@ __hip_atomic_load(flag_addr, __ATOMIC_ACQUIRE, __HIP_MEMORY_SCOPE_SYSTEM);
 
 ### 其他次要细节
 
-我花了很长时间阅读和理解所有这些新概念。但现在我们准备好编写我们的第一个多GPU内核：
+我花了很长时间阅读和理解所有这些新概念。但现在我们准备好编写我们的第一个多 GPU 内核：
 
 - 使用 P2P 进行远程内存访问。
 - 使用对称堆进行对称内存分配。
@@ -360,21 +360,21 @@ Dispatch 的 Send 和 Recv 内核，灵感来自 `pplx-kernels`。
 
 ### Combine
 
-`combine()` 比`dispatch()` 容易得多。由于我们知道每个令牌的确切原始位置（作为元数据附加在`dispatch()`），每个GPU可以直接将输出令牌发送到其来源。通信缓冲区分配得足够大，以容纳归约前的“扁平”令牌。`combine-recv`负责归约步骤，缩放来自`topk_weights`。
+`combine()` 比 `dispatch()` 容易得多。由于我们知道每个令牌的确切原始位置（作为元数据附加在 `dispatch()`），每个 GPU 可以直接将输出令牌发送到其来源。通信缓冲区分配得足够大，以容纳归约前的“扁平”令牌。`combine-recv` 负责归约步骤，缩放来自 `topk_weights`。
 
 ![Combine v4](/images/others/my-first-multi-gpu-kernel-writing-all-to-all-for-amd-mi300x/005-5275499b.svg)
 
-Combine的Send和Recv内核，灵感来自`pplx-kernels`。
+Combine 的 Send 和 Recv 内核，灵感来自 `pplx-kernels`。
 
-`combine-send`遍历分组GEMM输出缓冲区中的所有令牌，根据已知的令牌计数跳过填充令牌。与`dispatch()`不同，`combine()`使用**每个令牌一个锁（信号标志）**。这种设计也使`recv`部分变得容易得多：由于我们使用1个warp处理1个令牌，我们只需要进行**warp同步**，这基本上是免费的。
+`combine-send` 遍历分组 GEMM 输出缓冲区中的所有令牌，根据已知的令牌计数跳过填充令牌。与 `dispatch()` 不同，`combine()` 使用**每个令牌一个锁（信号标志）**。这种设计也使 `recv` 部分变得容易得多：由于我们使用 1 个 warp 处理 1 个令牌，我们只需要进行**warp 同步**，这基本上是免费的。
 
-- 当我首次实现这个版本时，我查看了CUDA的`__syncwarp()`，这在HIP中不可用，可能是因为AMD GPU不支持`mask`中的`__syncwarp()`。我想出了一个使用`__syncthreads()`的解决方法（基本上确保线程块中的所有线程都能到达`__syncthreads()`），但一旦我发现`__builtin_amdgcn_wave_barrier()`，它就不再必要了。
+- 当我首次实现这个版本时，我查看了 CUDA 的 `__syncwarp()`，这在 HIP 中不可用，可能是因为 AMD GPU 不支持 `mask` 中的 `__syncwarp()`。我想出了一个使用 `__syncthreads()` 的解决方法（基本上确保线程块中的所有线程都能到达 `__syncthreads()`），但一旦我发现 `__builtin_amdgcn_wave_barrier()`，它就不再必要了。
 
-对于`combine-recv`，我考虑了几种执行归约的方法，例如在共享内存或全局内存中。最终，我选择了最简单的方法：在寄存器中进行归约，每个warp遍历通信缓冲区中的`topk`个“扁平”令牌。
+对于 `combine-recv`，我考虑了几种执行归约的方法，例如在共享内存或全局内存中。最终，我选择了最简单的方法：在寄存器中进行归约，每个 warp 遍历通信缓冲区中的 `topk` 个“扁平”令牌。
 
-- 在共享内存或全局内存中进行归约的潜在好处是，我们可以使用`topk`个warp同时自旋锁定`topk`个令牌，然后立即处理到达的令牌。然而，这似乎没有必要。
+- 在共享内存或全局内存中进行归约的潜在好处是，我们可以使用 `topk` 个 warp 同时自旋锁定 `topk` 个令牌，然后立即处理到达的令牌。然而，这似乎没有必要。
 
-你可以在`combine()`找到我的[submission_v4.py#L383-L492](https://github.com/gau-nernst/gpu-mode-kernels/blob/5ab701b2/amd-distributed/all2all/submission_v4.py#L383-L492)。结合新的`dispatch()`和`combine()`HIP内核，我的新排行榜结果是**116ms**。是的，它比未优化的参考内核（包含大量Python for循环）**更慢**。
+你可以在 `combine()` 找到我的[submission_v4.py#L383-L492](https://github.com/gau-nernst/gpu-mode-kernels/blob/5ab701b2/amd-distributed/all2all/submission_v4.py#L383-L492)。结合新的 `dispatch()` 和 `combine()`HIP 内核，我的新排行榜结果是**116ms**。是的，它比未优化的参考内核（包含大量 Python for 循环）**更慢**。
 
 ## 细粒度每令牌锁
 
@@ -392,7 +392,7 @@ PyTorch Profiler 显示瓶颈是 `dispatch-recv` 中的自旋锁定循环。我�
 
 这总结了 [submission_v5.py](https://github.com/gau-nernst/gpu-mode-kernels/blob/5ab701b2/amd-distributed/all2all/submission_v5.py) 中的新变化。由于每令牌锁，我在 `dispatch-recv` 中如何划分工作有一些更新，但我觉得这在代码中相当直接。这个实现达到了 **517μs**，比我们最好的 PyTorch-only 实现快了 2.5 倍。
 
-## 融合fake grouped GEMM与combine
+## 融合 fake grouped GEMM 与 combine
 
 我们现在终于有了一个基于 P2P 的工作 HIP 内核。自然的下一步是投资一个性能分析设置。[PyTorch Profiler](https://docs.pytorch.org/docs/stable/profiler.html) 是我的首选，但它有一个严重的缺陷：`dispatch-send` 异常缓慢。奇怪的是，这只发生在使用性能分析器时，而正常的运行时测量是正常的。
 
@@ -413,17 +413,17 @@ PyTorch Profiling trace，显示 `dispatch-send` 异常缓慢。
 | 6    | 327.07   | 115.02       | 325.34  | 767.43 |
 | 7    | 329.03   | 115.42       | 336.49  | 780.94 |
 
-到目前为止，我只专注于`dispatch`和`combine`，将“fake” grouped GEMM单独留下。性能分析数据显示grouped GEMM对整体运行时间贡献相当大。将其与`combine`融合将减少约100μs的延迟，而且也很简单：“fake” grouped GEMM只是一个逐点乘法。在与组织者确认这是一个有效的优化后，我实现了它，并将运行时间减少到**421μs**。
+到目前为止，我只专注于 `dispatch` 和 `combine`，将“fake” grouped GEMM 单独留下。性能分析数据显示 grouped GEMM 对整体运行时间贡献相当大。将其与 `combine` 融合将减少约 100μs 的延迟，而且也很简单：“fake” grouped GEMM 只是一个逐点乘法。在与组织者确认这是一个有效的优化后，我实现了它，并将运行时间减少到**421μs**。
 
-- 对于实际的MoE内核，我们仍然可以进行融合：`combine`可以与grouped GEMM的epilogue融合。然而，也有新的复杂性：缓慢的epilogue会使SM/CU的计算单元空闲，除非使用像warp specialization这样的额外技巧；基于GEMM tile的输出与每令牌锁设计不直接兼容。
+- 对于实际的 MoE 内核，我们仍然可以进行融合：`combine` 可以与 grouped GEMM 的 epilogue 融合。然而，也有新的复杂性：缓慢的 epilogue 会使 SM/CU 的计算单元空闲，除非使用像 warp specialization 这样的额外技巧；基于 GEMM tile 的输出与每令牌锁设计不直接兼容。
 
 ### 内核调优
 
-Generally, I don’t want kernel tuning to have its own section, since technically all kernels should be re-tuned when there is a change, regardless of how small it is. However, sometimes tuning reveals certain properties of the device that are worth discussing.
+通常，我不希望内核调优拥有自己的章节，因为从技术上讲，所有内核在发生变化时都应该重新调优，无论变化多么小。然而，有时调优会揭示设备的某些值得讨论的属性。
 
-For my kernels, I can tune `grid_size` (number of threadblocks) and `NUM_WARPS` (number of warps in a threadblock). All of my code written so far is agnostic to these hyperparameters, so tuning them is easy. Setting `grid_size=304` (exactly the number of CUs in MI300X) for `combine` resulted in end-to-end latency of **345μs**! This was quite surprising, as the number of threadblocks must exactly be 304. Any other reasonably large number like 256 would not achieve the same speedup.
+对于我的内核，我可以调优 `grid_size`（线程块数量）和 `NUM_WARPS`（线程块中的 warp 数量）。到目前为止我编写的所有代码都与这些超参数无关，因此调优它们很容易。为 `combine` 设置 `grid_size=304`（恰好是 MI300X 中的 CU 数量）导致端到端延迟为 **345μs**！这相当令人惊讶，因为线程块的数量必须恰好是 304。任何其他合理的大数字，如 256，都无法实现相同的加速。
 
-Using `grid_size=256` for `combine`.
+使用 `grid_size=256` 进行 `combine`。
 
 | Rank | `dispatch-send` | `dispatch-recv` | `combine-send` | `combine-recv` | Total  |
 | ---- | --------------- | --------------- | -------------- | -------------- | ------ |
@@ -449,11 +449,11 @@ Using `grid_size=256` for `combine`.
 | 6    | 304.65          | 32.83           | 113.46         | 46.02          | 496.96 |
 | 7    | 214.08          | 106.68          | 113.17         | 52.04          | 485.97 |
 
-`grid_size=304` gives a near 3x speedup for `combine-send`! Like with many other observations on MI300X, I had no explanations. Tuning `dispatch` didn’t yield any noticeable speedup.
+`grid_size=304` 为 `combine-send` 提供了近 3 倍的加速！像 MI300X 上的许多其他观察一样，我没有解释。调优 `dispatch` 没有产生任何明显的加速。
 
 [submission_v7.py](https://github.com/gau-nernst/gpu-mode-kernels/blob/5ab701b2/amd-distributed/all2all/submission_v7.py)
 
-## Eliminate overheads
+## 消除开销
 
 I mentioned that PyTorch Profiler didn’t show very meaningful traces in the previous section, but occasionally it was fine on some ranks. Inspecting one of such traces revealed unacceptable overheads coming from **dynamic allocations** (malloc) and **zeroing out buffers** (memset).
 
@@ -491,9 +491,9 @@ if (bid == 0 && tid < WORLD_SIZE)
 
 As I was already doing overhead reduction, I also moved most of the code to C++, including slicing of the symmetric heap. Hence, [submission_v7b.py](https://github.com/gau-nernst/gpu-mode-kernels/blob/5ab701b2/amd-distributed/all2all/submission_v7b.py) focused solely on removing overheads, achieving **303μs**.
 
-## Optimize varlen work distribution
+## 优化变长工作分配
 
-### Intra-kernel profiling
+### 内核内性能分析
 
 One of the coolest tricks that I learned from my teammate was **intra-kernel profiling**. CUDA events (and PyTorch Profiler) can only do profiling at the kernel level - how long a particular kernel, or a group of kernels, takes. To understand the bottleneck at the code level, we need to profile within the kernel itself.
 
@@ -552,7 +552,7 @@ void profile_stop(int64_t *profile, int i, int tag, int tid) {
 
 This design allows multiple threads to record their events independently without ahead-of-time layout planning. The numerical tag can be looked up later with a list of names. To add new event names, we can add more elements to this lookup list.
 
-### Uneven work distribution
+### 不均匀工作分配
 
 With the ability to do intra-kernel profiling, we can now obtain a more fine-grained trace of the kernel. I recorded the sending and receiving events of each token, for both `dispatch` and `combine`. I also merged the traces of all GPUs into a single file for ease of visualization.
 
