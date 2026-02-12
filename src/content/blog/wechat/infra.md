@@ -10,10 +10,8 @@ imported_at: '2026-02-12T02:21:46.192Z'
 source:
   title: mp.weixin.qq.com
   url: 'https://mp.weixin.qq.com/s/onW4d3e-SCgO_z_16JgWEA'
-cover: /images/wechat/infra/001-681c5816.gif
+cover: /images/wechat/infra/002-4dadebfb.png
 ---
-
-![图片](/images/wechat/infra/001-681c5816.gif)
 
 LLM 强化学习（RL）训练过程的性能与资源效率是 AI Infra 重点关注的内容。RL 的场景比预训练（或者 SFT）的工作流更长、协同工作的模块更多，容易出现资源利用率低的情况。Infra 的目标是在保证算法精度/效果满足前提下，应尽量去提升资源效率。本篇简单介绍 RL 训练中可能遇到的问题，并列举几个业界的解决方案。
 
