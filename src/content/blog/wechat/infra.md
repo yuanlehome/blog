@@ -1,5 +1,5 @@
 ---
-title: 图解Infra视角下的强化学习性能优化
+title: 图解 Infra 视角下的强化学习性能优化
 slug: infra
 date: '2026-02-12'
 tags: ['RL Infra']
@@ -13,6 +13,8 @@ source:
 cover: /images/wechat/infra/001-681c5816.gif
 ---
 
+# 图解 Infra 视角下的强化学习性能优化
+
 ![图片](/images/wechat/infra/001-681c5816.gif)
 
 LLM 强化学习（RL）训练过程的性能与资源效率是 AI Infra 重点关注的内容。RL 的场景比预训练（或者 SFT）的工作流更长、协同工作的模块更多，容易出现资源利用率低的情况。Infra 的目标是在保证算法精度/效果满足前提下，应尽量去提升资源效率。本篇简单介绍 RL 训练中可能遇到的问题，并列举几个业界的解决方案。
@@ -23,7 +25,7 @@ LLM 强化学习（RL）训练过程的性能与资源效率是 AI Infra 重点�
 
 ![图片](/images/wechat/infra/002-4dadebfb.png)
 
-梳理出三个层：1 生成（Generation）、2 准备/推理（Preparation/Inference）、3 训练（Training）。
+梳理出三个层：1 生成（Generation）、2 准备 / 推理（Preparation/Inference）、3 训练（Training）。
 
 ![图片](/images/wechat/infra/003-e13cf52a.png)
 
@@ -61,7 +63,7 @@ LLM 强化学习（RL）训练过程的性能与资源效率是 AI Infra 重点�
 
 PPO 算法，考虑 Critic、Reference 模型
 
-## 存在问题/挑战
+## 存在问题 / 挑战
 
 ### 权重同步
 
@@ -99,7 +101,7 @@ PPO 算法，考虑 Critic、Reference 模型
 
 ### OnPolicy 的挑战
 
-1、Rollout 的长尾/拖尾（Long-Tail）：
+1、Rollout 的长尾 / 拖尾（Long-Tail）：
 
 ![图片](/images/wechat/infra/010-07badeac.png)
 
@@ -137,7 +139,7 @@ Tail Batching
 
 ### 异步训练
 
-异步强化学习（Asynchronous Reinforcement），off-policy 方式，本轮训练的数据可能来自上一轮/上几轮的权重的生成。需要调整算法保证精度。
+异步强化学习（Asynchronous Reinforcement），off-policy 方式，本轮训练的数据可能来自上一轮 / 上几轮的权重的生成。需要调整算法保证精度。
 
 KV cache 保持。在 Magistral 中提到了 KV cache 保持的方式，其原理：当遇到过长的生成时，打断生成，但不释放被打断数据的 KV cache。下一轮权重更新后，继续上一轮的生成。单个序列数据可能混合了几个不同权重推理出来的结果。
 
@@ -199,25 +201,4 @@ Rollout 性能取决于推理的运算速度。要降低 E2EL，其中 ITL 是�
 
 muti step
 
-小结：与预训练动辄千卡/万卡规模相比，RL 的资源使用量比较少，目前 RL 性能问题还没有成为 AI 算法迭代的关键瓶颈。在 Infra 的性能优化工作项中，RL 性能优化工作一般排在预训练性能、推理性能之后。随着大家开始尝试扩大（scale up）RL 规模，寻找更好的训练效果，后续 RL 的性能关注度应该会逐步提升。
-
----
-
-## 参考资料
-
-- <https://arxiv.org/pdf/2402.03300>
-- HybridFlow <https://arxiv.org/pdf/2409.19256v2>
-- <https://arxiv.org/pdf/2509.21009>
-- <https://arxiv.org/pdf/2506.10910>
-- TailBatching <https://arxiv.org/pdf/2509.21009>
-- <https://arxiv.org/html/2409.13221v1>
-- <https://arxiv.org/pdf/2506.10910>
-- <https://arxiv.org/pdf/2505.24298>
-- <https://arxiv.org/pdf/2501.12599>
-- <https://arxiv.org/abs/2507.01663>
-- <https://github.com/inclusionAI/asystem-awex/tree/main/docs>
-- <https://zhuanlan.zhihu.com/p/1949882680167621566>
-- <https://zhuanlan.zhihu.com/p/1978037808544370747>
-- <https://www.zhihu.com/question/1957780654780551831/answer/1959936433407098998>
-- <https://fengyao.notion.site/flash-rl>
-- <https://blog.vllm.ai/2024/09/05/perf-update.html>
+小结：与预训练动辄千卡 / 万卡规模相比，RL 的资源使用量比较少，目前 RL 性能问题还没有成为 AI 算法迭代的关键瓶颈。在 Infra 的性能优化工作项中，RL 性能优化工作一般排在预训练性能、推理性能之后。随着大家开始尝试扩大（scale up）RL 规模，寻找更好的训练效果，后续 RL 的性能关注度应该会逐步提升。
