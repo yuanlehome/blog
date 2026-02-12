@@ -196,7 +196,8 @@ const showTrigger = Astro.props.showTrigger ?? false;
     event.preventDefault();
     event.stopPropagation();
     setOpen(false);
-    requestAnimationFrame(() => requestAnimationFrame(() => scrollToHeading(targetId)));
+    // Wait for drawer to close and scroll unlock
+    setTimeout(() => scrollToHeading(targetId), 50);
   };
 
   getTocLinks().forEach((link) => {
