@@ -2,7 +2,7 @@
 title: 图解Infra视角下的强化学习性能优化
 slug: infra
 date: '2026-02-12'
-tags: []
+tags: ['RL Infra']
 status: published
 source_url: 'https://mp.weixin.qq.com/s/onW4d3e-SCgO_z_16JgWEA'
 source_author: InfraTech
@@ -200,10 +200,6 @@ Rollout 性能取决于推理的运算速度。要降低 E2EL，其中 ITL 是�
 muti step
 
 小结：与预训练动辄千卡/万卡规模相比，RL 的资源使用量比较少，目前 RL 性能问题还没有成为 AI 算法迭代的关键瓶颈。在 Infra 的性能优化工作项中，RL 性能优化工作一般排在预训练性能、推理性能之后。随着大家开始尝试扩大（scale up）RL 规模，寻找更好的训练效果，后续 RL 的性能关注度应该会逐步提升。
-
-本文作者：kaiyuan 主页：<https://www.zhihu.com/people/xky7>
-
-想深耕 AI Infra 领域？欢迎访问 InfraTech 库！内容涵盖大模型基础、PyTorch/vLLM/SGLang 框架入门、性能加速等核心方向，配套 50+ 知识干货及适合初学者的 notebook 练习：**<https://github.com/CalvinXKY/InfraTech>**
 
 ---
 
