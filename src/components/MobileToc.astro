@@ -99,6 +99,9 @@ const showTrigger = Astro.props.showTrigger ?? false;
   };
   let scrollYBeforeLock = 0;
 
+  // Delay to ensure drawer animation and scroll unlock complete before navigation
+  const DRAWER_CLOSE_DELAY = 50;
+
   const emitToggle = (open: boolean) =>
     window.dispatchEvent(new CustomEvent('mobile-toc:toggle', { detail: { open } }));
 
@@ -197,7 +200,7 @@ const showTrigger = Astro.props.showTrigger ?? false;
     event.stopPropagation();
     setOpen(false);
     // Wait for drawer to close and scroll unlock
-    setTimeout(() => scrollToHeading(targetId), 50);
+    setTimeout(() => scrollToHeading(targetId), DRAWER_CLOSE_DELAY);
   };
 
   getTocLinks().forEach((link) => {
