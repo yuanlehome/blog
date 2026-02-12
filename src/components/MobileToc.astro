@@ -91,7 +91,12 @@ const showTrigger = Astro.props.showTrigger ?? false;
   const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
   const prefersReduce = reducedMotionQuery.matches;
 
-  const headerOffset = 96;
+  const getHeaderOffset = (): number => {
+    const headerHeightStr = getComputedStyle(document.documentElement).getPropertyValue(
+      '--site-header-height',
+    );
+    return parseFloat(headerHeightStr) || 0;
+  };
   let scrollYBeforeLock = 0;
 
   const emitToggle = (open: boolean) =>
@@ -145,6 +150,7 @@ const showTrigger = Astro.props.showTrigger ?? false;
   };
 
   const applyScrollMargin = () => {
+    const headerOffset = getHeaderOffset();
     const headings = getTocLinks()
       .map((link) => document.getElementById(link.dataset.target || ''))
       .filter((el): el is HTMLElement => Boolean(el));
@@ -158,13 +164,14 @@ const showTrigger = Astro.props.showTrigger ?? false;
   const scrollToHeading = (id: string, replace = false) => {
     const target = document.getElementById(id);
     if (!target) return;
+    const headerOffset = getHeaderOffset();
     const top = window.scrollY + target.getBoundingClientRect().top - headerOffset - 12;
     if (replace) {
       history.replaceState(null, '', encodedHash(id));
     } else {
       history.pushState(null, '', encodedHash(id));
     }
-    window.scrollTo({ top, behavior: prefersReduce ? 'auto' : 'smooth' });
+    window.scrollTo({ top, behavior: 'auto' });
   };
 
   syncOpenButtons();
@@ -202,6 +209,7 @@ const showTrigger = Astro.props.showTrigger ?? false;
   });
 
   applyScrollMargin();
+  window.addEventListener('headerheightchange', applyScrollMargin);
 
   const initialHash = decodeURIComponent(location.hash.replace(/^#/, ''));
   if (initialHash) {
