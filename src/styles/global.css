@@ -8,6 +8,11 @@
    - Low-saturation, professional appearance
    ============================================ */
 
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 100px;
+}
+
 :root {
   /* Legacy code font variables - now uses CSS variables from config */
   --code-font:
