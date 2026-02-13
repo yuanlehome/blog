@@ -7,7 +7,7 @@ tags:
   - Distributed Parallel
 status: published
 cover: /images/notion/tp-sp-ep/2b222dca-4210-80d9-98fb-cf78ef53eb91.jpeg
-updated: '2026-02-07T17:55:00.000Z'
+updated: '2026-02-12T10:16:00.000Z'
 source: notion
 notion:
   id: 2a122dca-4210-805b-ae7e-fb6b09a2e44f
