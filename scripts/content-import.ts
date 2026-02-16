@@ -696,9 +696,23 @@ async function downloadImageViaHttp(
           .text()
           .then((text) => text.substring(0, 200))
           .catch(() => '[Unable to read response body]');
-        console.warn(
-          `[${provider}] HTTP ${res.status} for ${url}, content-type: ${contentType}, preview: ${preview}`,
-        );
+
+        // Provide context-specific error messages
+        if (res.status === 403) {
+          console.warn(
+            `[${provider}] Access denied (HTTP 403) for ${url}. Content-type: ${contentType}. ` +
+              `The image cannot be downloaded and the original URL will be kept in the markdown. ` +
+              `Preview: ${preview}`,
+          );
+        } else if (res.status === 404) {
+          console.warn(
+            `[${provider}] Image not found (HTTP 404) for ${url}. The original URL will be kept in the markdown.`,
+          );
+        } else {
+          console.warn(
+            `[${provider}] HTTP ${res.status} for ${url}, content-type: ${contentType}, preview: ${preview}`,
+          );
+        }
 
         // Retry on 429 (rate limit) or 5xx (server errors)
         if (res.status === 429 || res.status >= 500) {
@@ -936,7 +950,10 @@ async function downloadImage(
       }
     }
 
-    console.error(`[${provider}] All download methods failed for ${finalUrl}`);
+    console.error(
+      `[${provider}] All download methods failed for ${finalUrl}. ` +
+        `The original URL will be kept in the markdown.`,
+    );
     return null;
   } catch (error) {
     console.error(`[${provider}] Unexpected error downloading ${finalUrl}:`, error);
