@@ -696,7 +696,7 @@ async function downloadImageViaHttp(
           .text()
           .then((text) => text.substring(0, 200))
           .catch(() => '[Unable to read response body]');
-        
+
         // Provide more context for 403 Forbidden errors
         if (res.status === 403) {
           console.warn(
@@ -754,7 +754,9 @@ async function downloadImageViaHttp(
     }
   }
 
-  console.error(`[${provider}] All ${maxRetries} download attempts failed for ${url} - Image will be skipped`);
+  console.error(
+    `[${provider}] All ${maxRetries} download attempts failed for ${url} - Image will be skipped`,
+  );
   return null;
 }
 
@@ -944,10 +946,15 @@ async function downloadImage(
       }
     }
 
-    console.error(`[${provider}] All download methods failed for ${finalUrl} - Image will be skipped from the imported content`);
+    console.error(
+      `[${provider}] All download methods failed for ${finalUrl} - Image will be skipped from the imported content`,
+    );
     return null;
   } catch (error) {
-    console.error(`[${provider}] Unexpected error downloading ${finalUrl} - Image will be skipped:`, error);
+    console.error(
+      `[${provider}] Unexpected error downloading ${finalUrl} - Image will be skipped:`,
+      error,
+    );
     return null;
   } finally {
     if (semaphoreAcquired) {
@@ -1049,7 +1056,7 @@ const localizeImages = (options: {
       let index = 0;
       let successCount = 0;
       let failCount = 0;
-      
+
       for (const { url } of imageNodes) {
         if (mapping.has(url)) continue;
         const local = await downloader(
@@ -1075,7 +1082,7 @@ const localizeImages = (options: {
           );
         }
       }
-      
+
       // Log summary of image downloads
       if (imageNodes.length > 0) {
         console.log(

@@ -156,7 +156,7 @@ describe('content import for external articles', () => {
           if (imageUrl.includes('blocked-oss')) {
             return null; // Failed download
           }
-          
+
           const base = publicBasePath || `/images/others/${slug}`;
           return path.posix.join(
             base,
