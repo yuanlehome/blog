@@ -7,20 +7,12 @@ import {
 } from '../lib/ui/floatingActionStack';
 
 export interface Props {
-  enableTop?: boolean;
   enableToc?: boolean;
-  enableBottom?: boolean;
-  targetSelector?: string;
 }
 
-const {
-  enableTop = true,
-  enableToc = true,
-  enableBottom = true,
-  targetSelector = '[data-article]',
-} = Astro.props;
+const { enableToc = true } = Astro.props;
 
-const actions = buildActions({ enableTop, enableToc, enableBottom });
+const actions = buildActions({ enableToc });
 ---
 
 {
@@ -28,7 +20,6 @@ const actions = buildActions({ enableTop, enableToc, enableBottom });
     <div
       class={`${STACK_CLASSNAMES}`}
       data-floating-action-stack
-      data-target-selector={targetSelector}
       style={`inset-inline-end: calc(env(safe-area-inset-right, 0px) + 1rem); inset-block-end: calc(env(safe-area-inset-bottom, 0px) + 1rem);`}
     >
       {actions.map((action, index) => (
@@ -37,7 +28,7 @@ const actions = buildActions({ enableTop, enableToc, enableBottom });
           class={BUTTON_CLASSNAMES}
           data-floating-action-button
           data-action={action.kind}
-          data-visible={action.kind === 'top' ? 'false' : 'true'}
+          data-visible="true"
           style={`transition-delay: ${index * 10}ms;`}
           aria-label={action.ariaLabel}
           {...(action.dataAttributes || {})}
@@ -54,142 +45,8 @@ const actions = buildActions({ enableTop, enableToc, enableBottom });
 
 <script>
   const stack = document.querySelector('[data-floating-action-stack]') as HTMLElement | null;
-  const targetSelector = stack?.dataset.targetSelector || '[data-article]';
-  const topButton = stack?.querySelector('[data-action="top"]') as HTMLButtonElement | null;
-  const bottomButton = stack?.querySelector('[data-action="bottom"]') as HTMLButtonElement | null;
   const tocButton = stack?.querySelector('[data-action="toc"]') as HTMLButtonElement | null;
-  const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const prefersReduce = reducedMotionQuery.matches;
   const tocRoot = document.querySelector('[data-mobile-toc]') as HTMLElement | null;
-
-  const article = targetSelector
-    ? (document.querySelector(targetSelector) as HTMLElement | null)
-    : null;
-
-  let start = 0;
-  let contentHeight = 0;
-  let ticking = false;
-
-  // Find the actual scrolling container
-  const getScrollContainer = (): HTMLElement | Window => {
-    if (!article) return window;
-
-    let element = article.parentElement;
-    while (element) {
-      const style = window.getComputedStyle(element);
-      const overflowY = style.overflowY;
-      const isScrollable =
-        (overflowY === 'auto' || overflowY === 'scroll') &&
-        element.scrollHeight > element.clientHeight;
-
-      if (isScrollable) {
-        return element;
-      }
-      element = element.parentElement;
-    }
-
-    return window;
-  };
-
-  const scrollContainer = getScrollContainer();
-
-  const measure = () => {
-    if (!article) return;
-    const rect = article.getBoundingClientRect();
-    start = rect.top + window.scrollY;
-    contentHeight = article.scrollHeight;
-  };
-
-  const clamp = (value: number, min: number, max: number): number =>
-    Math.min(Math.max(value, min), max);
-
-  const setButtonVisibility = (button: HTMLButtonElement | null, visible: boolean) => {
-    if (!button) return;
-    button.dataset.visible = visible ? 'true' : 'false';
-  };
-
-  const updateVisibility = () => {
-    if (!article) return;
-    const threshold = 120;
-    const hasScrollableContent = contentHeight > window.innerHeight + 40;
-    const showTop = window.scrollY > start + threshold;
-    setButtonVisibility(topButton, showTop);
-    setButtonVisibility(bottomButton, hasScrollableContent);
-    ticking = false;
-  };
-
-  const requestTick = () => {
-    if (!ticking) {
-      ticking = true;
-      requestAnimationFrame(updateVisibility);
-    }
-  };
-
-  const scrollToTop = () => {
-    const target = clamp(start, 0, Number.MAX_SAFE_INTEGER);
-    window.scrollTo({ top: target, behavior: prefersReduce ? 'auto' : 'smooth' });
-  };
-
-  const scrollToBottom = () => {
-    // Try to find the bottom anchor first
-    const bottomAnchor = document.getElementById('page-bottom-anchor');
-
-    if (bottomAnchor) {
-      // Calculate the exact scroll position to show the anchor at the bottom of viewport
-      const anchorRect = bottomAnchor.getBoundingClientRect();
-      const currentScrollY = window.scrollY;
-      const targetScrollY = currentScrollY + anchorRect.bottom - window.innerHeight;
-
-      window.scrollTo({
-        top: Math.max(0, targetScrollY),
-        behavior: prefersReduce ? 'auto' : 'smooth',
-      });
-
-      // Add a secondary calibration after a delay to handle async content
-      // This ensures we scroll to the true bottom even if images/iframes load after initial scroll
-      let retryCount = 0;
-      const maxRetries = 2;
-
-      const recalibrate = () => {
-        if (retryCount >= maxRetries) return;
-        retryCount++;
-
-        setTimeout(() => {
-          // Check if we're already at the bottom
-          const scrollElement =
-            scrollContainer instanceof Window ? document.documentElement : scrollContainer;
-          const currentScroll =
-            scrollContainer instanceof Window ? window.scrollY : scrollContainer.scrollTop;
-          const maxScroll = scrollElement.scrollHeight - scrollElement.clientHeight;
-
-          // If we're not within 10px of the bottom, scroll again
-          if (maxScroll - currentScroll > 10) {
-            const newAnchorRect = bottomAnchor.getBoundingClientRect();
-            const newScrollY = window.scrollY + newAnchorRect.bottom - window.innerHeight;
-
-            window.scrollTo({
-              top: Math.max(0, newScrollY),
-              behavior: prefersReduce ? 'auto' : 'smooth',
-            });
-            recalibrate();
-          }
-        }, 400);
-      };
-
-      recalibrate();
-    } else {
-      // Fallback: use document scroll height
-      const scrollElement =
-        scrollContainer instanceof Window ? document.documentElement : scrollContainer;
-      const maxScroll = Math.max(scrollElement.scrollHeight - scrollElement.clientHeight, start);
-
-      if (scrollContainer instanceof Window) {
-        window.scrollTo({ top: maxScroll, behavior: prefersReduce ? 'auto' : 'smooth' });
-      } else {
-        scrollContainer.scrollTo({ top: maxScroll, behavior: prefersReduce ? 'auto' : 'smooth' });
-      }
-    }
-  };
 
   const syncTocState = (open: boolean) => {
     if (!stack) return;
@@ -197,29 +54,6 @@ const actions = buildActions({ enableTop, enableToc, enableBottom });
   };
 
   syncTocState(tocRoot?.dataset.open === 'true');
-
-  if (stack && article) {
-    measure();
-    updateVisibility();
-
-    window.addEventListener('scroll', requestTick, { passive: true });
-    window.addEventListener('resize', () => {
-      measure();
-      requestTick();
-    });
-
-    window.addEventListener(
-      'load',
-      () => {
-        measure();
-        updateVisibility();
-      },
-      { once: true },
-    );
-
-    topButton?.addEventListener('click', scrollToTop);
-    bottomButton?.addEventListener('click', scrollToBottom);
-  }
 
   tocButton?.addEventListener('click', () => {
     requestAnimationFrame(() => tocButton?.blur());
