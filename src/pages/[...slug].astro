@@ -12,6 +12,7 @@ import { findPrevNext, findRelated, getPublishedPosts } from '../lib/content/pos
 import Giscus from '../components/Giscus.astro';
 import ReadingProgress from '../components/ReadingProgress.astro';
 import FloatingActionStack from '../components/FloatingActionStack.astro';
+import ScrollUpTopButton from '../components/ScrollUpTopButton.astro';
 import { getDisplayDates } from '../lib/content/dates';
 import { getLayoutConfig } from '../config/loaders';
 import { alignToTextClass, alignToJustifyClass, alignToItemsClass } from '../lib/ui/alignment';
@@ -199,12 +200,8 @@ const tocPosition = layoutConfig.toc.position;
       {hasToc && tocPosition === 'right' && <TableOfContents headings={tocHeadings} />}
     </div>
     {hasToc && <MobileToc headings={tocHeadings} showTrigger={false} />}
-    <FloatingActionStack
-      enableToc={hasToc}
-      enableTop={true}
-      enableBottom={true}
-      targetSelector="[data-article]"
-    />
+    <FloatingActionStack enableToc={hasToc} />
+    <ScrollUpTopButton targetSelector="[data-article]" />
   </main>
   <Footer />
 </Layout>

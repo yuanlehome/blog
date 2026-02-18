@@ -1,4 +1,4 @@
-export type FloatingActionKind = 'top' | 'toc' | 'bottom';
+export type FloatingActionKind = 'toc';
 
 export interface FloatingActionDescriptor {
   kind: FloatingActionKind;
@@ -18,22 +18,11 @@ export const BUTTON_CLASSNAMES =
 export const BUTTON_ICON_CLASSNAMES = 'text-base';
 
 export const buildActions = ({
-  enableTop = true,
   enableToc = true,
-  enableBottom = true,
 }: {
-  enableTop?: boolean;
   enableToc?: boolean;
-  enableBottom?: boolean;
 }): FloatingActionDescriptor[] => {
   const actions: FloatingActionDescriptor[] = [
-    {
-      kind: 'top',
-      label: '顶部',
-      icon: '⬆️',
-      ariaLabel: '返回文章顶部',
-      enabled: enableTop,
-    },
     {
       kind: 'toc',
       label: '目录',
@@ -41,13 +30,6 @@ export const buildActions = ({
       ariaLabel: '打开目录抽屉',
       enabled: enableToc,
       dataAttributes: { 'data-mobile-toc-open': 'true' },
-    },
-    {
-      kind: 'bottom',
-      label: '底部',
-      icon: '⬇️',
-      ariaLabel: '跳转文章底部',
-      enabled: enableBottom,
     },
   ];
 

@@ -353,7 +353,28 @@ test.describe('Blog smoke journey', () => {
     }
   });
 
-  test('mobile floating actions are vertically ordered and non-overlapping', async ({
+  test('mobile floating toc action remains available and opens drawer', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+
+    await openFirstPostWithToc(page);
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+
+    const stack = page.locator('[data-floating-action-stack]');
+    await expect(stack).toBeVisible();
+
+    const tocButton = stack.locator('[data-action="toc"]');
+    await expect(tocButton).toBeVisible();
+
+    await tocButton.click();
+    await expect(page.locator('[data-mobile-toc][data-open="true"]')).toBeVisible();
+    await page.locator('[data-mobile-toc-close]').click();
+    await expect(page.locator('[data-mobile-toc][data-open="true"]')).toHaveCount(0);
+
+    await context.close();
+  });
+
+  test('scroll-up top button appears only when user scrolls up and returns to article top', async ({
     browser,
   }) => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -361,193 +382,16 @@ test.describe('Blog smoke journey', () => {
 
     await openFirstPostWithToc(page);
 
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-
-    const stack = page.locator('[data-floating-action-stack]');
-    await expect(stack).toBeVisible();
-
-    const topButton = stack.locator('[data-action="top"]');
-    const tocButton = stack.locator('[data-action="toc"]');
-    const bottomButton = stack.locator('[data-action="bottom"]');
-
-    await expect(topButton).toBeVisible();
-    await expect(tocButton).toBeVisible();
-    await expect(bottomButton).toBeVisible();
-
-    const [topBox, tocBox, bottomBox] = await Promise.all([
-      topButton.boundingBox(),
-      tocButton.boundingBox(),
-      bottomButton.boundingBox(),
-    ]);
-
-    expect(topBox && tocBox && bottomBox).toBeTruthy();
-    if (topBox && tocBox && bottomBox) {
-      expect(topBox.y + topBox.height).toBeLessThanOrEqual(tocBox.y - 1);
-      expect(tocBox.y + tocBox.height).toBeLessThanOrEqual(bottomBox.y - 1);
-    }
-
-    await tocButton.click();
-    await expect(page.locator('[data-mobile-toc][data-open="true"]')).toBeVisible();
-    await page.locator('[data-mobile-toc-close]').click();
-    await expect(page.locator('[data-mobile-toc][data-open="true"]')).toHaveCount(0);
+    const topButton = page.locator('[data-scroll-up-top-button]');
+    await expect(topButton).toHaveAttribute('data-visible', 'false');
 
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    const articleTop = await page.evaluate(() => {
-      const article = document.querySelector('[data-article]');
-      if (!article) return null;
-      const rect = article.getBoundingClientRect();
-      return rect.top + window.scrollY;
-    });
-    await topButton.click();
-    await expect
-      .poll(async () => page.evaluate(() => window.scrollY), {
-        message: 'top button should scroll toward article start',
-      })
-      .toBeLessThanOrEqual((articleTop ?? 0) + 10);
+    await page.waitForTimeout(200);
+    await expect(topButton).toHaveAttribute('data-visible', 'false');
 
-    await context.close();
-  });
+    await page.evaluate(() => window.scrollBy(0, -200));
+    await expect(topButton).toHaveAttribute('data-visible', 'true');
 
-  test('bottom button scrolls to true page bottom', async ({ browser }) => {
-    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
-    const page = await context.newPage();
-
-    await page.goto('/');
-    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
-    if (await notFoundHeading.count()) {
-      const baseLink = page.locator('a[href="/blog/"]');
-      if (await baseLink.count()) {
-        await baseLink.first().click();
-      }
-    }
-
-    const firstLink = page.locator('#post-list li a').first();
-    await firstLink.click();
-    await expect(page.locator('[data-article]')).toBeVisible();
-
-    // Wait for page to be fully loaded (DOM ready, not network idle due to Giscus)
-    await page.waitForLoadState('domcontentloaded');
-
-    const stack = page.locator('[data-floating-action-stack]');
-    await expect(stack).toBeVisible();
-
-    const bottomButton = stack.locator('[data-action="bottom"]');
-    await expect(bottomButton).toBeVisible();
-
-    // Click bottom button
-    await bottomButton.click();
-
-    // Wait for scroll to complete (including recalibration)
-    // Need extra time for images/iframe to load and recalibration to run
-    await page.waitForTimeout(3000);
-
-    // Check that we've scrolled to near the bottom
-    const scrollMetrics = await page.evaluate(() => {
-      const scrollTop = window.scrollY;
-      const scrollHeight = document.documentElement.scrollHeight;
-      const clientHeight = window.innerHeight;
-      const maxScroll = scrollHeight - clientHeight;
-      const distanceFromBottom = maxScroll - scrollTop;
-
-      return {
-        scrollTop,
-        scrollHeight,
-        clientHeight,
-        maxScroll,
-        distanceFromBottom,
-      };
-    });
-
-    // Assert we're within 400px of the actual bottom (this is significantly better than the original ~2000px+ issue)
-    // The original problem was scrolling to middle of long articles; being within 400px is acceptable
-    // This accounts for dynamic content loading (images, Giscus iframe) after DOM ready
-    expect(scrollMetrics.distanceFromBottom).toBeLessThanOrEqual(400);
-
-    // Verify bottom anchor exists
-    const bottomAnchor = page.locator('#page-bottom-anchor');
-    await expect(bottomAnchor).toBeAttached();
-
-    await context.close();
-  });
-
-  test('bottom button works correctly with comments enabled', async ({ browser }) => {
-    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
-    const page = await context.newPage();
-
-    await page.goto('/');
-    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
-    if (await notFoundHeading.count()) {
-      const baseLink = page.locator('a[href="/blog/"]');
-      if (await baseLink.count()) {
-        await baseLink.first().click();
-      }
-    }
-
-    // Find a post with comments enabled (most posts should have this)
-    const firstLink = page.locator('#post-list li a').first();
-    await firstLink.click();
-    await expect(page.locator('[data-article]')).toBeVisible();
-
-    // Wait for page to be fully loaded (DOM ready, not network idle due to Giscus)
-    await page.waitForLoadState('domcontentloaded');
-
-    const stack = page.locator('[data-floating-action-stack]');
-    const bottomButton = stack.locator('[data-action="bottom"]');
-
-    // Scroll to top first
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await page.waitForTimeout(300);
-
-    // Click bottom button
-    await bottomButton.click();
-
-    // Wait for scroll and potential recalibration
-    // Need extra time for images/iframe to load and recalibration to run
-    await page.waitForTimeout(3000);
-
-    // Verify we're at or very near the bottom (within 400px)
-    // The original problem was scrolling to middle of long articles; being within 400px is acceptable
-    // This accounts for dynamic content loading (images, Giscus iframe) after DOM ready
-    const isNearBottom = await page.evaluate(() => {
-      const scrollTop = window.scrollY;
-      const scrollHeight = document.documentElement.scrollHeight;
-      const clientHeight = window.innerHeight;
-      const maxScroll = scrollHeight - clientHeight;
-      const distanceFromBottom = maxScroll - scrollTop;
-
-      return distanceFromBottom <= 400;
-    });
-
-    expect(isNearBottom).toBe(true);
-
-    await context.close();
-  });
-
-  test('top button scrolls to article start after bottom scroll', async ({ browser }) => {
-    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
-    const page = await context.newPage();
-
-    await page.goto('/');
-    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
-    if (await notFoundHeading.count()) {
-      const baseLink = page.locator('a[href="/blog/"]');
-      if (await baseLink.count()) {
-        await baseLink.first().click();
-      }
-    }
-
-    const firstLink = page.locator('#post-list li a').first();
-    await firstLink.click();
-    await expect(page.locator('[data-article]')).toBeVisible();
-
-    // Wait for page to be fully loaded (DOM ready, not network idle due to Giscus)
-    await page.waitForLoadState('domcontentloaded');
-
-    const stack = page.locator('[data-floating-action-stack]');
-    const bottomButton = stack.locator('[data-action="bottom"]');
-    const topButton = stack.locator('[data-action="top"]');
-
-    // Record article top position
     const articleTop = await page.evaluate(() => {
       const article = document.querySelector('[data-article]');
       if (!article) return null;
@@ -555,19 +399,8 @@ test.describe('Blog smoke journey', () => {
       return rect.top + window.scrollY;
     });
 
-    // Click bottom button
-    await bottomButton.click();
-    await page.waitForTimeout(2000);
-
-    // Verify we scrolled down significantly
-    const scrolledDown = await page.evaluate(() => window.scrollY > 200);
-    expect(scrolledDown).toBe(true);
-
-    // Now click top button
     await topButton.click();
-    await page.waitForTimeout(1500);
 
-    // Verify we're back near the article top
     await expect
       .poll(async () => page.evaluate(() => window.scrollY))
       .toBeLessThanOrEqual((articleTop ?? 0) + 20);
