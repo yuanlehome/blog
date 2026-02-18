@@ -1,0 +1,95 @@
+---
+export interface Props {
+  targetSelector?: string;
+}
+
+const { targetSelector = '[data-article]' } = Astro.props;
+---
+
+<button
+  type="button"
+  class="fixed z-40 rounded-full border border-zinc-200 bg-white/95 px-4 py-2 text-sm font-medium text-zinc-900 shadow-lg backdrop-blur-sm transition data-[visible=false]:pointer-events-none data-[visible=false]:translate-y-2 data-[visible=false]:opacity-0 data-[visible=true]:opacity-100 dark:border-zinc-800 dark:bg-zinc-900/90 dark:text-zinc-100"
+  style="inset-inline-end: calc(env(safe-area-inset-right, 0px) + 1rem); inset-block-end: calc(env(safe-area-inset-bottom, 0px) + 4.5rem);"
+  data-scroll-up-top-button
+  data-target-selector={targetSelector}
+  data-visible="false"
+  aria-label="回到文章顶部"
+>
+  回到顶部
+</button>
+
+<script>
+  const button = document.querySelector('[data-scroll-up-top-button]') as HTMLButtonElement | null;
+  const targetSelector = button?.dataset.targetSelector || '[data-article]';
+  const article = document.querySelector(targetSelector) as HTMLElement | null;
+  const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  if (!button || !article) {
+    if (button) button.dataset.visible = 'false';
+  } else {
+    let articleTop = 0;
+    let lastScrollY = window.scrollY;
+    let ticking = false;
+
+    const getHeaderOffset = (): number => {
+      const headerHeightStr = getComputedStyle(document.documentElement).getPropertyValue(
+        '--site-header-height',
+      );
+      return parseFloat(headerHeightStr) || 0;
+    };
+
+    const updateArticleTop = () => {
+      const rect = article.getBoundingClientRect();
+      articleTop = rect.top + window.scrollY;
+    };
+
+    const setVisible = (visible: boolean) => {
+      button.dataset.visible = visible ? 'true' : 'false';
+    };
+
+    const updateVisibility = () => {
+      const currentScrollY = window.scrollY;
+      const delta = currentScrollY - lastScrollY;
+      const meaningfulDelta = Math.abs(delta) >= 6;
+
+      if (currentScrollY <= articleTop + 140) {
+        setVisible(false);
+      } else if (meaningfulDelta) {
+        setVisible(delta < 0);
+      }
+
+      lastScrollY = currentScrollY;
+      ticking = false;
+    };
+
+    const requestUpdate = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(updateVisibility);
+    };
+
+    const scrollToArticleTop = () => {
+      const targetTop = Math.max(0, articleTop - getHeaderOffset() - 12);
+      window.scrollTo({ top: targetTop, behavior: reducedMotionQuery.matches ? 'auto' : 'smooth' });
+    };
+
+    updateArticleTop();
+    updateVisibility();
+
+    window.addEventListener('scroll', requestUpdate, { passive: true });
+    window.addEventListener('resize', () => {
+      updateArticleTop();
+      requestUpdate();
+    });
+    window.addEventListener(
+      'load',
+      () => {
+        updateArticleTop();
+        updateVisibility();
+      },
+      { once: true },
+    );
+
+    button.addEventListener('click', scrollToArticleTop);
+  }
+</script>
