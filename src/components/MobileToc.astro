@@ -49,7 +49,7 @@ const showTrigger = Astro.props.showTrigger ?? false;
       role="dialog"
       aria-modal="true"
       aria-label="文章目录"
-      class="absolute inset-x-0 bottom-0 translate-y-full rounded-t-2xl border border-zinc-200 bg-neutral-50/95 shadow-2xl ring-1 ring-black/5 transition duration-200 data-[open=true]:translate-y-0 dark:border-zinc-800 dark:bg-zinc-900/95 dark:ring-white/10"
+      class="absolute inset-x-3 bottom-6 origin-[var(--mobile-toc-origin,calc(100%-1.5rem)_calc(100%-1.5rem))] scale-[0.12] opacity-0 rounded-2xl border border-zinc-200 bg-neutral-50/95 shadow-2xl ring-1 ring-black/5 transition-[transform,opacity] duration-250 ease-out data-[open=true]:scale-100 data-[open=true]:opacity-100 dark:border-zinc-800 dark:bg-zinc-900/95 dark:ring-white/10"
       data-mobile-toc-drawer
     >
       <div class="flex items-center justify-between gap-3 px-4 pt-4 pb-3">
@@ -65,7 +65,7 @@ const showTrigger = Astro.props.showTrigger ?? false;
           关闭
         </button>
       </div>
-      <div class="max-h-[60vh] overflow-y-auto px-4 pb-5" data-mobile-toc-scroll>
+      <div class="max-h-[65vh] overflow-y-auto px-4 pb-5" data-mobile-toc-scroll>
         <ol class="space-y-3 text-sm">
           <TocTree nodes={tocForest} />
         </ol>
@@ -88,9 +88,7 @@ const showTrigger = Astro.props.showTrigger ?? false;
       (tocDrawer ?? tocRoot)?.querySelectorAll('[data-mobile-toc-link]') ?? [],
     ) as HTMLAnchorElement[];
   const body = document.body;
-  const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const prefersReduce = reducedMotionQuery.matches;
-
+  const docEl = document.documentElement;
   const getHeaderOffset = (): number => {
     const headerHeightStr = getComputedStyle(document.documentElement).getPropertyValue(
       '--site-header-height',
@@ -125,20 +123,44 @@ const showTrigger = Astro.props.showTrigger ?? false;
 
   const lockScroll = () => {
     scrollYBeforeLock = window.scrollY;
+    const scrollbarWidth = window.innerWidth - docEl.clientWidth;
+    docEl.style.overflow = 'hidden';
     body.style.position = 'fixed';
     body.style.width = '100%';
     body.style.top = `-${scrollYBeforeLock}px`;
+    if (scrollbarWidth > 0) {
+      body.style.paddingRight = `${scrollbarWidth}px`;
+    }
   };
 
   const unlockScroll = () => {
+    docEl.style.overflow = '';
     body.style.position = '';
     body.style.width = '';
     body.style.top = '';
+    body.style.paddingRight = '';
     window.scrollTo({ top: scrollYBeforeLock });
+  };
+
+  const syncDrawerOriginFromTrigger = () => {
+    if (!tocDrawer) return;
+    const trigger = getTocOpenButtons()[0];
+    if (!trigger) {
+      tocDrawer.style.removeProperty('--mobile-toc-origin');
+      return;
+    }
+
+    const rect = trigger.getBoundingClientRect();
+    const originX = rect.left + rect.width / 2;
+    const originY = rect.top + rect.height / 2;
+    tocDrawer.style.setProperty('--mobile-toc-origin', `${originX}px ${originY}px`);
   };
 
   const setOpen = (open: boolean) => {
     if (!tocRoot || !tocDrawer) return;
+    if (open) {
+      syncDrawerOriginFromTrigger();
+    }
     tocRoot.dataset.open = String(open);
     tocDrawer.dataset.open = String(open);
     tocBackdrop?.setAttribute('data-open', String(open));
@@ -178,6 +200,7 @@ const showTrigger = Astro.props.showTrigger ?? false;
   };
 
   syncOpenButtons();
+  syncDrawerOriginFromTrigger();
 
   const openButtonObserver = new MutationObserver(syncOpenButtons);
   openButtonObserver.observe(document.body, {
@@ -211,6 +234,8 @@ const showTrigger = Astro.props.showTrigger ?? false;
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') setOpen(false);
   });
+
+  window.addEventListener('resize', syncDrawerOriginFromTrigger);
 
   applyScrollMargin();
   window.addEventListener('headerheightchange', applyScrollMargin);
