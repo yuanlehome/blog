@@ -42,6 +42,13 @@ vi.mock('notion-to-md', () => ({
   NotionToMarkdown: NotionToMarkdownMock,
 }));
 
+vi.mock('dotenv', () => ({
+  default: {
+    // Make config a no-op so tests can control env explicitly
+    config: vi.fn(() => ({})),
+  },
+}));
+
 let tmpRoot: string;
 
 beforeEach(() => {
