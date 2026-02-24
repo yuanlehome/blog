@@ -27,4 +27,3 @@ describe('configuration and env contracts', () => {
     expect(mod).toHaveProperty('PUBLIC_DIR');
   });
 });
-

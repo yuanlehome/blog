@@ -68,5 +68,3 @@ describe('content frontmatter contracts', () => {
     expect(() => schema.parse(invalidFrontmatter)).toThrow();
   });
 });
-
-
