@@ -93,6 +93,7 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           PADDLEOCR_VL_TOKEN: ${{ secrets.PADDLEOCR_VL_TOKEN }}
           PDF_OCR_API_URL: ${{ secrets.PADDLEOCR_VL_API_URL }}
+          LOG_FORMAT: json
         run: |
           ARGS=()
           ARGS+=("--url" "$URL")
@@ -118,7 +119,24 @@ jobs:
           echo "Translation provider: $MARKDOWN_TRANSLATE_PROVIDER"
           echo "Force PDF mode: $FORCE_PDF"
           echo "PDF import enabled: $([ -n "$PADDLEOCR_VL_TOKEN" ] && echo "yes" || echo "no (token not set)")"
-          npm run import:content -- "${ARGS[@]}"
+          npm run import:content -- "${ARGS[@]}" | tee content-import.log
+
+      - name: Publish content import summary
+        if: always()
+        run: |
+          echo "## Content import summary" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f content-import.log ]]; then
+            SUMMARY_LINE="$(grep '\"event\":\"summary\"' content-import.log | tail -n 1 || true)"
+            if [[ -n "$SUMMARY_LINE" ]]; then
+              echo '```json' >> "$GITHUB_STEP_SUMMARY"
+              echo "$SUMMARY_LINE" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "No structured summary found in logs. See step output above." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          else
+            echo "No log file generated for content import." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Check for changes
         id: changes

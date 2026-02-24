@@ -60,7 +60,24 @@ jobs:
           fi
 
           echo "Running: npm run delete:article -- ${ARGS[*]}"
-          npm run delete:article -- "${ARGS[@]}"
+          npm run delete:article -- "${ARGS[@]}" | tee delete-article.log
+
+      - name: Publish delete article summary
+        if: always()
+        run: |
+          echo "## Delete article summary" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f delete-article.log ]]; then
+            SUMMARY_LINE="$(grep '\"event\":\"summary\"' delete-article.log | tail -n 1 || true)"
+            if [[ -n "$SUMMARY_LINE" ]]; then
+              echo '```json' >> "$GITHUB_STEP_SUMMARY"
+              echo "$SUMMARY_LINE" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "No structured summary found in logs. See step output above." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          else
+            echo "No log file generated for delete-article." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Check for changes
         id: changes
