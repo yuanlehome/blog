@@ -7,7 +7,6 @@ import {
   alignToTextClass,
   alignToJustifyClass,
   alignToItemsClass,
-  getAllAlignmentClasses,
 } from '../../src/lib/ui/alignment';
 
 describe('Alignment Utilities', () => {
@@ -38,26 +37,6 @@ describe('Alignment Utilities', () => {
 
     it('should return items-center for center alignment', () => {
       expect(alignToItemsClass('center')).toBe('items-center');
-    });
-  });
-
-  describe('getAllAlignmentClasses', () => {
-    it('should return all left alignment classes', () => {
-      const classes = getAllAlignmentClasses('left');
-      expect(classes).toEqual({
-        text: 'text-left',
-        justify: 'justify-start',
-        items: 'items-start',
-      });
-    });
-
-    it('should return all center alignment classes', () => {
-      const classes = getAllAlignmentClasses('center');
-      expect(classes).toEqual({
-        text: 'text-center',
-        justify: 'justify-center',
-        items: 'items-center',
-      });
     });
   });
 });

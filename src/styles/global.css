@@ -8,6 +8,20 @@
    - Low-saturation, professional appearance
    ============================================ */
 
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: var(--site-header-height, 80px);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  scroll-margin-top: var(--site-header-height, 80px);
+}
+
 :root {
   /* Legacy code font variables - now uses CSS variables from config */
   --code-font:
@@ -153,6 +167,11 @@ body {
 :where(.prose) :where(.math-display) {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+:where(.prose) :where(img) {
+  display: block;
+  margin-inline: auto;
 }
 
 .prose :where(figure.code-block) {

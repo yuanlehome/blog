@@ -1,12 +1,12 @@
 ---
 title: RoPE 究竟是怎么计算的
 slug: rope
-date: '2026-01-04'
-tags: ['RoPE']
+date: '2026-01-30'
+tags:
+  - RoPE
 status: published
 cover: ''
-lastEditedTime: '2026-01-04T15:00:00.000Z'
-updated: '2026-01-04T15:00:00.000Z'
+updated: '2026-02-07T17:52:00.000Z'
 source: notion
 notion:
   id: 2d322dca-4210-8074-95ce-ec86131a7787
@@ -61,17 +61,7 @@ $x_{\text{rot}} = x \cdot \cos + \text{rotate\_half}(x)\cdot \sin$
 
 假设 head_dim $D=8$，向量：$x=[x_0,x_1,x_2,x_3,x_4,x_5,x_6,x_7]$
 
-### 3.1 Adjacent-pair（相邻配对 / even-odd）
-
-配对方式：
-
-- $(0,1), (2,3), (4,5), (6,7)$
-
-对应的 `rotate_half`（相邻两两转）会把每对做 $(−y,x)$：
-
-- 输出：`[-x1, x0, -x3, x2, -x5, x4, -x7, x6]`
-
-### 3.2 NeoX-style（前后半配对 / split-half）
+### 3.1 NeoX-style（前后半配对 / split-half）
 
 配对方式：
 
@@ -80,6 +70,16 @@ $x_{\text{rot}} = x \cdot \cos + \text{rotate\_half}(x)\cdot \sin$
 对应的 `rotate_half`（前后半互换再取负）：
 
 - 输出：`[-x4, -x5, -x6, -x7, x0, x1, x2, x3]`
+
+### 3.2 Adjacent-pair（相邻配对 / even-odd）
+
+配对方式：
+
+- $(0,1), (2,3), (4,5), (6,7)$
+
+对应的 `rotate_half`（相邻两两转）会把每对做 $(−y,x)$：
+
+- 输出：`[-x1, x0, -x3, x2, -x5, x4, -x7, x6]`
 
 ---
 

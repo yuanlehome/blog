@@ -19,7 +19,6 @@ const blog = defineCollection({
     updated: dateField.optional(),
     updatedAt: dateField.optional(),
     lastmod: dateField.optional(),
-    lastEditedTime: dateField.optional(),
     tags: z.array(z.string()).default([]),
     cover: z.string().optional(), // Path to image in public or URL
     status: z.enum(['published', 'draft']).default('published'),

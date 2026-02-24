@@ -48,7 +48,7 @@ Astro 构建期和浏览器运行期执行的代码。**完全隔离于 scripts*
 | `src/lib/markdown/` | Remark/Rehype 插件（标题锚点、外链、语法高亮） |
 | `src/lib/site/`     | 资源 URL 解析                                  |
 | `src/lib/ui/`       | 客户端交互（代码复制、浮动按钮）               |
-| `src/lib/theme/`    | 主题切换逻辑                                   |
+| `src/lib/theme/`    | 主题切换逻辑（CSS 生成）                       |
 | `src/content/blog/` | 博客文章（notion/、wechat/、others/、本地）    |
 
 ### 2.2 Scripts 层（`scripts/`）
@@ -68,16 +68,17 @@ Astro 构建期和浏览器运行期执行的代码。**完全隔离于 scripts*
 
 自动化触发与执行。
 
-| Workflow                     | 职责                      |
-| ---------------------------- | ------------------------- |
-| `validation.yml`             | PR/push 质量门禁          |
-| `deploy.yml`                 | 构建并发布到 GitHub Pages |
-| `sync-notion.yml`            | 定时/手动同步 Notion      |
-| `import-content.yml`         | 手动导入外部文章          |
-| `delete-article.yml`         | 手动删除文章              |
-| `post-deploy-smoke-test.yml` | 部署后烟测                |
-| `link-check.yml`             | 链接有效性检查            |
-| `pr-preview.yml`             | PR 预览站点               |
+| Workflow                     | 职责                       |
+| ---------------------------- | -------------------------- |
+| `validation.yml`             | PR/push 质量门禁（含烟测） |
+| `deploy.yml`                 | 构建并发布到 GitHub Pages  |
+| `sync-notion.yml`            | 定时/手动同步 Notion       |
+| `import-content.yml`         | 手动导入外部文章/PDF       |
+| `delete-article.yml`         | 手动删除文章               |
+| `post-deploy-smoke-test.yml` | 部署后烟测                 |
+| `link-check.yml`             | 链接有效性检查             |
+| `pr-preview.yml`             | PR 预览站点                |
+| `copilot-fix-posts.yml`      | Copilot 修复文章           |
 
 > **详细说明** → [ci-workflow.md](./ci-workflow.md)
 

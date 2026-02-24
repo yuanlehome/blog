@@ -122,14 +122,27 @@ theme:
 在 `.env.local` 中配置敏感信息和环境相关配置：
 
 ```bash
-# Notion 同步（本地开发时需要）
+# Notion 同步（本地/CI 运行 notion:sync 时需要）
 NOTION_TOKEN=secret_your_token_here
 NOTION_DATABASE_ID=your_database_id_here
 
-# 翻译功能（可选）
+# 翻译功能（可选，用于 notion:sync 和 import:content）
+MARKDOWN_TRANSLATE_ENABLED=1  # 0=禁用, 1=启用
+MARKDOWN_TRANSLATE_PROVIDER=deepseek  # identity 或 deepseek
 DEEPSEEK_API_KEY=sk-your-key-here
+DEEPSEEK_MODEL=deepseek-chat  # 可选
+DEEPSEEK_BASE_URL=https://api.deepseek.com  # 可选
 
-# 站点配置（可选覆盖）
+# PDF 导入（可选，用于 import:content）
+PADDLEOCR_VL_TOKEN=your_token_here
+PDF_OCR_API_URL=https://xbe1mb28fa0dz7kb.aistudio-app.com/layout-parsing
+# 或使用旧变量名（PDF_OCR_API_URL 优先）
+# PADDLEOCR_VL_API_URL=https://xbe1mb28fa0dz7kb.aistudio-app.com/layout-parsing
+PDF_OCR_PROVIDER=paddleocr_vl  # paddleocr_vl（云端）或 local_mock（测试）
+PDF_OCR_FAIL_OPEN=0  # 1 或 true 启用，0 或 false 禁用失败回退模式
+PDF_MAX_MB=50  # PDF 文件最大大小（MB）
+
+# 站点配置（可选覆盖，通常不需要）
 SITE_BASE=/blog/
 SITE_URL=https://example.github.io/blog
 ```
@@ -195,6 +208,27 @@ comments: false
 ---
 ```
 
+### 如何设置暗黑模式默认主题？
+
+编辑 `theme.yml`：
+
+```yaml
+colorMode:
+  default: 'dark' # 或 'light' / 'system'
+  allowToggle: true
+```
+
 ### 修改配置后需要重启吗？
 
 是的，YAML 配置在构建时加载，修改后需重启 `npm run dev`。
+
+### 如何禁用目录（TOC）？
+
+全局禁用：编辑 `post.yml`：
+
+```yaml
+tableOfContents:
+  enable: false
+```
+
+单篇文章禁用：在 frontmatter 中（如果支持，需查看实际实现）。

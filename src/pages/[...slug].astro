@@ -12,6 +12,7 @@ import { findPrevNext, findRelated, getPublishedPosts } from '../lib/content/pos
 import Giscus from '../components/Giscus.astro';
 import ReadingProgress from '../components/ReadingProgress.astro';
 import FloatingActionStack from '../components/FloatingActionStack.astro';
+import ScrollUpTopButton from '../components/ScrollUpTopButton.astro';
 import { getDisplayDates } from '../lib/content/dates';
 import { getLayoutConfig } from '../config/loaders';
 import { alignToTextClass, alignToJustifyClass, alignToItemsClass } from '../lib/ui/alignment';
@@ -51,6 +52,9 @@ const layoutConfig = getLayoutConfig();
 const postMetaAlign = layoutConfig.alignment.postMetaAlign;
 const metaTextClass = alignToTextClass(postMetaAlign);
 const metaJustifyClass = alignToJustifyClass(postMetaAlign);
+
+// Get TOC position from config
+const tocPosition = layoutConfig.toc.position;
 ---
 
 <Layout title={post.data.title} image={resolveAssetUrl(post.data.cover)}>
@@ -58,11 +62,16 @@ const metaJustifyClass = alignToJustifyClass(postMetaAlign);
   <Header />
   <main class="container mx-auto px-4 py-8 max-w-6xl">
     <div
-      class={`flex flex-col gap-6 lg:grid lg:items-start lg:gap-12 ${
-        hasToc ? 'lg:grid-cols-[minmax(0,1fr)_18rem]' : 'lg:grid-cols-1'
+      class={`flex flex-col gap-6 ${
+        hasToc && tocPosition === 'left'
+          ? 'lg:grid lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start lg:gap-12'
+          : hasToc && tocPosition === 'right'
+            ? 'lg:grid lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start lg:gap-12'
+            : 'lg:grid lg:grid-cols-1'
       }`}
       data-post-layout
     >
+      {hasToc && tocPosition === 'left' && <TableOfContents headings={tocHeadings} />}
       <article class="prose dark:prose-invert max-w-none prose-img:rounded-xl min-w-0" data-article>
         <header class="mb-8 not-prose">
           <div
@@ -188,15 +197,11 @@ const metaJustifyClass = alignToJustifyClass(postMetaAlign);
         {commentsEnabled && <Giscus lang="zh-CN" loading="lazy" />}
         <div id="page-bottom-anchor" aria-hidden="true" style="height: 1px;"></div>
       </article>
-      {hasToc && <TableOfContents headings={tocHeadings} />}
+      {hasToc && tocPosition === 'right' && <TableOfContents headings={tocHeadings} />}
     </div>
     {hasToc && <MobileToc headings={tocHeadings} showTrigger={false} />}
-    <FloatingActionStack
-      enableToc={hasToc}
-      enableTop={true}
-      enableBottom={true}
-      targetSelector="[data-article]"
-    />
+    <FloatingActionStack enableToc={hasToc} />
+    <ScrollUpTopButton targetSelector="[data-article]" />
   </main>
   <Footer />
 </Layout>

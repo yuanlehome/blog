@@ -6,10 +6,6 @@ on:
       files:
         description: '要修复的文章路径，逗号分隔（例如 src/content/blog/a.md,src/content/blog/b.md）'
         required: true
-      issue_title:
-        description: 'Issue 标题'
-        required: false
-        default: 'Fix imported translated markdown posts'
 
 permissions:
   issues: write
@@ -183,7 +179,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
           REPO: ${{ github.repository }}
-          TITLE: ${{ inputs.issue_title }}
+          TITLE: ${{ inputs.files }}
         run: |
           ISSUE_URL="$(gh issue create --repo "${REPO}" --title "${TITLE}" --body-file copilot_issue_body.md)"
           echo "Issue URL: ${ISSUE_URL}"

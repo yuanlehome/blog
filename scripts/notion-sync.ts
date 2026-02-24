@@ -116,8 +116,8 @@ export function extractCoverUrl(props: any): string | null {
   }
   if (prop.type === 'url' && prop.url) return prop.url;
   if (prop.type === 'file' && prop.file?.url) return prop.file.url;
-  if (prop.type === 'rich_text' && prop.rich_text?.[0]?.plain_text) {
-    return prop.rich_text[0].plain_text;
+  if (prop.type === 'rich_text' && prop.rich_text && prop.rich_text.length > 0) {
+    return prop.rich_text.map((t: any) => t.plain_text).join('');
   }
   return null;
 }
@@ -180,10 +180,11 @@ n2m.setCustomTransformer('image', async (block) =>
 
 type ExistingPostMeta = {
   slug: string;
-  lastEdited?: string;
+  updated?: string;
   path: string;
   notionId?: string;
   tags?: string[];
+  date?: string;
 };
 
 async function getExistingPosts() {
@@ -199,10 +200,11 @@ async function getExistingPosts() {
     const tags = Array.isArray(data.tags) ? data.tags : [];
     const meta: ExistingPostMeta = {
       slug,
-      lastEdited: data.lastEditedTime,
+      updated: data.updated,
       path: file,
       notionId,
       tags,
+      date: data.date,
     };
     bySlug.set(slug, meta);
     if (notionId) byNotionId.set(notionId, meta);
@@ -314,10 +316,12 @@ export async function sync() {
       try {
         // Extract Frontmatter fields
         const titleProp = props.Name || props.title || props.Title;
-        const title = titleProp?.title?.[0]?.plain_text || 'Untitled';
+        const title = titleProp?.title?.map((t: any) => t.plain_text).join('') || 'Untitled';
 
         const propSlug =
-          props.slug?.rich_text?.[0]?.plain_text || props.Slug?.rich_text?.[0]?.plain_text || null;
+          props.slug?.rich_text?.map((t: any) => t.plain_text).join('') ||
+          props.Slug?.rich_text?.map((t: any) => t.plain_text).join('') ||
+          null;
         const baseSlug = slugFromTitle({ explicitSlug: propSlug, title, fallbackId: pageId });
         let slug = ensureUniqueSlug(baseSlug, pageId, usedSlugs);
         if (slug !== baseSlug) {
@@ -335,14 +339,18 @@ export async function sync() {
         currentPageSlug = slug; // Set context for image transformer
 
         const existingBySlug = existingPosts.bySlug.get(slug);
-        if (existingBySlug && existingBySlug.lastEdited === lastEditedTime) {
+        if (existingBySlug && existingBySlug.updated === lastEditedTime) {
           logger.debug('Skipping unchanged page', { slug, pageId });
           processSpan.end({ status: 'ok', fields: { slug, skipped: true } });
           skippedCount++;
           continue;
         }
 
-        const date = props.date?.date?.start || new Date().toISOString().split('T')[0];
+        // Use existing date if post already exists, otherwise use Notion date or current date
+        // This preserves the original publication date
+        const existingDate = existingBySlug?.date || previousMeta?.date;
+        const notionDate = props.date?.date?.start;
+        const date = existingDate || notionDate || new Date().toISOString().split('T')[0];
         const notionTags = props.tags?.multi_select?.map((t: any) => t.name) || [];
 
         // Merge existing local tags with Notion tags
@@ -383,7 +391,6 @@ export async function sync() {
           tags,
           status: 'published',
           cover,
-          lastEditedTime, // Important for incremental sync
           updated: lastEditedTime,
           source: 'notion',
           notion: { id: pageId },

@@ -56,23 +56,3 @@ export function alignToJustifyClass(align: AlignmentValue): string {
 export function alignToItemsClass(align: AlignmentValue): string {
   return align === 'center' ? 'items-center' : 'items-start';
 }
-
-/**
- * Get all alignment classes for a given alignment value
- *
- * @param align - Alignment value from config
- * @returns Object with all alignment class types
- *
- * @example
- * ```ts
- * const classes = getAllAlignmentClasses('center');
- * // { text: 'text-center', justify: 'justify-center', items: 'items-center' }
- * ```
- */
-export function getAllAlignmentClasses(align: AlignmentValue) {
-  return {
-    text: alignToTextClass(align),
-    justify: alignToJustifyClass(align),
-    items: alignToItemsClass(align),
-  };
-}

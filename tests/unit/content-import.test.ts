@@ -130,6 +130,99 @@ describe('content import for external articles', () => {
     });
   });
 
+  describe('failed image downloads', () => {
+    it('handles failed image downloads gracefully (e.g., HTTP 403)', async () => {
+      const html = `
+        <div>
+          <p>Article content with images</p>
+          <img src="https://example.com/image1.jpg" alt="Success" />
+          <img src="https://blocked-oss.example.com/403-image.svg" alt="Blocked" />
+          <img src="https://example.com/image3.png" alt="Another Success" />
+        </div>
+      `;
+
+      // Mock downloadImage that simulates a 403 failure for one image
+      const downloadImage = vi.fn(
+        async (
+          imageUrl: string,
+          _provider: string,
+          slug: string,
+          _imageRoot: string,
+          index: number,
+          _articleUrl?: string,
+          publicBasePath?: string,
+        ) => {
+          // Simulate 403 failure for blocked OSS URL
+          if (imageUrl.includes('blocked-oss')) {
+            return null; // Failed download
+          }
+
+          const base = publicBasePath || `/images/others/${slug}`;
+          return path.posix.join(
+            base,
+            `${String(index + 1).padStart(3, '0')}-${path.basename(new URL(imageUrl).pathname)}`,
+          );
+        },
+      );
+
+      const { markdown, images } = await htmlToMdx(html, {
+        slug: 'test-article',
+        provider: 'others',
+        baseUrl: 'https://example.com',
+        imageRoot: '/tmp/images',
+        publicBasePath: '/images/others/test-article',
+        downloadImage,
+      });
+
+      // Verify downloadImage was called for all 3 images
+      expect(downloadImage).toHaveBeenCalledTimes(3);
+
+      // Only 2 images should be successfully downloaded (403 blocked one should fail)
+      expect(images).toHaveLength(2);
+      expect(images[0]).toContain('001-image1.jpg');
+      expect(images[1]).toContain('002-image3.png');
+
+      // Failed image should not be in the images array
+      expect(images.some((img) => img.includes('403-image'))).toBe(false);
+
+      // Markdown should contain the successful images
+      expect(markdown).toContain('/images/others/test-article/001-image1.jpg');
+      expect(markdown).toContain('/images/others/test-article/002-image3.png');
+    });
+
+    it('continues processing when all images fail to download', async () => {
+      const html = `
+        <div>
+          <p>Article content</p>
+          <img src="https://blocked1.example.com/image1.jpg" alt="Blocked 1" />
+          <img src="https://blocked2.example.com/image2.jpg" alt="Blocked 2" />
+        </div>
+      `;
+
+      // Mock downloadImage that always fails (simulating all 403 errors)
+      const downloadImage = vi.fn(async () => null);
+
+      const { markdown, images } = await htmlToMdx(html, {
+        slug: 'failed-article',
+        provider: 'others',
+        baseUrl: 'https://example.com',
+        imageRoot: '/tmp/images',
+        publicBasePath: '/images/others/failed-article',
+        downloadImage,
+      });
+
+      // Verify downloadImage was called
+      expect(downloadImage).toHaveBeenCalledTimes(2);
+
+      // No images should be downloaded
+      expect(images).toHaveLength(0);
+
+      // Markdown should still be generated with article content
+      expect(markdown).toContain('Article content');
+      expect(markdown.length).toBeGreaterThan(0);
+    });
+  });
+
   describe('slug consistency for images', () => {
     it('handles consistent slug for image paths (tempSlug == finalSlug)', async () => {
       const article = extractArticleFromHtml(fixtureHtml, MATMUL_URL);

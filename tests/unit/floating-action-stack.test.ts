@@ -15,11 +15,11 @@ describe('FloatingActionStack layout', () => {
     container.className = STACK_CLASSNAMES;
     container.dataset.floatingActionStack = 'true';
 
-    const actions = buildActions({ enableTop: true, enableToc: true, enableBottom: true });
+    const actions = buildActions({ enableToc: true });
     actions.forEach((action, index) => {
       const button = document.createElement('button');
       button.dataset.action = action.kind;
-      button.dataset.visible = action.kind === 'top' ? 'false' : 'true';
+      button.dataset.visible = 'true';
       button.className = BUTTON_CLASSNAMES;
       button.textContent = `${index}-${action.label}`;
       container.appendChild(button);
@@ -34,8 +34,8 @@ describe('FloatingActionStack layout', () => {
     const buttons: HTMLButtonElement[] = Array.from(
       container.querySelectorAll<HTMLButtonElement>('button'),
     );
-    expect(buttons).toHaveLength(3);
-    expect(buttons.map((button) => button.dataset.action)).toEqual(['top', 'toc', 'bottom']);
+    expect(buttons).toHaveLength(1);
+    expect(buttons.map((button) => button.dataset.action)).toEqual(['toc']);
 
     buttons.forEach((button) => {
       expect(button.className).toContain('h-11');

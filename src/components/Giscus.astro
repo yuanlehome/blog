@@ -4,10 +4,16 @@ import { getPostConfig } from '../config/loaders';
 const postConfig = getPostConfig();
 const lang = Astro.props.lang || postConfig.comments.giscus.lang;
 const giscus = postConfig.comments.giscus;
+const themeMapping = postConfig.comments.themeMapping;
+
+// Serialize theme mapping for inline script
+const themeMappingJson = JSON.stringify(themeMapping);
 ---
 
-<section id="comments" class="mt-12">
-  <div class="border-t border-zinc-200 dark:border-zinc-700 pt-8">
+<section id="comments" class="mt-12" data-comments>
+  <div
+    class="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 p-6 md:p-8"
+  >
     <script
       is:inline
       src="https://giscus.app/client.js"
@@ -20,100 +26,155 @@ const giscus = postConfig.comments.giscus;
       data-reactions-enabled={giscus.reactionsEnabled}
       data-emit-metadata={giscus.emitMetadata}
       data-input-position={giscus.inputPosition}
-      data-theme={giscus.theme}
+      data-theme="light"
       data-lang={lang}
       crossorigin="anonymous"
       async></script>
   </div>
 </section>
 
-<script is:inline>
-  (() => {
-    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+<script
+  is:inline
+  set:html={`(() => {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
-    // Mapping uses `pathname` to keep one discussion per URL path, which is stable for static sites.
-    const themeMap = {
-      light: 'light',
-      dark: 'dark_dimmed',
-    };
+  // Theme mapping for Giscus from config
+  const themeMap = ${themeMappingJson};
 
-    const getResolvedTheme = () =>
+  // Single source of truth: read effective theme from DOM
+  const getEffectiveTheme = () => {
+    const isDark =
       document.documentElement.dataset.theme === 'dark' ||
-      document.documentElement.classList.contains('dark')
-        ? 'dark'
-        : 'light';
+      document.documentElement.classList.contains('dark');
+    return isDark ? 'dark' : 'light';
+  };
 
-    let activeTheme = getResolvedTheme();
+  // Track current theme state
+  let currentTheme = getEffectiveTheme();
 
-    const setContainerTheme = (theme) => {
-      const container = document.getElementById('comments');
-      if (container) {
-        container.setAttribute('data-giscus-theme', theme);
-      }
-    };
+  // Set initial theme on the script tag before Giscus loads
+  const setInitialTheme = () => {
+    const effectiveTheme = getEffectiveTheme();
+    const giscusTheme = themeMap[effectiveTheme] ?? 'light';
+    const giscusScript = document.querySelector('script[src*="giscus.app/client.js"]');
+    if (giscusScript) {
+      giscusScript.setAttribute('data-theme', giscusTheme);
+    }
+  };
 
-    const postThemeMessage = (resolvedTheme) => {
-      const effective = resolvedTheme ?? activeTheme;
-      const nextTheme = themeMap[effective] ?? 'light';
-      setContainerTheme(nextTheme);
-      const iframe = document.querySelector('iframe.giscus-frame');
-      if (iframe) {
-        iframe.contentWindow?.postMessage(
-          { giscus: { setConfig: { theme: nextTheme } } },
-          'https://giscus.app',
-        );
-      }
-      window.dispatchEvent(
-        new CustomEvent('giscus-theme-applied', {
-          detail: { theme: nextTheme, resolved: effective },
-        }),
+  // Update container data attribute for tracking
+  const setContainerTheme = (theme) => {
+    const container = document.getElementById('comments');
+    if (container) {
+      container.setAttribute('data-giscus-theme', theme);
+    }
+  };
+
+  // Send theme update message to Giscus iframe
+  const postThemeMessage = (resolvedTheme) => {
+    const effective = resolvedTheme ?? currentTheme;
+    const giscusTheme = themeMap[effective] ?? 'light';
+    setContainerTheme(giscusTheme);
+    
+    const iframe = document.querySelector('iframe.giscus-frame');
+    if (iframe && iframe.contentWindow) {
+      iframe.contentWindow.postMessage(
+        { giscus: { setConfig: { theme: giscusTheme } } },
+        'https://giscus.app',
       );
-    };
+    }
+  };
 
-    const syncTheme = (resolvedOverride) => {
-      const detected = resolvedOverride ?? getResolvedTheme();
-      if (detected !== activeTheme) {
-        activeTheme = detected;
-      }
-      postThemeMessage(detected);
-    };
+  // Debounce helper to prevent excessive syncs
+  let syncTimeout = null;
+  const debouncedSync = (callback, delay = 50) => {
+    if (syncTimeout) clearTimeout(syncTimeout);
+    syncTimeout = setTimeout(callback, delay);
+  };
 
-    const observer = new MutationObserver(() => syncTheme());
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class', 'data-theme'],
-    });
+  // Main sync function: update theme if changed
+  const syncCommentTheme = (resolvedOverride) => {
+    const detected = resolvedOverride ?? getEffectiveTheme();
+    if (detected !== currentTheme) {
+      currentTheme = detected;
+    }
+    postThemeMessage(detected);
+  };
 
-    window.addEventListener('themechange', (event) => {
-      const detail = event?.detail || {};
-      if (detail.resolved) {
-        syncTheme(detail.resolved);
-      } else {
-        syncTheme();
-      }
-    });
-
-    const waitForFrame = () => {
-      const frame = document.querySelector('iframe.giscus-frame');
-      if (!frame) {
-        requestAnimationFrame(waitForFrame);
-        return;
-      }
-
-      const sendWhenReady = () => postThemeMessage();
-      if (frame instanceof HTMLIFrameElement) {
-        if (frame.complete) {
-          sendWhenReady();
-        } else {
-          frame.addEventListener('load', sendWhenReady, { once: true });
+  // Wait for iframe with improved retry logic
+  let retryCount = 0;
+  const maxRetries = 50; // ~5 seconds with 100ms intervals
+  const waitForIframe = () => {
+    const iframe = document.querySelector('iframe.giscus-frame');
+    if (iframe) {
+      // Found iframe, send theme
+      if (iframe instanceof HTMLIFrameElement) {
+        const sendTheme = () => {
+          postThemeMessage();
+        };
+        
+        // Try to send immediately and also on load event
+        sendTheme();
+        if (!iframe.complete) {
+          iframe.addEventListener('load', sendTheme, { once: true });
         }
       }
-      // Ensure we apply the current theme even if the iframe was already ready.
-      postThemeMessage();
-    };
+      return;
+    }
 
-    // Run once after load to sync the initial theme and keep retrying until the iframe is present.
-    waitForFrame();
-    syncTheme();
-  })();
-</script>
+    // Retry if not found yet
+    retryCount++;
+    if (retryCount < maxRetries) {
+      setTimeout(waitForIframe, 100);
+    }
+  };
+
+  // Set initial theme before Giscus loads
+  setInitialTheme();
+
+  // Listen for DOM changes (class/data-theme attribute)
+  const observer = new MutationObserver(() => {
+    debouncedSync(() => syncCommentTheme());
+  });
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['class', 'data-theme'],
+  });
+
+  // Listen for custom theme change events
+  window.addEventListener('themechange', (event) => {
+    const detail = event?.detail || {};
+    const resolved = detail.resolved || getEffectiveTheme();
+    debouncedSync(() => syncCommentTheme(resolved));
+  });
+
+  // Listen for storage events (cross-tab synchronization)
+  window.addEventListener('storage', (event) => {
+    if (event.key === 'theme' && (event.newValue === 'light' || event.newValue === 'dark')) {
+      debouncedSync(() => syncCommentTheme());
+    }
+  });
+
+  // Listen for system theme changes (if using system preference)
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  const handleSystemThemeChange = () => {
+    // Only sync if theme might be using system preference
+    try {
+      const stored = localStorage.getItem('theme');
+      if (!stored || stored === 'system') {
+        debouncedSync(() => syncCommentTheme());
+      }
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+  };
+  
+  if (mediaQuery.addEventListener) {
+    mediaQuery.addEventListener('change', handleSystemThemeChange);
+  }
+
+  // Initial sync and wait for iframe
+  syncCommentTheme();
+  waitForIframe();
+})();`}
+/>

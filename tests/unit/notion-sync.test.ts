@@ -128,4 +128,38 @@ describe('notion sync cover fallback', () => {
     expect(fs.existsSync(path.join(imageDir, 'test-post', `${imageBlockId}.jpg`))).toBe(true);
     expect(fetchMock).toHaveBeenCalled();
   });
+
+  it('preserves original publication date when updating post', async () => {
+    const imageBuffer = Buffer.from('image-data');
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(imageBuffer, {
+        status: 200,
+        headers: { 'content-type': 'image/jpeg' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    // First sync - create the post
+    const { sync } = await import('../../scripts/notion-sync');
+    await sync();
+
+    const generatedFile = path.join(contentDir, 'test-post.md');
+    expect(fs.existsSync(generatedFile)).toBe(true);
+    const firstSync = matter(fs.readFileSync(generatedFile, 'utf-8'));
+    const originalDate = firstSync.data.date;
+    expect(originalDate).toBe('2024-01-02'); // From mockPage.properties.date
+
+    // Simulate an update by changing last_edited_time
+    mockPage.last_edited_time = '2024-02-15T00:00:00.000Z';
+
+    // Second sync - update the post
+    vi.resetModules();
+    const { sync: sync2 } = await import('../../scripts/notion-sync');
+    await sync2();
+
+    // Verify date is preserved but updated field changes
+    const secondSync = matter(fs.readFileSync(generatedFile, 'utf-8'));
+    expect(secondSync.data.date).toBe(originalDate); // Date should be preserved
+    expect(secondSync.data.updated).toBe('2024-02-15T00:00:00.000Z'); // Updated field should change
+  });
 });
