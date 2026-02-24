@@ -18,9 +18,9 @@ if (!enabled || links.length === 0) {
 ---
 
 <div class="w-full" data-common-links-shell>
-  <aside class="hidden lg:block h-full">
+  <aside class="hidden lg:block">
     <nav
-      class="flex h-full w-full flex-col gap-3 overflow-hidden rounded-xl border border-zinc-200 bg-neutral-50/80 p-4 shadow-md backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/50 lg:sticky lg:top-[var(--site-header-height)] lg:max-h-[calc(100vh-var(--site-header-height)-16px)] lg:h-[calc(100vh-var(--site-header-height)-16px)]"
+      class="flex w-full flex-col gap-3 overflow-hidden rounded-xl border border-zinc-200 bg-neutral-50/80 p-4 shadow-md backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/50"
       aria-label={title}
       data-common-links-container
     >
@@ -28,7 +28,7 @@ if (!enabled || links.length === 0) {
         <p class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{title}</p>
         <p class="text-xs text-zinc-500 dark:text-zinc-400">快速访问常用工具和资源</p>
       </div>
-      <ul class="flex-1 min-h-0 overflow-y-auto pr-1 space-y-2" data-common-links-scroll>
+      <ul class="pr-1 space-y-2" data-common-links-scroll>
         {
           links.map((link) => (
             <li>
@@ -59,101 +59,3 @@ if (!enabled || links.length === 0) {
     </nav>
   </aside>
 </div>
-
-<script>
-  const commonLinksContainer = document.querySelector(
-    '[data-common-links-container]',
-  ) as HTMLElement | null;
-  const commonLinksShell = document.querySelector(
-    '[data-common-links-shell]',
-  ) as HTMLElement | null;
-
-  // Get header offset from CSS variable (same as TOC)
-  const getHeaderOffset = (): number => {
-    const headerHeightStr = getComputedStyle(document.documentElement).getPropertyValue(
-      '--site-header-height',
-    );
-    return parseFloat(headerHeightStr) || 0;
-  };
-
-  const desktopQuery = window.matchMedia('(min-width: 1024px)');
-
-  const resetPositioning = () => {
-    if (!commonLinksContainer) return;
-    commonLinksContainer.dataset.fixed = 'false';
-    commonLinksContainer.style.position = '';
-    commonLinksContainer.style.left = '';
-    commonLinksContainer.style.width = '';
-    commonLinksContainer.style.height = '';
-    commonLinksContainer.style.maxHeight = '';
-    commonLinksContainer.style.top = '';
-    if (commonLinksShell) commonLinksShell.style.minHeight = '';
-  };
-
-  const applyFixedFallback = () => {
-    if (!commonLinksContainer || !commonLinksShell) return;
-    const shellRect = commonLinksShell.getBoundingClientRect();
-    const headerOffset = getHeaderOffset();
-    const maxHeight = `calc(100vh - ${headerOffset}px - 16px)`;
-    commonLinksContainer.dataset.fixed = 'true';
-    commonLinksShell.style.minHeight = `${commonLinksContainer.offsetHeight}px`;
-    commonLinksContainer.style.position = 'fixed';
-    commonLinksContainer.style.top = `${headerOffset}px`;
-    commonLinksContainer.style.left = `${shellRect.left}px`;
-    commonLinksContainer.style.width = `${shellRect.width}px`;
-    commonLinksContainer.style.height = maxHeight;
-    commonLinksContainer.style.maxHeight = maxHeight;
-  };
-
-  const verifySticky = () => {
-    if (
-      !commonLinksContainer ||
-      commonLinksContainer.dataset.fixed === 'true' ||
-      !desktopQuery.matches
-    )
-      return;
-    const stickyTop = parseFloat(getComputedStyle(commonLinksContainer).top || '0');
-    const threshold = commonLinksContainer.offsetTop - stickyTop;
-    if (Number.isNaN(stickyTop) || window.scrollY < threshold) return;
-    const currentTop = commonLinksContainer.getBoundingClientRect().top;
-    if (Math.abs(currentTop - stickyTop) > 2) {
-      applyFixedFallback();
-    }
-  };
-
-  const handleResize = () => {
-    if (!desktopQuery.matches) {
-      resetPositioning();
-      return;
-    }
-    if (commonLinksContainer?.dataset.fixed === 'true') {
-      applyFixedFallback();
-    }
-  };
-
-  resetPositioning();
-  if (desktopQuery.matches) verifySticky();
-  desktopQuery.addEventListener('change', () => {
-    resetPositioning();
-    requestAnimationFrame(() => {
-      if (desktopQuery.matches) verifySticky();
-    });
-  });
-  window.addEventListener('scroll', verifySticky, { passive: true });
-  window.addEventListener('resize', handleResize);
-  window.addEventListener(
-    'load',
-    () => {
-      verifySticky();
-    },
-    { once: true },
-  );
-
-  // Listen for header height changes (same as TOC)
-  window.addEventListener('headerheightchange', () => {
-    resetPositioning();
-    if (desktopQuery.matches) {
-      requestAnimationFrame(() => verifySticky());
-    }
-  });
-</script>
