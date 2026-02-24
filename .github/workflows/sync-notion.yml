@@ -51,10 +51,28 @@ jobs:
           MARKDOWN_TRANSLATE_ENABLED: ${{ github.event.inputs.markdown_translate_enabled == 'true' && '1' || '0' }}
           MARKDOWN_TRANSLATE_PROVIDER: ${{ github.event.inputs.markdown_translate_provider || 'identity' }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          LOG_FORMAT: json
         run: |
           echo "Translation enabled: $MARKDOWN_TRANSLATE_ENABLED"
           echo "Translation provider: $MARKDOWN_TRANSLATE_PROVIDER"
-          npm run notion:sync
+          npm run notion:sync | tee notion-sync.log
+
+      - name: Publish Notion sync summary
+        if: always()
+        run: |
+          echo "## Notion sync summary" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f notion-sync.log ]]; then
+            SUMMARY_LINE="$(grep '\"event\":\"summary\"' notion-sync.log | tail -n 1 || true)"
+            if [[ -n "$SUMMARY_LINE" ]]; then
+              echo '```json' >> "$GITHUB_STEP_SUMMARY"
+              echo "$SUMMARY_LINE" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "No structured summary found in logs. See step output above." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          else
+            echo "No log file generated for Notion sync." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Check for changes
         id: changes

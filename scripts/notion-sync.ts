@@ -446,6 +446,7 @@ export async function sync() {
     }
 
     logger.summary({
+      operation: 'notion-sync',
       status: errorCount > 0 ? 'partial' : 'ok',
       durationMs: duration(scriptStart),
       totalPages: pages.length,
@@ -458,9 +459,11 @@ export async function sync() {
   } catch (error) {
     logger.error('Notion sync failed', { error });
     logger.summary({
+      operation: 'notion-sync',
       status: 'fail',
       durationMs: duration(scriptStart),
       error: error instanceof Error ? error.message : String(error),
+      errorCode: 'NOTION_SYNC_FAILED',
     });
     throw error;
   }

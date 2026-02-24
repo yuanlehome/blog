@@ -345,6 +345,7 @@ async function main() {
     if (options.dryRun) {
       logger.info('Dry-run complete, no files were deleted');
       logger.summary({
+        operation: 'delete-article',
         status: 'ok',
         durationMs: duration(scriptStart),
         dryRun: true,
@@ -355,6 +356,7 @@ async function main() {
     } else {
       logger.info('Deletion completed successfully');
       logger.summary({
+        operation: 'delete-article',
         status: 'ok',
         durationMs: duration(scriptStart),
         slug,
@@ -365,9 +367,11 @@ async function main() {
   } catch (error) {
     logger.error('Delete article failed', { error });
     logger.summary({
+      operation: 'delete-article',
       status: 'fail',
       durationMs: duration(scriptStart),
       error: error instanceof Error ? error.message : String(error),
+      errorCode: 'DELETE_ARTICLE_FAILED',
     });
     throw error;
   }

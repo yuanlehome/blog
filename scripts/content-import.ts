@@ -1216,11 +1216,13 @@ async function main() {
         reason: 'arXiv import has been removed from this repository',
       });
       logger.summary({
+        operation: 'content-import',
         status: 'fail',
         url: targetUrl,
         reason: 'arXiv import no longer supported',
         suggestion:
           'Please provide a non-arXiv source URL (e.g., blog post), or use --forcePdf to import as PDF.',
+        errorCode: 'ARXIV_IMPORT_UNSUPPORTED',
       });
       throw new Error(
         'arXiv import is no longer supported in this repository. ' +
@@ -1433,9 +1435,11 @@ async function main() {
     if (fs.existsSync(filepath) && !options.allowOverwrite) {
       logger.warn('File already exists, use --allow-overwrite to overwrite', { filepath });
       logger.summary({
+        operation: 'content-import',
         status: 'skipped',
         durationMs: duration(scriptStart),
         reason: 'file_exists',
+        errorCode: 'CONTENT_IMPORT_FILE_EXISTS',
       });
       return;
     }
@@ -1443,6 +1447,7 @@ async function main() {
     if (options.dryRun) {
       logger.info('Dry run mode, preview only', { contentLength: fileContent.length });
       logger.summary({
+        operation: 'content-import',
         status: 'ok',
         durationMs: duration(scriptStart),
         dryRun: true,
@@ -1462,6 +1467,7 @@ async function main() {
     }
 
     logger.summary({
+      operation: 'content-import',
       status: 'ok',
       durationMs: duration(scriptStart),
       slug,
@@ -1472,9 +1478,11 @@ async function main() {
   } catch (error) {
     logger.error('Content import failed', { error: serializeError(error) });
     logger.summary({
+      operation: 'content-import',
       status: 'fail',
       durationMs: duration(scriptStart),
       error: error instanceof Error ? error.message : String(error),
+      errorCode: 'CONTENT_IMPORT_FAILED',
     });
     throw error;
   }

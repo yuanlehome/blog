@@ -51,6 +51,9 @@ jobs:
       - name: Lint and format check
         run: npm run lint
 
+      - name: Enforce layering rules (Runtime vs Scripts)
+        run: npm run depcruise:lint
+
       - name: Unit tests
         run: npm run test
 
