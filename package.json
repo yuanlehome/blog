@@ -17,7 +17,7 @@
     "test:watch": "vitest watch",
     "test:e2e": "npx playwright install chromium && npm run build && PLAYWRIGHT_TEST_BASE_URL=http://127.0.0.1:4173/blog/ playwright test",
     "test:ci": "npm run check && npm run test && npm run test:e2e && npm run build",
-    "ci": "npm run test:ci",
+    "ci": "npx playwright install --with-deps chromium && npm run test:ci",
     "depcruise:lint": "depcruise --config .dependency-cruiser.cjs src scripts",
     "format": "prettier --plugin=prettier-plugin-astro --write \"**/*.{md,astro,js,ts,jsx,tsx,json,yml,yaml,css,scss}\"",
     "format:check": "prettier --plugin=prettier-plugin-astro --check \"**/*.{md,astro,js,ts,jsx,tsx,json,yml,yaml,css,scss}\"",
