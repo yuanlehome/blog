@@ -98,6 +98,8 @@ function isMenuItemActive(item: { href: string; isExternal: boolean }): boolean 
 <script>
   const storageKey = 'theme';
   const order: Array<'light' | 'dark'> = ['light', 'dark'];
+  const toggleLockMs = 500;
+  const animationSafetyBufferMs = 50;
 
   const getPreference = (): 'light' | 'dark' => {
     try {
@@ -140,6 +142,12 @@ function isMenuItemActive(item: { href: string; isExternal: boolean }): boolean 
     }
   }
 
+  type ThemeOrigin = { x: number; y: number; r: number };
+
+  type DocumentWithViewTransition = Document & {
+    startViewTransition?: (updateCallback: () => void) => { finished: Promise<void> };
+  };
+
   const applyPreference = (preference: 'light' | 'dark') => {
     if (typeof window.__setTheme === 'function') {
       window.__setTheme?.(preference);
@@ -158,15 +166,114 @@ function isMenuItemActive(item: { href: string; isExternal: boolean }): boolean 
     );
   };
 
-  const handleToggleClick = () => {
+  const getThemeOrigin = (event: Event, button: HTMLElement): ThemeOrigin => {
+    const rect = button.getBoundingClientRect();
+    const isMouseEvent = event instanceof MouseEvent;
+    const hasPointerCoordinates =
+      isMouseEvent && event.detail > 0 && (event.clientX !== 0 || event.clientY !== 0);
+    const x = hasPointerCoordinates && isMouseEvent ? event.clientX : rect.left + rect.width / 2;
+    const y = hasPointerCoordinates && isMouseEvent ? event.clientY : rect.top + rect.height / 2;
+    const r = Math.max(
+      Math.hypot(x, y),
+      Math.hypot(window.innerWidth - x, y),
+      Math.hypot(x, window.innerHeight - y),
+      Math.hypot(window.innerWidth - x, window.innerHeight - y),
+    );
+
+    return { x, y, r };
+  };
+
+  const setThemeTransitionVariables = ({ x, y, r }: ThemeOrigin) => {
+    const root = document.documentElement;
+    root.style.setProperty('--theme-toggle-x', `${x}px`);
+    root.style.setProperty('--theme-toggle-y', `${y}px`);
+    root.style.setProperty('--theme-toggle-r', `${r}px`);
+  };
+
+  const animateThemeToggle = async (
+    preference: 'light' | 'dark',
+    origin: ThemeOrigin,
+    reducedMotion: boolean,
+  ) => {
+    if (reducedMotion) {
+      applyPreference(preference);
+      render(preference);
+      return;
+    }
+
+    setThemeTransitionVariables(origin);
+    document.documentElement.classList.add('theme-toggle-transitioning');
+    const doc = document as DocumentWithViewTransition;
+
+    try {
+      if (typeof doc.startViewTransition === 'function') {
+        const transition = doc.startViewTransition(() => {
+          applyPreference(preference);
+          render(preference);
+        });
+        await transition.finished.catch((error) => {
+          console.warn('Theme view transition failed:', error);
+        });
+        return;
+      }
+
+      const overlay = document.createElement('div');
+      overlay.className = 'theme-toggle-overlay';
+      if (preference === 'dark') overlay.classList.add('dark');
+      document.body.appendChild(overlay);
+      try {
+        overlay.getBoundingClientRect();
+        overlay.classList.add('is-animating');
+
+        await new Promise<void>((resolve) => {
+          let done = false;
+          const finish = () => {
+            if (done) return;
+            done = true;
+            resolve();
+          };
+          overlay.addEventListener('animationend', finish, { once: true });
+          overlay.addEventListener('animationcancel', finish, { once: true });
+          window.setTimeout(finish, toggleLockMs + animationSafetyBufferMs);
+        });
+
+        applyPreference(preference);
+        render(preference);
+      } finally {
+        overlay.remove();
+      }
+    } finally {
+      document.documentElement.classList.remove('theme-toggle-transitioning');
+    }
+  };
+
+  let isAnimatingThemeToggle = false;
+
+  const handleToggleClick = async (event: Event) => {
+    if (isAnimatingThemeToggle) return;
+    const button = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+    if (!button) return;
+
+    isAnimatingThemeToggle = true;
+    button.setAttribute('disabled', 'true');
+
     const current = getPreference();
     const next = order[(order.indexOf(current) + 1) % order.length];
-    applyPreference(next);
-    render(next);
+
+    try {
+      const origin = getThemeOrigin(event, button);
+      await animateThemeToggle(next, origin, reducedMotionQuery.matches);
+    } finally {
+      window.setTimeout(() => {
+        button.removeAttribute('disabled');
+        isAnimatingThemeToggle = false;
+      }, toggleLockMs);
+    }
   };
 
   const header = document.querySelector<HTMLElement>('[data-header]');
-  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const prefersReducedMotion = reducedMotionQuery.matches;
 
   const updateHeaderState = () => {
     if (!header) return;
