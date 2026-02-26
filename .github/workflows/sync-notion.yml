@@ -56,6 +56,7 @@ jobs:
           echo "Translation enabled: $MARKDOWN_TRANSLATE_ENABLED"
           echo "Translation provider: $MARKDOWN_TRANSLATE_PROVIDER"
           npm run notion:sync | tee notion-sync.log
+          npm run format
 
       - name: Publish Notion sync summary
         if: always()
