@@ -1,12 +1,12 @@
 ---
-title: CUDA 非法内存访问的“隐式报错”机制：Padding、页表映射与 compute-sanitizer
-slug: cuda-padding-compute-sanitizer
+title: CUDA 非法内存访问的“隐式报错”机制与 compute-sanitizer 实战
+slug: cuda-compute-sanitizer
 date: '2026-02-26'
-tags: ['CUDA']
+tags:
+  - CUDA
 status: published
-cover: >-
-  /images/notion/cuda-padding-compute-sanitizer/31322dca-4210-80c8-a8d6-c31c1db62d6f.png
-updated: '2026-02-26T08:14:00.000Z'
+cover: /images/notion/cuda-compute-sanitizer/31322dca-4210-80c8-a8d6-c31c1db62d6f.png
+updated: '2026-02-26T08:58:00.000Z'
 source: notion
 notion:
   id: 31322dca-4210-80e9-aee8-e2f24856e7b3
@@ -30,7 +30,7 @@ notion:
 - **Padding 内存（黄色）**：对齐/内部碎片导致的额外空间，逻辑不可用但通常仍可访问
 - **非法内存（红色）**：未分配区域（或已释放后无映射区域），理论上访问应触发非法地址
 
-![](/images/notion/cuda-padding-compute-sanitizer/31322dca-4210-80c8-a8d6-c31c1db62d6f.png)
+![](/images/notion/cuda-compute-sanitizer/31322dca-4210-80c8-a8d6-c31c1db62d6f.png)
 
 ---
 
@@ -49,7 +49,7 @@ CUDA error 700（illegal address）在硬件层面的必要条件是：
 
 ## 三、最小复现：越界写可能不当场报错
 
-下面 demo 故意申请 448 Bytes（112 \* 4），然后越界写`n+8`。不同机器/驱动/allocator 状态下，同步点可能报错，也可能不报（但数据已可能被污染）。
+下面 demo 故意申请 448 Bytes（112 \* 4），然后越界写 `n+8`。不同机器/驱动/allocator 状态下，同步点可能报错，也可能不报（但数据已可能被污染）。
 
 ```c++
 // oob_demo.cu
@@ -98,7 +98,7 @@ nvcc -O2 -g -lineinfo oob_demo.cu -o oob_demo
 
 正常不报错，输出：
 
-```c++
+```bash
 sync ok (may still be corrupt)
 ```
 
@@ -114,7 +114,7 @@ compute-sanitizer --tool memcheck --show-backtrace yes ./oob_demo
 
 输出检测报告：
 
-```c++
+```bash
 ========= COMPUTE-SANITIZER
 ========= Invalid __global__ write of size 4 bytes
 =========     at oob_write(int *, int, int)+0xd0 in oob_demo.cu:9
@@ -146,8 +146,75 @@ cudaFree: unspecified launch failure
 
 ---
 
-## 总结
+## 五、compute-sanitizer 常见用法
 
-- 越界是否当场报错，取决于**页表映射**，不取决于“是否越过对象边界”
-- Padding 是最危险灰区：**物理可达、逻辑非法、最容易 silent corruption**
-- 排障闭环：**同步缩小现场 → compute-sanitizer 定点抓 OOB → 修正 index/stride/尾块/对齐假设**
+### 5.1 memcheck：越界 / 非法地址 / 未对齐 / 泄漏
+
+适用： `CUDA 700/719`、silent corruption、随机炸、越界读写、misaligned load/store、device malloc/free 错误、CUDA API 错误等。
+
+```bash
+compute-sanitizer --tool memcheck --show-backtrace yes ./your_bin
+```
+
+常用增强选项：
+
+- `--show-backtrace yes`：打印主机回溯。
+- `--force-blocking-launches yes`：强制 kernel 同步执行（更好复现/更早报）。代价：更慢；并且可能只报“第一个触发错误的线程”。
+- `--leak-check full`：检查 cudaMalloc 泄漏（memcheck 支持 leak checking）。
+
+### 5.2 针对 cudaMallocAsync 的坑：stream-ordered 生命周期竞态
+
+如果你用 `cudaMallocAsync/cudaFreeAsync` 或框架的 async 分配，建议打开：
+
+```bash
+compute-sanitizer --tool memcheck --track-stream-ordered-races all ./your_bin
+```
+
+用于抓 use-before-alloc / use-after-free 这类“生命周期竞态”。
+
+### 5.3 racecheck：共享内存（shared memory）数据竞争/危险
+
+适用：shared memory 上的 RAW/WAR/WAW 等 hazard，典型是“结果偶发不稳定”。
+
+```bash
+compute-sanitizer --tool racecheck --show-backtrace yes ./your_bin
+```
+
+> 注意：racecheck 主要针对 shared memory（以及相关 hazard），不是全局内存的通用 data race 检测。
+
+### 5.4 initcheck：读取未初始化的 device global memory
+
+适用：device global memory 未写就读、路径覆盖不全导致的“随机值污染”。
+
+```bash
+compute-sanitizer --tool initcheck --show-backtrace yes ./your_bin
+```
+
+### 5.5 synccheck：同步原语使用错误（\_\_syncthreads 等）
+
+**适用：** 分支导致部分线程没到同步点、错误的 barrier 用法、warp-level / block-level 同步误用等。
+
+```bash
+compute-sanitizer --tool synccheck --show-backtrace yes ./your_bin
+```
+
+---
+
+### 5.6 控制输出与“只检查一部分 launch”（大工程必备）
+
+当你的程序 kernel 很多，常用做法是“只看前 N 次 launch / 跳过前 N 次”。compute-sanitizer 支持按 launch 计数做筛选。
+
+```bash
+# 只检查第 N 次之后的一段（跳过前 100 次 launch）
+compute-sanitizer --tool memcheck --launch-skip 100 --launch-count 50 ./your_bin
+```
+
+---
+
+## 总结：实战推荐的最短排障流程
+
+1. 先 memcheck：抓 OOB / misaligned / illegal address。
+1. 如果怀疑是 shared memory hazard → racecheck。
+1. 如果怀疑是未初始化读 → initcheck。
+1. 如果怀疑是同步使用错误 → synccheck。
+1. 大工程：加 `-force-blocking-launches yes` 或用 `-launch-skip/--launch-count` 收敛范围。
