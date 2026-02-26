@@ -2,7 +2,7 @@
 title: CUDA 非法内存访问的“隐式报错”机制：Padding、页表映射与 compute-sanitizer
 slug: cuda-padding-compute-sanitizer
 date: '2026-02-26'
-tags: []
+tags: ['CUDA']
 status: published
 cover: >-
   /images/notion/cuda-padding-compute-sanitizer/31322dca-4210-80c8-a8d6-c31c1db62d6f.png
