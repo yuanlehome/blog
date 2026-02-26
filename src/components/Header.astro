@@ -166,11 +166,13 @@ function isMenuItemActive(item: { href: string; isExternal: boolean }): boolean 
     );
   };
 
-  const getThemeOrigin = (event: MouseEvent, button: HTMLElement): ThemeOrigin => {
+  const getThemeOrigin = (event: Event, button: HTMLElement): ThemeOrigin => {
     const rect = button.getBoundingClientRect();
-    const hasPointerCoordinates = event.detail > 0 && (event.clientX !== 0 || event.clientY !== 0);
-    const x = hasPointerCoordinates ? event.clientX : rect.left + rect.width / 2;
-    const y = hasPointerCoordinates ? event.clientY : rect.top + rect.height / 2;
+    const isMouseEvent = event instanceof MouseEvent;
+    const hasPointerCoordinates =
+      isMouseEvent && event.detail > 0 && (event.clientX !== 0 || event.clientY !== 0);
+    const x = hasPointerCoordinates && isMouseEvent ? event.clientX : rect.left + rect.width / 2;
+    const y = hasPointerCoordinates && isMouseEvent ? event.clientY : rect.top + rect.height / 2;
     const r = Math.max(
       Math.hypot(x, y),
       Math.hypot(window.innerWidth - x, y),
@@ -259,7 +261,7 @@ function isMenuItemActive(item: { href: string; isExternal: boolean }): boolean 
     const next = order[(order.indexOf(current) + 1) % order.length];
 
     try {
-      const origin = getThemeOrigin(event as MouseEvent, button);
+      const origin = getThemeOrigin(event, button);
       await animateThemeToggle(next, origin, reducedMotionQuery.matches);
     } finally {
       window.setTimeout(() => {
