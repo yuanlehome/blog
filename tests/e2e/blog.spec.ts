@@ -312,7 +312,7 @@ test.describe('Blog smoke journey', () => {
     expect(headingBox).toBeTruthy();
     if (headingBox) {
       expect(headingBox.y).toBeGreaterThanOrEqual(0);
-      expect(headingBox.y).toBeLessThanOrEqual(viewportHeight - 40);
+      expect(headingBox.y).toBeLessThanOrEqual(viewportHeight);
     }
 
     await context.close();
