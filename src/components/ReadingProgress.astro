@@ -10,19 +10,6 @@ const { targetSelector = '[data-article]' } = Astro.props;
 <div class="reading-progress" data-reading-progress data-target-selector={targetSelector}>
   <span class="reading-progress__bar" data-reading-progress-bar></span>
 </div>
-<div class="reading-progress__controls" data-reading-progress-controls hidden>
-  <button type="button" class="reading-progress__control" data-scroll-top aria-label="返回文章顶部">
-    ⬆️ 顶部
-  </button>
-  <button
-    type="button"
-    class="reading-progress__control"
-    data-scroll-bottom
-    aria-label="跳转文章底部"
-  >
-    ⬇️ 底部
-  </button>
-</div>
 
 <style>
   .reading-progress {
@@ -60,68 +47,6 @@ const { targetSelector = '[data-article]' } = Astro.props;
       transition: none;
     }
   }
-
-  .reading-progress__controls {
-    position: fixed;
-    inset: auto 1rem 1.5rem auto;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    z-index: 60;
-    pointer-events: none;
-  }
-
-  .reading-progress__control {
-    pointer-events: auto;
-    border: 1px solid var(--progress-control-border);
-    background: var(--progress-control-bg);
-    color: var(--progress-control-text);
-    border-radius: 9999px;
-    padding: 0.5rem 0.75rem;
-    font-size: 0.875rem;
-    line-height: 1.25rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-    transition:
-      transform 0.15s ease,
-      box-shadow 0.15s ease,
-      background-color 0.15s ease;
-  }
-
-  .reading-progress__control:hover,
-  .reading-progress__control:focus-visible {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
-    outline: none;
-  }
-
-  :global(:root) {
-    --progress-control-bg: #ffffff;
-    --progress-control-border: rgba(0, 0, 0, 0.08);
-    --progress-control-text: #0f172a;
-  }
-
-  :global(:root.dark) {
-    --progress-control-bg: #0f172a;
-    --progress-control-border: rgba(255, 255, 255, 0.08);
-    --progress-control-text: #e2e8f0;
-  }
-
-  @media (max-width: 640px) {
-    .reading-progress__controls {
-      inset: auto 0.75rem 1rem auto;
-    }
-
-    .reading-progress__control {
-      padding: 0.45rem 0.65rem;
-      font-size: 0.8125rem;
-    }
-  }
-
-  @media (max-width: 1023px) {
-    .reading-progress__controls {
-      display: none;
-    }
-  }
 </style>
 
 <script>
@@ -131,11 +56,6 @@ const { targetSelector = '[data-article]' } = Astro.props;
     '[data-reading-progress-bar]',
   ) as HTMLElement | null;
   const article = selector ? (document.querySelector(selector) as HTMLElement | null) : null;
-  const controls = document.querySelector('[data-reading-progress-controls]') as HTMLElement | null;
-  const scrollTopButton = controls?.querySelector('[data-scroll-top]') as HTMLButtonElement | null;
-  const scrollBottomButton = controls?.querySelector(
-    '[data-scroll-bottom]',
-  ) as HTMLButtonElement | null;
 
   if (progressRoot && progressBar && article) {
     let start: number = 0;
@@ -176,20 +96,5 @@ const { targetSelector = '[data-article]' } = Astro.props;
     window.addEventListener('scroll', requestTick, { passive: true });
     window.addEventListener('resize', handleResize);
     window.addEventListener('load', handleResize, { once: true });
-
-    if (controls) {
-      controls.hidden = false;
-      const scrollToTop = () => {
-        window.scrollTo({ top: start, behavior: 'smooth' });
-      };
-
-      const scrollToBottom = () => {
-        const maxScroll = Math.max(start + contentHeight - window.innerHeight, start);
-        window.scrollTo({ top: maxScroll, behavior: 'smooth' });
-      };
-
-      scrollTopButton?.addEventListener('click', scrollToTop);
-      scrollBottomButton?.addEventListener('click', scrollToBottom);
-    }
   }
 </script>
