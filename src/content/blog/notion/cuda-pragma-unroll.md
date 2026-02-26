@@ -2,7 +2,7 @@
 title: CUDA 性能知识点：#pragma unroll 可能让你更慢
 slug: cuda-pragma-unroll
 date: '2026-02-26'
-tags: []
+tags: ['CUDA']
 status: published
 cover: ''
 updated: '2026-02-26T13:06:00.000Z'
