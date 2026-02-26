@@ -23,6 +23,7 @@ h6 {
 }
 
 :root {
+  --z-index-theme-overlay: 999;
   /* Legacy code font variables - now uses CSS variables from config */
   --code-font:
     'JetBrains Mono', 'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono',
@@ -53,6 +54,52 @@ h6 {
   --header-border: rgb(63 63 70 / 0.8);
   --header-shadow: 0 10px 32px rgb(0 0 0 / 0.24);
   --header-shadow-strong: 0 16px 40px rgb(0 0 0 / 0.3);
+}
+
+html.theme-toggle-transitioning::view-transition-old(root),
+html.theme-toggle-transitioning::view-transition-new(root) {
+  animation: none;
+}
+
+html.theme-toggle-transitioning::view-transition-new(root) {
+  clip-path: circle(0 at var(--theme-toggle-x) var(--theme-toggle-y));
+  animation: theme-toggle-reveal 500ms ease-in-out forwards;
+}
+
+.theme-toggle-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-index-theme-overlay);
+  pointer-events: none;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  clip-path: circle(0 at var(--theme-toggle-x) var(--theme-toggle-y));
+  -webkit-clip-path: circle(0 at var(--theme-toggle-x) var(--theme-toggle-y));
+}
+
+.theme-toggle-overlay.is-animating {
+  animation: theme-toggle-overlay-reveal 500ms ease-in-out forwards;
+}
+
+@keyframes theme-toggle-reveal {
+  to {
+    clip-path: circle(var(--theme-toggle-r) at var(--theme-toggle-x) var(--theme-toggle-y));
+  }
+}
+
+@keyframes theme-toggle-overlay-reveal {
+  to {
+    clip-path: circle(var(--theme-toggle-r) at var(--theme-toggle-x) var(--theme-toggle-y));
+    -webkit-clip-path: circle(var(--theme-toggle-r) at var(--theme-toggle-x) var(--theme-toggle-y));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-toggle-overlay,
+  .theme-toggle-overlay.is-animating,
+  html.theme-toggle-transitioning::view-transition-new(root) {
+    animation: none;
+  }
 }
 
 html,

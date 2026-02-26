@@ -142,6 +142,27 @@ test.describe('Blog smoke journey', () => {
     expect(persistedDataTheme).toBe(toggledResolved);
   });
 
+  test('theme toggle supports keyboard and ignores rapid repeat clicks', async ({ page }) => {
+    await navigateToHomePage(page);
+    const themeToggle = page.locator('#theme-toggle');
+    await expect(themeToggle).toBeVisible();
+
+    const getResolvedTheme = async () =>
+      page.evaluate(() => (document.documentElement.classList.contains('dark') ? 'dark' : 'light'));
+
+    const initial = await getResolvedTheme();
+    await themeToggle.focus();
+    await page.keyboard.press('Enter');
+    await expect.poll(getResolvedTheme).not.toBe(initial);
+
+    const beforeRapidClick = await getResolvedTheme();
+    await themeToggle.dblclick();
+    await expect.poll(getResolvedTheme).not.toBe(beforeRapidClick);
+    const afterRapidClick = await getResolvedTheme();
+    const expectedAfterSingleToggle = beforeRapidClick === 'dark' ? 'light' : 'dark';
+    expect(afterRapidClick).toBe(expectedAfterSingleToggle);
+  });
+
   test('post cover shows on desktop and hides on mobile', async ({ browser }) => {
     const baseURL = test.info().project.use.baseURL;
     const basePath = baseURL ? new URL(baseURL).pathname : '/';
