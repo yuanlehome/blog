@@ -5,8 +5,8 @@ date: '2026-02-26'
 tags:
   - CUDA
 status: published
-cover: /images/notion/cuda-compute-sanitizer/31322dca-4210-80c8-a8d6-c31c1db62d6f.png
-updated: '2026-02-26T10:38:00.000Z'
+cover: /images/notion/cuda-compute-sanitizer/31322dca-4210-8028-911a-c66d404fdfaa.png
+updated: '2026-02-26T12:05:00.000Z'
 source: notion
 notion:
   id: 31322dca-4210-80e9-aee8-e2f24856e7b3
@@ -30,7 +30,7 @@ notion:
 - **Padding 内存（黄色）**：对齐/内部碎片导致的额外空间，逻辑不可用但通常仍可访问
 - **非法内存（红色）**：未分配区域（或已释放后无映射区域），理论上访问应触发非法地址
 
-![](/images/notion/cuda-compute-sanitizer/31322dca-4210-80c8-a8d6-c31c1db62d6f.png)
+![](/images/notion/cuda-compute-sanitizer/31322dca-4210-8028-911a-c66d404fdfaa.png)
 
 ---
 
