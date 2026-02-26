@@ -408,6 +408,18 @@ test.describe('Blog smoke journey', () => {
     await context.close();
   });
 
+  test('desktop article page hides reading top and bottom controls', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const page = await context.newPage();
+
+    await openFirstPostWithToc(page);
+
+    await expect(page.locator('[data-scroll-top]')).toHaveCount(0);
+    await expect(page.locator('[data-scroll-bottom]')).toHaveCount(0);
+
+    await context.close();
+  });
+
   test('pagination navigation works correctly', async ({ page }) => {
     await page.goto('/');
     const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
