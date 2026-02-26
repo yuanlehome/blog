@@ -6,7 +6,7 @@ tags:
   - CUDA
 status: published
 cover: /images/notion/cuda-compute-sanitizer/31322dca-4210-80c8-a8d6-c31c1db62d6f.png
-updated: '2026-02-26T08:58:00.000Z'
+updated: '2026-02-26T09:40:00.000Z'
 source: notion
 notion:
   id: 31322dca-4210-80e9-aee8-e2f24856e7b3
@@ -37,6 +37,8 @@ notion:
 ## 二、为什么“越界不一定报 error 700”
 
 CUDA error 700（illegal address）在硬件层面的必要条件是：
+
+> 当前 GPU context 下，该虚拟地址在 GPU 页表中无映射（或权限不匹配）。
 
 因此会出现两个工程上最常见的“反直觉”：
 
