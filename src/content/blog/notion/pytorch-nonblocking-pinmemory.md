@@ -2,7 +2,7 @@
 title: 在 PyTorch 中正确使用 non_blocking 和 pin_memory()
 slug: pytorch-nonblocking-pinmemory
 date: '2026-02-07'
-tags: []
+tags: ['PyTorch']
 status: published
 cover: >-
   /images/notion/pytorch-nonblocking-pinmemory/30022dca-4210-8190-8ff7-d3d77aadbd24.png
