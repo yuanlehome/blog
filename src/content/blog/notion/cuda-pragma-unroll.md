@@ -2,16 +2,19 @@
 title: CUDA 性能知识点：#pragma unroll 可能让你更慢
 slug: cuda-pragma-unroll
 date: '2026-02-26'
-tags: ['CUDA']
+tags:
+  - CUDA
 status: published
-cover: ''
-updated: '2026-02-26T13:06:00.000Z'
+cover: /images/notion/cuda-pragma-unroll/31422dca-4210-8077-90a4-dd78efb2762f.png
+updated: '2026-02-27T04:52:00.000Z'
 source: notion
 notion:
   id: 31322dca-4210-8083-b16a-d1c3bba72c1b
 ---
 
 很多 CUDA kernel 不是“算不动”，而是被资源卡死。最常见的罪魁祸首之一就是：循环展开把寄存器用量顶到临界点，然后性能直接塌。
+
+![](/images/notion/cuda-pragma-unroll/31422dca-4210-8077-90a4-dd78efb2762f.png)
 
 ---
 
