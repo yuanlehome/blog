@@ -214,7 +214,7 @@ const tocPosition = layoutConfig.toc.position;
 
 <dialog
   id="article-image-zoom-dialog"
-  class="fixed inset-0 m-0 flex max-h-none max-w-none items-center justify-center border-0 bg-black/85 p-0 backdrop:bg-black/85"
+  class="fixed inset-0 m-0 h-screen w-screen max-h-none max-w-none border-0 bg-black/85 p-0 backdrop:bg-black/85 [&[open]]:grid [&[open]]:place-items-center"
   aria-label="图片预览"
 >
   <button
@@ -228,7 +228,7 @@ const tocPosition = layoutConfig.toc.position;
   <img
     data-image-zoom-preview
     alt=""
-    class="absolute left-1/2 top-1/2 max-h-[90vh] max-w-[90vw] -translate-x-1/2 -translate-y-1/2 object-contain"
+    class="max-h-[90vh] max-w-[90vw] object-contain"
     loading="eager"
     decoding="async"
   />
