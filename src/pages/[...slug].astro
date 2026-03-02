@@ -214,7 +214,7 @@ const tocPosition = layoutConfig.toc.position;
 
 <dialog
   id="article-image-zoom-dialog"
-  class="fixed inset-0 m-0 h-screen w-screen max-h-none max-w-none border-0 bg-black/85 p-0 backdrop:bg-black/85 [&[open]]:grid [&[open]]:place-items-center"
+  class="fixed inset-0 m-0 h-screen w-screen max-h-none max-w-none touch-none border-0 bg-black/85 p-0 backdrop:bg-black/85 [&[open]]:grid [&[open]]:place-items-center"
   aria-label="图片预览"
 >
   <button
@@ -274,6 +274,25 @@ const tocPosition = layoutConfig.toc.position;
     const MAX_ZOOM = 4;
     const ZOOM_STEP = 0.25;
     let zoomLevel = 1;
+    let scrollY = 0;
+
+    const lockBackgroundScroll = () => {
+      scrollY = window.scrollY;
+      document.documentElement.style.overscrollBehavior = 'none';
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+    };
+
+    const unlockBackgroundScroll = () => {
+      document.documentElement.style.removeProperty('overscroll-behavior');
+      document.body.style.removeProperty('position');
+      document.body.style.removeProperty('top');
+      document.body.style.removeProperty('width');
+      document.body.style.removeProperty('overflow');
+      window.scrollTo(0, scrollY);
+    };
 
     const renderZoomLevel = () => {
       preview.style.transform = `scale(${zoomLevel})`;
@@ -296,6 +315,7 @@ const tocPosition = layoutConfig.toc.position;
     const closeDialog = () => {
       if (!dialog.open) return;
       dialog.close();
+      unlockBackgroundScroll();
       preview.removeAttribute('src');
       preview.alt = '';
       setZoomLevel(1);
@@ -312,6 +332,7 @@ const tocPosition = layoutConfig.toc.position;
         preview.src = source;
         preview.alt = img.alt || '文章图片预览';
         setZoomLevel(1);
+        lockBackgroundScroll();
         dialog.showModal();
       };
 
@@ -357,10 +378,21 @@ const tocPosition = layoutConfig.toc.position;
       }
     });
     dialog.addEventListener('cancel', () => {
+      unlockBackgroundScroll();
       preview.removeAttribute('src');
       preview.alt = '';
       setZoomLevel(1);
     });
+    dialog.addEventListener('wheel', (event) => {
+      event.preventDefault();
+    });
+    dialog.addEventListener(
+      'touchmove',
+      (event) => {
+        event.preventDefault();
+      },
+      { passive: false },
+    );
 
     renderZoomLevel();
   }
