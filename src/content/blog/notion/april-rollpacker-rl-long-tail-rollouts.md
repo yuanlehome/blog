@@ -2,7 +2,7 @@
 title: 从 APRIL 到 RollPacker：如何在 RL 里处理 Long-tail Rollouts
 slug: april-rollpacker-rl-long-tail-rollouts
 date: '2026-03-02'
-tags: []
+tags: ['RL Infra']
 status: published
 cover: ''
 updated: '2026-03-02T15:30:00.000Z'
