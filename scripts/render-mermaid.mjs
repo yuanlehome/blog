@@ -135,6 +135,22 @@ const SEQUENCE_PRESETS = {
   },
 };
 
+function estimateTextWidth(text = '') {
+  let width = 0;
+  for (const ch of text) {
+    if (/\s/.test(ch)) {
+      width += 4;
+    } else if (/[^\x00-\xff]/.test(ch)) {
+      width += 14;
+    } else if (/[A-Z0-9]/.test(ch)) {
+      width += 9;
+    } else {
+      width += 8;
+    }
+  }
+  return Math.max(width, 60);
+}
+
 let _mermaid;
 async function getMermaid() {
   if (_mermaid) return _mermaid;
@@ -145,13 +161,13 @@ async function getMermaid() {
   window.SVGElement.prototype.getBBox = function () {
     const tag = (this.tagName ?? '').toLowerCase();
     if (tag === 'text' || tag === 'tspan') {
-      const w = Math.min((this.textContent?.length ?? 0) * 8, 260);
-      return { x: 0, y: 0, width: w || 60, height: 18 };
+      const w = estimateTextWidth(this.textContent ?? '');
+      return { x: 0, y: 0, width: w, height: 18 };
     }
     return { x: 0, y: 0, width: 70, height: 24 };
   };
   window.SVGElement.prototype.getComputedTextLength = function () {
-    return Math.min((this.textContent?.length ?? 0) * 8, 260);
+    return estimateTextWidth(this.textContent ?? '');
   };
 
   for (const [key, value] of Object.entries({
@@ -287,9 +303,11 @@ function postprocessSvg(rawSvg, options, themeMode) {
   const dom = new JSDOM(rawSvg, { contentType: 'image/svg+xml' });
   const { document } = dom.window;
   injectBackground(document, THEME_PRESETS[themeMode].background);
-  addViewBoxPadding(document, 24);
-  if (isSequenceDiagram(rawSvg)) {
+  const sequenceDiagram = isSequenceDiagram(rawSvg);
+  addViewBoxPadding(document, sequenceDiagram ? 64 : 28);
+  if (sequenceDiagram) {
     wrapLongSequenceText(document, options);
+    addViewBoxPadding(document, 24);
   }
   applyScaleAndWidth(document, options);
   return document.documentElement.outerHTML;

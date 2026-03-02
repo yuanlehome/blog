@@ -34,13 +34,15 @@ const enriched = posts.map((post) => {
     .filter(Boolean) as { name: string; slug: string }[];
 
   // Use explicit frontmatter cover first, then fall back to Mermaid-generated cover
-  const effectiveCover = post.data.cover || getMermaidCoverFromBody(post.body ?? '', post.slug);
+  const effectiveCover = post.data.cover || getMermaidCoverFromBody(post.body ?? '', post.id);
+  const isMermaidCover = effectiveCover?.includes('/generated/mermaid/') ?? false;
 
   return {
     ...post,
     stats: getReadingTime(post.body),
     effectiveCover,
     hasCover: Boolean(effectiveCover),
+    isMermaidCover,
     tagSlugs,
     remainingTagCount: remainingCount > 0 ? remainingCount : 0,
   };
@@ -115,7 +117,11 @@ const enriched = posts.map((post) => {
                   src={resolveAssetUrl(post.effectiveCover)}
                   alt={post.data.title}
                   loading="lazy"
-                  class="aspect-[4/3] w-full object-cover transition duration-300 ease-out motion-safe:hover:scale-[1.01] motion-reduce:transform-none"
+                  class={`aspect-[4/3] w-full transition duration-300 ease-out motion-safe:hover:scale-[1.01] motion-reduce:transform-none ${
+                    post.isMermaidCover
+                      ? 'object-contain bg-zinc-950/85 p-2 dark:bg-zinc-950'
+                      : 'object-cover'
+                  }`}
                 />
               </a>
             )}

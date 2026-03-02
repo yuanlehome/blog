@@ -40,6 +40,7 @@ const dates = getDisplayDates(post.data);
 const effectiveCover =
   post.data.cover || (remarkPluginFrontmatter?.mermaidCover as string | undefined);
 const hasCover = Boolean(effectiveCover);
+const isMermaidCover = effectiveCover?.includes('/generated/mermaid/') ?? false;
 const postTags = post.data.tags || [];
 const { tagMap } = buildTagIndex(all);
 const tagSlugs = postTags
@@ -159,7 +160,7 @@ const tocPosition = layoutConfig.toc.position;
                   <img
                     src={resolveAssetUrl(effectiveCover)}
                     alt={post.data.title}
-                    class="aspect-[4/3] w-full object-cover transition duration-200"
+                    class={`aspect-[4/3] w-full transition duration-200 ${isMermaidCover ? 'object-contain bg-zinc-950/85 p-2 dark:bg-zinc-950' : 'object-cover'}`}
                     loading="eager"
                     decoding="async"
                   />
