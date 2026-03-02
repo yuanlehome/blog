@@ -7,6 +7,7 @@
     "dev": "astro dev",
     "start": "astro dev",
     "build": "astro build",
+    "prebuild": "node scripts/render-mermaid.mjs",
     "preview": "astro preview",
     "notion:sync": "tsx scripts/notion-sync.ts && npm run lint",
     "import:content": "tsx scripts/content-import.ts && npm run lint",
