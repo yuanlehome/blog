@@ -108,17 +108,92 @@ async function getMermaidRenderer() {
 // SVG → PNG conversion
 // ---------------------------------------------------------------------------
 
-async function svgToPng(svg) {
-  const vbMatch = svg.match(/viewBox="(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)"/);
-  let scaledSvg = svg;
-  if (vbMatch) {
-    const vbW = parseFloat(vbMatch[3]);
-    const vbH = parseFloat(vbMatch[4]);
-    const scale = Math.max(800 / (vbW || 1), 300 / (vbH || 1));
-    const targetW = Math.round(vbW * scale);
-    scaledSvg = svg.replace(/width="100%"/, `width="${targetW}"`);
+/**
+ * Compute the actual bounding box of all rendered elements from the SVG by
+ * scanning translate(), rect, polygon, path, and circle coordinates.
+ * This is needed because jsdom's getBBox() mock returns wrong dimensions,
+ * causing mermaid to produce a bad viewBox.
+ */
+function computeSvgBounds(svg) {
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+
+  // Collect all translate(x, y) contexts from node groups
+  const translateRe = /transform="translate\((-?\d+\.?\d*),\s*(-?\d+\.?\d*)\)"/g;
+  const rectRe =
+    /x="(-?\d+\.?\d*)"\s+y="(-?\d+\.?\d*)"\s+width="(\d+\.?\d*)"\s+height="(\d+\.?\d*)"/g;
+  const circleRe = /cx="(-?\d+\.?\d*)"\s+cy="(-?\d+\.?\d*)"\s+r="(\d+\.?\d*)"/g;
+
+  // Simple coordinate extraction: find all numeric coordinate pairs in path d= attributes
+  const dCoordRe = /[ML]\s*(-?\d+\.?\d*),?(-?\d+\.?\d*)/g;
+
+  let m;
+  while ((m = translateRe.exec(svg)) !== null) {
+    const tx = parseFloat(m[1]),
+      ty = parseFloat(m[2]);
+    // Assume node size ~80x40 centred at translate point
+    minX = Math.min(minX, tx - 80);
+    maxX = Math.max(maxX, tx + 80);
+    minY = Math.min(minY, ty - 20);
+    maxY = Math.max(maxY, ty + 20);
   }
-  return sharp(Buffer.from(scaledSvg), { density: 150 }).png().toBuffer();
+  while ((m = rectRe.exec(svg)) !== null) {
+    const x = parseFloat(m[1]),
+      y = parseFloat(m[2]),
+      w = parseFloat(m[3]),
+      h = parseFloat(m[4]);
+    if (w > 0 && h > 0 && w < 5000 && h < 5000) {
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x + w);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y + h);
+    }
+  }
+  while ((m = circleRe.exec(svg)) !== null) {
+    const cx = parseFloat(m[1]),
+      cy = parseFloat(m[2]),
+      r = parseFloat(m[3]);
+    minX = Math.min(minX, cx - r);
+    maxX = Math.max(maxX, cx + r);
+    minY = Math.min(minY, cy - r);
+    maxY = Math.max(maxY, cy + r);
+  }
+  while ((m = dCoordRe.exec(svg)) !== null) {
+    const x = parseFloat(m[1]),
+      y = parseFloat(m[2]);
+    if (Math.abs(x) < 5000 && Math.abs(y) < 5000) {
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
+  }
+
+  if (!isFinite(minX)) return null;
+  const pad = 12;
+  return {
+    x: minX - pad,
+    y: minY - pad,
+    w: maxX - minX + 2 * pad,
+    h: maxY - minY + 2 * pad,
+  };
+}
+
+async function svgToPng(svg) {
+  // Fix the viewBox when mermaid renders it incorrectly (jsdom getBBox mock limitation)
+  const bounds = computeSvgBounds(svg);
+  let patchedSvg = svg;
+  if (bounds && bounds.w > 10 && bounds.h > 10) {
+    const targetW = 800;
+    const targetH = Math.round((bounds.h / bounds.w) * targetW);
+    patchedSvg = patchedSvg
+      .replace(/viewBox="[^"]*"/, `viewBox="${bounds.x} ${bounds.y} ${bounds.w} ${bounds.h}"`)
+      .replace(/width="[^"]*"/, `width="${targetW}"`)
+      .replace(/height="[^"]*"/, `height="${targetH}"`);
+  }
+  return sharp(Buffer.from(patchedSvg), { density: 150 }).png().toBuffer();
 }
 
 // ---------------------------------------------------------------------------
