@@ -5,7 +5,6 @@
 import { describe, it, expect } from 'vitest';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
-import remarkStringify from 'remark-stringify';
 import { VFile } from 'vfile';
 import remarkMermaid, { mermaidImagePath } from '../../src/lib/markdown/remarkMermaid';
 import { getMermaidCoverFromBody } from '../../src/lib/content/mermaidCover';
@@ -45,24 +44,6 @@ describe('mermaidImagePath', () => {
 // -------------------------------------------------------------------------
 // remarkMermaid — AST transformation
 // -------------------------------------------------------------------------
-
-async function processMarkdown(
-  input: string,
-  frontmatter?: Record<string, string>,
-): Promise<{ tree: Root; mermaidCover?: string }> {
-  const file = await unified()
-    .use(remarkParse)
-    .use(remarkMermaid)
-    .use(remarkStringify)
-    .process(input);
-
-  // Set up the astro data the same way the Astro markdown renderer does
-  // (we need to pre-populate so our plugin can read/write frontmatter)
-  return {
-    tree: unified().use(remarkParse).parse(input) as Root,
-    mermaidCover: (file.data as any)?.astro?.frontmatter?.mermaidCover,
-  };
-}
 
 describe('remarkMermaid plugin', () => {
   it('replaces a mermaid code block with an image node', async () => {
