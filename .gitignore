@@ -6,6 +6,9 @@ coverage/
 test-results/
 tmp/
 
+# generated mermaid diagrams (built by prebuild script)
+public/mermaid-generated/
+
 # dependencies
 node_modules/
 

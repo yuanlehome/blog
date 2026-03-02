@@ -5,6 +5,7 @@ import { formatDate } from '../lib/content/dates';
 import { buildPostUrl, normalizeBase } from '../lib/slug';
 import { buildTagIndex } from '../lib/content/tags';
 import { getPublishedPosts } from '../lib/content/posts';
+import { getMermaidCoverFromBody } from '../lib/content/mermaidCover';
 import type { CollectionEntry } from 'astro:content';
 
 interface Props {
@@ -32,10 +33,14 @@ const enriched = posts.map((post) => {
     })
     .filter(Boolean) as { name: string; slug: string }[];
 
+  // Use explicit frontmatter cover first, then fall back to Mermaid-generated cover
+  const effectiveCover = post.data.cover || getMermaidCoverFromBody(post.body ?? '');
+
   return {
     ...post,
     stats: getReadingTime(post.body),
-    hasCover: Boolean(post.data.cover),
+    effectiveCover,
+    hasCover: Boolean(effectiveCover),
     tagSlugs,
     remainingTagCount: remainingCount > 0 ? remainingCount : 0,
   };
@@ -101,13 +106,13 @@ const enriched = posts.map((post) => {
               </div>
             </div>
 
-            {post.data.cover && (
+            {post.effectiveCover && (
               <a
                 href={buildPostUrl(post.slug)}
                 class="md:justify-self-end block overflow-hidden rounded-xl border border-zinc-200/70 shadow-sm transition duration-200 ease-out hover:shadow-md hover:border-sky-200 dark:border-zinc-800/70 dark:hover:border-sky-400/40 w-full max-w-[320px] md:max-w-[200px] md:min-w-[160px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900"
               >
                 <img
-                  src={resolveAssetUrl(post.data.cover)}
+                  src={resolveAssetUrl(post.effectiveCover)}
                   alt={post.data.title}
                   loading="lazy"
                   class="aspect-[4/3] w-full object-cover transition duration-300 ease-out motion-safe:hover:scale-[1.01] motion-reduce:transform-none"
