@@ -228,7 +228,7 @@ const tocPosition = layoutConfig.toc.position;
   <img
     data-image-zoom-preview
     alt=""
-    class="max-h-[90vh] max-w-[90vw] object-contain transition-transform duration-150 ease-out"
+    class="max-h-[90vh] max-w-[90vw] touch-none select-none object-contain transition-transform duration-150 ease-out will-change-transform"
     loading="eager"
     decoding="async"
   />
@@ -275,9 +275,45 @@ const tocPosition = layoutConfig.toc.position;
     const ZOOM_STEP = 0.25;
     const DOUBLE_CLICK_ZOOM = 2;
     let zoomLevel = 1;
+    let translateX = 0;
+    let translateY = 0;
+    let activePointerId: number | null = null;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let pinchStartDistance = 0;
+    let pinchStartZoom = MIN_ZOOM;
+    let pinchMidpointX = 0;
+    let pinchMidpointY = 0;
+    const touchPoints = new Map<number, { x: number; y: number }>();
+
+    const getMaxTranslate = () => {
+      const maxTranslateX = Math.max(
+        0,
+        (preview.clientWidth * zoomLevel - preview.clientWidth) / 2,
+      );
+      const maxTranslateY = Math.max(
+        0,
+        (preview.clientHeight * zoomLevel - preview.clientHeight) / 2,
+      );
+      return {
+        x: maxTranslateX,
+        y: maxTranslateY,
+      };
+    };
+
+    const clampTranslate = () => {
+      const maxTranslate = getMaxTranslate();
+      translateX = Math.max(-maxTranslate.x, Math.min(maxTranslate.x, translateX));
+      translateY = Math.max(-maxTranslate.y, Math.min(maxTranslate.y, translateY));
+      if (zoomLevel <= MIN_ZOOM) {
+        translateX = 0;
+        translateY = 0;
+      }
+    };
 
     const renderZoomLevel = () => {
-      preview.style.transform = `scale(${zoomLevel})`;
+      clampTranslate();
+      preview.style.transform = `translate(${translateX}px, ${translateY}px) scale(${zoomLevel})`;
       if (zoomLevelLabel) {
         zoomLevelLabel.textContent = `${Math.round(zoomLevel * 100)}%`;
       }
@@ -294,11 +330,33 @@ const tocPosition = layoutConfig.toc.position;
       renderZoomLevel();
     };
 
+    const setZoomAroundPoint = (
+      nextZoomLevel: number,
+      originClientX?: number,
+      originClientY?: number,
+    ) => {
+      const prevZoom = zoomLevel;
+      zoomLevel = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoomLevel));
+      if (originClientX !== undefined && originClientY !== undefined && prevZoom !== zoomLevel) {
+        const rect = preview.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const ratio = zoomLevel / prevZoom;
+        translateX = (translateX - (originClientX - centerX)) * ratio + (originClientX - centerX);
+        translateY = (translateY - (originClientY - centerY)) * ratio + (originClientY - centerY);
+      }
+      renderZoomLevel();
+    };
+
     const closeDialog = () => {
       if (!dialog.open) return;
       dialog.close();
       preview.removeAttribute('src');
       preview.alt = '';
+      touchPoints.clear();
+      activePointerId = null;
+      translateX = 0;
+      translateY = 0;
       setZoomLevel(1);
     };
 
@@ -312,6 +370,8 @@ const tocPosition = layoutConfig.toc.position;
         if (!source) return;
         preview.src = source;
         preview.alt = img.alt || '文章图片预览';
+        translateX = 0;
+        translateY = 0;
         setZoomLevel(1);
         dialog.showModal();
       };
@@ -335,12 +395,79 @@ const tocPosition = layoutConfig.toc.position;
     preview.addEventListener('wheel', (event) => {
       event.preventDefault();
       const direction = event.deltaY < 0 ? 1 : -1;
-      setZoomLevel(zoomLevel + direction * ZOOM_STEP);
+      setZoomAroundPoint(zoomLevel + direction * ZOOM_STEP, event.clientX, event.clientY);
     });
     preview.addEventListener('dblclick', (event) => {
       event.preventDefault();
       setZoomLevel(zoomLevel > MIN_ZOOM ? MIN_ZOOM : DOUBLE_CLICK_ZOOM);
     });
+    preview.addEventListener('pointerdown', (event) => {
+      if (!dialog.open) return;
+      preview.setPointerCapture(event.pointerId);
+      touchPoints.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+      if (touchPoints.size === 1 && zoomLevel > MIN_ZOOM) {
+        activePointerId = event.pointerId;
+        dragStartX = event.clientX - translateX;
+        dragStartY = event.clientY - translateY;
+      }
+
+      if (touchPoints.size === 2) {
+        const points = Array.from(touchPoints.values());
+        const dx = points[0].x - points[1].x;
+        const dy = points[0].y - points[1].y;
+        pinchStartDistance = Math.hypot(dx, dy);
+        pinchStartZoom = zoomLevel;
+        pinchMidpointX = (points[0].x + points[1].x) / 2;
+        pinchMidpointY = (points[0].y + points[1].y) / 2;
+        activePointerId = null;
+      }
+    });
+    preview.addEventListener('pointermove', (event) => {
+      if (!dialog.open || !touchPoints.has(event.pointerId)) return;
+      touchPoints.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+      if (touchPoints.size === 2) {
+        event.preventDefault();
+        const points = Array.from(touchPoints.values());
+        const dx = points[0].x - points[1].x;
+        const dy = points[0].y - points[1].y;
+        const nextDistance = Math.hypot(dx, dy);
+        if (pinchStartDistance > 0) {
+          const zoomRatio = nextDistance / pinchStartDistance;
+          setZoomAroundPoint(pinchStartZoom * zoomRatio, pinchMidpointX, pinchMidpointY);
+        }
+        return;
+      }
+
+      if (activePointerId === event.pointerId && zoomLevel > MIN_ZOOM) {
+        event.preventDefault();
+        translateX = event.clientX - dragStartX;
+        translateY = event.clientY - dragStartY;
+        renderZoomLevel();
+      }
+    });
+
+    const resetPointer = (event: PointerEvent) => {
+      if (preview.hasPointerCapture(event.pointerId)) {
+        preview.releasePointerCapture(event.pointerId);
+      }
+      touchPoints.delete(event.pointerId);
+
+      if (activePointerId === event.pointerId) {
+        activePointerId = null;
+      }
+
+      if (touchPoints.size === 1 && zoomLevel > MIN_ZOOM) {
+        const [remainingPointerId, remainingPoint] = Array.from(touchPoints.entries())[0];
+        activePointerId = remainingPointerId;
+        dragStartX = remainingPoint.x - translateX;
+        dragStartY = remainingPoint.y - translateY;
+      }
+    };
+
+    preview.addEventListener('pointerup', resetPointer);
+    preview.addEventListener('pointercancel', resetPointer);
     dialog.addEventListener('click', (event) => {
       if (event.target === dialog) {
         closeDialog();
@@ -364,6 +491,10 @@ const tocPosition = layoutConfig.toc.position;
     dialog.addEventListener('cancel', () => {
       preview.removeAttribute('src');
       preview.alt = '';
+      touchPoints.clear();
+      activePointerId = null;
+      translateX = 0;
+      translateY = 0;
       setZoomLevel(1);
     });
     dialog.addEventListener('wheel', (event) => {
@@ -372,7 +503,9 @@ const tocPosition = layoutConfig.toc.position;
     dialog.addEventListener(
       'touchmove',
       (event) => {
-        event.preventDefault();
+        if (event.target === dialog) {
+          event.preventDefault();
+        }
       },
       { passive: false },
     );
