@@ -1,68 +1,160 @@
 #!/usr/bin/env node
 /**
- * render-mermaid.mjs — prebuild script to render Mermaid diagrams to PNG.
- *
- * Run automatically via `npm run prebuild` before `astro build`.
- * Scans all Markdown files in `src/content/blog/` for ```mermaid fenced code
- * blocks, renders each unique diagram to a PNG file under `public/mermaid-generated/`,
- * and skips diagrams whose output file already exists (incremental builds).
- *
- * This script runs in a plain Node.js process, which avoids the
- * "Vite module runner has been closed" error that occurs when async dynamic
- * `import()` calls are made from inside remark/rehype plugins during
- * Astro's content-collection compilation phase.
+ * Render Mermaid diagrams to dual-theme SVG files used by remarkMermaid.
  */
 
-import { readdir, readFile, mkdir, writeFile, access } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { readdir, readFile, mkdir, access, writeFile, rename } from 'node:fs/promises';
+import { dirname, join, relative, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { JSDOM } from 'jsdom';
-import sharp from 'sharp';
-
-// ---------------------------------------------------------------------------
-// Constants — must match mermaidImagePath() in src/lib/markdown/remarkMermaid.ts
-// ---------------------------------------------------------------------------
 
 const PROJECT_ROOT = resolve(import.meta.dirname, '..');
 const CONTENT_DIR = join(PROJECT_ROOT, 'src', 'content', 'blog');
 const PUBLIC_DIR = join(PROJECT_ROOT, 'public');
-const GENERATED_DIR = join(PUBLIC_DIR, 'mermaid-generated');
 
-function mermaidImagePath(code) {
-  const hash = createHash('md5').update(code.trim()).digest('hex').slice(0, 12);
-  return join(GENERATED_DIR, `${hash}.png`);
+const GENERATED_ROOT = 'generated/mermaid';
+const META_ENTRY_RE = /(\w+)=((?:"[^"]*"|'[^']*'|\S+))/g;
+
+function parseMermaidMeta(meta = '') {
+  const out = {};
+  META_ENTRY_RE.lastIndex = 0;
+  let match;
+  while ((match = META_ENTRY_RE.exec(meta)) !== null) {
+    out[match[1]] = match[2].replace(/^['"]|['"]$/g, '');
+  }
+  return out;
 }
 
-// ---------------------------------------------------------------------------
-// Mermaid renderer — runs in THIS process (not inside Vite's SSR runner)
-// ---------------------------------------------------------------------------
+function parseMermaidOptions(meta = '') {
+  const entries = parseMermaidMeta(meta);
+  const sequenceMode = ['tight', 'normal', 'loose'].includes(
+    (entries.sequenceMode || '').toLowerCase(),
+  )
+    ? entries.sequenceMode.toLowerCase()
+    : 'loose';
+  const scale = Number(entries.scale);
+  const width = Number(entries.width);
+  const fontSize = Number(entries.fontSize);
+  return {
+    sequenceMode,
+    scale: Number.isFinite(scale) ? Math.min(Math.max(scale, 0.5), 2.5) : 1,
+    width: Number.isFinite(width) ? Math.max(400, Math.min(width, 2400)) : undefined,
+    fontSize: Number.isFinite(fontSize) ? Math.max(11, Math.min(Math.round(fontSize), 24)) : 14,
+    wrap: entries.wrap ? ['true', '1', 'yes', 'on'].includes(entries.wrap.toLowerCase()) : true,
+    theme: entries.theme,
+  };
+}
 
-let _mermaidRender = null;
+function parseTitle(meta = '') {
+  const entries = parseMermaidMeta(meta);
+  return entries.title || entries.caption;
+}
 
-async function getMermaidRenderer() {
-  if (_mermaidRender) return _mermaidRender;
+function resolveMermaidSlug(filePath) {
+  const normalized = filePath.replace(/\\/g, '/');
+  const marker = '/src/content/blog/';
+  const idx = normalized.lastIndexOf(marker);
+  if (idx === -1) return 'shared';
+  const relPath = normalized.slice(idx + marker.length);
+  const folder = dirname(relPath);
+  return (folder === '.' ? 'root' : folder)
+    .toLowerCase()
+    .replace(/[^a-z0-9/-]/g, '-')
+    .replace(/-+/g, '-');
+}
 
-  const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
-    pretendToBeVisual: true,
-  });
+function mermaidHash(code, options) {
+  return createHash('md5')
+    .update(JSON.stringify({ code: code.trim(), options, version: 2 }))
+    .digest('hex')
+    .slice(0, 12);
+}
+
+function mermaidAbsolutePath(code, publicDir, options, slug, theme) {
+  const hash = mermaidHash(code, options);
+  const safeSlug = (slug || 'shared').replace(/^\/+|\/+$/g, '');
+  return join(publicDir, GENERATED_ROOT, safeSlug, `${hash}.${theme}.svg`);
+}
+
+const THEME_PRESETS = {
+  light: {
+    theme: 'default',
+    background: '#ffffff',
+    themeVariables: {
+      background: '#ffffff',
+      primaryColor: '#e2e8f0',
+      primaryTextColor: '#0f172a',
+      lineColor: '#334155',
+      noteBkgColor: '#f8fafc',
+      noteTextColor: '#0f172a',
+      actorBkg: '#f1f5f9',
+      actorTextColor: '#0f172a',
+      signalColor: '#1f2937',
+      signalTextColor: '#111827',
+    },
+  },
+  dark: {
+    theme: 'dark',
+    background: '#0b0f19',
+    themeVariables: {
+      background: '#0b0f19',
+      primaryColor: '#1f2937',
+      primaryTextColor: '#e5e7eb',
+      lineColor: '#9ca3af',
+      noteBkgColor: '#1f2937',
+      noteTextColor: '#e5e7eb',
+      actorBkg: '#111827',
+      actorTextColor: '#e5e7eb',
+      signalColor: '#cbd5e1',
+      signalTextColor: '#e5e7eb',
+    },
+  },
+};
+
+const SEQUENCE_PRESETS = {
+  tight: {
+    diagramMarginX: 30,
+    diagramMarginY: 20,
+    actorMargin: 40,
+    messageMargin: 18,
+    noteMargin: 12,
+  },
+  normal: {
+    diagramMarginX: 48,
+    diagramMarginY: 30,
+    actorMargin: 60,
+    messageMargin: 28,
+    noteMargin: 20,
+  },
+  loose: {
+    diagramMarginX: 72,
+    diagramMarginY: 44,
+    actorMargin: 86,
+    messageMargin: 38,
+    noteMargin: 28,
+  },
+};
+
+let _mermaid;
+async function getMermaid() {
+  if (_mermaid) return _mermaid;
+
+  const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', { pretendToBeVisual: true });
   const { window } = dom;
 
-  // Polyfill getBBox / getComputedTextLength for Mermaid's layout engine.
-  // We approximate text width at 6 px/char (capped to 150 px) to keep the
-  // generated viewBox within sharp's 32767×32767 px limit.
   window.SVGElement.prototype.getBBox = function () {
     const tag = (this.tagName ?? '').toLowerCase();
     if (tag === 'text' || tag === 'tspan') {
-      const w = Math.min((this.textContent?.length ?? 0) * 6, 150);
-      return { x: 0, y: 0, width: w || 50, height: 14 };
+      const w = Math.min((this.textContent?.length ?? 0) * 8, 260);
+      return { x: 0, y: 0, width: w || 60, height: 18 };
     }
-    return { x: 0, y: 0, width: 50, height: 20 };
+    return { x: 0, y: 0, width: 70, height: 24 };
   };
   window.SVGElement.prototype.getComputedTextLength = function () {
-    return Math.min((this.textContent?.length ?? 0) * 6, 150);
+    return Math.min((this.textContent?.length ?? 0) * 8, 260);
   };
 
-  const props = {
+  for (const [key, value] of Object.entries({
     window,
     document: window.document,
     DOMParser: window.DOMParser,
@@ -71,137 +163,139 @@ async function getMermaidRenderer() {
     HTMLElement: window.HTMLElement,
     Text: window.Text,
     Comment: window.Comment,
-    localStorage: {
-      getItem: () => null,
-      setItem: () => {},
-      removeItem: () => {},
-      clear: () => {},
-      length: 0,
-      key: () => null,
-    },
-  };
-  for (const [key, value] of Object.entries(props)) {
+  })) {
     try {
       Object.defineProperty(globalThis, key, { value, writable: true, configurable: true });
     } catch {
-      // Some globals (navigator, etc.) are read-only — skip them
+      // ignore readonly globals
     }
   }
 
   const { default: mermaid } = await import('mermaid');
-  mermaid.initialize({
-    startOnLoad: false,
-    theme: 'neutral',
-    securityLevel: 'loose',
-    fontFamily: 'trebuchet ms, verdana, arial, sans-serif',
-  });
-
-  _mermaidRender = async (code, id) => {
-    const { svg } = await mermaid.render(id, code);
-    return svg;
-  };
-
-  return _mermaidRender;
+  _mermaid = mermaid;
+  return mermaid;
 }
 
-// ---------------------------------------------------------------------------
-// SVG → PNG conversion
-// ---------------------------------------------------------------------------
+function isSequenceDiagram(code) {
+  return /^\s*sequenceDiagram\b/m.test(code);
+}
 
-/**
- * Compute the actual bounding box of all rendered elements from the SVG by
- * scanning translate(), rect, polygon, path, and circle coordinates.
- * This is needed because jsdom's getBBox() mock returns wrong dimensions,
- * causing mermaid to produce a bad viewBox.
- */
-function computeSvgBounds(svg) {
-  let minX = Infinity,
-    minY = Infinity,
-    maxX = -Infinity,
-    maxY = -Infinity;
-
-  // Collect all translate(x, y) contexts from node groups
-  const translateRe = /transform="translate\((-?\d+\.?\d*),\s*(-?\d+\.?\d*)\)"/g;
-  const rectRe =
-    /x="(-?\d+\.?\d*)"\s+y="(-?\d+\.?\d*)"\s+width="(\d+\.?\d*)"\s+height="(\d+\.?\d*)"/g;
-  const circleRe = /cx="(-?\d+\.?\d*)"\s+cy="(-?\d+\.?\d*)"\s+r="(\d+\.?\d*)"/g;
-
-  // Simple coordinate extraction: find all numeric coordinate pairs in path d= attributes
-  const dCoordRe = /[ML]\s*(-?\d+\.?\d*),?(-?\d+\.?\d*)/g;
-
-  let m;
-  while ((m = translateRe.exec(svg)) !== null) {
-    const tx = parseFloat(m[1]),
-      ty = parseFloat(m[2]);
-    // Assume node size ~80x40 centred at translate point
-    minX = Math.min(minX, tx - 80);
-    maxX = Math.max(maxX, tx + 80);
-    minY = Math.min(minY, ty - 20);
-    maxY = Math.max(maxY, ty + 20);
-  }
-  while ((m = rectRe.exec(svg)) !== null) {
-    const x = parseFloat(m[1]),
-      y = parseFloat(m[2]),
-      w = parseFloat(m[3]),
-      h = parseFloat(m[4]);
-    if (w > 0 && h > 0 && w < 5000 && h < 5000) {
-      minX = Math.min(minX, x);
-      maxX = Math.max(maxX, x + w);
-      minY = Math.min(minY, y);
-      maxY = Math.max(maxY, y + h);
-    }
-  }
-  while ((m = circleRe.exec(svg)) !== null) {
-    const cx = parseFloat(m[1]),
-      cy = parseFloat(m[2]),
-      r = parseFloat(m[3]);
-    minX = Math.min(minX, cx - r);
-    maxX = Math.max(maxX, cx + r);
-    minY = Math.min(minY, cy - r);
-    maxY = Math.max(maxY, cy + r);
-  }
-  while ((m = dCoordRe.exec(svg)) !== null) {
-    const x = parseFloat(m[1]),
-      y = parseFloat(m[2]);
-    if (Math.abs(x) < 5000 && Math.abs(y) < 5000) {
-      minX = Math.min(minX, x);
-      maxX = Math.max(maxX, x);
-      minY = Math.min(minY, y);
-      maxY = Math.max(maxY, y);
-    }
-  }
-
-  if (!isFinite(minX)) return null;
-  const pad = 12;
+function makeRenderConfig(options, themeMode) {
+  const themePreset = THEME_PRESETS[themeMode];
+  const sequence = SEQUENCE_PRESETS[options.sequenceMode] ?? SEQUENCE_PRESETS.loose;
   return {
-    x: minX - pad,
-    y: minY - pad,
-    w: maxX - minX + 2 * pad,
-    h: maxY - minY + 2 * pad,
+    startOnLoad: false,
+    securityLevel: 'loose',
+    theme: options.theme || themePreset.theme,
+    fontSize: options.fontSize,
+    wrap: options.wrap,
+    flowchart: {
+      padding: options.sequenceMode === 'loose' ? 24 : 16,
+      nodeSpacing: options.sequenceMode === 'loose' ? 72 : 50,
+      rankSpacing: options.sequenceMode === 'loose' ? 72 : 50,
+      useMaxWidth: false,
+      htmlLabels: false,
+      wrap: options.wrap,
+    },
+    sequence,
+    themeVariables: themePreset.themeVariables,
+    fontFamily: 'Inter, -apple-system, Segoe UI, Roboto, sans-serif',
   };
 }
 
-async function svgToPng(svg) {
-  // Fix the viewBox when mermaid renders it incorrectly (jsdom getBBox mock limitation)
-  const bounds = computeSvgBounds(svg);
-  let patchedSvg = svg;
-  if (bounds && bounds.w > 10 && bounds.h > 10) {
-    const targetW = 800;
-    const targetH = Math.round((bounds.h / bounds.w) * targetW);
-    patchedSvg = patchedSvg
-      .replace(/viewBox="[^"]*"/, `viewBox="${bounds.x} ${bounds.y} ${bounds.w} ${bounds.h}"`)
-      .replace(/width="[^"]*"/, `width="${targetW}"`)
-      .replace(/height="[^"]*"/, `height="${targetH}"`);
-  }
-  return sharp(Buffer.from(patchedSvg), { density: 150 }).png().toBuffer();
+function ensureViewBox(document) {
+  const svg = document.querySelector('svg');
+  if (!svg) return null;
+  const current = svg.getAttribute('viewBox');
+  if (current) return svg;
+  const width = Number(svg.getAttribute('width') ?? 1200);
+  const height = Number(svg.getAttribute('height') ?? 800);
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  return svg;
 }
 
-// ---------------------------------------------------------------------------
-// Markdown scanner — extracts unique mermaid blocks with their alt titles
-// ---------------------------------------------------------------------------
+function injectBackground(document, fill) {
+  const svg = ensureViewBox(document);
+  if (!svg) return;
+  const hasOpaqueRect = Array.from(svg.querySelectorAll(':scope > rect')).some((rect) => {
+    const f = (rect.getAttribute('fill') || '').toLowerCase();
+    return f && f !== 'none' && f !== 'transparent';
+  });
+  if (hasOpaqueRect) return;
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('x', '0');
+  rect.setAttribute('y', '0');
+  rect.setAttribute('width', '100%');
+  rect.setAttribute('height', '100%');
+  rect.setAttribute('fill', fill);
+  svg.insertBefore(rect, svg.firstChild);
+}
+
+function addViewBoxPadding(document, padding) {
+  const svg = ensureViewBox(document);
+  if (!svg) return;
+  const viewBox = (svg.getAttribute('viewBox') ?? '').split(/\s+/).map(Number);
+  if (viewBox.length !== 4 || viewBox.some((v) => !Number.isFinite(v))) return;
+  const [x, y, w, h] = viewBox;
+  svg.setAttribute(
+    'viewBox',
+    `${x - padding} ${y - padding} ${w + padding * 2} ${h + padding * 2}`,
+  );
+}
+
+function applyScaleAndWidth(document, options) {
+  const svg = ensureViewBox(document);
+  if (!svg) return;
+  const viewBox = (svg.getAttribute('viewBox') ?? '').split(/\s+/).map(Number);
+  if (viewBox.length !== 4 || viewBox.some((v) => !Number.isFinite(v))) return;
+  const [, , vbWidth, vbHeight] = viewBox;
+  const baseWidth = options.width ?? Math.round(vbWidth * options.scale);
+  const width = Math.max(320, Math.round(baseWidth));
+  const height = Math.max(220, Math.round((vbHeight / vbWidth) * width));
+  svg.setAttribute('width', String(width));
+  svg.setAttribute('height', String(height));
+}
+
+function wrapLongSequenceText(document, options) {
+  if (!options.wrap) return;
+  const texts = Array.from(
+    document.querySelectorAll('text.messageText, text.noteText, g.actor text'),
+  );
+  for (const node of texts) {
+    const raw = (node.textContent ?? '').trim();
+    if (raw.length < 28) continue;
+    const segments = raw
+      .match(/.{1,24}(?:\s+|$)/g)
+      ?.map((s) => s.trim())
+      .filter(Boolean) ?? [raw];
+    if (segments.length < 2 || segments.length > 4) continue;
+    node.textContent = '';
+    segments.forEach((segment, idx) => {
+      const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+      tspan.setAttribute('x', node.getAttribute('x') ?? '0');
+      tspan.setAttribute('dy', idx === 0 ? '0' : '1.15em');
+      tspan.textContent = segment;
+      node.appendChild(tspan);
+    });
+    if (!node.getAttribute('font-size')) {
+      node.setAttribute('font-size', String(Math.max(12, options.fontSize - 1)));
+    }
+  }
+}
+
+function postprocessSvg(rawSvg, options, themeMode) {
+  const dom = new JSDOM(rawSvg, { contentType: 'image/svg+xml' });
+  const { document } = dom.window;
+  injectBackground(document, THEME_PRESETS[themeMode].background);
+  addViewBoxPadding(document, 24);
+  if (isSequenceDiagram(rawSvg)) {
+    wrapLongSequenceText(document, options);
+  }
+  applyScaleAndWidth(document, options);
+  return document.documentElement.outerHTML;
+}
 
 const MERMAID_FENCE_RE = /^```mermaid([^\n]*)\n([\s\S]*?)^```/gm;
-const TITLE_RE = /(?:title|caption)=((?:"[^"]+"|'[^']+'|\S+))/i;
 
 function extractMermaidBlocks(content) {
   const blocks = [];
@@ -210,12 +304,8 @@ function extractMermaidBlocks(content) {
   while ((m = MERMAID_FENCE_RE.exec(content)) !== null) {
     const meta = m[1].trim();
     const code = m[2].trimEnd();
-    if (code) {
-      const titleMatch = meta.match(TITLE_RE);
-      const raw = titleMatch?.[1]?.trim();
-      const title = raw ? raw.replace(/^['"]|['"]$/g, '') : undefined;
-      blocks.push({ code, title });
-    }
+    if (!code) continue;
+    blocks.push({ code, meta, title: parseTitle(meta) });
   }
   return blocks;
 }
@@ -234,23 +324,44 @@ async function collectMarkdownFiles(dir) {
   return files;
 }
 
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
+async function writeAtomic(targetPath, content) {
+  const tempPath = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
+  await mkdir(dirname(targetPath), { recursive: true });
+  await writeFile(tempPath, content, 'utf-8');
+  await rename(tempPath, targetPath);
+}
+
+async function exists(path) {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function renderForTheme(mermaid, code, id, options, themeMode) {
+  mermaid.initialize(makeRenderConfig(options, themeMode));
+  const { svg } = await mermaid.render(`${id}-${themeMode}`, code);
+  return postprocessSvg(svg, options, themeMode);
+}
 
 async function main() {
   const files = await collectMarkdownFiles(CONTENT_DIR);
   console.log(`[render-mermaid] Scanning ${files.length} Markdown files…`);
 
-  // Collect all unique mermaid diagrams across all files
-  const diagrams = new Map(); // code.trim() → { code, title, outputPath }
+  const diagrams = new Map();
   for (const filePath of files) {
     const content = await readFile(filePath, 'utf-8');
-    for (const { code, title } of extractMermaidBlocks(content)) {
-      const key = code.trim();
-      if (!diagrams.has(key)) {
-        diagrams.set(key, { code: key, title, outputPath: mermaidImagePath(key) });
-      }
+    const slug = resolveMermaidSlug(filePath);
+    for (const { code, meta } of extractMermaidBlocks(content)) {
+      const options = parseMermaidOptions(meta);
+      const lightPath = mermaidAbsolutePath(code, PUBLIC_DIR, options, slug, 'light');
+      const darkPath = mermaidAbsolutePath(code, PUBLIC_DIR, options, slug, 'dark');
+      const key = `${slug}::${createHash('md5')
+        .update(code + JSON.stringify(options))
+        .digest('hex')}`;
+      diagrams.set(key, { code, slug, options, lightPath, darkPath });
     }
   }
 
@@ -259,42 +370,42 @@ async function main() {
     return;
   }
 
-  console.log(`[render-mermaid] Found ${diagrams.size} unique diagram(s).`);
-
-  // Create output directory
-  await mkdir(GENERATED_DIR, { recursive: true });
-
-  // Initialise renderer once
-  const render = await getMermaidRenderer();
+  const mermaid = await getMermaid();
   let rendered = 0;
   let skipped = 0;
 
-  for (const { code, outputPath } of diagrams.values()) {
-    // Skip if PNG already exists (incremental build)
-    try {
-      await access(outputPath);
+  for (const { code, slug, options, lightPath, darkPath } of diagrams.values()) {
+    const hasLight = await exists(lightPath);
+    const hasDark = await exists(darkPath);
+    if (hasLight && hasDark) {
       skipped++;
       continue;
-    } catch {
-      // File does not exist — render it
     }
 
-    const diagramId = `mermaid-${createHash('md5').update(code).digest('hex').slice(0, 8)}`;
+    const diagramId = `mermaid-${createHash('md5')
+      .update(slug + code)
+      .digest('hex')
+      .slice(0, 8)}`;
     try {
-      const svg = await render(code, diagramId);
-      const png = await svgToPng(svg);
-      await writeFile(outputPath, png);
+      if (!hasLight) {
+        const lightSvg = await renderForTheme(mermaid, code, diagramId, options, 'light');
+        await writeAtomic(lightPath, lightSvg);
+      }
+      if (!hasDark) {
+        const darkSvg = await renderForTheme(mermaid, code, diagramId, options, 'dark');
+        await writeAtomic(darkPath, darkSvg);
+      }
       rendered++;
-      console.log(`[render-mermaid] ✓ ${outputPath.replace(PROJECT_ROOT + '/', '')}`);
+      console.log(
+        `[render-mermaid] ✓ ${relative(PROJECT_ROOT, lightPath)} / ${relative(PROJECT_ROOT, darkPath)}`,
+      );
     } catch (err) {
-      console.error(`[render-mermaid] ✗ Failed to render diagram: ${err.message}`);
-      console.error(`  Code: ${code.slice(0, 80)}…`);
+      console.error(`[render-mermaid] ✗ Failed: ${err.message}`);
+      console.error(`  Code: ${code.slice(0, 120)}…`);
     }
   }
 
-  console.log(
-    `[render-mermaid] Done. ${rendered} rendered, ${skipped} skipped (already up-to-date).`,
-  );
+  console.log(`[render-mermaid] Done. ${rendered} rendered, ${skipped} skipped.`);
 }
 
 main().catch((err) => {

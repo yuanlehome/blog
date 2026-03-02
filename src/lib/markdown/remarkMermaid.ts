@@ -2,69 +2,152 @@
  * remarkMermaid — build-time Mermaid code block transformer.
  *
  * This plugin only handles the **AST transformation** step:
- *  1. Replaces ```mermaid fenced code blocks with PNG <img> nodes.
+ *  1. Replaces ```mermaid fenced code blocks with dual-theme SVG <img> nodes.
  *  2. Sets `file.data.astro.frontmatter.mermaidCover` for the first Mermaid
  *     block in a post that has no explicit `cover` frontmatter field.
  *
- * **Rendering** (diagram → PNG file) is deliberately separated and performed
- * by `scripts/render-mermaid.mjs` (run via the `prebuild` npm script) so that
- * it executes in a plain Node.js process — not inside Vite's SSR module runner
- * which closes before async dynamic `import()` calls can resolve.
- *
- * Supported meta options on the opening fence:
- *   title="My Diagram"   → used as the image alt text
- *   caption="…"          → same as title
+ * Rendering (diagram → SVG files) is performed by `scripts/render-mermaid.mjs`.
  */
 
 import type { Plugin } from 'unified';
-import type { Root, Image, Code } from 'mdast';
+import type { Root, Code, HTML } from 'mdast';
 import type { VFile } from 'vfile';
 import { visit } from 'unist-util-visit';
 import { createHash } from 'crypto';
-import { join } from 'path';
+import { dirname, join } from 'path';
 
-// --------------------------------------------------------------------------
-// Shared path helpers (also imported by mermaidCover utility and the
-// render-mermaid.mjs prebuild script)
-// --------------------------------------------------------------------------
+const GENERATED_ROOT = 'generated/mermaid';
+const DEFAULT_SEQUENCE_MODE = 'loose' as const;
 
-const GENERATED_DIR = 'mermaid-generated';
+export type MermaidSequenceMode = 'tight' | 'normal' | 'loose';
 
-/**
- * Deterministic public path for a Mermaid diagram.
- * The same code always maps to the same file name, enabling incremental builds.
- */
-export function mermaidImagePath(code: string): string {
-  const hash = createHash('md5').update(code.trim()).digest('hex').slice(0, 12);
-  return `/${GENERATED_DIR}/${hash}.png`;
+export interface MermaidRenderOptions {
+  sequenceMode: MermaidSequenceMode;
+  scale: number;
+  width?: number;
+  fontSize: number;
+  wrap: boolean;
+  theme?: string;
 }
 
-/** Absolute filesystem path under `publicDir` for a given diagram code. */
-export function mermaidAbsolutePath(code: string, publicDir: string): string {
-  const rel = mermaidImagePath(code).replace(/^\//, '');
+const DEFAULT_OPTIONS: MermaidRenderOptions = {
+  sequenceMode: DEFAULT_SEQUENCE_MODE,
+  scale: 1,
+  width: undefined,
+  fontSize: 14,
+  wrap: true,
+  theme: undefined,
+};
+
+const META_ENTRY_RE = /(\w+)=((?:"[^"]*"|'[^']*'|\S+))/g;
+
+function asNumber(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function asBoolean(value: string | undefined, fallback: boolean): boolean {
+  if (!value) return fallback;
+  const lowered = value.toLowerCase();
+  if (['true', '1', 'yes', 'on'].includes(lowered)) return true;
+  if (['false', '0', 'no', 'off'].includes(lowered)) return false;
+  return fallback;
+}
+
+function sanitizeSlugSegment(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9/-]/g, '-')
+    .replace(/\/+/g, '/')
+    .replace(/-+/g, '-')
+    .replace(/^\/+|\/+$/g, '');
+}
+
+export function parseMermaidMeta(meta?: string | null): Record<string, string> {
+  if (!meta) return {};
+  const out: Record<string, string> = {};
+  META_ENTRY_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = META_ENTRY_RE.exec(meta)) !== null) {
+    out[match[1]] = match[2].replace(/^['"]|['"]$/g, '');
+  }
+  return out;
+}
+
+export function parseMermaidOptions(meta?: string | null): MermaidRenderOptions {
+  const entries = parseMermaidMeta(meta);
+  const rawMode = (entries.sequenceMode ?? DEFAULT_SEQUENCE_MODE).toLowerCase();
+  const sequenceMode: MermaidSequenceMode =
+    rawMode === 'tight' || rawMode === 'normal' || rawMode === 'loose' ? rawMode : 'loose';
+
+  return {
+    sequenceMode,
+    scale: Math.min(Math.max(asNumber(entries.scale, DEFAULT_OPTIONS.scale), 0.5), 2.5),
+    width: entries.width ? Math.max(400, Math.min(2400, asNumber(entries.width, 1200))) : undefined,
+    fontSize: Math.max(
+      11,
+      Math.min(24, Math.round(asNumber(entries.fontSize, DEFAULT_OPTIONS.fontSize))),
+    ),
+    wrap: asBoolean(entries.wrap, DEFAULT_OPTIONS.wrap),
+    theme: entries.theme,
+  };
+}
+
+export function parseTitle(meta?: string | null): string | undefined {
+  const entries = parseMermaidMeta(meta);
+  return entries.title ?? entries.caption;
+}
+
+export function resolveMermaidSlug(filePath?: string): string {
+  if (!filePath) return 'shared';
+  const normalized = filePath.replace(/\\/g, '/');
+  const marker = '/src/content/blog/';
+  const idx = normalized.lastIndexOf(marker);
+  if (idx === -1) return 'shared';
+  const relativePath = normalized.slice(idx + marker.length);
+  const folder = dirname(relativePath);
+  return sanitizeSlugSegment(folder === '.' ? 'root' : folder);
+}
+
+export function mermaidHash(code: string, options: MermaidRenderOptions): string {
+  const payload = JSON.stringify({
+    code: code.trim(),
+    options,
+    version: 2,
+  });
+  return createHash('md5').update(payload).digest('hex').slice(0, 12);
+}
+
+export function mermaidImagePath(
+  code: string,
+  options: MermaidRenderOptions = DEFAULT_OPTIONS,
+  slug = 'shared',
+  theme: 'light' | 'dark' = 'light',
+): string {
+  const hash = mermaidHash(code, options);
+  const safeSlug = sanitizeSlugSegment(slug) || 'shared';
+  return `/${GENERATED_ROOT}/${safeSlug}/${hash}.${theme}.svg`;
+}
+
+export function mermaidAbsolutePath(
+  code: string,
+  publicDir: string,
+  options: MermaidRenderOptions = DEFAULT_OPTIONS,
+  slug = 'shared',
+  theme: 'light' | 'dark' = 'light',
+): string {
+  const rel = mermaidImagePath(code, options, slug, theme).replace(/^\//, '');
   return join(publicDir, rel);
 }
 
-// --------------------------------------------------------------------------
-// Meta string parser — mirrors the format used by remarkCodeMeta
-// --------------------------------------------------------------------------
-
-const titlePattern = /(?:title|caption)=((?:"[^"]+"|'[^']+'|\S+))/i;
-
-function parseTitle(meta?: string | null): string | undefined {
-  if (!meta) return undefined;
-  const m = meta.match(titlePattern);
-  const raw = m?.[1]?.trim();
-  return raw?.replace(/^['"]|['"]$/g, '');
+function buildDualImageHtml(lightSrc: string, darkSrc: string, alt: string): string {
+  const escapedAlt = alt.replace(/"/g, '&quot;');
+  return `<span class="mermaid-dual-image"><img src="${lightSrc}" alt="${escapedAlt}" loading="lazy" decoding="async" data-theme="light" class="mermaid-dual-image__img mermaid-dual-image__img--light" /><img src="${darkSrc}" alt="${escapedAlt}" loading="lazy" decoding="async" data-theme="dark" class="mermaid-dual-image__img mermaid-dual-image__img--dark" /></span>`;
 }
-
-// --------------------------------------------------------------------------
-// remark plugin
-// --------------------------------------------------------------------------
 
 const remarkMermaid: Plugin<[], Root> = () => {
   return (tree: Root, file: VFile): void => {
-    // Collect mermaid nodes
     const targets: Array<{ node: Code; index: number; parent: Root['children'][0] }> = [];
 
     visit(tree, 'code', (node: Code, index, parent) => {
@@ -75,29 +158,27 @@ const remarkMermaid: Plugin<[], Root> = () => {
 
     if (targets.length === 0) return;
 
-    // Detect if frontmatter already has an explicit cover
     const existingCover: string | undefined = (file.data as any)?.astro?.frontmatter?.cover;
     let coverSet = Boolean(existingCover);
+    const slug = resolveMermaidSlug(file.path);
 
     for (const { node, index, parent } of targets) {
       const code = node.value.trim();
+      const options = parseMermaidOptions(node.meta);
       const title = parseTitle(node.meta) ?? 'Mermaid Diagram';
-      const imgPath = mermaidImagePath(code);
+      const lightPath = mermaidImagePath(code, options, slug, 'light');
+      const darkPath = mermaidImagePath(code, options, slug, 'dark');
 
-      // Replace the code block with an image node
-      const imageNode: Image = {
-        type: 'image',
-        url: imgPath,
-        alt: title,
-        title,
+      const htmlNode: HTML = {
+        type: 'html',
+        value: buildDualImageHtml(lightPath, darkPath, title),
       };
-      (parent as any).children.splice(index, 1, imageNode);
+      (parent as any).children.splice(index, 1, htmlNode);
 
-      // Promote as cover candidate if no explicit cover exists yet
       if (!coverSet) {
         (file.data as any).astro ??= {};
         (file.data as any).astro.frontmatter ??= {};
-        (file.data as any).astro.frontmatter.mermaidCover = imgPath;
+        (file.data as any).astro.frontmatter.mermaidCover = lightPath;
         coverSet = true;
       }
     }

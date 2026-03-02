@@ -34,7 +34,7 @@ const enriched = posts.map((post) => {
     .filter(Boolean) as { name: string; slug: string }[];
 
   // Use explicit frontmatter cover first, then fall back to Mermaid-generated cover
-  const effectiveCover = post.data.cover || getMermaidCoverFromBody(post.body ?? '');
+  const effectiveCover = post.data.cover || getMermaidCoverFromBody(post.body ?? '', post.slug);
 
   return {
     ...post,
