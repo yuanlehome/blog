@@ -228,10 +228,33 @@ const tocPosition = layoutConfig.toc.position;
   <img
     data-image-zoom-preview
     alt=""
-    class="max-h-[90vh] max-w-[90vw] object-contain"
+    class="max-h-[90vh] max-w-[90vw] object-contain transition-transform duration-150 ease-out"
     loading="eager"
     decoding="async"
   />
+  <div
+    class="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/55 px-3 py-2"
+  >
+    <div class="pointer-events-auto flex items-center gap-2 text-sm text-white">
+      <button
+        type="button"
+        data-image-zoom-out
+        class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/35 hover:bg-white/10"
+        aria-label="缩小"
+      >
+        −
+      </button>
+      <span data-image-zoom-level class="min-w-14 text-center tabular-nums">100%</span>
+      <button
+        type="button"
+        data-image-zoom-in
+        class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/35 hover:bg-white/10"
+        aria-label="放大"
+      >
+        +
+      </button>
+    </div>
+  </div>
 </dialog>
 
 <script>
@@ -239,17 +262,43 @@ const tocPosition = layoutConfig.toc.position;
   const dialog = document.querySelector('#article-image-zoom-dialog') as HTMLDialogElement | null;
   const preview = dialog?.querySelector('[data-image-zoom-preview]') as HTMLImageElement | null;
   const closeButton = dialog?.querySelector('[data-image-zoom-close]') as HTMLButtonElement | null;
+  const zoomInButton = dialog?.querySelector('[data-image-zoom-in]') as HTMLButtonElement | null;
+  const zoomOutButton = dialog?.querySelector('[data-image-zoom-out]') as HTMLButtonElement | null;
+  const zoomLevelLabel = dialog?.querySelector('[data-image-zoom-level]') as HTMLSpanElement | null;
 
   if (articleRoot && dialog && preview && typeof dialog.showModal === 'function') {
     const zoomableImages = Array.from(articleRoot.querySelectorAll('img')).filter(
       (img) => !img.closest('[data-post-cover]'),
     );
+    const MIN_ZOOM = 1;
+    const MAX_ZOOM = 4;
+    const ZOOM_STEP = 0.25;
+    let zoomLevel = 1;
+
+    const renderZoomLevel = () => {
+      preview.style.transform = `scale(${zoomLevel})`;
+      if (zoomLevelLabel) {
+        zoomLevelLabel.textContent = `${Math.round(zoomLevel * 100)}%`;
+      }
+      if (zoomOutButton) {
+        zoomOutButton.disabled = zoomLevel <= MIN_ZOOM;
+      }
+      if (zoomInButton) {
+        zoomInButton.disabled = zoomLevel >= MAX_ZOOM;
+      }
+    };
+
+    const setZoomLevel = (nextZoomLevel: number) => {
+      zoomLevel = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoomLevel));
+      renderZoomLevel();
+    };
 
     const closeDialog = () => {
       if (!dialog.open) return;
       dialog.close();
       preview.removeAttribute('src');
       preview.alt = '';
+      setZoomLevel(1);
     };
 
     zoomableImages.forEach((img) => {
@@ -262,6 +311,7 @@ const tocPosition = layoutConfig.toc.position;
         if (!source) return;
         preview.src = source;
         preview.alt = img.alt || '文章图片预览';
+        setZoomLevel(1);
         dialog.showModal();
       };
 
@@ -275,14 +325,43 @@ const tocPosition = layoutConfig.toc.position;
     });
 
     closeButton?.addEventListener('click', closeDialog);
+    zoomInButton?.addEventListener('click', () => {
+      setZoomLevel(zoomLevel + ZOOM_STEP);
+    });
+    zoomOutButton?.addEventListener('click', () => {
+      setZoomLevel(zoomLevel - ZOOM_STEP);
+    });
+    preview.addEventListener('wheel', (event) => {
+      event.preventDefault();
+      const direction = event.deltaY < 0 ? 1 : -1;
+      setZoomLevel(zoomLevel + direction * ZOOM_STEP);
+    });
     dialog.addEventListener('click', (event) => {
       if (event.target === dialog) {
         closeDialog();
       }
     });
+    dialog.addEventListener('keydown', (event) => {
+      if (!dialog.open) return;
+      if (event.key === '+' || event.key === '=') {
+        event.preventDefault();
+        setZoomLevel(zoomLevel + ZOOM_STEP);
+      }
+      if (event.key === '-' || event.key === '_') {
+        event.preventDefault();
+        setZoomLevel(zoomLevel - ZOOM_STEP);
+      }
+      if (event.key === '0') {
+        event.preventDefault();
+        setZoomLevel(1);
+      }
+    });
     dialog.addEventListener('cancel', () => {
       preview.removeAttribute('src');
       preview.alt = '';
+      setZoomLevel(1);
     });
+
+    renderZoomLevel();
   }
 </script>
