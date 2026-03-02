@@ -23,14 +23,14 @@ export default defineConfig({
   trailingSlash: 'always',
   integrations: [tailwind(), sitemap()],
   vite: {
-    plugins: [yaml()]
+    plugins: [yaml()],
   },
   markdown: {
     remarkPlugins: [
       remarkMath,
       remarkGfm,
       remarkNotionCompat,
-      remarkMermaid,
+      [remarkMermaid, { base: siteBase }],
       remarkCodeMeta,
       [remarkPrefixImages, { base: siteBase }],
     ],

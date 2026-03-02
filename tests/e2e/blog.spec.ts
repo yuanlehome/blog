@@ -228,6 +228,49 @@ test.describe('Blog smoke journey', () => {
     await mobileContext.close();
   });
 
+  test('mermaid diagrams load without 404s', async ({ page }) => {
+    await page.goto('/');
+
+    const postLinks = await page
+      .locator('#post-list li h3 a')
+      .evaluateAll((anchors: HTMLAnchorElement[]) =>
+        anchors
+          .map((anchor: HTMLAnchorElement) => anchor.getAttribute('href') || '')
+          .filter(Boolean),
+      );
+
+    const failedRequests: string[] = [];
+    page.on('response', (response) => {
+      if (response.status() >= 400 && response.url().includes('/generated/mermaid/')) {
+        failedRequests.push(`${response.status()} ${response.url()}`);
+      }
+    });
+
+    let found = false;
+    for (const href of postLinks) {
+      await page.goto(href);
+      const mermaidImage = page.locator('img[alt="Mermaid Diagram"]').first();
+      if ((await mermaidImage.count()) === 0) continue;
+
+      found = true;
+      await mermaidImage.waitFor({ state: 'visible' });
+      await expect
+        .poll(async () => mermaidImage.evaluate((img) => (img as HTMLImageElement).naturalWidth))
+        .toBeGreaterThan(0);
+      break;
+    }
+
+    if (!found) {
+      test.info().annotations.push({
+        type: 'todo',
+        description: 'No post with Mermaid diagram found for Mermaid e2e test',
+      });
+      return;
+    }
+
+    expect(failedRequests).toEqual([]);
+  });
+
   test('mobile viewport avoids horizontal overflow on flashattention page', async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 375, height: 812 } });
     const mobilePage = await context.newPage();
