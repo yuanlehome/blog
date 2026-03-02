@@ -75,7 +75,10 @@ const tocPosition = layoutConfig.toc.position;
       data-post-layout
     >
       {hasToc && tocPosition === 'left' && <TableOfContents headings={tocHeadings} />}
-      <article class="prose dark:prose-invert max-w-none prose-img:rounded-xl min-w-0" data-article>
+      <article
+        class="prose dark:prose-invert max-w-none prose-img:rounded-xl prose-img:cursor-zoom-in min-w-0"
+        data-article
+      >
         <header class="mb-8 not-prose">
           <div
             class={`flex flex-col gap-6 ${
@@ -208,3 +211,78 @@ const tocPosition = layoutConfig.toc.position;
   </main>
   <Footer />
 </Layout>
+
+<dialog
+  id="article-image-zoom-dialog"
+  class="fixed inset-0 m-0 max-h-none max-w-none border-0 bg-black/85 p-0 backdrop:bg-black/85 [&[open]]:flex [&[open]]:items-center [&[open]]:justify-center"
+  aria-label="图片预览"
+>
+  <button
+    type="button"
+    data-image-zoom-close
+    class="absolute right-4 top-4 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-2xl text-white transition hover:bg-black/70 focus:outline-none focus:ring-2 focus:ring-white"
+    aria-label="关闭预览"
+  >
+    ×
+  </button>
+  <img
+    data-image-zoom-preview
+    alt=""
+    class="max-h-[90vh] max-w-[90vw] object-contain"
+    loading="eager"
+    decoding="async"
+  />
+</dialog>
+
+<script>
+  const articleRoot = document.querySelector('[data-article]') as HTMLElement | null;
+  const dialog = document.querySelector('#article-image-zoom-dialog') as HTMLDialogElement | null;
+  const preview = dialog?.querySelector('[data-image-zoom-preview]') as HTMLImageElement | null;
+  const closeButton = dialog?.querySelector('[data-image-zoom-close]') as HTMLButtonElement | null;
+
+  if (articleRoot && dialog && preview && typeof dialog.showModal === 'function') {
+    const zoomableImages = Array.from(articleRoot.querySelectorAll('img')).filter(
+      (img) => !img.closest('[data-post-cover]'),
+    );
+
+    const closeDialog = () => {
+      if (!dialog.open) return;
+      dialog.close();
+      preview.removeAttribute('src');
+      preview.alt = '';
+    };
+
+    zoomableImages.forEach((img) => {
+      img.setAttribute('tabindex', '0');
+      img.setAttribute('role', 'button');
+      img.setAttribute('aria-label', `点击查看大图：${img.alt || '文章图片'}`);
+
+      const openPreview = () => {
+        const source = img.currentSrc || img.src;
+        if (!source) return;
+        preview.src = source;
+        preview.alt = img.alt || '文章图片预览';
+        dialog.showModal();
+      };
+
+      img.addEventListener('click', openPreview);
+      img.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openPreview();
+        }
+      });
+    });
+
+    closeButton?.addEventListener('click', closeDialog);
+    dialog.addEventListener('click', (event) => {
+      if (event.target === dialog) {
+        closeDialog();
+      }
+    });
+    dialog.addEventListener('cancel', () => {
+      preview.removeAttribute('src');
+      preview.alt = '';
+    });
+  }
+</script>
