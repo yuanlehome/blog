@@ -405,3 +405,26 @@ body {
     text-align: center;
   }
 }
+
+.mermaid-dual-image {
+  display: block;
+  margin: 1.5rem auto;
+}
+
+.mermaid-dual-image__img {
+  width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+}
+
+.mermaid-dual-image__img--dark {
+  display: none;
+}
+
+.dark .mermaid-dual-image__img--light {
+  display: none;
+}
+
+.dark .mermaid-dual-image__img--dark {
+  display: block;
+}
