@@ -242,7 +242,7 @@ const tocPosition = layoutConfig.toc.position;
 
   if (articleRoot && dialog && preview && typeof dialog.showModal === 'function') {
     const zoomableImages = Array.from(articleRoot.querySelectorAll('img')).filter(
-      (img) => !img.closest('[data-post-cover]')
+      (img) => !img.closest('[data-post-cover]'),
     );
 
     const closeDialog = () => {
