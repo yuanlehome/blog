@@ -14,7 +14,9 @@ import type { Root, Code, HTML } from 'mdast';
 import type { VFile } from 'vfile';
 import { visit } from 'unist-util-visit';
 import { createHash } from 'crypto';
+import { existsSync } from 'fs';
 import { dirname, join } from 'path';
+import { withBase } from '../site/withBase';
 
 const GENERATED_ROOT = 'generated/mermaid';
 const DEFAULT_SEQUENCE_MODE = 'loose' as const;
@@ -146,7 +148,11 @@ function buildDualImageHtml(lightSrc: string, darkSrc: string, alt: string): str
   return `<span class="mermaid-dual-image"><img src="${lightSrc}" alt="${escapedAlt}" loading="lazy" decoding="async" data-theme="light" class="mermaid-dual-image__img mermaid-dual-image__img--light" /><img src="${darkSrc}" alt="${escapedAlt}" loading="lazy" decoding="async" data-theme="dark" class="mermaid-dual-image__img mermaid-dual-image__img--dark" /></span>`;
 }
 
-const remarkMermaid: Plugin<[], Root> = () => {
+interface RemarkMermaidOptions {
+  base?: string;
+}
+
+const remarkMermaid: Plugin<[RemarkMermaidOptions?], Root> = (pluginOptions = {}) => {
   return (tree: Root, file: VFile): void => {
     const targets: Array<{ node: Code; index: number; parent: Root['children'][0] }> = [];
 
@@ -161,6 +167,8 @@ const remarkMermaid: Plugin<[], Root> = () => {
     const existingCover: string | undefined = (file.data as any)?.astro?.frontmatter?.cover;
     let coverSet = Boolean(existingCover);
     const slug = resolveMermaidSlug(file.path);
+    const base = pluginOptions.base ?? '/';
+    const debugEnabled = process.env.DEBUG_MERMAID === '1';
 
     for (const { node, index, parent } of targets) {
       const code = node.value.trim();
@@ -169,9 +177,39 @@ const remarkMermaid: Plugin<[], Root> = () => {
       const lightPath = mermaidImagePath(code, options, slug, 'light');
       const darkPath = mermaidImagePath(code, options, slug, 'dark');
 
+      const lightPublicPath = mermaidAbsolutePath(
+        code,
+        join(file.cwd ?? process.cwd(), 'public'),
+        options,
+        slug,
+        'light',
+      );
+      const darkPublicPath = mermaidAbsolutePath(
+        code,
+        join(file.cwd ?? process.cwd(), 'public'),
+        options,
+        slug,
+        'dark',
+      );
+
+      if (!existsSync(lightPublicPath) || !existsSync(darkPublicPath)) {
+        console.warn(
+          `[remarkMermaid] Missing rendered assets for ${file.path ?? 'unknown file'}: ${lightPublicPath} | ${darkPublicPath}. Keeping code block fallback.`,
+        );
+        continue;
+      }
+
+      const lightSrc = withBase(lightPath, base);
+      const darkSrc = withBase(darkPath, base);
+
+      if (debugEnabled) {
+        console.debug(`[remarkMermaid] abs=${lightPublicPath} rel=${lightPath} src=${lightSrc}`);
+        console.debug(`[remarkMermaid] abs=${darkPublicPath} rel=${darkPath} src=${darkSrc}`);
+      }
+
       const htmlNode: HTML = {
         type: 'html',
-        value: buildDualImageHtml(lightPath, darkPath, title),
+        value: buildDualImageHtml(lightSrc, darkSrc, title),
       };
       (parent as any).children.splice(index, 1, htmlNode);
 
