@@ -273,26 +273,8 @@ const tocPosition = layoutConfig.toc.position;
     const MIN_ZOOM = 1;
     const MAX_ZOOM = 4;
     const ZOOM_STEP = 0.25;
+    const DOUBLE_CLICK_ZOOM = 2;
     let zoomLevel = 1;
-    let scrollY = 0;
-
-    const lockBackgroundScroll = () => {
-      scrollY = window.scrollY;
-      document.documentElement.style.overscrollBehavior = 'none';
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.width = '100%';
-      document.body.style.overflow = 'hidden';
-    };
-
-    const unlockBackgroundScroll = () => {
-      document.documentElement.style.removeProperty('overscroll-behavior');
-      document.body.style.removeProperty('position');
-      document.body.style.removeProperty('top');
-      document.body.style.removeProperty('width');
-      document.body.style.removeProperty('overflow');
-      window.scrollTo(0, scrollY);
-    };
 
     const renderZoomLevel = () => {
       preview.style.transform = `scale(${zoomLevel})`;
@@ -315,7 +297,6 @@ const tocPosition = layoutConfig.toc.position;
     const closeDialog = () => {
       if (!dialog.open) return;
       dialog.close();
-      unlockBackgroundScroll();
       preview.removeAttribute('src');
       preview.alt = '';
       setZoomLevel(1);
@@ -332,7 +313,6 @@ const tocPosition = layoutConfig.toc.position;
         preview.src = source;
         preview.alt = img.alt || '文章图片预览';
         setZoomLevel(1);
-        lockBackgroundScroll();
         dialog.showModal();
       };
 
@@ -357,6 +337,10 @@ const tocPosition = layoutConfig.toc.position;
       const direction = event.deltaY < 0 ? 1 : -1;
       setZoomLevel(zoomLevel + direction * ZOOM_STEP);
     });
+    preview.addEventListener('dblclick', (event) => {
+      event.preventDefault();
+      setZoomLevel(zoomLevel > MIN_ZOOM ? MIN_ZOOM : DOUBLE_CLICK_ZOOM);
+    });
     dialog.addEventListener('click', (event) => {
       if (event.target === dialog) {
         closeDialog();
@@ -378,7 +362,6 @@ const tocPosition = layoutConfig.toc.position;
       }
     });
     dialog.addEventListener('cancel', () => {
-      unlockBackgroundScroll();
       preview.removeAttribute('src');
       preview.alt = '';
       setZoomLevel(1);
