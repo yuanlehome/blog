@@ -228,7 +228,7 @@ const tocPosition = layoutConfig.toc.position;
   <img
     data-image-zoom-preview
     alt=""
-    class="max-h-[90vh] max-w-[90vw] object-contain transition-transform duration-150 ease-out"
+    class="max-h-[90vh] max-w-[90vw] touch-none select-none object-contain transition-transform duration-150 ease-out will-change-transform"
     loading="eager"
     decoding="async"
   />
@@ -287,8 +287,14 @@ const tocPosition = layoutConfig.toc.position;
     const touchPoints = new Map<number, { x: number; y: number }>();
 
     const getMaxTranslate = () => {
-      const maxTranslateX = Math.max(0, ((preview.clientWidth * zoomLevel) - preview.clientWidth) / 2);
-      const maxTranslateY = Math.max(0, ((preview.clientHeight * zoomLevel) - preview.clientHeight) / 2);
+      const maxTranslateX = Math.max(
+        0,
+        (preview.clientWidth * zoomLevel - preview.clientWidth) / 2,
+      );
+      const maxTranslateY = Math.max(
+        0,
+        (preview.clientHeight * zoomLevel - preview.clientHeight) / 2,
+      );
       return {
         x: maxTranslateX,
         y: maxTranslateY,
@@ -494,11 +500,15 @@ const tocPosition = layoutConfig.toc.position;
     dialog.addEventListener('wheel', (event) => {
       event.preventDefault();
     });
-    dialog.addEventListener('touchmove', (event) => {
-      if (event.target === dialog) {
-        event.preventDefault();
-      }
-    });
+    dialog.addEventListener(
+      'touchmove',
+      (event) => {
+        if (event.target === dialog) {
+          event.preventDefault();
+        }
+      },
+      { passive: false },
+    );
 
     renderZoomLevel();
   }
