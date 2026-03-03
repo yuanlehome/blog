@@ -226,7 +226,7 @@ const tocPosition = layoutConfig.toc.position;
   <img
     data-image-zoom-preview
     alt=""
-    class="max-h-[90vh] max-w-[90vw] touch-none select-none object-contain transition-transform duration-150 ease-out will-change-transform"
+    class="max-h-[90vh] max-w-[90vw] touch-none select-none rounded-lg bg-zinc-100 p-2 object-contain shadow-2xl transition-transform duration-150 ease-out will-change-transform dark:bg-zinc-800"
     loading="eager"
     decoding="async"
   />
@@ -358,6 +358,23 @@ const tocPosition = layoutConfig.toc.position;
       renderZoomLevel();
     };
 
+    const openPreview = (source: string, altText: string) => {
+      if (!source) return;
+      preview.src = source;
+      preview.alt = altText;
+      translateX = 0;
+      translateY = 0;
+      setZoomLevel(1);
+      dialog.showModal();
+      document.body.style.overflow = 'hidden';
+    };
+
+    const openPreviewFromMermaid = (svg: SVGSVGElement) => {
+      const serializedSvg = new XMLSerializer().serializeToString(svg);
+      const source = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serializedSvg)}`;
+      openPreview(source, 'Mermaid 图表预览');
+    };
+
     const closeDialog = () => {
       if (!dialog.open) return;
       dialog.close();
@@ -375,25 +392,35 @@ const tocPosition = layoutConfig.toc.position;
       img.setAttribute('role', 'button');
       img.setAttribute('aria-label', `点击查看大图：${img.alt || '文章图片'}`);
 
-      const openPreview = () => {
+      const openImagePreview = () => {
         const source = img.currentSrc || img.src;
-        if (!source) return;
-        preview.src = source;
-        preview.alt = img.alt || '文章图片预览';
-        translateX = 0;
-        translateY = 0;
-        setZoomLevel(1);
-        dialog.showModal();
-        document.body.style.overflow = 'hidden';
+        openPreview(source, img.alt || '文章图片预览');
       };
 
-      img.addEventListener('click', openPreview);
+      img.addEventListener('click', openImagePreview);
       img.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          openPreview();
+          openImagePreview();
         }
       });
+    });
+
+    articleRoot.addEventListener('click', (event) => {
+      const target = event.target as Element | null;
+      const svg = target?.closest('.mermaid-render svg') as SVGSVGElement | null;
+      if (!svg) return;
+      event.preventDefault();
+      openPreviewFromMermaid(svg);
+    });
+
+    articleRoot.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const target = event.target as Element | null;
+      const svg = target?.closest('.mermaid-render svg') as SVGSVGElement | null;
+      if (!svg) return;
+      event.preventDefault();
+      openPreviewFromMermaid(svg);
     });
 
     closeButton?.addEventListener('click', closeDialog);

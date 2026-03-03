@@ -930,4 +930,60 @@ test.describe('Image lightbox', () => {
     // Scroll lock should be released
     await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe('');
   });
+
+  test('opens lightbox when clicking rendered Mermaid diagrams', async ({ page }) => {
+    await page.goto('/');
+    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
+    if (await notFoundHeading.count()) {
+      const baseLink = page.locator('a[href="/blog/"]');
+      if (await baseLink.count()) {
+        await baseLink.first().click();
+      }
+    }
+
+    const postLinks = await page
+      .locator('#post-list li h3 a')
+      .evaluateAll((anchors: HTMLAnchorElement[]) =>
+        anchors
+          .map((anchor: HTMLAnchorElement) => anchor.getAttribute('href') || '')
+          .filter(Boolean),
+      );
+
+    let found = false;
+    for (const href of postLinks) {
+      await page.goto(href);
+      const hasMermaid = await page
+        .locator('[data-article] .mermaid-render svg')
+        .first()
+        .isVisible()
+        .catch(() => false);
+      if (hasMermaid) {
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      test.info().annotations.push({
+        type: 'todo',
+        description: 'No post with rendered Mermaid diagrams found for lightbox test',
+      });
+      return;
+    }
+
+    const mermaidSvg = page.locator('[data-article] .mermaid-render svg').first();
+    await expect(mermaidSvg).toBeVisible({ timeout: 15000 });
+
+    await mermaidSvg.click();
+
+    const dialog = page.locator('#article-image-zoom-dialog');
+    const previewImg = dialog.locator('[data-image-zoom-preview]');
+
+    await expect(dialog).toHaveAttribute('open', '');
+    await expect(previewImg).toBeVisible();
+    await expect(previewImg).toHaveAttribute('src', /data:image\/svg\+xml/);
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).not.toHaveAttribute('open', '');
+  });
 });
