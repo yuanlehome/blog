@@ -96,7 +96,16 @@ const updateSuccess = (block: MermaidBlockElement, svg: string): void => {
   const render = block.querySelector<HTMLElement>('.mermaid-render');
   const errorBox = block.querySelector<HTMLElement>('.mermaid-error');
 
-  if (render) render.innerHTML = svg;
+  if (render) {
+    render.innerHTML = svg;
+    const renderedSvg = render.querySelector<SVGSVGElement>('svg');
+    if (renderedSvg) {
+      renderedSvg.setAttribute('tabindex', '0');
+      renderedSvg.setAttribute('role', 'button');
+      renderedSvg.setAttribute('aria-label', '点击查看 Mermaid 图表大图');
+      renderedSvg.style.cursor = 'zoom-in';
+    }
+  }
   if (loading) loading.hidden = true;
   if (source) source.hidden = true;
   if (errorBox) {
