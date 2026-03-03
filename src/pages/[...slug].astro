@@ -285,6 +285,15 @@ const tocPosition = layoutConfig.toc.position;
     let pinchMidpointX = 0;
     let pinchMidpointY = 0;
     const touchPoints = new Map<number, { x: number; y: number }>();
+    let rafId: number | null = null;
+
+    const scheduleRenderZoomLevel = () => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        renderZoomLevel();
+      });
+    };
 
     const getMaxTranslate = () => {
       const maxTranslateX = Math.max(
@@ -374,6 +383,7 @@ const tocPosition = layoutConfig.toc.position;
         translateY = 0;
         setZoomLevel(1);
         dialog.showModal();
+        document.body.style.overflow = 'hidden';
       };
 
       img.addEventListener('click', openPreview);
@@ -392,11 +402,15 @@ const tocPosition = layoutConfig.toc.position;
     zoomOutButton?.addEventListener('click', () => {
       setZoomLevel(zoomLevel - ZOOM_STEP);
     });
-    preview.addEventListener('wheel', (event) => {
-      event.preventDefault();
-      const direction = event.deltaY < 0 ? 1 : -1;
-      setZoomAroundPoint(zoomLevel + direction * ZOOM_STEP, event.clientX, event.clientY);
-    });
+    preview.addEventListener(
+      'wheel',
+      (event) => {
+        event.preventDefault();
+        const direction = event.deltaY < 0 ? 1 : -1;
+        setZoomAroundPoint(zoomLevel + direction * ZOOM_STEP, event.clientX, event.clientY);
+      },
+      { passive: false },
+    );
     preview.addEventListener('dblclick', (event) => {
       event.preventDefault();
       setZoomLevel(zoomLevel > MIN_ZOOM ? MIN_ZOOM : DOUBLE_CLICK_ZOOM);
@@ -435,7 +449,17 @@ const tocPosition = layoutConfig.toc.position;
         const nextDistance = Math.hypot(dx, dy);
         if (pinchStartDistance > 0) {
           const zoomRatio = nextDistance / pinchStartDistance;
-          setZoomAroundPoint(pinchStartZoom * zoomRatio, pinchMidpointX, pinchMidpointY);
+          const prevZoom = zoomLevel;
+          zoomLevel = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, pinchStartZoom * zoomRatio));
+          if (prevZoom !== zoomLevel) {
+            const k = zoomLevel / prevZoom;
+            const rect = preview.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            translateX = (translateX - (pinchMidpointX - cx)) * k + (pinchMidpointX - cx);
+            translateY = (translateY - (pinchMidpointY - cy)) * k + (pinchMidpointY - cy);
+          }
+          scheduleRenderZoomLevel();
         }
         return;
       }
@@ -444,7 +468,7 @@ const tocPosition = layoutConfig.toc.position;
         event.preventDefault();
         translateX = event.clientX - dragStartX;
         translateY = event.clientY - dragStartY;
-        renderZoomLevel();
+        scheduleRenderZoomLevel();
       }
     });
 
@@ -497,9 +521,16 @@ const tocPosition = layoutConfig.toc.position;
       translateY = 0;
       setZoomLevel(1);
     });
-    dialog.addEventListener('wheel', (event) => {
-      event.preventDefault();
+    dialog.addEventListener('close', () => {
+      document.body.style.overflow = '';
     });
+    dialog.addEventListener(
+      'wheel',
+      (event) => {
+        event.preventDefault();
+      },
+      { passive: false },
+    );
     dialog.addEventListener(
       'touchmove',
       (event) => {
