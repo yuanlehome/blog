@@ -32,6 +32,38 @@ const CHAR_WIDTH_UPPERCASE = 8.5;
 const CHAR_WIDTH_ALNUM = 7;
 const CHAR_WIDTH_SYMBOL = 8;
 
+function getAttrNumber(node, name, fallback = 0) {
+  const value = Number(node.getAttribute(name));
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function parseTranslate(transform = '') {
+  const match = transform.match(/translate\(([^)]+)\)/i);
+  if (!match) return { x: 0, y: 0 };
+  const [x = '0', y = '0'] = match[1].split(/[\s,]+/).filter(Boolean);
+  return {
+    x: Number.isFinite(Number(x)) ? Number(x) : 0,
+    y: Number.isFinite(Number(y)) ? Number(y) : 0,
+  };
+}
+
+function mergeBounds(bounds) {
+  if (!bounds.length) return null;
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (const b of bounds) {
+    if (!b || !Number.isFinite(b.width) || !Number.isFinite(b.height)) continue;
+    minX = Math.min(minX, b.x);
+    minY = Math.min(minY, b.y);
+    maxX = Math.max(maxX, b.x + b.width);
+    maxY = Math.max(maxY, b.y + b.height);
+  }
+  if (![minX, minY, maxX, maxY].every(Number.isFinite)) return null;
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
 function normalizeLabelText(text = '') {
   return text
     .replace(/<br\s*\/?>/gi, '\n')
@@ -112,7 +144,7 @@ function resolveMermaidSlug(filePath) {
 
 function mermaidHash(code, options) {
   return createHash('md5')
-    .update(JSON.stringify({ code: code.trim(), options, version: 3 }))
+    .update(JSON.stringify({ code: code.trim(), options, version: 6 }))
     .digest('hex')
     .slice(0, 12);
 }
@@ -194,21 +226,56 @@ async function getMermaid() {
     const tag = (this.tagName ?? '').toLowerCase();
     if (tag === 'text' || tag === 'tspan' || rawTag === 'foreignObject') {
       const { width, height } = estimateTextMetrics(this.textContent ?? '');
+      // Keep text-local bbox origin stable in jsdom; using absolute x/y here can
+      // push labels outside their container during Mermaid layout and make box text disappear.
       return { x: 0, y: 0, width, height };
     }
     if (tag === 'rect') {
-      const width = Number(this.getAttribute('width'));
-      const height = Number(this.getAttribute('height'));
+      const width = getAttrNumber(this, 'width', Number.NaN);
+      const height = getAttrNumber(this, 'height', Number.NaN);
       if (Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) {
-        const x = Number(this.getAttribute('x')) || 0;
-        const y = Number(this.getAttribute('y')) || 0;
+        const x = getAttrNumber(this, 'x', 0);
+        const y = getAttrNumber(this, 'y', 0);
         return { x, y, width, height };
       }
+    }
+    if (tag === 'g' || tag === 'svg') {
+      const childBounds = Array.from(this.children)
+        .map((child) => {
+          if (!child || typeof child.getBBox !== 'function') return null;
+          try {
+            const box = child.getBBox();
+            const { x, y } = parseTranslate(child.getAttribute('transform') ?? '');
+            return { ...box, x: box.x + x, y: box.y + y };
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+      const merged = mergeBounds(childBounds);
+      if (merged) return merged;
     }
     return { x: 0, y: 0, width: 70, height: 24 };
   };
   window.SVGElement.prototype.getComputedTextLength = function () {
     return estimateTextMetrics(this.textContent ?? '').width;
+  };
+  window.HTMLElement.prototype.getBoundingClientRect = function () {
+    const text = normalizeLabelText(this.textContent ?? '');
+    const { width, height } = estimateHtmlLabelMetrics(text);
+    return {
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: width,
+      bottom: height,
+      width,
+      height,
+      toJSON() {
+        return this;
+      },
+    };
   };
 
   for (const [key, value] of Object.entries({
@@ -445,10 +512,59 @@ function wrapLongSequenceText(document, options) {
   }
 }
 
+
+function extractForeignObjectLabelText(foreignObject) {
+  const markup = foreignObject.innerHTML ?? '';
+  const normalized = markup
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ');
+  const fallback = foreignObject.textContent ?? '';
+  return normalizeLabelText(normalized || fallback);
+}
+
+function estimateHtmlLabelMetrics(text = '') {
+  const { width, height } = estimateTextMetrics(text);
+  return {
+    width: Math.max(110, width + 34),
+    height: Math.max(44, height + 22),
+  };
+}
+
+function repairForeignObjectLabels(document) {
+  const foreignObjects = Array.from(document.querySelectorAll('foreignObject'));
+  for (const fo of foreignObjects) {
+    const width = Number(fo.getAttribute('width') ?? 0);
+    const height = Number(fo.getAttribute('height') ?? 0);
+    if (width > 1 && height > 1) continue;
+
+    const labelText = extractForeignObjectLabelText(fo);
+    if (!labelText) continue;
+    const metrics = estimateHtmlLabelMetrics(labelText);
+
+    fo.setAttribute('width', String(metrics.width));
+    fo.setAttribute('height', String(metrics.height));
+    if (!fo.hasAttribute('x')) fo.setAttribute('x', String(-metrics.width / 2));
+    if (!fo.hasAttribute('y')) fo.setAttribute('y', String(-metrics.height / 2));
+
+    const nodeGroup = fo.closest('g.node');
+    if (!nodeGroup) continue;
+    const rect = nodeGroup.querySelector('rect.label-container');
+    if (!rect) continue;
+    rect.setAttribute('x', String(-metrics.width / 2));
+    rect.setAttribute('y', String(-metrics.height / 2));
+    rect.setAttribute('width', String(metrics.width));
+    rect.setAttribute('height', String(metrics.height));
+  }
+}
+
 function postprocessSvg(rawSvg, options, themeMode) {
   const dom = new JSDOM(rawSvg, { contentType: 'image/svg+xml' });
   const { document } = dom.window;
   normalizeTinyViewBox(document);
+  repairForeignObjectLabels(document);
   expandViewBoxToFitEdges(document);
   injectBackground(document, THEME_PRESETS[themeMode].background);
   addViewBoxPadding(document, 24);
