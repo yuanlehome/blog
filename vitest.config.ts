@@ -13,6 +13,7 @@ export default defineConfig({
       exclude: [
         'scripts/content-import.ts',
         'scripts/delete-article.ts',
+        'scripts/render-mermaid.mjs',
         'src/config/env.ts',
         'scripts/markdown/index.ts',
       ],
