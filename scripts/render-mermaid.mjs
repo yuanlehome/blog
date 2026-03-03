@@ -65,7 +65,7 @@ function resolveMermaidSlug(filePath) {
 
 function mermaidHash(code, options) {
   return createHash('md5')
-    .update(JSON.stringify({ code: code.trim(), options, version: 2 }))
+    .update(JSON.stringify({ code: code.trim(), options, version: 3 }))
     .digest('hex')
     .slice(0, 12);
 }
@@ -147,6 +147,15 @@ async function getMermaid() {
     if (tag === 'text' || tag === 'tspan') {
       const w = Math.min((this.textContent?.length ?? 0) * 8, 260);
       return { x: 0, y: 0, width: w || 60, height: 18 };
+    }
+    if (tag === 'rect') {
+      const width = Number(this.getAttribute('width'));
+      const height = Number(this.getAttribute('height'));
+      if (Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) {
+        const x = Number(this.getAttribute('x')) || 0;
+        const y = Number(this.getAttribute('y')) || 0;
+        return { x, y, width, height };
+      }
     }
     return { x: 0, y: 0, width: 70, height: 24 };
   };
