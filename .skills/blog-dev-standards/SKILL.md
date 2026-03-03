@@ -25,9 +25,10 @@ license: ISC (repo LICENSE) + project conventions in this file
 ## Critical constraints (non-negotiable)
 
 ### 1) CI 必须通过
-交付的实现方案或 agent prompt 必须以仓库脚本为准，并默认保证至少这些命令通过（同仓库 README/CI 约定）：
+交付的实现方案或 agent prompt 必须以仓库脚本为准，提交最终代码前，默认保证至少这些命令通过（同仓库 README/CI 约定）：
 - `npm run check`
 - `npm run lint`
+- `npm run format`
 - `npm run test`
 - `npm run test:e2e`
 - `npm run ci`
