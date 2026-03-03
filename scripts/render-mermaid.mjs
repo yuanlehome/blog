@@ -144,7 +144,7 @@ function resolveMermaidSlug(filePath) {
 
 function mermaidHash(code, options) {
   return createHash('md5')
-    .update(JSON.stringify({ code: code.trim(), options, version: 6 }))
+    .update(JSON.stringify({ code: code.trim(), options, version: 7 }))
     .digest('hex')
     .slice(0, 12);
 }
@@ -179,12 +179,12 @@ const THEME_PRESETS = {
       background: '#0b0f19',
       primaryColor: '#1f2937',
       primaryTextColor: '#e5e7eb',
-      lineColor: '#9ca3af',
+      lineColor: '#ffffff',
       noteBkgColor: '#1f2937',
       noteTextColor: '#e5e7eb',
       actorBkg: '#111827',
       actorTextColor: '#e5e7eb',
-      signalColor: '#cbd5e1',
+      signalColor: '#ffffff',
       signalTextColor: '#e5e7eb',
     },
   },
