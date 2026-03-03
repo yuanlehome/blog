@@ -9,6 +9,7 @@ import remarkPrefixImages from './src/lib/markdown/remarkPrefixImages';
 import remarkNotionCompat from './src/lib/markdown/remarkNotionCompat';
 import remarkCodeMeta from './src/lib/markdown/remarkCodeMeta';
 import rehypePrettyCode from './src/lib/markdown/rehypePrettyCode';
+import rehypeMermaid from './src/lib/markdown/rehypeMermaid';
 import rehypeHeadingLinks from './src/lib/markdown/rehypeHeadingLinks';
 import rehypeExternalLinks from './src/lib/markdown/rehypeExternalLinks';
 
@@ -34,6 +35,7 @@ export default defineConfig({
     ],
     rehypePlugins: [
       rehypeKatex,
+      rehypeMermaid,
       rehypePrettyCode,
       rehypeHeadingLinks,
       [rehypeExternalLinks, { target: '_blank', rel: ['noopener', 'noreferrer'] }],
