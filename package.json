@@ -40,6 +40,7 @@
     "github-slugger": "^2.0.0",
     "gray-matter": "^4.0.3",
     "katex": "^0.16.27",
+    "mermaid": "^11.12.3",
     "notion-to-md": "^3.1.9",
     "rehype-katex": "^7.0.1",
     "rehype-parse": "^9.0.1",
