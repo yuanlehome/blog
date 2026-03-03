@@ -8,6 +8,7 @@ tmp/
 
 # generated mermaid diagrams (built by prebuild script)
 public/mermaid-generated/
+public/generated/
 
 # dependencies
 node_modules/

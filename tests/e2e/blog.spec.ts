@@ -870,3 +870,107 @@ test.describe('Blog smoke journey', () => {
     }
   });
 });
+
+test.describe('Image lightbox', () => {
+  test('opens on image click, wheel-zooms, drags, and closes on Esc', async ({ page }) => {
+    await page.goto('/');
+    const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
+    if (await notFoundHeading.count()) {
+      const baseLink = page.locator('a[href="/blog/"]');
+      if (await baseLink.count()) {
+        await baseLink.first().click();
+      }
+    }
+
+    const postLinks = await page
+      .locator('#post-list li h3 a')
+      .evaluateAll((anchors: HTMLAnchorElement[]) =>
+        anchors
+          .map((anchor: HTMLAnchorElement) => anchor.getAttribute('href') || '')
+          .filter(Boolean),
+      );
+
+    let found = false;
+    for (const href of postLinks) {
+      await page.goto(href);
+      await expect(page.locator('[data-article]')).toBeVisible();
+      const hasImages = await page.evaluate(() => {
+        const article = document.querySelector('[data-article]');
+        if (!article) return false;
+        return Array.from(article.querySelectorAll('img')).some(
+          (img) => !img.closest('[data-post-cover]'),
+        );
+      });
+      if (hasImages) {
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      test.info().annotations.push({
+        type: 'todo',
+        description: 'No post with article images found for lightbox test',
+      });
+      return;
+    }
+
+    const dialog = page.locator('#article-image-zoom-dialog');
+    const previewImg = dialog.locator('[data-image-zoom-preview]');
+    const zoomLabel = dialog.locator('[data-image-zoom-level]');
+
+    // 1. Open lightbox by clicking first article image
+    const firstImg = page.locator('[data-article] img[role="button"]').first();
+    await expect(firstImg).toBeVisible();
+    await firstImg.click();
+
+    await expect(dialog).toHaveAttribute('open', '');
+    await expect(previewImg).toBeVisible();
+
+    // Page scroll should be locked
+    await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe('hidden');
+
+    // 2. Wheel-zoom: scroll up at preview centre to zoom in
+    const box = await previewImg.boundingBox();
+    expect(box).toBeTruthy();
+    const px = box!.x + box!.width / 2;
+    const py = box!.y + box!.height / 2;
+
+    const transformBefore = await previewImg.evaluate((el) => (el as HTMLElement).style.transform);
+    await page.mouse.move(px, py);
+    await page.mouse.wheel(0, -300);
+
+    await expect
+      .poll(() => previewImg.evaluate((el) => (el as HTMLElement).style.transform))
+      .not.toBe(transformBefore);
+
+    await expect
+      .poll(async () => parseInt((await zoomLabel.textContent())?.replace('%', '') ?? '0'))
+      .toBeGreaterThan(100);
+
+    // 3. Drag: move image while zoomed in
+    const boxZoomed = await previewImg.boundingBox();
+    expect(boxZoomed).toBeTruthy();
+    const dcx = boxZoomed!.x + boxZoomed!.width / 2;
+    const dcy = boxZoomed!.y + boxZoomed!.height / 2;
+
+    const transformBeforeDrag = await previewImg.evaluate(
+      (el) => (el as HTMLElement).style.transform,
+    );
+    await page.mouse.move(dcx, dcy);
+    await page.mouse.down();
+    await page.mouse.move(dcx + 60, dcy + 40, { steps: 5 });
+    await page.mouse.up();
+
+    await expect
+      .poll(() => previewImg.evaluate((el) => (el as HTMLElement).style.transform))
+      .not.toBe(transformBeforeDrag);
+
+    // 4. Esc closes the lightbox
+    await page.keyboard.press('Escape');
+    await expect(dialog).not.toHaveAttribute('open', '');
+
+    // Scroll lock should be released
+    await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe('');
+  });
+});
