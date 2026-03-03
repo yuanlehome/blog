@@ -28,7 +28,7 @@ export async function getStaticPaths() {
 }
 
 const { post, all } = Astro.props;
-const { Content, headings, remarkPluginFrontmatter } = await post.render();
+const { Content, headings } = await post.render();
 const tocHeadings = headings.filter((heading) => heading.depth >= 2 && heading.depth <= 3);
 const hasToc = tocHeadings.length > 0;
 const stats = getReadingTime(post.body);
@@ -36,9 +36,7 @@ const { prev, next } = findPrevNext(all, post.slug);
 const related = findRelated(all, post);
 const commentsEnabled = post.data.comments ?? true;
 const dates = getDisplayDates(post.data);
-// Use explicit frontmatter cover first, then fall back to Mermaid-generated cover
-const effectiveCover =
-  post.data.cover || (remarkPluginFrontmatter?.mermaidCover as string | undefined);
+const effectiveCover = post.data.cover;
 const hasCover = Boolean(effectiveCover);
 const postTags = post.data.tags || [];
 const { tagMap } = buildTagIndex(all);

@@ -8,7 +8,6 @@ import yaml from '@rollup/plugin-yaml';
 import remarkPrefixImages from './src/lib/markdown/remarkPrefixImages';
 import remarkNotionCompat from './src/lib/markdown/remarkNotionCompat';
 import remarkCodeMeta from './src/lib/markdown/remarkCodeMeta';
-import remarkMermaid from './src/lib/markdown/remarkMermaid';
 import rehypePrettyCode from './src/lib/markdown/rehypePrettyCode';
 import rehypeHeadingLinks from './src/lib/markdown/rehypeHeadingLinks';
 import rehypeExternalLinks from './src/lib/markdown/rehypeExternalLinks';
@@ -30,7 +29,6 @@ export default defineConfig({
       remarkMath,
       remarkGfm,
       remarkNotionCompat,
-      [remarkMermaid, { base: siteBase }],
       remarkCodeMeta,
       [remarkPrefixImages, { base: siteBase }],
     ],
