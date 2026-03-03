@@ -14,6 +14,13 @@ const PUBLIC_DIR = join(PROJECT_ROOT, 'public');
 
 const GENERATED_ROOT = 'generated/mermaid';
 const META_ENTRY_RE = /(\w+)=((?:"[^"]*"|'[^']*'|\S+))/g;
+// Flowchart rendering under jsdom can occasionally emit a tiny viewBox while edge points are valid.
+// These bounds and padding values are used only for that malformed tiny-viewBox recovery path.
+const TINY_VIEWBOX_WIDTH_THRESHOLD = 240;
+const TINY_VIEWBOX_HEIGHT_THRESHOLD = 180;
+const TINY_VIEWBOX_PAD_X = 80;
+const TINY_VIEWBOX_PAD_Y = 80;
+const TINY_VIEWBOX_EXPANSION_FACTOR = 2;
 
 function parseMermaidMeta(meta = '') {
   const out = {};
@@ -252,6 +259,52 @@ function addViewBoxPadding(document, padding) {
   );
 }
 
+function normalizeTinyViewBox(document) {
+  const svg = ensureViewBox(document);
+  if (!svg) return;
+  const viewBox = (svg.getAttribute('viewBox') ?? '').split(/\s+/).map(Number);
+  if (viewBox.length !== 4 || viewBox.some((v) => !Number.isFinite(v))) return;
+  const [, , width, height] = viewBox;
+  if (width > TINY_VIEWBOX_WIDTH_THRESHOLD || height > TINY_VIEWBOX_HEIGHT_THRESHOLD) return;
+
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (const path of svg.querySelectorAll('path[data-points]')) {
+    const raw = path.getAttribute('data-points');
+    if (!raw) continue;
+    try {
+      const points = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8'));
+      for (const point of points) {
+        const x = Number(point?.x);
+        const y = Number(point?.y);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    } catch {
+      // ignore invalid points payload
+    }
+  }
+
+  if (![minX, minY, maxX, maxY].every(Number.isFinite)) return;
+  if (
+    maxX - minX <= width * TINY_VIEWBOX_EXPANSION_FACTOR &&
+    maxY - minY <= height * TINY_VIEWBOX_EXPANSION_FACTOR
+  ) {
+    return;
+  }
+
+  svg.setAttribute(
+    'viewBox',
+    `${Math.floor(minX - TINY_VIEWBOX_PAD_X)} ${Math.floor(minY - TINY_VIEWBOX_PAD_Y)} ${Math.ceil(maxX - minX + TINY_VIEWBOX_PAD_X * 2)} ${Math.ceil(maxY - minY + TINY_VIEWBOX_PAD_Y * 2)}`,
+  );
+}
+
 function applyScaleAndWidth(document, options) {
   const svg = ensureViewBox(document);
   if (!svg) return;
@@ -295,6 +348,7 @@ function wrapLongSequenceText(document, options) {
 function postprocessSvg(rawSvg, options, themeMode) {
   const dom = new JSDOM(rawSvg, { contentType: 'image/svg+xml' });
   const { document } = dom.window;
+  normalizeTinyViewBox(document);
   injectBackground(document, THEME_PRESETS[themeMode].background);
   addViewBoxPadding(document, 24);
   if (isSequenceDiagram(rawSvg)) {
