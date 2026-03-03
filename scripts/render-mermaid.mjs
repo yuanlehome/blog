@@ -6,6 +6,7 @@
 import { readdir, readFile, mkdir, access, writeFile, rename } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
 import { JSDOM } from 'jsdom';
 
 const PROJECT_ROOT = resolve(import.meta.dirname, '..');
@@ -21,6 +22,45 @@ const TINY_VIEWBOX_HEIGHT_THRESHOLD = 180;
 const TINY_VIEWBOX_PAD_X = 80;
 const TINY_VIEWBOX_PAD_Y = 80;
 const TINY_VIEWBOX_EXPANSION_FACTOR = 2;
+const EDGE_VIEWBOX_PADDING = 24;
+const EDGE_VIEWBOX_MAX_EXPANSION_FACTOR = 1.6;
+const DEFAULT_MAX_OUTPUT_HEIGHT = 960;
+// Character-width heuristics for jsdom SVG text measurement (rough px per glyph).
+const CHAR_WIDTH_SPACE = 4;
+const CHAR_WIDTH_CJK = 14;
+const CHAR_WIDTH_UPPERCASE = 8.5;
+const CHAR_WIDTH_ALNUM = 7;
+const CHAR_WIDTH_SYMBOL = 8;
+
+function normalizeLabelText(text = '') {
+  return text
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/\s*\n\s*/g, '\n')
+    .trim();
+}
+
+function estimateTextMetrics(text = '') {
+  const normalized = normalizeLabelText(text);
+  const lines = normalized ? normalized.split('\n') : [''];
+  const lineHeight = 18;
+  const maxWidth = Math.max(
+    ...lines.map((line) =>
+      Array.from(line).reduce((sum, ch) => {
+        if (/\s/.test(ch)) return sum + CHAR_WIDTH_SPACE;
+        if (/[\u3400-\u9FFF\uF900-\uFAFF]/u.test(ch)) return sum + CHAR_WIDTH_CJK;
+        if (/[A-Z]/.test(ch)) return sum + CHAR_WIDTH_UPPERCASE;
+        if (/[0-9a-z]/.test(ch)) return sum + CHAR_WIDTH_ALNUM;
+        return sum + CHAR_WIDTH_SYMBOL;
+      }, 0),
+    ),
+  );
+  return {
+    width: Math.max(60, Math.ceil(maxWidth) + 8),
+    height: Math.max(24, lines.length * lineHeight),
+    lines: lines.length,
+  };
+}
 
 function parseMermaidMeta(meta = '') {
   const out = {};
@@ -150,10 +190,11 @@ async function getMermaid() {
   const { window } = dom;
 
   window.SVGElement.prototype.getBBox = function () {
+    const rawTag = this.tagName ?? '';
     const tag = (this.tagName ?? '').toLowerCase();
-    if (tag === 'text' || tag === 'tspan') {
-      const w = Math.min((this.textContent?.length ?? 0) * 8, 260);
-      return { x: 0, y: 0, width: w || 60, height: 18 };
+    if (tag === 'text' || tag === 'tspan' || rawTag === 'foreignObject') {
+      const { width, height } = estimateTextMetrics(this.textContent ?? '');
+      return { x: 0, y: 0, width, height };
     }
     if (tag === 'rect') {
       const width = Number(this.getAttribute('width'));
@@ -167,7 +208,7 @@ async function getMermaid() {
     return { x: 0, y: 0, width: 70, height: 24 };
   };
   window.SVGElement.prototype.getComputedTextLength = function () {
-    return Math.min((this.textContent?.length ?? 0) * 8, 260);
+    return estimateTextMetrics(this.textContent ?? '').width;
   };
 
   for (const [key, value] of Object.entries({
@@ -305,6 +346,55 @@ function normalizeTinyViewBox(document) {
   );
 }
 
+function decodeEdgePoints(raw) {
+  try {
+    const points = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8'));
+    if (!Array.isArray(points)) return [];
+    return points
+      .map((point) => ({ x: Number(point?.x), y: Number(point?.y) }))
+      .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+  } catch {
+    return [];
+  }
+}
+
+function expandViewBoxToFitEdges(document, padding = EDGE_VIEWBOX_PADDING) {
+  const svg = ensureViewBox(document);
+  if (!svg) return;
+  const viewBox = (svg.getAttribute('viewBox') ?? '').split(/\s+/).map(Number);
+  if (viewBox.length !== 4 || viewBox.some((v) => !Number.isFinite(v))) return;
+  const [x, y, w, h] = viewBox;
+  let minX = x;
+  let minY = y;
+  let maxX = x + w;
+  let maxY = y + h;
+  let changed = false;
+
+  for (const path of svg.querySelectorAll('path[data-points]')) {
+    const raw = path.getAttribute('data-points');
+    if (!raw) continue;
+    const points = decodeEdgePoints(raw);
+    for (const point of points) {
+      minX = Math.min(minX, point.x - padding);
+      minY = Math.min(minY, point.y - padding);
+      maxX = Math.max(maxX, point.x + padding);
+      maxY = Math.max(maxY, point.y + padding);
+      changed = true;
+    }
+  }
+
+  if (!changed) return;
+  const expandedWidth = Math.ceil(maxX - minX);
+  const expandedHeight = Math.ceil(maxY - minY);
+  if (
+    expandedWidth > w * EDGE_VIEWBOX_MAX_EXPANSION_FACTOR ||
+    expandedHeight > h * EDGE_VIEWBOX_MAX_EXPANSION_FACTOR
+  ) {
+    return;
+  }
+  svg.setAttribute('viewBox', `${Math.floor(minX)} ${Math.floor(minY)} ${expandedWidth} ${expandedHeight}`);
+}
+
 function applyScaleAndWidth(document, options) {
   const svg = ensureViewBox(document);
   if (!svg) return;
@@ -312,10 +402,20 @@ function applyScaleAndWidth(document, options) {
   if (viewBox.length !== 4 || viewBox.some((v) => !Number.isFinite(v))) return;
   const [, , vbWidth, vbHeight] = viewBox;
   const baseWidth = options.width ?? Math.round(vbWidth * options.scale);
-  const width = Math.max(320, Math.round(baseWidth));
-  const height = Math.max(220, Math.round((vbHeight / vbWidth) * width));
+  let width = Math.max(320, Math.round(baseWidth));
+  let height = Math.max(220, Math.round((vbHeight / vbWidth) * width));
+  if (!options.width && height > DEFAULT_MAX_OUTPUT_HEIGHT) {
+    const ratio = DEFAULT_MAX_OUTPUT_HEIGHT / height;
+    width = Math.max(320, Math.round(width * ratio));
+    height = Math.max(220, Math.round(height * ratio));
+  }
   svg.setAttribute('width', String(width));
   svg.setAttribute('height', String(height));
+}
+
+function normalizeMermaidCode(code = '') {
+  if (!/^\s*flowchart\b|^\s*graph\b/m.test(code)) return code;
+  return code.replace(/\\n/g, '<br/>');
 }
 
 function wrapLongSequenceText(document, options) {
@@ -349,6 +449,7 @@ function postprocessSvg(rawSvg, options, themeMode) {
   const dom = new JSDOM(rawSvg, { contentType: 'image/svg+xml' });
   const { document } = dom.window;
   normalizeTinyViewBox(document);
+  expandViewBoxToFitEdges(document);
   injectBackground(document, THEME_PRESETS[themeMode].background);
   addViewBoxPadding(document, 24);
   if (isSequenceDiagram(rawSvg)) {
@@ -405,7 +506,8 @@ async function exists(path) {
 
 async function renderForTheme(mermaid, code, id, options, themeMode) {
   mermaid.initialize(makeRenderConfig(options, themeMode));
-  const { svg } = await mermaid.render(`${id}-${themeMode}`, code);
+  const normalizedCode = normalizeMermaidCode(code);
+  const { svg } = await mermaid.render(`${id}-${themeMode}`, normalizedCode);
   return postprocessSvg(svg, options, themeMode);
 }
 
@@ -471,7 +573,20 @@ async function main() {
   console.log(`[render-mermaid] Done. ${rendered} rendered, ${skipped} skipped.`);
 }
 
-main().catch((err) => {
-  console.error('[render-mermaid] Fatal error:', err);
-  process.exit(1);
-});
+const isDirectRun =
+  process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isDirectRun) {
+  main().catch((err) => {
+    console.error('[render-mermaid] Fatal error:', err);
+    process.exit(1);
+  });
+}
+
+export {
+  decodeEdgePoints,
+  estimateTextMetrics,
+  expandViewBoxToFitEdges,
+  normalizeLabelText,
+  normalizeMermaidCode,
+};
