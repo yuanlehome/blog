@@ -5,7 +5,6 @@ import { formatDate } from '../lib/content/dates';
 import { buildPostUrl, normalizeBase } from '../lib/slug';
 import { buildTagIndex } from '../lib/content/tags';
 import { getPublishedPosts } from '../lib/content/posts';
-import { getMermaidCoverFromBody } from '../lib/content/mermaidCover';
 import type { CollectionEntry } from 'astro:content';
 
 interface Props {
@@ -33,10 +32,7 @@ const enriched = posts.map((post) => {
     })
     .filter(Boolean) as { name: string; slug: string }[];
 
-  // Use explicit frontmatter cover first, then fall back to Mermaid-generated cover.
-  // Pass post.id (e.g. "notion/my-post.md") so getMermaidCoverFromBody derives the
-  // same directory slug that render-mermaid.mjs used when writing SVG files.
-  const effectiveCover = post.data.cover || getMermaidCoverFromBody(post.body ?? '', post.id);
+  const effectiveCover = post.data.cover;
 
   return {
     ...post,
