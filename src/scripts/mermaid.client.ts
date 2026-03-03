@@ -45,7 +45,7 @@ const initMermaid = async () => {
       ? {
           background: 'transparent',
           primaryTextColor: '#f4f4f5',
-          lineColor: '#d4d4d8',
+          lineColor: '#ffffff',
           primaryColor: '#27272a',
           secondaryColor: '#3f3f46',
           tertiaryColor: '#52525b',
