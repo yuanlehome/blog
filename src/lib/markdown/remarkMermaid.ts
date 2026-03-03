@@ -116,7 +116,7 @@ export function mermaidHash(code: string, options: MermaidRenderOptions): string
   const payload = JSON.stringify({
     code: code.trim(),
     options,
-    version: 4,
+    version: 5,
   });
   return createHash('md5').update(payload).digest('hex').slice(0, 12);
 }

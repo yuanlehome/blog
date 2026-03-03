@@ -144,7 +144,7 @@ function resolveMermaidSlug(filePath) {
 
 function mermaidHash(code, options) {
   return createHash('md5')
-    .update(JSON.stringify({ code: code.trim(), options, version: 4 }))
+    .update(JSON.stringify({ code: code.trim(), options, version: 5 }))
     .digest('hex')
     .slice(0, 12);
 }
@@ -259,6 +259,23 @@ async function getMermaid() {
   };
   window.SVGElement.prototype.getComputedTextLength = function () {
     return estimateTextMetrics(this.textContent ?? '').width;
+  };
+  window.HTMLElement.prototype.getBoundingClientRect = function () {
+    const text = normalizeLabelText(this.textContent ?? '');
+    const { width, height } = estimateHtmlLabelMetrics(text);
+    return {
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: width,
+      bottom: height,
+      width,
+      height,
+      toJSON() {
+        return this;
+      },
+    };
   };
 
   for (const [key, value] of Object.entries({
@@ -495,10 +512,47 @@ function wrapLongSequenceText(document, options) {
   }
 }
 
+
+function estimateHtmlLabelMetrics(text = '') {
+  const { width, height } = estimateTextMetrics(text);
+  return {
+    width: Math.max(96, width + 24),
+    height: Math.max(36, height + 14),
+  };
+}
+
+function repairForeignObjectLabels(document) {
+  const foreignObjects = Array.from(document.querySelectorAll('foreignObject'));
+  for (const fo of foreignObjects) {
+    const width = Number(fo.getAttribute('width') ?? 0);
+    const height = Number(fo.getAttribute('height') ?? 0);
+    if (width > 1 && height > 1) continue;
+
+    const labelText = normalizeLabelText(fo.textContent ?? '');
+    if (!labelText) continue;
+    const metrics = estimateHtmlLabelMetrics(labelText);
+
+    fo.setAttribute('width', String(metrics.width));
+    fo.setAttribute('height', String(metrics.height));
+    if (!fo.hasAttribute('x')) fo.setAttribute('x', String(-metrics.width / 2));
+    if (!fo.hasAttribute('y')) fo.setAttribute('y', String(-metrics.height / 2));
+
+    const nodeGroup = fo.closest('g.node');
+    if (!nodeGroup) continue;
+    const rect = nodeGroup.querySelector('rect.label-container');
+    if (!rect) continue;
+    rect.setAttribute('x', String(-metrics.width / 2));
+    rect.setAttribute('y', String(-metrics.height / 2));
+    rect.setAttribute('width', String(metrics.width));
+    rect.setAttribute('height', String(metrics.height));
+  }
+}
+
 function postprocessSvg(rawSvg, options, themeMode) {
   const dom = new JSDOM(rawSvg, { contentType: 'image/svg+xml' });
   const { document } = dom.window;
   normalizeTinyViewBox(document);
+  repairForeignObjectLabels(document);
   expandViewBoxToFitEdges(document);
   injectBackground(document, THEME_PRESETS[themeMode].background);
   addViewBoxPadding(document, 24);
