@@ -332,6 +332,9 @@ const tocPosition = layoutConfig.toc.position;
       if (zoomInButton) {
         zoomInButton.disabled = zoomLevel >= MAX_ZOOM;
       }
+      if (touchPoints.size === 0) {
+        preview.style.cursor = zoomLevel > MIN_ZOOM ? 'grab' : '';
+      }
     };
 
     const setZoomLevel = (nextZoomLevel: number) => {
@@ -413,17 +416,23 @@ const tocPosition = layoutConfig.toc.position;
     );
     preview.addEventListener('dblclick', (event) => {
       event.preventDefault();
-      setZoomLevel(zoomLevel > MIN_ZOOM ? MIN_ZOOM : DOUBLE_CLICK_ZOOM);
+      setZoomAroundPoint(
+        zoomLevel > MIN_ZOOM ? MIN_ZOOM : DOUBLE_CLICK_ZOOM,
+        event.clientX,
+        event.clientY,
+      );
     });
     preview.addEventListener('pointerdown', (event) => {
       if (!dialog.open) return;
       preview.setPointerCapture(event.pointerId);
       touchPoints.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      preview.style.transition = 'none';
 
       if (touchPoints.size === 1 && zoomLevel > MIN_ZOOM) {
         activePointerId = event.pointerId;
         dragStartX = event.clientX - translateX;
         dragStartY = event.clientY - translateY;
+        preview.style.cursor = 'grabbing';
       }
 
       if (touchPoints.size === 2) {
@@ -435,6 +444,7 @@ const tocPosition = layoutConfig.toc.position;
         pinchMidpointX = (points[0].x + points[1].x) / 2;
         pinchMidpointY = (points[0].y + points[1].y) / 2;
         activePointerId = null;
+        preview.style.cursor = 'grabbing';
       }
     });
     preview.addEventListener('pointermove', (event) => {
@@ -482,11 +492,17 @@ const tocPosition = layoutConfig.toc.position;
         activePointerId = null;
       }
 
+      if (touchPoints.size === 0) {
+        preview.style.transition = '';
+        preview.style.cursor = zoomLevel > MIN_ZOOM ? 'grab' : '';
+      }
+
       if (touchPoints.size === 1 && zoomLevel > MIN_ZOOM) {
         const [remainingPointerId, remainingPoint] = Array.from(touchPoints.entries())[0];
         activePointerId = remainingPointerId;
         dragStartX = remainingPoint.x - translateX;
         dragStartY = remainingPoint.y - translateY;
+        preview.style.cursor = 'grabbing';
       }
     };
 
@@ -523,6 +539,8 @@ const tocPosition = layoutConfig.toc.position;
     });
     dialog.addEventListener('close', () => {
       document.body.style.overflow = '';
+      preview.style.transition = '';
+      preview.style.cursor = '';
     });
     dialog.addEventListener(
       'wheel',
