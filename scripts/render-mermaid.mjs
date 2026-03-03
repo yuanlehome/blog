@@ -144,7 +144,7 @@ function resolveMermaidSlug(filePath) {
 
 function mermaidHash(code, options) {
   return createHash('md5')
-    .update(JSON.stringify({ code: code.trim(), options, version: 5 }))
+    .update(JSON.stringify({ code: code.trim(), options, version: 6 }))
     .digest('hex')
     .slice(0, 12);
 }
@@ -513,11 +513,23 @@ function wrapLongSequenceText(document, options) {
 }
 
 
+function extractForeignObjectLabelText(foreignObject) {
+  const markup = foreignObject.innerHTML ?? '';
+  const normalized = markup
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ');
+  const fallback = foreignObject.textContent ?? '';
+  return normalizeLabelText(normalized || fallback);
+}
+
 function estimateHtmlLabelMetrics(text = '') {
   const { width, height } = estimateTextMetrics(text);
   return {
-    width: Math.max(96, width + 24),
-    height: Math.max(36, height + 14),
+    width: Math.max(110, width + 34),
+    height: Math.max(44, height + 22),
   };
 }
 
@@ -528,7 +540,7 @@ function repairForeignObjectLabels(document) {
     const height = Number(fo.getAttribute('height') ?? 0);
     if (width > 1 && height > 1) continue;
 
-    const labelText = normalizeLabelText(fo.textContent ?? '');
+    const labelText = extractForeignObjectLabelText(fo);
     if (!labelText) continue;
     const metrics = estimateHtmlLabelMetrics(labelText);
 
