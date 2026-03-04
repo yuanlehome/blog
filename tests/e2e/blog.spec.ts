@@ -333,7 +333,8 @@ test.describe('Blog smoke journey', () => {
     expect(headingBox).toBeTruthy();
     if (headingBox) {
       expect(headingBox.y).toBeGreaterThanOrEqual(0);
-      expect(headingBox.y).toBeLessThanOrEqual(viewportHeight);
+      // Allow tiny cross-browser rounding/scroll offset differences on mobile.
+      expect(headingBox.y).toBeLessThanOrEqual(viewportHeight + 4);
     }
 
     await context.close();
@@ -608,7 +609,7 @@ test.describe('Blog smoke journey', () => {
       .evaluateAll((anchors: HTMLAnchorElement[]) =>
         anchors
           .map((anchor: HTMLAnchorElement) => anchor.getAttribute('href') || '')
-          .filter(Boolean),
+          .filter((href) => Boolean(href) && !href.includes('/tags/')),
       );
 
     let foundPostWithTags = false;

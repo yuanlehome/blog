@@ -136,7 +136,7 @@ const tocPosition = layoutConfig.toc.position;
               <div class="flex flex-wrap items-center gap-2" data-testid="post-share-tags-row">
                 {
                   tagSlugs.length > 0 && (
-                    <>
+                    <div class="flex flex-wrap gap-2 items-center" data-testid="post-tags">
                       <span class="text-zinc-500 text-sm flex items-center gap-1">
                         <span aria-hidden="true">🏷️</span>
                         <span>标签：</span>
@@ -144,12 +144,12 @@ const tocPosition = layoutConfig.toc.position;
                       {tagSlugs.map((tag) => (
                         <Tag name={tag.name} slug={tag.slug} size="sm" />
                       ))}
-                    </>
+                    </div>
                   )
                 }
                 <button
                   type="button"
-                  class="inline-flex items-center gap-1 rounded-md border border-zinc-300 px-2 py-1 text-sm text-zinc-600 transition hover:border-zinc-400 hover:bg-zinc-100 hover:text-zinc-800 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                  class="inline-flex items-center gap-1 rounded-full border border-zinc-300 px-2 py-0.5 text-xs font-medium text-zinc-600 transition hover:border-zinc-400 hover:bg-zinc-100 hover:text-zinc-800 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
                   data-share-open
                   aria-haspopup="dialog"
                   aria-controls="article-share-dialog"
