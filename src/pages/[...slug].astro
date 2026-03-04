@@ -151,7 +151,7 @@ const tocPosition = layoutConfig.toc.position;
                   <span class="text-zinc-500 text-sm" aria-hidden="true"> 📤 </span>
                   <button
                     type="button"
-                    class="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700 transition-colors duration-200 hover:border-sky-300 hover:bg-sky-100 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300 dark:hover:border-sky-700 dark:hover:bg-sky-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900"
+                    class="inline-flex items-center rounded-full border border-pink-200 bg-pink-50 px-2 py-1 text-xs font-medium text-pink-700 transition-colors duration-200 hover:border-pink-300 hover:bg-pink-100 dark:border-pink-900 dark:bg-pink-950 dark:text-pink-300 dark:hover:border-pink-700 dark:hover:bg-pink-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900"
                     data-share-open
                     aria-haspopup="dialog"
                     aria-controls="article-share-dialog"
@@ -359,6 +359,31 @@ const tocPosition = layoutConfig.toc.position;
     markdown: `[${pageTitle}](${canonicalUrl})`,
     plain: `${pageTitle}\n${canonicalUrl}`,
   };
+  let lockedScrollY = 0;
+
+  const lockBodyScroll = () => {
+    if (document.body.dataset.scrollLock === 'true') return;
+    lockedScrollY = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${lockedScrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.style.width = '100%';
+    document.body.style.overflow = 'hidden';
+    document.body.dataset.scrollLock = 'true';
+  };
+
+  const unlockBodyScroll = () => {
+    if (document.body.dataset.scrollLock !== 'true') return;
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    document.body.style.width = '';
+    document.body.style.overflow = '';
+    delete document.body.dataset.scrollLock;
+    window.scrollTo(0, lockedScrollY);
+  };
 
   if (shareMarkdownText) {
     shareMarkdownText.textContent = shareTexts.markdown;
@@ -390,7 +415,7 @@ const tocPosition = layoutConfig.toc.position;
   if (shareDialog && typeof shareDialog.showModal === 'function') {
     shareOpenButton?.addEventListener('click', () => {
       shareDialog.showModal();
-      document.body.style.overflow = 'hidden';
+      lockBodyScroll();
       updateShareStatus('');
     });
 
@@ -411,7 +436,7 @@ const tocPosition = layoutConfig.toc.position;
       updateShareStatus('');
     });
     shareDialog.addEventListener('close', () => {
-      document.body.style.overflow = '';
+      unlockBodyScroll();
     });
   }
 
@@ -524,7 +549,7 @@ const tocPosition = layoutConfig.toc.position;
       translateY = 0;
       setZoomLevel(1);
       dialog.showModal();
-      document.body.style.overflow = 'hidden';
+      lockBodyScroll();
     };
 
     const openPreviewFromMermaid = (svg: SVGSVGElement) => {
@@ -724,7 +749,7 @@ const tocPosition = layoutConfig.toc.position;
       setZoomLevel(1);
     });
     dialog.addEventListener('close', () => {
-      document.body.style.overflow = '';
+      unlockBodyScroll();
       preview.style.transition = '';
       preview.style.cursor = '';
     });
