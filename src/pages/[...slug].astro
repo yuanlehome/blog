@@ -131,6 +131,16 @@ const tocPosition = layoutConfig.toc.position;
                   <span aria-hidden="true">⏱️</span>
                   {stats.text}
                 </div>
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1 rounded-full border border-zinc-300 px-2.5 py-1 text-zinc-600 transition hover:border-zinc-400 hover:text-zinc-800 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-500 dark:hover:text-zinc-100"
+                  data-share-open
+                  aria-haspopup="dialog"
+                  aria-controls="article-share-dialog"
+                >
+                  <span aria-hidden="true">🔗</span>
+                  分享
+                </button>
               </div>
 
               {
@@ -256,8 +266,147 @@ const tocPosition = layoutConfig.toc.position;
   </div>
 </dialog>
 
+<dialog
+  id="article-share-dialog"
+  class="w-[min(92vw,640px)] rounded-2xl border border-zinc-200 bg-white p-0 text-zinc-900 shadow-2xl backdrop:bg-black/50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+  aria-label="分享文章"
+>
+  <div
+    class="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800"
+  >
+    <h2 class="text-lg font-semibold">分享文章</h2>
+    <button
+      type="button"
+      data-share-close
+      class="inline-flex h-9 w-9 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+      aria-label="关闭分享窗口"
+    >
+      ×
+    </button>
+  </div>
+  <div class="space-y-5 px-5 py-4">
+    <section class="space-y-2">
+      <div class="flex items-center justify-between gap-3">
+        <h3 class="text-sm font-medium text-zinc-700 dark:text-zinc-300">Markdown 链接</h3>
+        <button
+          type="button"
+          class="rounded-md border border-zinc-300 px-3 py-1.5 text-sm transition hover:border-zinc-400 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:border-zinc-500 dark:hover:bg-zinc-800"
+          data-share-copy="markdown"
+        >
+          复制
+        </button>
+      </div>
+      <pre
+        class="overflow-x-auto rounded-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+        data-share-text="markdown">
+      </pre>
+    </section>
+    <section class="space-y-2">
+      <div class="flex items-center justify-between gap-3">
+        <h3 class="text-sm font-medium text-zinc-700 dark:text-zinc-300">标题 + 链接</h3>
+        <button
+          type="button"
+          class="rounded-md border border-zinc-300 px-3 py-1.5 text-sm transition hover:border-zinc-400 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:border-zinc-500 dark:hover:bg-zinc-800"
+          data-share-copy="plain"
+        >
+          复制
+        </button>
+      </div>
+      <pre
+        class="overflow-x-auto whitespace-pre-wrap rounded-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+        data-share-text="plain">
+      </pre>
+    </section>
+    <p
+      data-share-status
+      class="min-h-5 text-sm text-emerald-600 dark:text-emerald-400"
+      aria-live="polite"
+    >
+    </p>
+  </div>
+</dialog>
+
 <script>
   const articleRoot = document.querySelector('[data-article]') as HTMLElement | null;
+  const shareDialog = document.querySelector('#article-share-dialog') as HTMLDialogElement | null;
+  const shareOpenButton = document.querySelector('[data-share-open]') as HTMLButtonElement | null;
+  const shareCloseButton = shareDialog?.querySelector(
+    '[data-share-close]',
+  ) as HTMLButtonElement | null;
+  const shareMarkdownText = shareDialog?.querySelector(
+    '[data-share-text="markdown"]',
+  ) as HTMLElement | null;
+  const sharePlainText = shareDialog?.querySelector(
+    '[data-share-text="plain"]',
+  ) as HTMLElement | null;
+  const shareStatus = shareDialog?.querySelector('[data-share-status]') as HTMLElement | null;
+  const shareMarkdownCopyButton = shareDialog?.querySelector(
+    '[data-share-copy="markdown"]',
+  ) as HTMLButtonElement | null;
+  const sharePlainCopyButton = shareDialog?.querySelector(
+    '[data-share-copy="plain"]',
+  ) as HTMLButtonElement | null;
+
+  const pageTitle = document.title.trim();
+  const canonicalUrl =
+    (document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null)?.href ||
+    window.location.href;
+  const shareTexts = {
+    markdown: `[${pageTitle}](${canonicalUrl})`,
+    plain: `${pageTitle}\n${canonicalUrl}`,
+  };
+
+  if (shareMarkdownText) {
+    shareMarkdownText.textContent = shareTexts.markdown;
+  }
+  if (sharePlainText) {
+    sharePlainText.textContent = shareTexts.plain;
+  }
+
+  const updateShareStatus = (message: string) => {
+    if (!shareStatus) return;
+    shareStatus.textContent = message;
+  };
+
+  const copyShareText = async (format: keyof typeof shareTexts) => {
+    try {
+      await navigator.clipboard.writeText(shareTexts[format]);
+      updateShareStatus('已复制到剪贴板');
+    } catch {
+      updateShareStatus('复制失败，请手动复制文本');
+    }
+  };
+
+  const closeShareDialog = () => {
+    if (!shareDialog?.open) return;
+    shareDialog.close();
+    updateShareStatus('');
+  };
+
+  if (shareDialog && typeof shareDialog.showModal === 'function') {
+    shareOpenButton?.addEventListener('click', () => {
+      shareDialog.showModal();
+      updateShareStatus('');
+    });
+
+    shareCloseButton?.addEventListener('click', closeShareDialog);
+    shareMarkdownCopyButton?.addEventListener('click', async () => {
+      await copyShareText('markdown');
+    });
+    sharePlainCopyButton?.addEventListener('click', async () => {
+      await copyShareText('plain');
+    });
+
+    shareDialog.addEventListener('click', (event) => {
+      if (event.target === shareDialog) {
+        closeShareDialog();
+      }
+    });
+    shareDialog.addEventListener('cancel', () => {
+      updateShareStatus('');
+    });
+  }
+
   const dialog = document.querySelector('#article-image-zoom-dialog') as HTMLDialogElement | null;
   const preview = dialog?.querySelector('[data-image-zoom-preview]') as HTMLImageElement | null;
   const closeButton = dialog?.querySelector('[data-image-zoom-close]') as HTMLButtonElement | null;
