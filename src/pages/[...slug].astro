@@ -148,7 +148,7 @@ const tocPosition = layoutConfig.toc.position;
                   )
                 }
                 <div class="inline-flex items-center gap-2" data-testid="post-share-action">
-                  <span class="text-zinc-500 text-sm" aria-hidden="true"> 🔗 </span>
+                  <span class="text-zinc-500 text-sm" aria-hidden="true"> 📤 </span>
                   <button
                     type="button"
                     class="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700 transition-colors duration-200 hover:border-sky-300 hover:bg-sky-100 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300 dark:hover:border-sky-700 dark:hover:bg-sky-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900"
@@ -156,7 +156,7 @@ const tocPosition = layoutConfig.toc.position;
                     aria-haspopup="dialog"
                     aria-controls="article-share-dialog"
                   >
-                    分享
+                    分享文章
                   </button>
                 </div>
               </div>
@@ -390,6 +390,7 @@ const tocPosition = layoutConfig.toc.position;
   if (shareDialog && typeof shareDialog.showModal === 'function') {
     shareOpenButton?.addEventListener('click', () => {
       shareDialog.showModal();
+      document.body.style.overflow = 'hidden';
       updateShareStatus('');
     });
 
@@ -408,6 +409,9 @@ const tocPosition = layoutConfig.toc.position;
     });
     shareDialog.addEventListener('cancel', () => {
       updateShareStatus('');
+    });
+    shareDialog.addEventListener('close', () => {
+      document.body.style.overflow = '';
     });
   }
 
