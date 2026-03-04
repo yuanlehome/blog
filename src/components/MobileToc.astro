@@ -158,7 +158,7 @@ const showTrigger = Astro.props.showTrigger ?? false;
       .map((link) => document.getElementById(link.dataset.target || ''))
       .filter((el): el is HTMLElement => Boolean(el));
     headings.forEach((heading) => {
-      heading.style.scrollMarginTop = `${headerOffset + 12}px`;
+      heading.style.scrollMarginTop = `${headerOffset + 16}px`;
     });
   };
 
@@ -168,7 +168,7 @@ const showTrigger = Astro.props.showTrigger ?? false;
     const target = document.getElementById(id);
     if (!target) return;
     const headerOffset = getHeaderOffset();
-    const top = window.scrollY + target.getBoundingClientRect().top - headerOffset - 12;
+    const top = window.scrollY + target.getBoundingClientRect().top - headerOffset - 16;
     if (replace) {
       history.replaceState(null, '', encodedHash(id));
     } else {
