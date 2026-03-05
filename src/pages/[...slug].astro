@@ -375,6 +375,9 @@ const tocPosition = layoutConfig.toc.position;
 
   const unlockBodyScroll = () => {
     if (document.body.dataset.scrollLock !== 'true') return;
+    const html = document.documentElement;
+    const previousScrollBehavior = html.style.scrollBehavior;
+    html.style.scrollBehavior = 'auto';
     document.body.style.position = '';
     document.body.style.top = '';
     document.body.style.left = '';
@@ -382,7 +385,8 @@ const tocPosition = layoutConfig.toc.position;
     document.body.style.width = '';
     document.body.style.overflow = '';
     delete document.body.dataset.scrollLock;
-    window.scrollTo(0, lockedScrollY);
+    window.scrollTo({ top: lockedScrollY, left: 0, behavior: 'auto' });
+    html.style.scrollBehavior = previousScrollBehavior;
   };
 
   if (shareMarkdownText) {
