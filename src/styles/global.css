@@ -11,6 +11,11 @@
 html {
   scroll-behavior: smooth;
   scroll-padding-top: var(--site-header-height, 80px);
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
 }
 
 h1,
