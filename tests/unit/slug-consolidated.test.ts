@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   normalizeSlug,
+  toLatinSlug,
   slugFromTitle,
   slugFromFileStem,
   shortHash,
@@ -74,6 +75,10 @@ describe('normalizeSlug', () => {
 });
 
 describe('slugFromTitle', () => {
+  it('romanizes Chinese titles before fallback', () => {
+    expect(slugFromTitle({ title: '你好世界', fallbackId: 'page-123' })).toBe('ni-hao-shi-jie');
+  });
+
   it('uses explicit slug if provided', () => {
     expect(
       slugFromTitle({
@@ -358,15 +363,15 @@ describe('Edge Cases and Integration', () => {
   });
 
   it('handles Chinese-only titles with fallback', () => {
-    // Pure Chinese title falls back to ID
+    // Pure Chinese title is romanized first
     const slug = slugFromTitle({
       title: '你好世界',
       fallbackId: 'page-123',
     });
-    expect(slug).toBe('page-123');
+    expect(slug).toBe('ni-hao-shi-jie');
 
     const url = buildPostUrl(slug, '/blog/');
-    expect(url).toBe('/blog/page-123/');
+    expect(url).toBe('/blog/ni-hao-shi-jie/');
   });
 
   it('handles Notion-style workflow with conflicts', () => {
@@ -411,5 +416,15 @@ describe('Edge Cases and Integration', () => {
 
     const url = buildPostUrl(slug, '/blog/');
     expect(url).toBe('/blog/hello-world/');
+  });
+});
+
+describe('toLatinSlug', () => {
+  it('keeps english title unchanged after normalization', () => {
+    expect(toLatinSlug('Hello World')).toBe('hello-world');
+  });
+
+  it('romanizes chinese text to a latin slug', () => {
+    expect(toLatinSlug('优化生成机制')).toBe('you-hua-sheng-cheng-ji-zhi');
   });
 });

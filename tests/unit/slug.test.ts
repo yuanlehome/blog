@@ -22,6 +22,14 @@ describe('slug utilities', () => {
     expect(
       deriveSlug({
         explicitSlug: '',
+        title: '你好世界',
+        fallbackId: '123',
+      }),
+    ).toBe('ni-hao-shi-jie');
+
+    expect(
+      deriveSlug({
+        explicitSlug: '',
         title: '',
         fallbackId: '123',
       }),

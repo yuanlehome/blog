@@ -11,6 +11,7 @@ import { slugFromTitle, ensureUniqueSlug } from '../src/lib/slug';
 import { NOTION_CONTENT_DIR, NOTION_PUBLIC_IMG_DIR, ensureDir } from '../src/config/paths';
 import { processMarkdownForImport } from './markdown/index.js';
 import { createScriptLogger, now, duration } from './logger-helpers.js';
+import { buildSlugOwnerMap } from './slug-registry.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -259,7 +260,7 @@ export async function sync() {
 
   try {
     const existingPosts = await getExistingPosts();
-    const usedSlugs = new Map<string, string>();
+    const usedSlugs = buildSlugOwnerMap(path.dirname(NOTION_CONTENT_DIR));
     for (const [slug, meta] of existingPosts.bySlug.entries()) {
       usedSlugs.set(slug, meta.notionId ?? `existing-${slug}`);
     }

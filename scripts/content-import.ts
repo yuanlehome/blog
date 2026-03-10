@@ -17,11 +17,12 @@ import sharp from 'sharp';
 import { JSDOM } from 'jsdom';
 import readline from 'readline';
 import { BLOG_CONTENT_DIR, PUBLIC_IMAGES_DIR } from '../src/config/paths';
-import { slugFromTitle } from '../src/lib/slug';
+import { ensureUniqueSlug, slugFromTitle } from '../src/lib/slug';
 import { processMarkdownForImport } from './markdown/index.js';
 import { resolveAdapter } from './import/adapters/index.js';
 import { createScriptLogger, now, duration } from './logger-helpers.js';
 import { redactValue } from './logger/redaction.js';
+import { buildSlugOwnerMap } from './slug-registry.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -1329,13 +1330,16 @@ async function main() {
       throw error;
     }
 
-    // Phase 2: Generate final slug from article title
-    const slug = slugFromTitle({
+    // Phase 2: Generate final slug from article title and ensure global uniqueness
+    const baseSlug = slugFromTitle({
       title: article.title,
       fallbackId: fallbackSlug,
     });
+    const usedSlugs = buildSlugOwnerMap(CONTENT_ROOT);
+    const ownerId = `import:${adapter.id}:${targetUrl}`;
+    const slug = ensureUniqueSlug(baseSlug, ownerId, usedSlugs);
 
-    logger.info('Generated slug', { tempSlug, finalSlug: slug, title: article.title });
+    logger.info('Generated slug', { tempSlug, baseSlug, finalSlug: slug, title: article.title });
 
     // Phase 3: Handle slug migration if tempSlug != finalSlug
     // This ensures image directory and references are consistent with final slug
