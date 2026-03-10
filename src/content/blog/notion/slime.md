@@ -2,16 +2,79 @@
 title: slime 中的权重同步：完整设计与实现拆解
 slug: slime
 date: '2026-03-10'
-tags: []
+tags: ['RL Infra']
 status: published
 cover: ''
-updated: '2026-03-10T06:38:00.000Z'
+updated: '2026-03-10T06:52:00.000Z'
 source: notion
 notion:
   id: 31822dca-4210-8077-8f39-d4b7a2f12a5a
 ---
 
-在 slime 里，“权重同步”不是单一接口，而是一套**训练侧权重抽取→聚合→格式转换→发送**，再到 **SGLang 侧暂停生成→加锁→落盘到模型→刷新 cache →继续生成**的完整在线更新流水线。
+<u>_训练侧到 SGLang 侧的时序图_</u>
+
+```mermaid
+sequenceDiagram
+    participant A as Actor["训练侧 Actor\nMegatronActor"]
+    participant U as Updater["WeightUpdater\nUpdateWeightFromTensor / Distributed"]
+    participant H as HF["HfWeightIterator\nDirect / Bridge"]
+    participant E as Engine["slime SGLangEngine\nHTTP Client"]
+    participant T as TM["SGLang TokenizerManager"]
+    participant S as Sch["Scheduler / TPWorker"]
+    participant M as MR["ModelRunner"]
+    participant X as Model["SGLang Model"]
+
+    A->>U: update_weights()
+    U->>E: pause_generation()
+    E->>T: HTTP /pause_generation
+    T-->>E: paused
+
+    U->>E: flush_cache()
+    E->>T: HTTP /flush_cache
+    T-->>E: cache flushed
+
+    U->>H: get_hf_weight_chunks(megatron_local_weights)
+
+    loop 每个 bucket
+        H-->>U: hf_named_tensors
+        alt colocate
+            U->>U: FlattenedTensorBucket\nflattened_tensor + metadata
+            U->>E: update_weights_from_tensor()\nserialized_named_tensors + weight_version
+            E->>T: HTTP /update_weights_from_tensor
+            T->>T: 检查 is_pause\n若未暂停则拿 writer_lock
+            T->>S: update_weights_from_tensor
+            S->>M: update_weights_from_tensor
+            M->>M: reconstruct_tensors()\n或 unwrap tensor
+            M->>X: model.load_weights(named_tensors)
+            X-->>M: load ok
+            M-->>S: success
+            S->>S: flush_cache()
+            S-->>T: success
+            T-->>E: success
+        else disaggregate
+            U->>E: update_weights_from_distributed()\nnames / dtypes / shapes / weight_version
+            E->>T: HTTP /update_weights_from_distributed
+            T->>T: 检查 is_pause\n若未暂停则拿 writer_lock
+            T->>S: update_weights_from_distributed
+            S->>M: update_weights_from_distributed
+            U->>M: NCCL broadcast\n训练 rank0 -> engine ranks
+            M->>X: model.load_weights(weights)
+            X-->>M: load ok
+            M-->>S: success
+            S->>S: flush_cache()
+            S-->>T: success
+            T-->>E: success
+        end
+    end
+
+    U->>E: continue_generation()
+    E->>T: HTTP /continue_generation
+    T-->>E: resumed
+    E-->>U: ok
+    U-->>A: update done
+```
+
+在 slime(0.2.2) 里，“权重同步”不是单一接口，而是一套**训练侧权重抽取→聚合→格式转换→发送**，再到 **SGLang 侧暂停生成→加锁→落盘到模型→刷新 cache →继续生成**的完整在线更新流水线。
 
 如果把它抽象成工程概念，实际上有四层：
 
@@ -880,6 +943,61 @@ def update_weights_from_distributed(
 
 这和 colocate 路径“控制面走 Ray，数据面走 IPC / gather_object”形成了鲜明对照。
 
+<u>_colocate vs disaggregate 权重同步架构图_</u>
+
+```mermaid
+flowchart TB
+
+subgraph A0["训练侧：slime / Megatron Actor"]
+    A1["MegatronActor.update_weights()"]
+    A2["UpdateWeightFromTensor\n或\nUpdateWeightFromDistributed"]
+    A3["HfWeightIteratorDirect / Bridge\nMegatron shard -> HF named tensors"]
+    A4["按 update_weight_buffer_size\n切分 bucket"]
+    A1 -->|"触发一次在线同步"| A2
+    A2 -->|"抽取训练侧最新权重"| A3
+    A3 -->|"转换后按字节数分桶"| A4
+end
+
+subgraph B0["colocate 数据面"]
+    B1["FlattenedTensorBucket\n多个参数拍平成单个 tensor"]
+    B2["MultiprocessingSerializer\n序列化 flattened_tensor + metadata"]
+    B3["dist.gather_object\n同一 engine 对应 rank 聚合到 src rank"]
+    B4["Ray Actor IPC\nipc_engine.update_weights_from_tensor()"]
+    A4 -->|"本机 engine 走 colocate 路径"| B1
+    B1 -->|"生成 bucket 元数据"| B2
+    B2 -->|"收集同机多 rank 分片"| B3
+    B3 -->|"由 src rank 发起 Ray 调用"| B4
+end
+
+subgraph C0["disaggregate 数据面"]
+    C1["connect_rollout_engines_from_distributed()\n建立独立 NCCL model_update_group"]
+    C2["Ray 下发元信息\nnames / dtypes / shapes / weight_version"]
+    C3["dist.broadcast\n训练侧 rank0 -> 远端 engine ranks"]
+    A4 -->|"远端 engine 走 distributed 路径"| C1
+    C1 -->|"先建立更新专用 PG"| C2
+    C2 -->|"控制面通知接收端准备 buffer"| C3
+end
+
+subgraph D0["SGLang 服务侧"]
+    D1["TokenizerManager.pause_generation()"]
+    D2["model_update_lock.writer_lock"]
+    D3["Scheduler / TPWorker"]
+    D4["ModelRunner.update_weights_*()"]
+    D5["model.load_weights()"]
+    D6["flush_cache()"]
+    D7["continue_generation()"]
+end
+
+B4 -->|"HTTP / update_weights_from_tensor"| D1
+C3 -->|"HTTP / update_weights_from_distributed\n+ NCCL 广播数据"| D1
+D1 -->|"暂停新生成 / 等待安全更新窗口"| D2
+D2 -->|"串行进入权重更新临界区"| D3
+D3 -->|"转交 TPWorker / ModelRunner"| D4
+D4 -->|"重建 tensor 或直接接收 tensor"| D5
+D5 -->|"权重写入后清理运行时缓存"| D6
+D6 -->|"完成后恢复生成"| D7
+```
+
 ### 5.4 为什么要加 rollout_engine_lock
 
 ```python
@@ -919,7 +1037,57 @@ def _update_bucket_weights_from_distributed(
 
 ## 六、MoE 场景下，expert / non-expert 权重为什么分开处理
 
-这部分是你最关心的重点之一。slime 在 distributed 路径里把 expert 和 non-expert 完全拆成两套处理策略。
+slime 在 distributed 路径里把 expert 和 non-expert 完全拆成两套处理策略。
+
+<u>_MoE 场景下 expert / non-expert 权重同步分流图_</u>
+
+```mermaid
+flowchart TB
+
+A1["遍历 Megatron 参数\n_named_params_and_buffers_global()"]
+A2["判断参数类型"]
+A1 -->|"\"统一全局名字\n处理 PP / VP / EP offset\""| A2
+
+A2 -->|"non-expert 参数"| B1
+A2 -->|"expert 参数\n名字包含 .experts."| C1
+
+subgraph B0["non-expert 同步路径"]
+    B1["all_gather_param()\n走普通 TP group"]
+    B2["如有需要：\nlinear_fc1 / linear_fc2 特殊重排"]
+    B3["convert_to_hf()\n转为 HF / SGLang 命名"]
+    B4["放入普通 bucket"]
+    B5["达到阈值后发送"]
+    B1 -->|"恢复 TP 分片"| B2
+    B2 -->|"得到完整逻辑权重"| B3
+    B3 -->|"生成 named tensors"| B4
+    B4 -->|"buffer 满则 flush"| B5
+end
+
+subgraph C0["expert 同步路径"]
+    C1["all_gather_param()\n先走 expert TP group"]
+    C2["暂存到 expert bucket"]
+    C3["检查阈值\n阈值按 EP world size 放大"]
+    C4["dist.all_gather_object\n收集各 EP rank 的名字"]
+    C5["dist.all_gather\n收集各 EP rank 的 expert tensor"]
+    C6["EP 汇总后得到完整 experts 集合"]
+    C7["convert_to_hf()\n统一转为 HF / SGLang 命名"]
+    C8["发送 expert bucket"]
+    C1 -->|"先恢复 expert TP 分片"| C2
+    C2 -->|"暂不立即转 HF"| C3
+    C3 -->|"达到阈值后触发 EP 汇总"| C4
+    C4 -->|"保证名字与 shard 对齐"| C5
+    C5 -->|"跨 EP 收齐所有 experts"| C6
+    C6 -->|"此时才具备完整逻辑语义"| C7
+    C7 -->|"生成最终 named tensors"| C8
+end
+
+D1["为什么必须分流？"]
+B5 -->|"non-expert 完成"| D1
+C8 -->|"expert 完成"| D1
+
+D1 -->|"non-expert 只依赖 PP / TP 恢复"| D2["可较早 convert_to_hf()"]
+D1 -->|"expert 还依赖 EP 汇总"| D3["必须先 gather experts 再 convert_to_hf()"]
+```
 
 ### 6.1 non-expert：TP gather 后立即转 HF，再按 bucket 发
 
