@@ -10,6 +10,7 @@
 
 import crypto from 'crypto';
 import slugify from 'slugify';
+import { pinyin } from 'pinyin-pro';
 import { siteBase } from '../../config/site';
 
 /**
@@ -33,6 +34,25 @@ import { siteBase } from '../../config/site';
 export function normalizeSlug(value: string): string {
   if (!value) return '';
   return slugify(value, { lower: true, strict: true }) || '';
+}
+
+/**
+ * Convert mixed-language title into a latin slug candidate.
+ *
+ * Strategy:
+ * 1. Try direct normalization first (handles English and symbols)
+ * 2. If empty, romanize CJK with pinyin and normalize again
+ */
+export function toLatinSlug(value: string): string {
+  const normalized = normalizeSlug(value);
+  if (normalized) return normalized;
+
+  const romanized = pinyin(value, { toneType: 'none', type: 'array', nonZh: 'consecutive' })
+    .map((chunk) => String(chunk).trim())
+    .filter(Boolean)
+    .join(' ');
+
+  return normalizeSlug(romanized);
 }
 
 /**
@@ -63,7 +83,7 @@ export function slugFromTitle(options: {
   if (explicit) return explicit;
 
   // Priority 2: Title
-  const fromTitle = title ? normalizeSlug(title) : '';
+  const fromTitle = title ? toLatinSlug(title) : '';
   if (fromTitle) return fromTitle;
 
   // Priority 3: Fallback ID
