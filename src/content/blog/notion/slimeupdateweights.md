@@ -6,7 +6,7 @@ tags:
   - RL Infra
 status: published
 cover: ''
-updated: '2026-03-10T07:25:00.000Z'
+updated: '2026-03-10T07:48:00.000Z'
 source: notion
 notion:
   id: 31822dca-4210-8077-8f39-d4b7a2f12a5a
@@ -1583,7 +1583,7 @@ def update_weights_from_tensor(self, recv_req: UpdateWeightsFromTensorReqInput):
 
 ### 9.3 ModelRunner：SGLang 权重同步的最终落点
 
-1. **distributed 路径**：先从 process group recv，再 `model.load_weights` 。
+**第一个是 distributed 路径**：先从 process group recv，再 `model.load_weights` 。
 
 ```python
 # python/sglang/srt/model_executor/model_runner.py
@@ -1636,7 +1636,7 @@ def update_weights_from_distributed(
 
 也就是说，在 distributed 路径里，**SGLang engine 本身不参与任何 Megatron→HF 转换**；它只负责接收已经整理好的 HF 权重。
 
-1. **flattened bucket 路径**：先 reconstruct，再 load。
+**第二个是 flattened bucket 路径**：先 reconstruct，再 load。
 
 ```python
 # python/sglang/srt/model_executor/model_runner.py
@@ -1718,7 +1718,7 @@ def _update_weights_from_flattened_bucket(
 
 > **一种减少 RPC / 序列化开销的“参数打包协议”，并没有改变最终 load_weights 的语义。**
 
-3. **direct tensor 路径**：也支持不走 bucket，直接按名字 load
+**第三个是 direct tensor 路径**：也支持不走 bucket，直接按名字 load。
 
 ```python
 # python/sglang/srt/model_executor/model_runner.py
