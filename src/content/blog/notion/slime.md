@@ -2,7 +2,7 @@
 title: slime 中的权重同步：完整设计与实现拆解
 slug: slime
 date: '2026-03-10'
-tags: []
+tags: ['RL Infra']
 status: published
 cover: ''
 updated: '2026-03-10T06:52:00.000Z'
