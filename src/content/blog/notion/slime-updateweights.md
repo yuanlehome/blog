@@ -1,11 +1,12 @@
 ---
-title: slime 中的权重同步：完整设计与实现拆解
-slug: slime
+title: slime 中的 update_weights：完整设计与实现拆解
+slug: slime-updateweights
 date: '2026-03-10'
-tags: ['RL Infra']
+tags:
+  - RL Infra
 status: published
 cover: ''
-updated: '2026-03-10T06:52:00.000Z'
+updated: '2026-03-10T07:23:00.000Z'
 source: notion
 notion:
   id: 31822dca-4210-8077-8f39-d4b7a2f12a5a
