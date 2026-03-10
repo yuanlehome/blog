@@ -6,7 +6,7 @@ tags:
   - RL Infra
 status: published
 cover: ''
-updated: '2026-03-10T07:48:00.000Z'
+updated: '2026-03-10T13:41:00.000Z'
 source: notion
 notion:
   id: 31822dca-4210-8077-8f39-d4b7a2f12a5a
@@ -80,14 +80,21 @@ sequenceDiagram
 如果把它抽象成工程概念，实际上有四层：
 
 1. **训练侧更新入口层**
+
    actor 在训练后决定何时把最新权重同步到 rollout engine。
+
 1. **训练侧权重整理层**
+
    把 Megatron 分布式参数恢复成可被推理侧接受的 HF/SGLang 权重名字与张量布局。
+
 1. **传输层**
+
    slime 实现了两条不同数据面：
    - **colocate 路径**：同机时走 **tensor / CUDA IPC + 序列化元数据。**
    - **disaggregate 路径**：跨 engine 时走**自建 process group + NCCL broadcast。**
+
 1. **SGLang 引擎落地层**
+
    TokenizerManager 负责“停流量 + 串行化更新”；Scheduler/TPWorker/ModelRunner 负责真正把 tensor 原地 load 到推理模型里。
 
 ---
