@@ -6,7 +6,7 @@ tags:
   - RL Infra
 status: published
 cover: ''
-updated: '2026-03-10T13:41:00.000Z'
+updated: '2026-03-10T15:30:00.000Z'
 source: notion
 notion:
   id: 31822dca-4210-8077-8f39-d4b7a2f12a5a
@@ -273,9 +273,8 @@ def _named_params_and_buffers_global(
 
 ### 2.2 TP 聚合：普通权重和 expert 权重走不同 TP group
 
-文件：`slime/backends/megatron_utils/update_weight/common.py:15-48`
-
 ```python
+# slime/backends/megatron_utils/update_weight/common.py
 def all_gather_param(name: str, param: torch.nn.Parameter) -> torch.Tensor:
     if "expert_bias" in name:
         return param
@@ -699,9 +698,8 @@ def connect_rollout_engines(
 
 ### 4.3 update 主流程：先停生成，再更新，再继续
 
-文件：`slime/backends/megatron_utils/update_weight/update_weight_from_tensor.py:106-143`
-
 ```python
+# slime/backends/megatron_utils/update_weight/update_weight_from_tensor.py
 @torch.no_grad()
 def update_weights(self) -> None:
     """
@@ -1160,9 +1158,7 @@ def _update_expert_weight_from_distributed(
     named_tensors.append((name, param))
     buffer_size += param_size
     return buffer_size
-```
 
-```python
 def _update_expert_bucket_weights_from_distributed(
     self, named_tensors: list[tuple[str, torch.Tensor]], pbar: tqdm | None = None
 ) -> None:
