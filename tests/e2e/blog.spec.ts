@@ -328,7 +328,7 @@ test.describe('Blog smoke journey', () => {
       .poll(async () => decodeURIComponent((await page.evaluate(() => location.hash)) || ''))
       .toBe(targetHash);
 
-    const headingBox = await page.locator(`#${targetId}`).boundingBox();
+    const headingBox = await page.locator(`[id="${targetId}"]`).boundingBox();
     const viewportHeight = await page.evaluate(() => window.innerHeight);
     expect(headingBox).toBeTruthy();
     if (headingBox) {
