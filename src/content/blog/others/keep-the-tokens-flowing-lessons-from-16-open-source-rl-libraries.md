@@ -2,7 +2,7 @@
 title: '保持令牌流动：来自 16 个开源强化学习（RL）库的经验教训'
 slug: keep-the-tokens-flowing-lessons-from-16-open-source-rl-libraries
 date: '2026-03-11'
-tags: []
+tags: ['RL Infra']
 status: published
 source_url: 'https://huggingface.co/blog/async-rl-training-landscape'
 source_author: huggingface.co
