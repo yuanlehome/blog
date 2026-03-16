@@ -328,15 +328,18 @@ test.describe('Blog smoke journey', () => {
       .poll(async () => decodeURIComponent((await page.evaluate(() => location.hash)) || ''))
       .toBe(targetHash);
 
-    const headingBox = await page.locator(`[id="${targetId}"]`).boundingBox();
     const viewportHeight = await page.evaluate(() => window.innerHeight);
-    expect(headingBox).toBeTruthy();
-    if (headingBox) {
-      expect(headingBox.y).toBeGreaterThanOrEqual(0);
-      // Mobile 浏览器在 hash 导航后可能会受地址栏伸缩、平滑滚动收敛影响，
-      // 出现几十像素级别的偏移；这里放宽阈值避免偶发误报。
-      expect(headingBox.y).toBeLessThanOrEqual(viewportHeight + 48);
-    }
+    // Use poll to wait for the heading to scroll into view, accounting for any
+    // brief delay between the instant scroll and the browser committing the layout.
+    await expect
+      .poll(
+        async () => {
+          const b = await page.locator(`[id="${targetId}"]`).boundingBox();
+          return b?.y ?? Infinity;
+        },
+        { timeout: 5000 },
+      )
+      .toBeLessThanOrEqual(viewportHeight + 48);
 
     await context.close();
   });
