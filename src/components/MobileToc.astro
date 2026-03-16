@@ -134,7 +134,7 @@ const showTrigger = Astro.props.showTrigger ?? false;
     body.style.position = '';
     body.style.width = '';
     body.style.top = '';
-    window.scrollTo({ top: scrollYBeforeLock });
+    window.scrollTo({ top: scrollYBeforeLock, behavior: 'instant' });
   };
 
   const setOpen = (open: boolean) => {
@@ -169,12 +169,12 @@ const showTrigger = Astro.props.showTrigger ?? false;
     if (!target) return;
     const headerOffset = getHeaderOffset();
     const top = window.scrollY + target.getBoundingClientRect().top - headerOffset - 16;
+    window.scrollTo({ top, behavior: 'instant' });
     if (replace) {
       history.replaceState(null, '', encodedHash(id));
     } else {
       history.pushState(null, '', encodedHash(id));
     }
-    window.scrollTo({ top, behavior: 'auto' });
   };
 
   syncOpenButtons();
