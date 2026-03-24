@@ -16,7 +16,7 @@ lang: zh
 translatedFrom: en
 ---
 
-## 摘要（TL;DR）
+## 摘要
 
 我们很高兴地介绍 SGLang 高度优化的流水线并行（Pipeline Parallelism，PP）实现，专门设计用于应对超长上下文推理的挑战。通过整合 **分块流水线并行（Chunked Pipeline Parallelism）**、**异步点对点通信（Asynchronous P2P Communication）**，以及简单而有效的 **动态分块机制（Dynamic Chunking Mechanism）**，这种 PP 设计实现了行业领先的性能，同时确保与其他并行策略、PD 解耦（PD Disaggregation）和 HiCache 无缝兼容。在多节点部署中，使用此实现扩展到 PP4 TP8 时，当分块预填充大小设置为 12K，相比 TP8，DeepSeek-V3.1 在 H20 集群上的 **预填充吞吐量达到 3.31 倍（Prefill Throughput for DeepSeek-V3.1）**，显著优于 TP32 方案的 2.54 倍，优势达 **30.5%**。这突显了 PP 在大规模跨节点扩展方面相对于纯 TP 的固有架构优势。此外，我们的实现还能实现高达 **67.9%** 的首令牌时间（TTFT）下降，同时保持 **82.8%** 的强扩展效率（strong scaling efficiency），为扩展万亿参数模型以处理超长上下文提供了一条高效、开源的路径。
 
