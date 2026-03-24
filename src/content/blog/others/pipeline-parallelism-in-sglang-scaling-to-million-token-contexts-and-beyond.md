@@ -2,7 +2,7 @@
 title: 'Pipeline Parallelism in SGLang: Scaling to Million-Token Contexts and Beyond'
 slug: pipeline-parallelism-in-sglang-scaling-to-million-token-contexts-and-beyond
 date: '2026-03-24'
-tags: []
+tags: ['Distributed Parallel']
 status: published
 source_url: 'https://lmsys.org/blog/2026-01-15-chunked-pipeline/'
 source_author: lmsys.org
