@@ -1,5 +1,5 @@
 ---
-title: 'Inside NVIDIA GPUs: Anatomy of high performance matmul kernels'
+title: 深入 NVIDIA GPU：高性能矩阵乘法（matmul）内核的剖析
 slug: inside-nvidia-gpus-anatomy-of-high-performance-matmul-kernels
 date: '2025-12-29'
 tags: ['CUDA', 'Performance']
@@ -15,8 +15,6 @@ cover: >-
 lang: zh
 translatedFrom: en
 ---
-
-# 深入 NVIDIA GPU：高性能矩阵乘法（matmul）内核的剖析
 
 _从 GPU 架构和 PTX/SASS 到 warp-tiling 和深度异步张量核心（tensor core）流水线_
 
@@ -1498,25 +1496,25 @@ _图 47：使用线程块集群减少 L2/GMEM 加载次数。_
 
 ## 参考文献
 
-1. NVIDIA Hopper 架构深入<https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/>
-1. NVIDIA Ampere 架构深入<https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/>
-1. 奇怪的是，GPU 上的矩阵乘法在给定“可预测”数据时运行更快！\[简短]<https://www.thonking.ai/p/strangely-matrix-multiplications>
-1. CUDA 编程如何工作<https://www.nvidia.com/en-us/on-demand/session/gtcfall22-a41101/>
-1. 关于 NVIDIA GPU 共享内存库的笔记<https://feldmann.nyc/blog/smem-microbenchmarks>
-1. CUDA 二进制工具<https://docs.nvidia.com/cuda/cuda-binary-utilities/index.html>
-1. 第 37 讲：SASS 和 GPU 微架构简介<https://www.youtube.com/watch?v=we3i5VuoPWk>
-1. 通过微基准测试剖析 NVIDIA Volta GPU 架构<https://arxiv.org/abs/1804.06826>
-1. 如何优化 CUDA 矩阵乘法内核以达到类似 cuBLAS 的性能：工作日志<https://siboehm.com/articles/22/CUDA-MMM>
-1. CUDA C 编程指南<https://docs.nvidia.com/cuda/cuda-c-programming-guide/>
-1. 第 44 讲：NVIDIA 性能分析<https://www.youtube.com/watch?v=F_BazucyCMw&ab_channel=GPUMODE>
-1. <https://github.com/siboehm/SGEMM_CUDA/>
-1. CUTLASS：CUDA C++中的快速线性代数<https://developer.nvidia.com/blog/cutlass-linear-algebra-cuda/>
-1. CUDA 中的高效 GEMM（通用矩阵乘法）<https://github.com/NVIDIA/cutlass/blob/b0e09d7cd371eded41f7c1e057caf1593c27ba55/media/docs/efficient_gemm.md>
-1. 在 H100 上超越 cuBLAS：工作日志<https://cudaforfun.substack.com/p/outperforming-cublas-on-h100-a-worklog>
-1. 深入探讨 CUTLASS Ping-Pong GEMM 内核<https://pytorch.org/blog/cutlass-ping-pong-gemm-kernel/>
-1. <https://github.com/pranjalssh/fast.cu/>
-1. 理解 CuTe 交换模式 - 32B、64B 和 128B 模式背后的数学原理<https://veitner.bearblog.dev/understanding-cute-swizzling-the-math-behind-32b-64b-and-128b-patterns/>
-1. 并行线程执行（Parallel Thread Execution）<https://docs.nvidia.com/cuda/parallel-thread-execution/index.html>
-1. CUDA 中的内联 PTX 汇编（Inline PTX Assembly）<https://docs.nvidia.com/cuda/inline-ptx-assembly/>
-1. 揭秘高带宽内存（High Bandwidth Memory）在实时系统中的特性<https://upcommons.upc.edu/server/api/core/bitstreams/b843de39-f32f-4069-8843-48f74c030213/content>
-1. <https://github.com/triton-lang/triton>
+1. <span id="ref-1"></span> NVIDIA Hopper 架构深入<https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/>
+1. <span id="ref-2"></span> NVIDIA Ampere 架构深入<https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/>
+1. <span id="ref-3"></span> 奇怪的是，GPU 上的矩阵乘法在给定“可预测”数据时运行更快！\[简短]<https://www.thonking.ai/p/strangely-matrix-multiplications>
+1. <span id="ref-4"></span> CUDA 编程如何工作<https://www.nvidia.com/en-us/on-demand/session/gtcfall22-a41101/>
+1. <span id="ref-5"></span> 关于 NVIDIA GPU 共享内存库的笔记<https://feldmann.nyc/blog/smem-microbenchmarks>
+1. <span id="ref-6"></span> CUDA 二进制工具<https://docs.nvidia.com/cuda/cuda-binary-utilities/index.html>
+1. <span id="ref-7"></span> 第 37 讲：SASS 和 GPU 微架构简介<https://www.youtube.com/watch?v=we3i5VuoPWk>
+1. <span id="ref-8"></span> 通过微基准测试剖析 NVIDIA Volta GPU 架构<https://arxiv.org/abs/1804.06826>
+1. <span id="ref-9"></span> 如何优化 CUDA 矩阵乘法内核以达到类似 cuBLAS 的性能：工作日志<https://siboehm.com/articles/22/CUDA-MMM>
+1. <span id="ref-10"></span> CUDA C 编程指南<https://docs.nvidia.com/cuda/cuda-c-programming-guide/>
+1. <span id="ref-11"></span> 第 44 讲：NVIDIA 性能分析<https://www.youtube.com/watch?v=F_BazucyCMw&ab_channel=GPUMODE>
+1. <span id="ref-12"></span> <https://github.com/siboehm/SGEMM_CUDA/>
+1. <span id="ref-13"></span> CUTLASS：CUDA C++中的快速线性代数<https://developer.nvidia.com/blog/cutlass-linear-algebra-cuda/>
+1. <span id="ref-14"></span> CUDA 中的高效 GEMM（通用矩阵乘法）<https://github.com/NVIDIA/cutlass/blob/b0e09d7cd371eded41f7c1e057caf1593c27ba55/media/docs/efficient_gemm.md>
+1. <span id="ref-15"></span> 在 H100 上超越 cuBLAS：工作日志<https://cudaforfun.substack.com/p/outperforming-cublas-on-h100-a-worklog>
+1. <span id="ref-16"></span> 深入探讨 CUTLASS Ping-Pong GEMM 内核<https://pytorch.org/blog/cutlass-ping-pong-gemm-kernel/>
+1. <span id="ref-17"></span> <https://github.com/pranjalssh/fast.cu/>
+1. <span id="ref-18"></span> 理解 CuTe 交换模式 - 32B、64B 和 128B 模式背后的数学原理<https://veitner.bearblog.dev/understanding-cute-swizzling-the-math-behind-32b-64b-and-128b-patterns/>
+1. <span id="ref-19"></span> 并行线程执行（Parallel Thread Execution）<https://docs.nvidia.com/cuda/parallel-thread-execution/index.html>
+1. <span id="ref-20"></span> CUDA 中的内联 PTX 汇编（Inline PTX Assembly）<https://docs.nvidia.com/cuda/inline-ptx-assembly/>
+1. <span id="ref-21"></span> 揭秘高带宽内存（High Bandwidth Memory）在实时系统中的特性<https://upcommons.upc.edu/server/api/core/bitstreams/b843de39-f32f-4069-8843-48f74c030213/content>
+1. <span id="ref-22"></span> <https://github.com/triton-lang/triton>
