@@ -1,5 +1,5 @@
 ---
-title: 'My first Multi-GPU kernel: Writing All-to-all for AMD MI300X'
+title: 我的首个多 GPU 内核：为 AMD MI300X 编写 All-to-all
 slug: my-first-multi-gpu-kernel-writing-all-to-all-for-amd-mi300x
 date: '2025-11-02'
 tags: ['CUDA']
@@ -16,8 +16,6 @@ cover: >-
 lang: zh
 translatedFrom: en
 ---
-
-# 我的首个多 GPU 内核：为 AMD MI300X 编写 All-to-all
 
 上个月，我参加了由 [GPU MODE](https://www.gpumode.com/v2/home) 主办的 AMD 分布式挑战赛。这对我来说非常令人兴奋，因为这是我第一次学习如何编写多 GPU 内核！尽管我通过 all-reduce 和 reduce-scatter 等集体原语对 DDP 和 FSDP 的工作原理有初步了解，但我不知道可以直接在内核中执行远程内存访问！这为多 GPU 优化（特别是计算与 GPU 间通信的重叠）开辟了许多机会。
 
