@@ -19,7 +19,7 @@ const ensureHashNavigation = async (page: any, tocSelector: string) => {
 };
 
 const navigateToHomePage = async (page: any) => {
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
   const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
   if (await notFoundHeading.count()) {
     const baseLink = page.locator('a[href="/blog/"]');
@@ -30,7 +30,7 @@ const navigateToHomePage = async (page: any) => {
 };
 
 const openFirstPostWithToc = async (page: any) => {
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
   const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
   if (await notFoundHeading.count()) {
     const baseLink = page.locator('a[href="/blog/"]');
@@ -46,7 +46,7 @@ const openFirstPostWithToc = async (page: any) => {
     );
 
   for (const href of postLinks) {
-    await page.goto(href);
+    await page.goto(href, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('[data-article]')).toBeVisible();
     const tocCount = await page.locator('aside nav[aria-label="文章目录"] a').count();
     if (tocCount > 0) {
@@ -58,7 +58,7 @@ const openFirstPostWithToc = async (page: any) => {
 };
 
 const openFirstPostWithoutToc = async (page: any) => {
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
   const notFoundHeading = page.locator('h1', { hasText: '404: Not found' });
   if (await notFoundHeading.count()) {
     const baseLink = page.locator('a[href="/blog/"]');
@@ -74,7 +74,7 @@ const openFirstPostWithoutToc = async (page: any) => {
     );
 
   for (const href of postLinks) {
-    await page.goto(href);
+    await page.goto(href, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('[data-article]')).toBeVisible();
     const tocCount = await page.locator('aside nav[aria-label="文章目录"] a').count();
     if (tocCount === 0) {
