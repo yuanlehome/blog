@@ -4,5 +4,5 @@
     "strictNullChecks": true,
     "types": ["vitest/globals", "node", "jsdom"]
   },
-  "exclude": ["coverage"]
+  "exclude": ["coverage", "dist"]
 }

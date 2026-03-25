@@ -88,8 +88,6 @@ const showTrigger = Astro.props.showTrigger ?? false;
       (tocDrawer ?? tocRoot)?.querySelectorAll('[data-mobile-toc-link]') ?? [],
     ) as HTMLAnchorElement[];
   const body = document.body;
-  const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const prefersReduce = reducedMotionQuery.matches;
 
   const getHeaderOffset = (): number => {
     const headerHeightStr = getComputedStyle(document.documentElement).getPropertyValue(
