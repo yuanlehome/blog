@@ -2,7 +2,7 @@
 title: 你不知道的 Claude Code：架构、治理与工程实践
 slug: claude-code-architecture-governance-and-engineering-practice
 date: '2026-03-12'
-tags: ['Claude Code', 'Agent', '工程实践']
+tags: ['Agent']
 status: published
 comments: true
 source_url: 'https://tw93.fun/2026-03-12/claude.html'
@@ -827,13 +827,3 @@ npx skills add tw93/claude-health -a claude-code -s health -g -y
 有一个问题挺值得想的：假如一个任务你说不清楚「什么叫做完」，那大概率也不适合直接扔给 Claude 自主完成，验证标准本身都没有，Claude 再聪明也跑不出正确答案。
 
 这些是半年折腾下来的一些总结，肯定还有很多没有挖掘到的地方，如果大伙有用得更 6 的技巧，欢迎告诉我。
-
-[觉得不错，请 Tw93 喝冰可乐 🥤](https://miaoyan.app/cats.html?name=Blog)
-
-[Comments](https://giscus.app/zh-CN/widget?origin=https%3A%2F%2Ftw93.fun%2F2026-03-12%2Fclaude.html&session=&theme=https%3A%2F%2Ftw93.fun%2Fcss%2Fcomment.css&reactionsEnabled=1&emitMetadata=0&inputPosition=bottom&repo=tw93%2Ftw93.github.io&repoId=MDEwOlJlcG9zaXRvcnkzMDE4NDU1NQ%3D%3D&category=General&categoryId=DIC_kwDOAcyUa84CSbZ-&strict=0&description=%E6%88%91%E6%8A%8A%E6%88%91%E6%9C%80%E8%BF%91%E5%8D%8A%E5%B9%B4%E6%AF%8F%E4%B8%AA%E6%9C%88%E6%B0%AA%E9%87%9140%E5%88%802%E4%B8%AA%E8%B4%A6%E5%8F%B7%E7%9A%84claude+code+%E4%BD%BF%E7%94%A8%E8%BF%87%E7%A8%8B%E4%B8%AD%EF%BC%8C%E7%A7%AF%E7%B4%AF%E7%9A%84%E4%B8%80%E4%BA%9B%E5%AE%9E%E9%99%85%E7%BB%8F%E9%AA%8C%E5%88%86%E4%BA%AB%E7%BB%99%E5%A4%A7%E4%BC%99%E3%80%82%E8%BF%99%E7%AF%87%E6%96%87%E7%AB%A0%E4%B8%BB%E8%A6%81%E5%9B%B4%E7%BB%95%E4%B8%8A%E4%B8%8B%E6%96%87%E7%AE%A1%E7%90%86%E3%80%81Skills%E3%80%81Hooks%E3%80%81Subagents%E3%80%81Prompt+Caching+%E4%BB%A5%E5%8F%8A+CLAUDE.md+%E7%9A%84%E8%AE%BE%E8%AE%A1%E5%B1%95%E5%BC%80%EF%BC%8C%E9%87%8D%E7%82%B9%E8%AE%A8%E8%AE%BA%E6%80%8E%E6%A0%B7%E8%AE%A9%E5%8D%8F%E4%BD%9C%E8%BF%87%E7%A8%8B%E6%9B%B4%E7%A8%B3%E5%AE%9A%E3%80%81%E6%9B%B4%E5%8F%AF%E6%8E%A7%EF%BC%8C%E5%81%8F%E5%B7%A5%E7%A8%8B%E5%B8%88%E6%8A%80%E6%9C%AF%E8%A7%86%E8%A7%92%E7%9A%84%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5%EF%BC%8C...&backLink=https%3A%2F%2Ftw93.fun%2F2026-03-12%2Fclaude.html&term=2026-03-12-claude)
-
-[Read More](https://tw93.fun/2026-03-07/openclaw.html)
-
-### [连龙虾都不会装的人，怎么会用龙虾呢?](https://tw93.fun/2026-03-07/openclaw.html)
-
-[【2026-03-07】今天看腾讯大厦装龙虾这件事，挺有感触。最近很多大厂都在疯狂让一线非技术员工去安装龙虾，网上甚至真有 500 上门安装服务。大家都在拼命找使用场景，拼命要求落地，拼命证明这个东西已经重要到不能错过，整个过程让我有一种很强的赛博科技折叠感。](https://tw93.fun/2026-03-07/openclaw.html)

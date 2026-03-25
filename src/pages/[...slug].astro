@@ -455,6 +455,7 @@ const tocPosition = layoutConfig.toc.position;
     const zoomableImages = Array.from(articleRoot.querySelectorAll('img')).filter(
       (img) => !img.closest('[data-post-cover]'),
     );
+    const MAX_IMAGE_SAMPLE_SIZE = 64;
     const MIN_ZOOM = 1;
     const MAX_ZOOM = 4;
     const ZOOM_STEP = 0.25;
@@ -471,6 +472,69 @@ const tocPosition = layoutConfig.toc.position;
     let pinchMidpointY = 0;
     const touchPoints = new Map<number, { x: number; y: number }>();
     let rafId: number | null = null;
+
+    const isSvgSource = (source: string) => {
+      if (!source) return false;
+      if (source.startsWith('data:image/svg+xml')) return true;
+
+      try {
+        const resolved = new URL(source, window.location.href);
+        return resolved.pathname.toLowerCase().endsWith('.svg');
+      } catch {
+        return source.toLowerCase().includes('.svg');
+      }
+    };
+
+    const hasTransparentPixels = (img: HTMLImageElement) => {
+      const width = img.naturalWidth;
+      const height = img.naturalHeight;
+      if (!width || !height) return false;
+
+      const sampleScale = Math.min(1, MAX_IMAGE_SAMPLE_SIZE / Math.max(width, height));
+      const sampleWidth = Math.max(1, Math.round(width * sampleScale));
+      const sampleHeight = Math.max(1, Math.round(height * sampleScale));
+      const canvas = document.createElement('canvas');
+      canvas.width = sampleWidth;
+      canvas.height = sampleHeight;
+
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (!context) return false;
+
+      try {
+        context.drawImage(img, 0, 0, sampleWidth, sampleHeight);
+        const { data } = context.getImageData(0, 0, sampleWidth, sampleHeight);
+        for (let index = 3; index < data.length; index += 4) {
+          if (data[index] < 250) {
+            return true;
+          }
+        }
+      } catch {
+        return false;
+      }
+
+      return false;
+    };
+
+    const markImagesNeedingSurface = async () => {
+      await Promise.allSettled(
+        zoomableImages.map(async (img) => {
+          try {
+            if (!img.complete) {
+              await img.decode();
+            }
+          } catch {
+            return;
+          }
+
+          const source = img.currentSrc || img.src;
+          if (isSvgSource(source) || hasTransparentPixels(img)) {
+            img.dataset.imageSurface = 'light';
+          } else {
+            delete img.dataset.imageSurface;
+          }
+        }),
+      );
+    };
 
     const scheduleRenderZoomLevel = () => {
       if (rafId !== null) return;
@@ -592,6 +656,8 @@ const tocPosition = layoutConfig.toc.position;
         }
       });
     });
+
+    void markImagesNeedingSurface();
 
     articleRoot.addEventListener('click', (event) => {
       const target = event.target as Element | null;

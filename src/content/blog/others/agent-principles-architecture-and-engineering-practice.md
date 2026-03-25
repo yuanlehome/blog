@@ -2,7 +2,7 @@
 title: 你不知道的 Agent：原理、架构与工程实践
 slug: agent-principles-architecture-and-engineering-practice
 date: '2026-03-21'
-tags: ['Agent', 'AI', '工程实践']
+tags: ['Agent']
 status: published
 comments: true
 source_url: 'https://tw93.fun/2026-03-21/agent.html'
@@ -963,13 +963,3 @@ async function runWithFallback(task) {
 1. Anthropic, [Measuring AI agent autonomy in practice](https://www.anthropic.com/research/measuring-agent-autonomy)
 1. OpenAI, [Designing AI agents to resist prompt injection](https://openai.com/index/designing-agents-to-resist-prompt-injection/)
 1. Anthropic, [Demystifying evals for AI agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)
-
-[觉得不错，请 Tw93 喝冰可乐 🥤](https://miaoyan.app/cats.html?name=Blog)
-
-[Comments](https://giscus.app/zh-CN/widget?origin=https%3A%2F%2Ftw93.fun%2F2026-03-21%2Fagent.html&session=&theme=https%3A%2F%2Ftw93.fun%2Fcss%2Fcomment.css&reactionsEnabled=1&emitMetadata=0&inputPosition=bottom&repo=tw93%2Ftw93.github.io&repoId=MDEwOlJlcG9zaXRvcnkzMDE4NDU1NQ%3D%3D&category=General&categoryId=DIC_kwDOAcyUa84CSbZ-&strict=0&description=%E7%A0%94%E7%A9%B6%E5%AE%8C+Claude+Code+%E7%9A%84%E6%9E%B6%E6%9E%84%E4%B9%8B%E5%90%8E%EF%BC%8C%E5%8F%91%E7%8E%B0%E8%87%AA%E5%B7%B1%E5%AF%B9+Agent+%E5%BA%95%E5%B1%82%E7%9A%84%E7%90%86%E8%A7%A3%E8%BF%98%E4%B8%8D%E5%A4%9F%E6%B7%B1%E5%85%A5%EF%BC%8C%E5%8A%A0%E4%B8%8A%E5%9B%A2%E9%98%9F%E5%9C%A8+Agent+%E6%96%B9%E5%90%91%E5%B7%B2%E7%BB%8F%E6%9C%89%E4%B8%8D%E5%B0%91%E4%B8%9A%E5%8A%A1%E8%90%BD%E5%9C%B0%EF%BC%8C%E4%BD%86%E4%B8%80%E7%9B%B4%E7%BC%BA%E5%B0%91%E4%B8%80%E4%BB%BD%E7%B3%BB%E7%BB%9F%E6%A2%B3%E7%90%86%EF%BC%8C%E6%89%80%E4%BB%A5%E5%8F%88%E8%A1%A5%E4%BA%86%E4%B8%80%E8%BD%AE%E8%B5%84%E6%96%99%E3%80%81%E5%BC%80%E6%BA%90%E5%AE%9E%E7%8E%B0%E5%92%8C%E8%BD%BB%E9%87%8F%E5%AE%9E%E9%AA%8C%EF%BC%8C%E6%8A%8A%E6%8E%A7%E5%88%B6%E6%B5%81%E3%80%81%E4%B8%8A%E4%B8%8B%E6%96%87%E5%B7%A5%E7%A8%8B%E3%80%81%E5%B7%A5%E5%85%B7%E8%AE%BE%E8%AE%A1%E3%80%81%E8%AE%B0%E5%BF%86%E3%80%81%E8%AF%84%E6%B5%8B%E5%92%8C%E5%AE%89%E5%85%A8%E8%BF%99%E4%BA%9B%E9%97%AE%E9%A2%98%E9%87%8D%E6%96%B0%E4%B8%B2%E4%BA%86%E4%B8%80%E9%81%8D%E3%80%82&backLink=https%3A%2F%2Ftw93.fun%2F2026-03-21%2Fagent.html&term=2026-03-21-agent)
-
-[Read More](https://tw93.fun/2026-03-12/claude.html)
-
-### [你不知道的 Claude Code：架构、治理与工程实践](https://tw93.fun/2026-03-12/claude.html)
-
-[【2026-03-12】我把我最近半年每个月氪金40刀2个账号的claude code 使用过程中，积累的一些实际经验分享给大伙。这篇文章主要围绕上下文管理、Skills、Hooks、Subagents、Prompt Caching 以及 CLAUDE.md 的设计展开，重点讨论怎样让协作过程更稳定、更可控，偏工程师技术视角的最佳实践，欢迎大伙一起最佳交流。](https://tw93.fun/2026-03-12/claude.html)
