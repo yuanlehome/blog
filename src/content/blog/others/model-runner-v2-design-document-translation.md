@@ -1,11 +1,18 @@
 ---
 title: vLLM Model Runner V2 设计文档：从 Persistent Batch、Async-First 到 Triton Native Sampler
-slug: model-runner-v2-design-document
+slug: vllm-model-runner-v2-design-document-translation
 date: '2026-03-25'
 tags: ['vLLM']
 status: published
 comments: true
+source_url: 'https://docs.google.com/document/d/1gFqtDkcoqhy9j-X0ndshzbhapX1uNey1-wBENwGPI80/edit?usp=sharing'
 source_author: Woosuk Kwon, Nick Hill
+imported_at: '2026-03-25T00:00:00.000Z'
+source:
+  title: Google Docs
+  url: 'https://docs.google.com/document/d/1gFqtDkcoqhy9j-X0ndshzbhapX1uNey1-wBENwGPI80/edit?usp=sharing'
+lang: zh
+translatedFrom: en
 ---
 
 这篇文章整理并翻译自 [Model Runner V2 Design Docs](https://docs.google.com/document/d/1gFqtDkcoqhy9j-X0ndshzbhapX1uNey1-wBENwGPI80/edit?usp=sharing)。原文聚焦于 vLLM 新一代 `Model Runner V2` 的设计动机、核心改造点与仍在演进中的一些方向。
