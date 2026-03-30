@@ -774,13 +774,10 @@ test.describe('Blog smoke journey', () => {
 
     const expectGiscusThemeToStayTransparent = async () => {
       await expect
-        .poll(
-          async () => getGiscusTheme(),
-          {
-            timeout: 5000,
-            message: 'Giscus theme should remain transparent',
-          },
-        )
+        .poll(async () => getGiscusTheme(), {
+          timeout: 5000,
+          message: 'Giscus theme should remain transparent',
+        })
         .toBe('transparent');
     };
 
