@@ -116,10 +116,7 @@ test.describe('Blog smoke journey', () => {
     const toggledClass = await html.getAttribute('class');
     expect(toggledClass).not.toBe(initialClass);
 
-    const expectedGiscusTheme = await page.evaluate(() => {
-      const resolved = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
-      return resolved === 'dark' ? 'dark' : 'light';
-    });
+    const expectedGiscusTheme = 'transparent_dark';
     await expect
       .poll(async () =>
         page.evaluate(
@@ -781,19 +778,13 @@ test.describe('Blog smoke journey', () => {
       });
     };
 
-    const expectGiscusThemeToFollowPage = async () => {
+    const expectGiscusThemeToStayTransparentDark = async () => {
       await expect
-        .poll(
-          async () => {
-            const [pageTheme, giscusTheme] = await Promise.all([getPageTheme(), getGiscusTheme()]);
-            return pageTheme === giscusTheme;
-          },
-          {
-            timeout: 5000,
-            message: 'Giscus theme should synchronize with page theme',
-          },
-        )
-        .toBe(true);
+        .poll(async () => getGiscusTheme(), {
+          timeout: 5000,
+          message: 'Giscus theme should remain transparent_dark',
+        })
+        .toBe('transparent_dark');
     };
 
     // Wait for Giscus to load and sync
@@ -801,7 +792,7 @@ test.describe('Blog smoke journey', () => {
 
     // Check initial state
     const initialPageTheme = await getPageTheme();
-    await expectGiscusThemeToFollowPage();
+    await expectGiscusThemeToStayTransparentDark();
 
     // Toggle theme
     const themeToggle = page.locator('#theme-toggle');
@@ -812,7 +803,7 @@ test.describe('Blog smoke journey', () => {
 
       // Check themes after toggle
       const newPageTheme = await getPageTheme();
-      await expectGiscusThemeToFollowPage();
+      await expectGiscusThemeToStayTransparentDark();
 
       // Verify theme changed
       expect(newPageTheme).not.toBe(initialPageTheme);
@@ -822,7 +813,7 @@ test.describe('Blog smoke journey', () => {
       await page.waitForTimeout(500);
 
       const finalPageTheme = await getPageTheme();
-      await expectGiscusThemeToFollowPage();
+      await expectGiscusThemeToStayTransparentDark();
 
       expect(finalPageTheme).toBe(initialPageTheme);
     }
