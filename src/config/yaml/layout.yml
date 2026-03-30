@@ -48,6 +48,10 @@ commonLinks:
   position: 'left' # Options: "left", "right", "off"
   title: '常用链接'
   links:
+    - label: 'Prhub'
+      href: 'https://prhub.com.cn/'
+      description: '聚焦代码变化背后的讨论、风险与演进方向'
+      newTab: true
     - label: 'Awesome-ML-SYS-Tutorial'
       href: 'https://github.com/zhaochenyang20/Awesome-ML-SYS-Tutorial/tree/main'
       description: 'RL Infra 学习资料'
