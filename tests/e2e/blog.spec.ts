@@ -765,6 +765,12 @@ test.describe('Blog smoke journey', () => {
     await expect(commentsSection).toBeVisible();
 
     // Get initial theme
+    const getPageTheme = async () => {
+      return await page.evaluate(() => {
+        return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+      });
+    };
+
     const getGiscusTheme = async () => {
       return await page.evaluate(() => {
         const container = document.getElementById('comments');
@@ -785,9 +791,7 @@ test.describe('Blog smoke journey', () => {
     await page.waitForTimeout(2000);
 
     // Check initial state
-    const initialPageTheme = await page.evaluate(() =>
-      document.documentElement.classList.contains('dark') ? 'dark' : 'light',
-    );
+    const initialPageTheme = await getPageTheme();
     await expectGiscusThemeToStayTransparent();
 
     // Toggle theme
@@ -798,9 +802,7 @@ test.describe('Blog smoke journey', () => {
       await page.waitForTimeout(500);
 
       // Check themes after toggle
-      const newPageTheme = await page.evaluate(() =>
-        document.documentElement.classList.contains('dark') ? 'dark' : 'light',
-      );
+      const newPageTheme = await getPageTheme();
       await expectGiscusThemeToStayTransparent();
 
       // Verify theme changed
@@ -810,9 +812,7 @@ test.describe('Blog smoke journey', () => {
       await themeToggle.click();
       await page.waitForTimeout(500);
 
-      const finalPageTheme = await page.evaluate(() =>
-        document.documentElement.classList.contains('dark') ? 'dark' : 'light',
-      );
+      const finalPageTheme = await getPageTheme();
       await expectGiscusThemeToStayTransparent();
 
       expect(finalPageTheme).toBe(initialPageTheme);
