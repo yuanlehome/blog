@@ -5,9 +5,12 @@ const postConfig = getPostConfig();
 const lang = Astro.props.lang || postConfig.comments.giscus.lang;
 const giscus = postConfig.comments.giscus;
 const themeMapping = postConfig.comments.themeMapping;
+const initialTheme =
+  giscus.theme === 'preferred_color_scheme' ? (themeMapping.light ?? 'light') : giscus.theme;
 
 // Serialize theme mapping for inline script
 const themeMappingJson = JSON.stringify(themeMapping);
+const configuredThemeJson = JSON.stringify(giscus.theme);
 ---
 
 <section id="comments" class="mt-12" data-comments>
@@ -26,7 +29,7 @@ const themeMappingJson = JSON.stringify(themeMapping);
       data-reactions-enabled={giscus.reactionsEnabled}
       data-emit-metadata={giscus.emitMetadata}
       data-input-position={giscus.inputPosition}
-      data-theme="light"
+      data-theme={initialTheme}
       data-lang={lang}
       crossorigin="anonymous"
       async></script>
@@ -40,6 +43,13 @@ const themeMappingJson = JSON.stringify(themeMapping);
 
   // Theme mapping for Giscus from config
   const themeMap = ${themeMappingJson};
+  const configuredTheme = ${configuredThemeJson};
+  const resolveGiscusTheme = (effectiveTheme) => {
+    if (configuredTheme !== 'preferred_color_scheme') {
+      return configuredTheme;
+    }
+    return themeMap[effectiveTheme] ?? 'light';
+  };
 
   // Single source of truth: read effective theme from DOM
   const getEffectiveTheme = () => {
@@ -55,7 +65,7 @@ const themeMappingJson = JSON.stringify(themeMapping);
   // Set initial theme on the script tag before Giscus loads
   const setInitialTheme = () => {
     const effectiveTheme = getEffectiveTheme();
-    const giscusTheme = themeMap[effectiveTheme] ?? 'light';
+    const giscusTheme = resolveGiscusTheme(effectiveTheme);
     const giscusScript = document.querySelector('script[src*="giscus.app/client.js"]');
     if (giscusScript) {
       giscusScript.setAttribute('data-theme', giscusTheme);
@@ -73,7 +83,7 @@ const themeMappingJson = JSON.stringify(themeMapping);
   // Send theme update message to Giscus iframe
   const postThemeMessage = (resolvedTheme) => {
     const effective = resolvedTheme ?? currentTheme;
-    const giscusTheme = themeMap[effective] ?? 'light';
+    const giscusTheme = resolveGiscusTheme(effective);
     setContainerTheme(giscusTheme);
     
     const iframe = document.querySelector('iframe.giscus-frame');
