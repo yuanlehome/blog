@@ -62,7 +62,7 @@ comments:
     reactionsEnabled: '1'
     emitMetadata: '0'
     inputPosition: 'bottom'
-    theme: 'transparent'
+    theme: 'transparent_dark'
     lang: 'zh-CN'
 
   # Theme mapping for light/dark mode

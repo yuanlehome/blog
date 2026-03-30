@@ -116,7 +116,7 @@ test.describe('Blog smoke journey', () => {
     const toggledClass = await html.getAttribute('class');
     expect(toggledClass).not.toBe(initialClass);
 
-    const expectedGiscusTheme = 'transparent';
+    const expectedGiscusTheme = 'transparent_dark';
     await expect
       .poll(async () =>
         page.evaluate(
@@ -778,13 +778,13 @@ test.describe('Blog smoke journey', () => {
       });
     };
 
-    const expectGiscusThemeToStayTransparent = async () => {
+    const expectGiscusThemeToStayTransparentDark = async () => {
       await expect
         .poll(async () => getGiscusTheme(), {
           timeout: 5000,
-          message: 'Giscus theme should remain transparent',
+          message: 'Giscus theme should remain transparent_dark',
         })
-        .toBe('transparent');
+        .toBe('transparent_dark');
     };
 
     // Wait for Giscus to load and sync
@@ -792,7 +792,7 @@ test.describe('Blog smoke journey', () => {
 
     // Check initial state
     const initialPageTheme = await getPageTheme();
-    await expectGiscusThemeToStayTransparent();
+    await expectGiscusThemeToStayTransparentDark();
 
     // Toggle theme
     const themeToggle = page.locator('#theme-toggle');
@@ -803,7 +803,7 @@ test.describe('Blog smoke journey', () => {
 
       // Check themes after toggle
       const newPageTheme = await getPageTheme();
-      await expectGiscusThemeToStayTransparent();
+      await expectGiscusThemeToStayTransparentDark();
 
       // Verify theme changed
       expect(newPageTheme).not.toBe(initialPageTheme);
@@ -813,7 +813,7 @@ test.describe('Blog smoke journey', () => {
       await page.waitForTimeout(500);
 
       const finalPageTheme = await getPageTheme();
-      await expectGiscusThemeToStayTransparent();
+      await expectGiscusThemeToStayTransparentDark();
 
       expect(finalPageTheme).toBe(initialPageTheme);
     }
