@@ -4,7 +4,6 @@ slug: vllm-model-runner-v2-design-document-translation
 date: '2026-03-25'
 tags: ['vLLM']
 status: published
-comments: true
 source_url: 'https://docs.google.com/document/d/1gFqtDkcoqhy9j-X0ndshzbhapX1uNey1-wBENwGPI80/edit?usp=sharing'
 source_author: Woosuk Kwon, Nick Hill
 imported_at: '2026-03-25T00:00:00.000Z'
