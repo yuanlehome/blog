@@ -7,11 +7,11 @@ status: published
 source: original
 ---
 
-vLLM 最近在主线里引入了 EPD（Disaggregated Encoder / Encoder-Prefill/Decode Disaggregation）相关能力。很多人第一次看到这个名字时，会把它理解成“又一种把推理流程切开的分布式 pipeline”。但如果顺着源码一路往下读，会发现它真正拆出来的，并不是整条推理链，而是多模态请求中的 `encoder outputs`。
+vLLM 主线最近引入了 EPD（Disaggregated Encoder / Encoder-Prefill/Decode）。它并不是把整条推理链都拆成内建分布式 pipeline，而是把多模态请求里的 `encoder outputs` 抽成可复用、可远端加载的中间态。
 
-这篇文章想回答三个问题：vLLM 当前主线里的 EPD 到底已经实现了什么，它和常见的 P/D 分离有什么不同，以及这套设计距离“一键可生产化”的完整形态还有哪些工程缺口。
+本文聚焦三个问题：主线已经实现了什么、它与常见 P/D 分离的区别、以及距离生产化还差哪些环节。
 
-如果只先记一条结论，那么就是：**当前主线的 EPD 更像“内核已经具备 encoder 输出解耦与远端注入能力，但完整线上拓扑仍依赖外部 proxy 编排”。**
+如果只记一条结论：**当前主线已经具备 encoder 输出解耦与远端注入能力，但完整线上拓扑仍依赖外部 proxy 编排。**
 
 > 说明：本文基于 vLLM `main` 分支的 commit `4eefbf9609e5ddb996e3ac37e192e92466ec35cc`（commit 时间：`2026-04-02 11:52:18 +0000`）进行分析，目标仓库为 <https://github.com/vllm-project/vllm>。
 
@@ -54,9 +54,8 @@ flowchart LR
 
 ### 架构分析
 
-1. 当前 vLLM 的 EPD 更像“内核已经具备 encoder 输出解耦与远端注入能力，但完整线上拓扑仍靠代理拼装”。这决定了它已经能解释设计思想，但距离“单开关生产化 EPD”还有工程空隙。
-2. EPD 真正解决的是“多模态 encoder 计算与文本 prefill/decode 的耦合”，而不是所有分布式 serving 问题。它和 disaggregated prefill 是两个正交维度：前者转移的是 encoder outputs，后者转移的是 KV cache。
-3. 这套设计的价值中心不是“把 encoder 拆出去”这件事本身，而是“把 encoder outputs 变成一个可缓存、可传输、可注入的中间表示”。
+1. 当前 vLLM 的 EPD 更像“内核能力 + 外部编排”，而不是单开关即可落地的完整产品。
+2. 它解决的是多模态 encoder 与文本 generation 的耦合；与 disaggregated prefill 是正交关系，前者传 `encoder outputs`，后者传 KV cache。
 
 ---
 
@@ -82,14 +81,14 @@ flowchart LR
 
 要点说明：
 
-1. 从当前代码结构可以直接看出，encoder、prefill、decode 被视为资源画像不同的阶段，三者长期共置会带来互相干扰与扩容耦合。
+1. encoder、prefill、decode 的资源画像不同，长期共置会带来排队干扰与扩容耦合。
 2. 这种差异已经进入 runtime：scheduler 有独立的 `encoder_compute_budget` 与 `encoder_cache_manager`，纯 producer 不分配 KV cache，encoder-only 关闭 chunked prefill。
 3. 文本请求在代理层和引擎层都天然可以 bypass encoder。
 
 ### 架构分析
 
-1. vLLM 做 EPD 的根因，不是“把 pipeline 切得更细一定更快”，而是“多模态请求把一个短时、重计算、强波动的 encoder 阶段硬塞进了文本 generation 实例”，导致文本请求也被视觉工作拖累。
-2. 纯 PD 分离主要是为了解耦 TTFT 与 ITL；EPD 更强调去掉“视觉 encoder 对文本生成的干扰”。两者关注的瓶颈不同，所以收益形态也不同。
+1. vLLM 做 EPD，核心不是“切阶段”本身，而是把短时、重计算、强波动的视觉 encoder 从文本 generation 实例里拆出来，减少互相拖累。
+2. 纯 PD 分离主要治理 TTFT 与 ITL；EPD 更强调消除视觉 encoder 对文本生成的干扰，所以两者的收益形态并不相同。
 
 ---
 
@@ -918,72 +917,42 @@ flowchart TB
 
 ### 架构分析
 
-1. 为什么 encoder 要和 PD 分离：
-   - encoder 是阶段性、短时、重计算的工作
-   - PD 特别是 decode 是长尾、显存/KV 主导的工作
-   - 两者共置会在 queueing、资源配比、扩缩容上互相伤害
-2. 为什么需要 connector：
-   - 如果没有 connector，跨实例就无法形成统一的“远端命中语义”
-   - scheduler 也就无法在“复用远端输出”和“本地重算”之间做选择
-3. 为什么 metadata / cache / transfer 是核心：
-   - EPD 的本质不是“网络转 tensor”，而是“让跨阶段共享的中间表示具备可定位、可复用、可失效的生命周期”
-4. 对 TTFT、吞吐、资源异构、扩缩容、文本 bypass 意味着什么：
-   - TTFT: 多模态请求的 encoder 可以和别的请求 generation pipeline 并行
-   - 吞吐 / goodput: 主要受益于移除 encoder 对 decode 的干扰，而不是 PD 文档里那种单纯 P/D 拆分
-   - 资源异构: encoder 池与 PD 池可以独立选型
-   - 文本 bypass: 纯文本请求在代理与 scheduler 两层都天然绕过 encoder
-5. 与纯 PD 分离的本质差异：
-   - PD 分离解决的是“KV 在 prefill 与 decode 之间怎么搬”
-   - EPD 解决的是“多模态 encoder 输出是否提前分流、可否复用、如何注回文本流水线”
+1. EPD 的核心目标，是把短时、重计算的 encoder 从长尾 generation 实例里拆出来，减少 queueing、资源配比和扩缩容上的互相牵制。
+2. connector 的价值不只是搬运张量，而是让 scheduler 能在“本地命中 / 远端命中 / 本地重算”之间做一致决策。
+3. 所以 EPD 的关键不只在 transport，也在 stable key、metadata 和 cache lifecycle；没有这些，远端复用就无法成立。
+4. 它和纯 PD 分离的区别也很明确：PD 解决的是 KV 在 prefill 与 decode 之间怎么搬，EPD 解决的是多模态 encoder 输出如何拆出、复用并注回 generation 流水线。
 
 ### 更深一层的架构思考
 
-1. 我认为 vLLM 现在选的分离边界是合理的。它没有把边界放在“原始图像输入”之前，也没有放在“prefill 之后的内部 hidden states”上，而是放在了“多模态 encoder outputs”这一层。这个边界的价值在于：
-   - 语义已经足够稳定，后续语言模型只需要把它当作 embedding 使用。
-   - 模型侵入性较低，不需要改写大部分 LM 主干接口。
-   - 复用价值高，因为真实系统里重复出现的往往是图像本身，而不是整个图文请求。
-2. 这个边界也暴露出当前实现最关键的遗留问题：虽然 encoder 计算被拆出来了，但“生成这些 outputs 之前的 preprocessing”仍然没有被真正共享。于是系统做到了“算子层解耦”，还没有完全做到“请求语义层解耦”。
-3. 从架构抽象看，EPD 不应被理解成“一个网络传 tensor 的技巧”，而应理解成“把原本私有的中间态物化成一个可调度对象”：
-   - 先有稳定标识
-   - 再有命中/回收语义
-   - 最后才是传输
-4. vLLM 当前最值得肯定的一点，是它没有把这三件事揉在一起：
-   - `MultiModalFeatureSpec` 负责表示
-   - `Scheduler` 和 `EncoderCacheManager` 负责决策
-   - `ECConnector` 和 `GPUModelRunner` 负责搬运与注入
-5. 这类拆法的长期收益很大，因为 transport、cache policy、orchestration 都可以沿着各自方向演进，而不必把模型执行内核反复改坏。
+1. 把分离边界放在 `encoder outputs` 是合理的：语义稳定、对 LM 主干侵入小、复用价值也高。
+2. 当前最大的遗留问题不是 encoder 没拆开，而是 preprocessing 仍未共享，系统还停留在“算子解耦”，还没有真正做到“请求级解耦”。
+3. 职责拆分也比较干净：`MultiModalFeatureSpec` 负责表示，`Scheduler` / `EncoderCacheManager` 负责决策，`ECConnector` / `GPUModelRunner` 负责搬运与注入。
 
 ### 典型实现难点与对应解法
 
 1. 难点一：跨实例如何稳定地认定“这是同一个 multimodal item”。
-   - 这是 EPD 能否成立的第一前提。E 端产出的 encoder outputs，只有在 P/PD/D 端算出完全相同的定位 key 时，才可能被远端命中；否则系统表面上“支持 EPD”，实际每次都会退回本地重算。
-   - vLLM 当前的解法很朴素，但非常稳：让 encoder 侧和 consumer 侧都重复走同一条解析链，直到 `InputProcessor.process_inputs()` 产出 `MultiModalFeatureSpec`，再用 `_get_mm_identifier()` 生成 `identifier`。后续无论是 `EncoderCacheManager.check_and_update_cache()`，还是 `ECConnector.has_cache_item()`，都基于这同一套 key 语义工作。
-   - 这套做法可信的地方，在于它没有引入“代理层先算一份 key、引擎层再猜一份 key”的双重真相；代价也很明确，就是 E、P、D 三端仍会重复做 parser / preprocess / hash。
+   - EPD 能否成立，前提就是 E 端和 P/PD/D 端必须算出同一个定位 key。
+   - vLLM 用 `InputProcessor.process_inputs()` -> `MultiModalFeatureSpec` -> `_get_mm_identifier()` 统一 key 语义，避免代理层和引擎层各算一套；代价是 E、P、D 仍会重复 parser / preprocess / hash。
 
 2. 难点二：远端命中不等于“免费”，调度器必须把它算进本地容量。
-   - 一个很容易写错的实现是：既然远端已有 encoder outputs，那 consumer 侧就把它当成零成本命中。这样会导致调度器高估可承载请求数，因为张量最终还是要落到本地 `self.encoder_cache`，显存并不会因为“来自远端”而凭空免费。
-   - vLLM 在 `_try_schedule_encoder_inputs()` 里把这件事拆得很清楚：先检查本地命中，再用 `can_allocate()` 判断本地 encoder cache 是否装得下，然后才看 `ec_connector.has_cache_item(identifier)` 决定把 item 放进 `external_load_encoder_input` 还是 `scheduled_encoder_inputs`。
-   - 真正关键的细节在后面：无论是“本地重算”还是“远端载入”，scheduler 都会对对应 item 调 `EncoderCacheManager.allocate()`；区别只在于远端载入不扣 `encoder_compute_budget`。这使“命中了远端”与“本地有地方接住这份结果”两个条件在实现上被严格分开了。
+   - 远端已有 encoder outputs，不代表 consumer 侧可以把它当成零成本命中，因为张量最终仍要落到本地 `self.encoder_cache`。
+   - `_try_schedule_encoder_inputs()` 会先判断本地 cache 容量，再决定远端载入还是本地重算；两条路径都会 `allocate()`，差别只是远端命中不扣 `encoder_compute_budget`。
 
 3. 难点三：encoder outputs 的生命周期必须跟 decoder 消费进度对齐，而不是跟 encoder 完成时刻对齐。
-   - encoder 一旦跑完，直觉上很容易立刻释放中间结果；但对多模态模型来说，真正决定“还能不能删”的不是 encoder 是否结束，而是这些 embeddings 是否已经被当前请求对应的 placeholder 消费进 decoder KV。
-   - vLLM 当前的做法分成两层。第一层是 scheduler 的 `_free_encoder_inputs()`：只有当 `start_pos + num_tokens <= request.num_computed_tokens` 时，才会调用 `EncoderCacheManager.free_encoder_input()` 释放该请求对这份结果的引用。第二层是 cache manager 的延迟回收：`free_encoder_input()` 只是把 entry 变成 freeable，不会立刻删物理缓存；真正 eviction 发生在后续 `can_allocate()` 发现容量紧张时，随后再通过 `free_encoder_mm_hashes` 通知 worker `pop` 掉本地张量。
-   - 这套两阶段释放的好处是正确性更稳：不会因为“某个请求刚算完 encoder”就过早删缓存；同时也不会把“引用释放”和“物理回收”硬绑在同一个时间点上。
+   - 真正决定能不能删的，不是 encoder 是否跑完，而是 embeddings 是否已被对应请求消费进 decoder KV。
+   - vLLM 把释放做成两阶段：scheduler 先释放引用，真正 eviction 只在容量压力下发生，从而避免过早回收。
 
 4. 难点四：connector 不能只是一个搬运 tensor 的库，它必须同时服务 scheduler 决策和 worker 执行。
-   - 如果 connector 只暴露 worker 侧 `load/save` 接口，scheduler 根本无法在本地复用、远端载入、本地重算三者之间做前置选择；但如果 connector 只服务 scheduler，worker 又不得不把具体 IO、设备放置、载入生命周期写回执行主链。
-   - vLLM 现在的抽象是明确的双侧分工：scheduler 侧关心 `has_cache_item()`、`update_state_after_alloc()`、`build_connector_meta()`；worker 侧关心 `bind_connector_metadata()`、`start_load_caches()`、`save_caches()`、`clear_connector_metadata()`。`ECExampleConnector` 里还能直接看到这一点：scheduler 先把要载入的 item 收进 `_mm_datas_need_loads`，再由 `build_connector_meta()` 生成 step 级 metadata。
-   - 这套设计的可信之处，在于它把“决策”和“搬运”分到了不同接口层；但它也暴露了当前实现的边界：metadata 仍然很薄，只够表达“这一轮加载哪些 key”，还不足以承担版本、shape、dtype、部分写入等更重的生产语义。
+   - 如果 connector 只暴露 worker 侧 `load/save`，scheduler 就无法在本地命中、远端载入和本地重算之间做前置选择。
+   - 当前接口把 scheduler 决策和 worker 搬运分开了，但 metadata 还偏薄，暂时不足以承载版本、shape、dtype、部分写入等更重的生产语义。
 
 5. 难点五：远端加载失败该怎么回退，决定了你要不要引入异步状态机。
-   - 正常 cache miss 并不难处理，scheduler 阶段 `has_cache_item()` 返回 `False`，直接回到本地重算即可。真正棘手的是“调度时看见命中，执行时文件没了 / 介质异常 / 内容无效”这类调度后失败。
-   - vLLM 当前选择的是先把复杂度压低：EC load 不像 KV transfer 那样引入 `WAITING_FOR_REMOTE_*` 状态，源码里也没有 `WAITING_FOR_REMOTE_EC`。ExampleConnector 的 `start_load_caches()` 是 step 内同步载入，成功就把结果放进本地 `encoder_cache`，失败就直接抛错；这也是为什么它更像“同步 cache load”，而不是完整的异步传输状态机。
-   - 这种做法的优点是执行链很短，容易把主路径先跑通；代价是异常恢复能力弱。也就是说，当前实现已经很好地解决了“正常 miss 如何 fallback”，但还没有彻底解决“调度后远端对象失效如何优雅降级”。
+   - 正常 cache miss 不难处理，直接回到本地重算即可；更难的是“调度时命中、执行时失效”。
+   - 当前 EC load 更像 step 内同步 cache load，主路径简单，但“调度后远端对象失效如何优雅降级”还没有真正解决。
 
 6. 难点六：在线编排到底放在引擎里还是放在代理里，本质上是在决定控制面边界。
-   - EPD 不只是 worker 内多一个 `load/save` 调用，它还涉及“什么时候先打 encoder primer、什么时候再发原始请求、E|PD 和 E|P|D 怎么串起来”。这些逻辑如果一开始就全塞回引擎，主线复杂度会迅速上升。
-   - vLLM 当前采取的是代理先行：`disagg_epd_proxy.py` 负责 `fanout_encoder_primer()`、`maybe_prefill()`、`process_prefill_stage()` 等编排动作，而且是明显的 barrier 语义，即所有 primer 成功后才继续后续阶段。
-   - 这个解法很现实，也很符合工程节奏：先证明 data plane 抽象成立，再考虑 control plane 内聚。它的边界同样很清楚，当前收益主要来自“功能先跑通、主引擎少侵入”，代价则是编排逻辑分散在引擎外、跨阶段 overlap 和更细粒度补偿机制都还没有进入主线。
+   - EPD 不只是 worker 内多一个 `load/save`，还涉及什么时候先打 encoder primer、什么时候再发原始请求、E|PD 和 E|P|D 怎么串起来。
+   - 现在由 `disagg_epd_proxy.py` 先承担编排，优点是主引擎侵入小，缺点是 barrier 语义重，跨阶段 overlap 和补偿机制还不够。
 
 ---
 
@@ -1012,26 +981,15 @@ flowchart LR
 
 ### 架构分析
 
-1. EPD 的性能收益高度 workload-dependent：
-   - 图像多、encoder 占比高、混合文本请求多时，更容易体现收益
-   - 超长 decode 主导场景下，EPD 价值更偏“去干扰”和“资源池解耦”，而不是绝对吞吐倍增
-2. 纯 PD 与 EPD 看起来都在“拆阶段”，但优化对象不同：
-   - 纯 PD 不减少总计算，只改变阶段位置
-   - EPD 能让 encoder 与 generation 解耦、让文本请求 bypass、让 encoder outputs 复用
-3. 当前代码仍存在重复多模态预处理，因此真实系统里的端到端 TTFT 提升会被 preprocessing 开销吃掉一部分。
+1. 收益高度依赖 workload。图像多、encoder 占比高、文本与多模态混跑时最容易体现价值；超长 decode 主导时，收益更多是去干扰和独立扩容。
+2. 纯 PD 与 EPD 都在拆阶段，但优化对象不同：前者搬 KV、治理 TTFT / ITL，后者搬 `encoder outputs`、治理多模态对 generation 的干扰。
+3. 当前仍有重复多模态预处理，所以端到端 TTFT 改善会被吃掉一部分。
 
 ### 我对收益上限的判断
 
-1. EPD 更像“系统级收益优化”，而不是单请求微优化。
-   - 它的最大价值往往不是把某个多模态请求从 1000ms 降到 700ms，而是让混合负载下的排队结构发生变化。
-   - 文本请求不再被视觉 encoder 拖住，这种收益在整池 goodput 和尾延迟上通常比单请求平均值更明显。
-2. 当请求里图像很多、encoder 占比高、并且文本请求和多模态请求混跑时，EPD 往往最容易发挥作用。
-3. 当 workload 已经被超长 decode 主导时，EPD 的收益会从“明显提速”转向“更稳、更好扩容、更少互扰”。这时它的收益更像平台治理收益，而不是纯算力收益。
-4. 当前实现里的一个现实瓶颈是：它把 encoder 计算拆开了，但还没有把 preprocessing 一并拆干净。所以今天看到的性能上限，还不是“完全体 EPD”的上限。
-5. 从工程经验看，EPD 的收益通常分三层出现：
-   - 第一层是文本 bypass 带来的拥塞缓解
-   - 第二层是 encoder outputs 复用带来的重复计算消除
-   - 第三层才是更强 transport、异构部署和精细资源池带来的进一步增益
+1. EPD 更像系统级优化，收益通常先出现在 goodput 和尾延迟，再体现在单请求平均值。
+2. 最容易吃到红利的场景，是图像多、encoder 重、文本与多模态混跑；如果 workload 已被超长 decode 主导，收益会更偏“更稳、更好扩容”。
+3. 当前上限仍受三点限制：重复 preprocessing、朴素 transport、barrier 式编排。
 
 ### 从源码能直接看见的性能地板与天花板
 
@@ -1040,27 +998,20 @@ flowchart LR
 1. 当前 in-tree `ECExampleConnector` 的数据路径是：
    - producer 侧 `detach().cpu()` 后写 safetensors 文件
    - consumer 侧再从文件读回目标设备
-   - 因而它天然包含 CPU round-trip 与文件系统开销
+   - 因而天然包含 CPU round-trip 与文件系统开销
 2. 示例 proxy 的控制面是 barrier 式的：
    - 先 fanout 完所有 primer
    - 等所有 primer 成功
    - 再进入 P/PD/D
    - 没有跨阶段 overlap
 3. `_execute_mm_encoder()` 虽然会按 modality 做 batching，但混合 modality 会被拆 batch，某些视频场景甚至会主动退化成顺序编码。
-4. 远端 EC 命中不会消耗 encoder compute budget，但仍要占 consumer 侧 encoder cache 容量。
-5. 纯 producer 实例在源码里是真正“去掉 LM 与 KV 初始化”的，不只是逻辑上少跑几步；因此它带来的显存节省是实打实的。
+4. 远端 EC 命中不会消耗 encoder compute budget，但仍要占 consumer 侧 encoder cache 容量；纯 producer 实例也确实不会初始化 LM / KV。
 
 #### 架构分析
 
-1. 这说明当前主线实现的性能上限，受三个层面的约束：
-   - transport 太朴素
-   - control plane 还没做流水化
-   - mixed-modality batching 仍有保守拆分
-2. 同时它的性能下限也比想象中更有保障：
-   - producer 真正不建 KV cache
-   - text-only 请求天然 bypass encoder
-   - remote hit 至少能稳定省掉 encoder compute budget
-3. 如果未来换成更强的 connector 与更正式的 control plane，性能改进的第一来源未必是“单次张量搬运更快”，而更可能是“去掉 barrier、减少重复 preprocessing、减少 CPU round-trip”。
+1. 当前性能上限主要受三方面限制：朴素 transport、未流水化的 control plane、保守的 mixed-modality batching。
+2. 但性能地板并不差：producer 不建 KV，text-only 请求天然 bypass encoder，remote hit 至少能稳定省掉 encoder compute budget。
+3. 未来更强 connector 和 control plane 带来的第一波收益，未必来自单次搬运更快，而更可能来自去掉 barrier、减少重复 preprocessing 和 CPU round-trip。
 
 ---
 
@@ -1087,100 +1038,29 @@ flowchart TB
 
 ### 架构分析
 
-1. 当前实现最明显的边界，不是“功能不能跑”，而是“生产级闭环还没补齐”：
-   - 外部缓存生命周期
-   - 版本 / schema 校验
-   - 高性能 EC transport
-   - 代理层冗余预处理
-   - Model Runner V2 (MRv2) 对齐
-2. `ECExampleConnector` 最终只依赖单个字符串 key 作为文件路径（无 LoRA 时通常等于基础 `mm_hash`），这意味着如果模型权重变了而共享目录没清，理论上存在陈旧 EC 被误命中的风险；现有代码没有 connector 级别的版本化防护。
-3. 从当前源码的空缺与接口形态看，后续演进方向大概率会集中在三条线：
-   - 更强的 connector
-   - 更轻的请求表示与 preprocessing 复用
-   - 与 Model Runner V2 (MRv2) / 更统一调度栈的整合
+1. 眼下的短板不在“能不能跑”，而在“能不能稳定、可控、可观测地跑”：外部 cache 生命周期、版本 / schema 校验、高性能 transport、重复 preprocessing、MRv2 对齐都还没补齐。
+2. `ECExampleConnector` 基本只靠字符串 key 命中，connector 级版本防护不足；模型或权重变化后如果共享目录未清，理论上存在陈旧 EC 误命中的空间。
+3. 后续演进大概率会围绕三条线展开：更强的 connector、更轻的请求表示与 preprocessing 复用、以及与统一 runner / 调度栈的整合。
 
 ### 我认为最难补齐的几个点
 
-1. 最难补的不是“再写一个更快的 connector”，而是“外部 cache 一致性”。
-   - 只要 EC 可以跨实例复用，它就迟早会遇到模型升级、部分写入、脏数据、重复写入、过期回收、跨节点清理这些问题。
-   - 这类问题一旦处理不好，线上表现通常不是性能差一点，而是正确性和稳定性一起出问题。
-2. 第二难的是失败回退。
-   - scheduler 看到命中，不代表 worker 真的能成功载入。
-   - proxy 看到 encoder primer 成功，也不代表后续阶段能消费同一份 metadata。
-   - 这要求系统具备端到端的降级协议，而不是单点 try/except。
-3. 第三难的是重复 preprocessing 的消除。
-   - 这一步如果做不好，EPD 会永远停留在“算子解耦”，而到不了“请求级解耦”。
-   - 但它又会改动请求协议、缓存 key 和多模态处理器，因此属于收益大、改动也大的升级点。
-4. 第四难的是新旧 runner 的收敛。
-   - 只要 EPD 长期只在 V1 路径成熟，后续 connector、测试和控制逻辑就会越来越依赖旧路径，拖慢平台演进。
+1. 最难补的不是“再写一个更快的 connector”，而是外部 cache 一致性，因为它会同时碰到模型升级、脏数据、部分写入、过期回收和跨节点清理。
+2. 第二难的是失败回退：scheduler 看到命中，不代表 worker 一定能成功载入，所以需要端到端降级协议，而不是局部 try/except。
+3. 第三难的是消除重复 preprocessing。这一步决定 EPD 能不能从“算子解耦”走到“请求级解耦”，但它会同时牵动请求协议、缓存 key 和多模态处理器。
+4. 第四难的是新旧 runner 的收敛。只要 EPD 长期只在 V1 路径成熟，后续 connector、测试和控制逻辑就会越来越依赖旧路径。
 
 ### 更现实的演进路线
 
-1. 第一阶段应优先把 connector 做强。
-   - 包括版本戳、shape 校验、写完成标记、失败回退、批量回收和监控。
-2. 第二阶段把“规范化后的多模态 metadata”变成正式中间产物。
-   - 让 P/D 侧少做甚至不再做重复 preprocessing。
-3. 第三阶段再考虑把外部代理中的关键编排逻辑内聚回正式 control plane。
-   - 这样 E|P|D 的组合才能从 demo 变成平台能力。
-4. 第四阶段完成 MRv2 收敛，让 EPD 进入统一 runner 时代。
-   - 这一步做完后，EPD 才会真正从“特性”升级为“基础设施”。
+1. 第一阶段先把 connector 做强，补齐版本戳、shape 校验、写完成标记、失败回退、批量回收和监控。
+2. 第二阶段把“规范化后的多模态 metadata”做成正式中间产物，让 P/D 侧少做甚至不再做重复 preprocessing。
+3. 第三阶段再把外部代理里的关键编排逐步内聚回正式 control plane，让 E|P|D 从 demo 变成平台能力。
+4. 第四阶段完成 MRv2 收敛，让 EPD 真正进入统一 runner 时代。
 
 ---
 
-## 11. 对自研推理框架的借鉴建议
+## 11. 附录
 
-### 当前实现
-
-```mermaid
-flowchart LR
-  A["统一请求表示<br/>identifier / mm_hash / mm_position"] --> B["scheduler 三路选择<br/>local hit / remote hit / recompute"]
-  B --> C["worker 注入点<br/>self.encoder_cache"]
-  D["connector 抽象<br/>scheduler + worker 双角色"] --> B
-  D --> C
-  E["逻辑缓存与物理缓存分离"] --> B
-```
-
-要点说明：
-
-1. vLLM 把 EPD 做成了“统一请求表示 + scheduler 三路选择 + worker 注入点 + connector 抽象”的组合，而不是只在 proxy 层做编排。
-2. 逻辑缓存与物理缓存分离，给了 scheduler 足够的空间去做预算和回收。
-3. `identifier` / `mm_hash` / `mm_position` 三件套是跨阶段贯穿的最小语义。
-
-### 架构分析
-
-1. 自研框架应优先复用 vLLM 这几个抽象，而不是先写 transport：
-   - 把多模态 item 变成稳定 key
-   - 把“本地命中 / 远端命中 / 本地重算”前移到 scheduler
-   - 把远端输出统一注入到本地 encoder cache 或等价抽象
-2. 必须额外补的能力：
-   - 外部 cache key 带模型版本 / tower revision / dtype / shape 摘要
-   - cache deallocation 与 invalidation
-   - preprocessing 结果复用，最好让 E 阶段把“后续阶段不必重复解析的 metadata”一并返回
-   - connector 层的错误恢复与降级策略
-3. 如果框架准备长期演进，建议尽早统一：
-   - V1/V2 runner 的 connector 接口
-   - metrics / tracing / debug API
-   - proxy 与 engine 的边界，减少例子代码与核心路径两套真相并存
-
-### 如果是我来设计一版更偏生产的 EPD
-
-1. 我会先只把 `E|PD` 打磨扎实，而不是一开始就追求 `E|P|D`。
-   - 因为只拆 encoder 就已经能验证最核心的架构假设：视觉 encoder 与文本 generation 的资源解耦到底值不值得。
-   - 这时系统里只有一种远端中间态，复杂度明显更可控。
-2. 我会把“encoder outputs locator + 规范化后的模态 metadata”一起定义成正式协议。
-   - 后续阶段不应再从原始请求里重复推导关键中间信息。
-3. 我会把外部 cache 当作产品级子系统来做，而不是调试附属物。
-   - 要有分区、TTL、回收、版本、写完成语义和可观测性。
-4. 我会把 control-plane 与 data-plane 明确分离。
-   - control-plane 负责命中决策、拓扑路由、失败回退
-   - data-plane 负责搬运 EC / KV
-5. 如果资源有限，我宁可先牺牲一点极限性能，也会先把“失败后可退回本地重算”做牢。因为对线上系统来说，稳定可退化通常比理想情况下更快更重要。
-
----
-
-## 12. 附录
-
-### 12.1 关键文件 / 类 / 函数索引
+### 11.1 关键文件 / 类 / 函数索引
 
 | 类别          | 文件                                                                | 关键类 / 函数                                                                                                                                                       | 作用                                                            |
 | ------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
@@ -1212,7 +1092,7 @@ flowchart LR
 | 输出桥接      | `vllm/v1/engine/output_processor.py`                                | 处理 `engine_core_output.kv_transfer_params`                                                                                                                        | 把 KV 传输参数带回上层响应                                      |
 | 调试 API      | `vllm/entrypoints/serve/cache/api_router.py`                        | `/reset_encoder_cache`                                                                                                                                              | 调试用 encoder cache reset                                      |
 
-### 12.2 术语表
+### 11.2 术语表
 
 | 术语                         | 含义                                                    |
 | ---------------------------- | ------------------------------------------------------- |
