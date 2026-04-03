@@ -74,7 +74,7 @@ flowchart LR
   E --> PD["PD 池<br/>LM + KV"]
   TXT --> PD
   E --> Reuse["encoder outputs 可远端复用"]
-  TXT --> Bypass["文本天然旁路 encoder"]
+  TXT --> Bypass["文本天然 bypass encoder"]
 
   NoKV["producer 不建 KV cache"] -.runtime 形态.-> E
   Chunk["encoder-only 关闭 chunked prefill"] -.runtime 形态.-> E
@@ -84,7 +84,7 @@ flowchart LR
 
 1. 从当前代码结构可以直接看出，encoder、prefill、decode 被视为资源画像不同的阶段，三者长期共置会带来互相干扰与扩容耦合。
 2. 这种差异已经进入 runtime：scheduler 有独立的 `encoder_compute_budget` 与 `encoder_cache_manager`，纯 producer 不分配 KV cache，encoder-only 关闭 chunked prefill。
-3. 文本请求在代理层和引擎层都天然可以旁路 encoder。
+3. 文本请求在代理层和引擎层都天然可以 bypass encoder。
 
 ### 架构分析
 
@@ -115,7 +115,7 @@ flowchart LR
   subgraph Solve["EPD 直接解决"]
     S1["encoder 与 generation 资源池解耦"]
     S2["encoder outputs 跨进程复用"]
-    S3["纯文本请求天然旁路 encoder"]
+    S3["纯文本请求天然 bypass encoder"]
     S4["可与 PD 组合成 E|P|D"]
   end
 
@@ -927,11 +927,11 @@ flowchart TB
    - scheduler 也就无法在“复用远端输出”和“本地重算”之间做选择
 3. 为什么 metadata / cache / transfer 是核心：
    - EPD 的本质不是“网络转 tensor”，而是“让跨阶段共享的中间表示具备可定位、可复用、可失效的生命周期”
-4. 对 TTFT、吞吐、资源异构、扩缩容、文本旁路意味着什么：
+4. 对 TTFT、吞吐、资源异构、扩缩容、文本 bypass 意味着什么：
    - TTFT: 多模态请求的 encoder 可以和别的请求 generation pipeline 并行
    - 吞吐 / goodput: 主要受益于移除 encoder 对 decode 的干扰，而不是 PD 文档里那种单纯 P/D 拆分
    - 资源异构: encoder 池与 PD 池可以独立选型
-   - 文本旁路: 纯文本请求在代理与 scheduler 两层都天然绕过 encoder
+   - 文本 bypass: 纯文本请求在代理与 scheduler 两层都天然绕过 encoder
 5. 与纯 PD 分离的本质差异：
    - PD 分离解决的是“KV 在 prefill 与 decode 之间怎么搬”
    - EPD 解决的是“多模态 encoder 输出是否提前分流、可否复用、如何注回文本流水线”
@@ -993,7 +993,7 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-  B1["文本请求旁路 encoder"] --> Q["混合负载排队结构改善"]
+  B1["文本请求 bypass encoder"] --> Q["混合负载排队结构改善"]
   B2["remote hit 不消耗 encoder compute budget"] --> Q
   B3["encoder-only 不保留 LM / KV cache"] --> Q
 
@@ -1017,7 +1017,7 @@ flowchart LR
    - 超长 decode 主导场景下，EPD 价值更偏“去干扰”和“资源池解耦”，而不是绝对吞吐倍增
 2. 纯 PD 与 EPD 看起来都在“拆阶段”，但优化对象不同：
    - 纯 PD 不减少总计算，只改变阶段位置
-   - EPD 能让 encoder 与 generation 解耦、让文本请求旁路、让 encoder outputs 复用
+   - EPD 能让 encoder 与 generation 解耦、让文本请求 bypass、让 encoder outputs 复用
 3. 当前代码仍存在重复多模态预处理，因此真实系统里的端到端 TTFT 提升会被 preprocessing 开销吃掉一部分。
 
 ### 我对收益上限的判断
@@ -1029,7 +1029,7 @@ flowchart LR
 3. 当 workload 已经被超长 decode 主导时，EPD 的收益会从“明显提速”转向“更稳、更好扩容、更少互扰”。这时它的收益更像平台治理收益，而不是纯算力收益。
 4. 当前实现里的一个现实瓶颈是：它把 encoder 计算拆开了，但还没有把 preprocessing 一并拆干净。所以今天看到的性能上限，还不是“完全体 EPD”的上限。
 5. 从工程经验看，EPD 的收益通常分三层出现：
-   - 第一层是文本旁路带来的拥塞缓解
+   - 第一层是文本 bypass 带来的拥塞缓解
    - 第二层是 encoder outputs 复用带来的重复计算消除
    - 第三层才是更强 transport、异构部署和精细资源池带来的进一步增益
 
@@ -1058,7 +1058,7 @@ flowchart LR
    - mixed-modality batching 仍有保守拆分
 2. 同时它的性能下限也比想象中更有保障：
    - producer 真正不建 KV cache
-   - text-only 请求天然旁路 encoder
+   - text-only 请求天然 bypass encoder
    - remote hit 至少能稳定省掉 encoder compute budget
 3. 如果未来换成更强的 connector 与更正式的 control plane，性能改进的第一来源未必是“单次张量搬运更快”，而更可能是“去掉 barrier、减少重复 preprocessing、减少 CPU round-trip”。
 
