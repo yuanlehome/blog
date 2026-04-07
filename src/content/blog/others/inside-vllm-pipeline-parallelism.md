@@ -43,9 +43,9 @@ source: original
 
 17. PP 的主要价值场景是“能部署”而非“更快”：当单张 GPU 显存不够放下整个模型时，PP 是最简单的跨卡方案；但因为引入 bubble 和通信，吞吐量通常低于等价的 TP。
 
-18. V1 中 model_runner 为非首段 rank 预分配固定地址的 `intermediate_tensors` 缓冲区（用于 CUDA Graph 捕获）；执行时通过 `copy_` 将接收数据写入该预分配缓冲区，避免动态分配。
+18. V1 中 `model_runner` 为非首段 rank 预分配固定地址的 `intermediate_tensors` 缓冲区（用于 CUDA Graph 捕获）；执行时通过 `copy_` 将接收数据写入该预分配缓冲区，避免动态分配。
 
-19. V1 中 PP 通信使用 `AsyncIntermediateTensors` 实现惰性同步——`irecv` 在 GPU 计算开始前就发起，只在 model_runner 真正访问 `.tensors` 时才等待通信完成，实现通信与计算重叠。
+19. V1 中 PP 通信使用 `AsyncIntermediateTensors` 实现惰性同步——`irecv` 在 GPU 计算开始前就发起，只在 `model_runner` 真正访问 `.tensors` 时才等待通信完成，实现通信与计算重叠。
 
 20. PP+TP 组合时，stage 间通信是 PP 的 P2P send/recv，stage 内通信是 TP 的 all-reduce/all-gather。两者正交但在模型执行的关键路径上串行叠加，对延迟影响显著。
 

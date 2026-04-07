@@ -21,7 +21,8 @@
     "depcruise:lint": "depcruise --config .dependency-cruiser.cjs src scripts",
     "format": "prettier --plugin=prettier-plugin-astro --write \"**/*.{md,astro,js,ts,jsx,tsx,json,yml,yaml,css,scss}\"",
     "format:check": "prettier --plugin=prettier-plugin-astro --check \"**/*.{md,astro,js,ts,jsx,tsx,json,yml,yaml,css,scss}\"",
-    "md:lint": "npx markdownlint-cli2",
+    "md:lint": "npx markdownlint-cli2 && npm run md:lint:underscores",
+    "md:lint:underscores": "tsx scripts/check-markdown-underscore-emphasis.ts",
     "lint": "npm run format:check && npm run md:lint"
   },
   "keywords": [],
