@@ -115,15 +115,24 @@ body {
 }
 
 .site-header {
-  position: sticky;
+  position: fixed;
   top: 0;
-  z-index: 30;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  width: 100%;
   background: var(--header-bg);
   border-bottom: 1px solid var(--header-border);
+  padding-top: env(safe-area-inset-top, 0px);
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
     box-shadow 160ms ease;
+}
+
+.site-header-spacer {
+  height: var(--site-header-height, 80px);
+  flex: 0 0 auto;
 }
 
 .site-header.reduce-motion {
