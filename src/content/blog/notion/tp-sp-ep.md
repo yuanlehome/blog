@@ -7,7 +7,7 @@ tags:
   - Distributed Parallel
 status: published
 cover: /images/notion/tp-sp-ep/2b222dca-4210-80d9-98fb-cf78ef53eb91.jpeg
-updated: '2026-02-12T10:16:00.000Z'
+updated: '2026-04-07T07:36:00.000Z'
 source: notion
 notion:
   id: 2a122dca-4210-805b-ae7e-fb6b09a2e44f
@@ -29,7 +29,7 @@ notion:
 
 - 我们有 $N$ 个 GPU。
 - 输入 $X$ 是复制的 (replicated)。
-- 第一个 `qkv inear` 层的权重 $A$ 被按\_列\_切分：$A = [A_1, A_2, \dots, A_N]$。
+- 第一个 `qkv inear` 层的权重 $A$ 被按列切分：$A = [A_1, A_2, \dots, A_N]$。
 - GPU $i$ 计算：$Y_i = \text{GeLU}(X A_i)$。
 - **关键状态**：计算完成后，中间激活 $Y = [Y_1, \dots, Y_N]$ 在 $N$ 个 GPU 上是按**隐藏层维度**（$H_{\text{dim}}$ 维度，也常称为 $K$ 维度）切分的。
 
@@ -41,7 +41,7 @@ notion:
 
 1. **数据排布**：
    - **输入 (**$Y$**)**：$Y = [Y_1, \dots, Y_N]$ (按 $H_{\text{dim}}$ 切分)。
-   - **权重 (**$W$**)**：`out_linear` 权重 $W$ 必须\_同样\_按 $H_{\text{dim}}$ 维度（即\_行\_）切分：
+   - **权重 (**$W$**)**：`out_linear` 权重 $W$ 必须同样按 $H_{\text{dim}}$ 维度（即行）切分：
      $$
      W = \begin{bmatrix} W_1 \\ W_2 \\ \vdots \\ W_N \end{bmatrix}
      $$
@@ -53,14 +53,14 @@ notion:
    - 根据矩阵乘法，最终结果是 $Z = YW = \sum_{i=1}^N Y_i W_i$。
    - `all_reduce` 操作在所有 GPU 之间对 $Z_i$ 进行求和。
    - $\text{AllReduce}(\{Z_1, \dots, Z_N\}) \to Z$。
-1. **完整的 Z**：
+1. **完整的** $Z$：
    - $Z$ 在所有 GPU 上都是完整的、复制的 (replicated)。
-1. 每张 GPU 从 Z 的行维度平均 Slice 出一部分，转为序列并行送到下一层。
+1. 每张 GPU 从 $Z$ 的行维度平均 Slice 出一部分，转为序列并行送到下一层。
 
 - **优点**：
   - **节省内存**：每个 GPU 只需要存储 $1/N$ 的 $W$ 权重。这在权重（如 $W_{\text{proj}}$）非常大时至关重要。
 - **缺点**：
-  - **通信瓶颈**：必须在计算 $Z_i$ \_之后\_执行一个 `all_reduce`。这是一个同步操作，通信量为 $Z$ 的大小，可能会阻塞流水线。
+  - **通信瓶颈**：必须在计算 $Z_i$ 之后执行一个 `all_reduce`。这是一个同步操作，通信量为 $Z$ 的大小，可能会阻塞流水线。
 
 ### 2.3 方案二：`all2all` + `out_linear` (不切分)
 
@@ -73,7 +73,7 @@ notion:
    - 这一步的目标是将 $Y$ 的数据排布从“按 $H_{\text{dim}}$ 切分”**转置**为“按**序列 (Sequence)** 维度切分”。
    - **之前**：GPU $i$ 拥有 $Y_i$（形状 $S \times (H_{\text{dim}}/N)$）。
    - **操作**：
-     - GPU $i$ 将它的 $Y_i$沿着 $S$ 维度切成 $N$ 块：$Y_i = [Y_i^{(1)T}, \dots, Y_i^{(N)T}]^T$。
+     - GPU $i$ 将它的 $Y_i$ 沿着 $S$ 维度切成 $N$ 块：$Y_i = [Y_i^{(1)T}, \dots, Y_i^{(N)T}]^T$。
      - GPU $i$ 将 $Y_i^{(j)}$ 发送给 GPU $j$。
      - GPU $j$ 收到来自所有 $N$ 个 GPU 的 $\{Y_1^{(j)}, \dots, Y_N^{(j)}\}$。
    - **之后**：GPU $j$ 将收到的块沿着 $H_{\text{dim}}$ 维度拼接起来（⚠️：这里会有一个 transpose 操作），得到 $\hat{Y}_j = [Y_1^{(j)}, \dots, Y_N^{(j)}]$（形状 $(S/N) \times H_{\text{dim}}$）。
@@ -95,7 +95,7 @@ notion:
 | **通信内容**                  | 输出 $Z$ (形状 $S \times H_{\text{dim}}$)    | 激活 $Y$ (形状 $S \times H_{\text{dim}}$)   |
 | **输出** $Z$ **的排布**       | **复制的 (Replicated)**                      | **按序列切分 (Sequence-Parallel)**          |
 
-**结论：**方案二**牺牲了** $W$ **的内存**（现在需要 $N$ 份 $W$），来换取**将并行维度从** $H_{\text{dim}}$ **(TP) 切换到** $S$ **(SP)**，其主要目的是**用** **`all2all`** **替代** **`all_reduce`**，并利用通信-计算重叠来提升流水线效率。
+**结论：**方案二**牺牲了** $W$ **的内存**（现在需要 $N$ 份 $W$），来换取**将并行维度从** $H_{\text{dim}}$ **(TP) 切换到** $S$ **(SP)**，其主要手段是**用** **`all2all`** **替代** **`all_reduce`**，并利用通信-计算重叠来提升流水线效率。
 
 ---
 
@@ -240,4 +240,4 @@ GPU $j$ 持有专家集合，每个专家是一个 FFN：
 
 - GPU $i$ 得到：
   - $Y_i \in \mathbb{R}^{\frac{S}{P} \times H_{\text{dim}}}$
-- 输出仍是 **按序列维度切分（SP）**，可直接送入下一层。
+- 输出仍是**按序列维度切分（SP）**，可直接送入下一层。
