@@ -137,8 +137,8 @@ export async function findSuspiciousUnderscoreEmphasis(
       return;
     }
 
-    const startOffset = node.position?.start.offset;
-    const endOffset = node.position?.end.offset;
+    const startOffset = node.position?.start?.offset;
+    const endOffset = node.position?.end?.offset;
     if (startOffset === undefined || endOffset === undefined) {
       return;
     }
