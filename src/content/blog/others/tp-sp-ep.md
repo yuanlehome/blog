@@ -6,22 +6,23 @@ tags:
   - Sequence Parallel
   - Distributed Parallel
 status: published
-cover: /images/notion/tp-sp-ep/2b222dca-4210-80d9-98fb-cf78ef53eb91.jpeg
+cover: /images/others/tp-sp-ep/cover.jpeg
 updated: '2026-04-07T07:36:00.000Z'
-source: notion
-notion:
-  id: 2a122dca-4210-805b-ae7e-fb6b09a2e44f
 ---
 
----
+在大模型训练中，单纯的张量并行（TP）或序列并行（SP）往往难以覆盖所有层的通信需求。对于稠密的 Attention 层，TP 可以高效地切分权重矩阵；而对于 MoE 层，专家并行（EP）才是降低通信开销的关键。本文梳理一种将 **TP、SP、EP 融合**的混合并行策略——重点剖析 Attention 层的两种 `out_linear` 方案，以及 MoE 层的 Dispatch / Combine 机制，帮助理解它们如何协同工作以最大化吞吐。
 
 ## 一、两种混合并行图示
 
-![非完整图示，不含后续 EP 并行 MoE 层。](/images/notion/tp-sp-ep/2b222dca-4210-80d9-98fb-cf78ef53eb91.jpeg)
+![非完整图示，不含后续 EP 并行 MoE 层。](/images/others/tp-sp-ep/cover.jpeg)
+
+上图展示了 Attention 层的两种 `out_linear` 实现路径。两条路径都从同一个列并行 `qkv_linear` 出发，区别在于如何处理输出投影：一种走**行并行 + `all_reduce`**，另一种走 **`all2all` + 完整权重**。后续的 MoE 层则统一以 SP 排布作为输入，借助两次 `all2all` 完成专家路由与聚合。
 
 ---
 
 ## 二、并行原理解析
+
+两条方案的起点相同：列并行的 `qkv_linear` 将输出激活按**隐藏层维度**切分分布在各 GPU 上。从这一状态出发，两条路径以不同方式完成 `out_linear` 并进入序列并行段。
 
 ### 2.1 前提：`qkv_inear` (列切)
 
@@ -34,6 +35,8 @@ notion:
 - **关键状态**：计算完成后，中间激活 $Y = [Y_1, \dots, Y_N]$ 在 $N$ 个 GPU 上是按**隐藏层维度**（$H_{\text{dim}}$ 维度，也常称为 $K$ 维度）切分的。
 
 这里**涉及到 Attention 的 TP 并行**，原理可参考猛猿大佬文章 <https://zhuanlan.zhihu.com/p/622212228>，不再赘述。现在，我们要计算第二层 $Z = YW$，其中 $W$ 是 `out_linear` 的权重。
+
+此时有两条路可走：继续保持 $H_{\text{dim}}$ 维度的切分（方案一），或提前通信将切分轴转到序列维度（方案二）。
 
 ### 2.2 方案一：`out_linear` (行切) + `all_reduce` + `Slice`
 
@@ -149,11 +152,13 @@ notion:
 
 ## 四、EP 并行的 MoE 层
 
+无论选择方案一还是方案二，进入 MoE 层时激活都已处于**序列并行（SP）**的排布——每张 GPU 持有全局序列的 $1/P$ 片段，形状为 $\frac{S}{P} \times H_{\text{dim}}$。EP 的核心思想是**将专家参数分片到各 GPU，同时通过两次 `all2all` 完成 token 的路由与聚合**，以此避免所有 GPU 都冗余存储全量专家权重。
+
 ### 4.1 假设一些参数：
 
 - 输入：$X \in \mathbb{R}^{S \times H_{\text{dim}}}$
 - Router：为每个 token 选 $k$ 个专家（Top-k），得到
-  - 专家索引：$\text{eid} \in {0,\dots,E-1}^{S \times k}$
+  - 专家索引：$\text{eid} \in \{0,\dots,E-1\}^{S \times k}$
   - 权重：$w \in \mathbb{R}^{S \times k}$
 - 专家集合：共有 $E$ 个 experts
 - EP 规模：$P$（同一个 EP group 中有 $P$ 张 GPU）
@@ -171,7 +176,7 @@ notion:
 - 全局 $S$ 个 tokens，被 $P$ 张 GPU 按序列维度均分
   - GPU $i$ 拥有：$X_i \in \mathbb{R}^{\frac{S}{P} \times H_{\text{dim}}}$
 - 每个 GPU 本地计算 Router：
-  - $\text{eid}_i \in {0,\dots,E-1}^{\frac{S}{P} \times k}$
+  - $\text{eid}_i \in \{0,\dots,E-1\}^{\frac{S}{P} \times k}$
   - $w_i \in \mathbb{R}^{\frac{S}{P} \times k}$
 
 ### 4.2 Dispatch：`permute` + `all2all`（把 token 发到专家所在卡）
@@ -182,7 +187,7 @@ notion:
 
 - 对 GPU $i$ 上的每个 token $t$，它会被路由到 $k$ 个专家：${\text{eid}_i[t,1], \dots, \text{eid}_i[t,k]}$
 - 定义专家到 GPU 的映射（静态）：
-  - $\text{owner}(e) \in {0,\dots,P-1}$
+  - $\text{owner}(e) \in \{0,\dots,P-1\}$
 - GPU $i$ 将其本地 token 复制出 $k$ 份“token-expert 关联样本”，并按 $\text{owner}(e)$ 分桶：
   - 形成 $P$ 个发送缓冲区：$\text{sendbuf}_{i\to j}$
 - 同时，GPU $i$ 记录两类索引用于还原：
@@ -241,3 +246,33 @@ GPU $j$ 持有专家集合，每个专家是一个 FFN：
 - GPU $i$ 得到：
   - $Y_i \in \mathbb{R}^{\frac{S}{P} \times H_{\text{dim}}}$
 - 输出仍是**按序列维度切分（SP）**，可直接送入下一层。
+
+---
+
+## 五、全局数据流回顾
+
+将各阶段的排布变化串联起来，便能看清整条流水线的"数据拓扑"：
+
+| 阶段                                  | 数据排布                           | 通信           |
+| ------------------------------------- | ---------------------------------- | -------------- |
+| `qkv_linear` 输入                     | 序列切分 (SP)，$(S/N) \times H$    | —              |
+| `qkv_linear` 输出（列并行）           | 隐藏维切分 (TP)，$S \times (H/N)$  | 无（本地计算） |
+| **方案一** `out_linear`（行并行）输出 | 全量复制，$S \times H$             | `all_reduce`   |
+| → Slice 为 SP                         | 序列切分，$(S/N) \times H$         | 本地切片       |
+| **方案二** `all2all` 后               | 序列切分 (SP)，$(S/N) \times H$    | `all2all`      |
+| → `out_linear`（完整权重）输出        | 序列切分，$(S/N) \times H$         | 无             |
+| MoE Dispatch `all2all`                | 专家分桶，$M_j \times H$（不均匀） | `all2all`      |
+| Expert `grouped_gemm`                 | 专家分桶，$M_j \times H$           | 无（本地计算） |
+| MoE Combine `all2all`                 | 序列切分，$(S/P) \times H$         | `all2all`      |
+
+可以看到：两条路径都将 Attention 层的 TP 激活"归还"为 SP，从而 MoE 层可以无缝地以序列并行为接口完成 EP 路由，整个前向过程不需要任何额外的同步等待（在理想的通信-计算重叠实现下）。
+
+---
+
+## 六、总结
+
+- **方案一（行并行 + `all_reduce`）**：实现简单，权重内存占用低（$1/N$），但 `all_reduce` 必须在 `out_linear` 完成后才能发起，难以与计算重叠。
+- **方案二（`all2all` + 完整权重）**：通信量降为方案一的 $1/N$，且 `all2all` 可与前一步计算重叠；代价是每张 GPU 需存储完整的 `out_linear` 权重。当 GPU 显存充裕、NVLink 带宽高、且下游对 SP 排布有明确需求时（如接 EP-MoE），方案二的优势更为突出。
+- **EP 的 MoE 层**：以 SP 排布为接口，两次 `all2all` 完成 Dispatch 与 Combine，实现专家参数的分片存储与正确的 token 路由，输出依然是 SP，可无缝接入下一 Transformer 层。
+
+三者的联动使得超大规模 MoE 模型（如 DeepSeek、Mixtral 等）在多机多卡场景中既能充分利用 NVLink/IB 带宽，又能将每卡的参数与激活内存控制在可接受范围内。
