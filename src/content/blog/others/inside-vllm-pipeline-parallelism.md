@@ -276,9 +276,6 @@ $$
 - $T_{\mathrm{comm},s}$：和前后 stage 传激活的时间
 - $T_{\mathrm{runtime},s}$：launch、buffer 管理、sample 等杂项时间
 
-这里最重要的不是公式本身，而是一个直觉：  
-**首段和末段通常不只是“多几个 block”，还经常额外带着 embedding、final norm、lm_head、sampling 之类特殊开销。**
-
 #### 2. prefill 的计算量：主要看总 token 数和长度平方项
 
 设一个 prefill wave 里一共有 $N$ 个 token，长度平方和为 $Q = \sum_i n_i^2$，stage $s$ 持有 $l_s$ 个 block。  
@@ -312,16 +309,7 @@ $$
 - $\alpha' B H^2$ 对应本步 token 的投影、MLP 等固定形态计算
 - $\beta' B \bar t H$ 对应 query 和历史 KV 的交互，随上下文长度线性增长
 
-因此 prefill 与 decode 的主导项本质不同：
-
-- prefill 更像“token 很多，而且 attention 有平方项”
-- decode 更像“每步 token 很少，但固定开销更显眼”
-
-这也是为什么 decode 更容易暴露：
-
-- launch / sync / sample
-- 末段 final norm + lm_head
-- scheduler 回路
+因此 prefill 与 decode 的主导项不同：前者更受 token 数和 attention 平方项影响，后者更容易被固定开销与反馈路径放大。
 
 #### 4. stage 间通信模型：prefill 更多是带宽问题，decode 更容易变成时延问题
 
@@ -373,15 +361,13 @@ $$
 - $W$ 太小，流水线灌不满，bubble 很重
 - $W$ 足够大，利用率会提升
 
-但真实系统里更关键的是最慢 stage。  
 如果记最慢 stage 的时间为：
 
 $$
 \tau \approx \max_s T_s,
 $$
 
-那么系统的稳态吞吐大体就由它决定。  
-这也是为什么只靠增加 wave 数，并不能无限补救 stage 不均衡。
+那么系统的稳态吞吐大体就由它决定，单靠增加 wave 数并不能补救严重失衡的 stage。
 
 #### 6. 吞吐、TTFT、TPOT 如何从这个模型里导出
 
@@ -419,24 +405,13 @@ $$
 
 #### 7. 为什么推理 PP 不能直接套训练里的 1F1B 心智模型
 
-训练中的 1F1B 之所以高效，是因为 forward 与 backward 可以共同填 pipeline。  
-推理没有 backward，于是填 pipeline 的资源只剩下更多服务波次 $W$。
-
-更关键的是，decode 还多了训练里没有的 token 反馈闭环。  
-下一步 decode 的起点，更接近：
+训练中的 1F1B 依赖 forward / backward 共同填满流水线；推理没有 backward，而且 decode 还多了 token 反馈闭环。下一步 decode 的起点更接近：
 
 $$
 \Delta_{\mathrm{decode}} \approx \max(T_{\mathrm{pipeline}}, T_{\mathrm{feedback}}).
 $$
 
-这表示下一步 decode 不只取决于流水线有没有空出来，还取决于：
-
-- 末段是否完成 sample
-- sampled token 是否反馈回调度器
-- 下一轮 step 是否完成重新装配
-
-所以推理 decode 不是一个完全开放的单向流水，而是“流水线 + 反馈回路”的组合系统。  
-这也是为什么训练中的 1F1B 经验，不能直接平移成推理里的 TPOT 直觉。
+这意味着 decode 节拍不仅由流水线决定，还受 sample、回传和下一轮 step 装配影响。
 
 #### 8. 从公式反推：PP 在什么条件下更可能值得
 
@@ -446,26 +421,12 @@ $$
 \mathrm{Mem}_s \le \mathrm{Mem}_{\mathrm{gpu}}.
 $$
 
-如果希望 PP 不只是“能跑”，而且“值得跑”，通常要同时满足几件事：
+如果希望 PP 不只是“能跑”，而且“值得跑”，通常要同时满足：
 
 - $W$ 不能太小，否则流水线灌不满
 - stage 不能差得太多，否则最慢 stage 锁死吞吐
 - 边界通信不能太贵，否则 PP 收益会被吃掉
 - $T_{\mathrm{feedback}}$ 不能太长，否则 decode 会被反馈闭环卡住
-
-相反，PP 更可能只解决“能不能跑”，而不一定解决“跑得划不划算”的典型情形是：
-
-- $W$ 小，fill / drain bubble 很重
-- 末段或首段长期偏慢
-- decode 每步通信和固定时延难以隐藏
-- sampled token 回传进入关键路径
-
-从这个角度看，PP 的性能判断不是一句“层均分了没有”，而是四个现实问题：
-
-- 流水线是否灌满
-- stage 是否均衡
-- 边界通信是否便宜
-- decode 闭环是否被末段锁死
 
 ### 内存模型
 
@@ -477,8 +438,7 @@ $$
 
 #### 1. 权重显存如何随 PP 变化
 
-如果只看 block 权重，PP 后每卡权重大体接近按 stage 数分摊，也就是近似按 $\frac{1}{P}$ 下降。  
-但真实情况不是简单的 $\frac{1}{P}$，因为还有结构性不公平项：
+如果只看 block 权重，PP 后每卡权重大体接近按 stage 数分摊；但真实情况不是简单的 $\frac{1}{P}$，因为还有结构性不公平项：
 
 - 首段 embedding
 - 末段 final norm
@@ -493,18 +453,13 @@ $$
 
 #### 2. KV cache 是否因 PP 改变其分布或约束
 
-PP 不会让全局 KV cache 消失，也不会让它自动变便宜。  
-PP 改变的是：
+PP 不会让全局 KV cache 消失，它改变的是：
 
 - 哪个 stage 持有哪一部分层的 KV cache
 - 每个 worker 的可用显存有多少能留给 KV
 - 统一配置时必须向最紧的 stage 对齐
 
-因此，PP 带来的 KV 收益通常是“间接收益”：
-
-- 权重薄了
-- 每卡空余显存更多
-- 可给 KV 的空间变大
+因此，PP 带来的 KV 收益通常是间接收益：权重变薄后，每卡更容易给 KV cache 留出空间。
 
 #### 3. 中间激活 / 中间态的存在形式与生命周期
 
@@ -515,50 +470,13 @@ PP 中间态的生命周期通常很短：
 3. 下一 stage 消费
 4. 当步结束即可被覆盖
 
-但在推理系统里，它还要满足一个工程要求：  
-必须适配 profiling、persistent buffer 与 CUDA graph 这类运行时约束。
-
-#### 4. 首尾 stage 的额外内存负担
-
-首尾 stage 除了 block 权重，还常常承担：
-
-- embedding 权重
-- norm
-- lm_head
-- logits processor
-- 采样相关 buffer
-
-这就是为什么首尾 stage 常常比中间 stage 更容易成为显存与时延双重热点。
-
-#### 5. 为什么“模型能放下”和“系统跑得划算”是两个不同问题
-
-PP 可以让模型终于装下，也可以让 KV cache 空间变大。  
-但与此同时，它也可能带来：
-
-- 更多 stage 边界通信
-- 更深的端到端串行路径
-- 更多 decode 反馈依赖
-
-因此：
-
-- “fit” 更接近容量问题
-- “worth it” 更接近性能与服务目标问题
+但在推理系统里，它还要适配 profiling、persistent buffer 与 CUDA graph 这类运行时约束。
 
 ### 通信模型
 
 #### 1. stage 间传输激活，与 TP 中 all-reduce / all-gather 的本质差异
 
-PP：
-
-- 在 stage 边界传激活
-- 通信次数与边界数近似相关
-- 以 point-to-point 为主
-
-TP：
-
-- 在层内多个关键算子点做 collective
-- 通信次数与层数和算子结构强相关
-- 以 all-reduce、all-gather、reduce-scatter 为主
+PP 主要在 stage 边界传激活，通信次数近似与边界数相关，以 point-to-point 为主；TP 则在层内多个关键算子点做 collective，通信次数与层数和算子结构强相关。
 
 ```mermaid
 flowchart TB
@@ -578,29 +496,9 @@ flowchart TB
 
 #### 2. 什么时候激活传输更便宜，什么时候 collective 更便宜
 
-激活传输更便宜：
+激活传输更便宜的典型场景是边界数少、hidden size 可控、collective 在当前拓扑下较差；collective 更便宜的典型场景则是节点内互连很强、TP group 不大且更看重单请求 latency。根因在于 TP 更依赖频繁、稳定、低延迟 collective，而 PP 更依赖较少次的大块边界传输。
 
-- 边界数少
-- hidden size 可控
-- collective 在当前拓扑下很差
-- 没有 NVLink，TP collective 成本过高
-
-collective 更便宜：
-
-- 节点内互连很强
-- TP group 不大
-- 单请求 latency 比权重装箱更重要
-
-#### 3. 为什么硬件拓扑会改变 PP/TP 的优劣
-
-因为 PP 与 TP 对链路类型的要求不同：
-
-- TP 更依赖频繁、稳定、低延迟 collective
-- PP 更依赖较少次的大块边界传输
-
-所以同一模型在不同拓扑下，最佳并行方案可能完全相反。
-
-#### 4. 节点内 / 节点间 PP 的通信成本差异
+#### 3. 节点内 / 节点间 PP 的通信成本差异
 
 PP 边界若在节点内，通常代价较低。  
 PP 边界若跨节点，则：
@@ -616,47 +514,7 @@ PP 边界若跨节点，则：
 
 ### 系统边界
 
-#### 1. PP 真正解决了什么
-
-- 让模型装下
-- 让单副本跨多卡甚至跨节点部署
-- 给 KV cache 腾空间
-- 在某些拓扑下降低 TP collective 压力
-
-#### 2. PP 不解决什么
-
-- 不自动解决调度低效
-- 不自动解决最慢 stage
-- 不保证 TTFT / TPOT 更优
-- 不让不支持 PP 的模型自动支持 PP
-
-#### 3. PP 是容量导向还是性能导向
-
-两者兼有，但主次分明：
-
-- 第一属性通常是容量导向
-- 第二属性才可能是性能导向
-
-#### 4. PP 是否天然有利于大吞吐
-
-不能简单下结论。  
-PP 只有在以下条件都比较好时，才更可能把吞吐做高：
-
-- 可以维持足够多 wave
-- stage 边界通信相对便宜
-- stage 负载平衡
-- decode 不被末段严重拖住
-
-#### 5. 为什么推理服务里，PP 必须和 scheduler / batching / prefill / decode / topology 一起分析
-
-因为推理 PP 的真实目标函数是服务目标函数。  
-只分析单步前向，会漏掉：
-
-- 排队
-- bubble
-- sample 反馈闭环
-- request join/finish 带来的批形变化
-- 节点间通信约束
+这一节的公式最终只是在说明一件事：PP 先解决容量与部署问题，是否值得再看 wave 是否充足、stage 是否均衡、边界通信是否便宜，以及 decode 反馈闭环是否进入关键路径。只分析单步前向，不足以判断真实服务表现。
 
 ---
 
