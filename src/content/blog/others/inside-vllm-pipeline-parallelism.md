@@ -536,10 +536,12 @@ flowchart TD
     H --> I["PP 抽象\nSupportsPP / pp_plan /\nget_pp_indices / make_layers"]
 ```
 
-这张图里最关键的理解点有两个：
+这一章只做源码落点映射，不再重复前文的抽象判断。  
+把图里的链路压成一句话就是：
 
-1. `pipeline_parallel_size` 不是只影响模型层切分，而是一路影响 world size、group、executor、worker 和 model runner。
-2. PP 的真正落地是“配置层 + distributed 层 + 执行器层 + 模型层”联动，而不是单点功能。
+`pipeline_parallel_size -> ParallelConfig -> group / executor / worker -> model runner -> SupportsPP 模型实现`
+
+也就是说，PP 在 vLLM 里首先是**进程与执行拓扑配置**，然后才是**层切分策略**。
 
 ### 单个 DP 副本内部的 PP + TP 拓扑
 
@@ -569,10 +571,7 @@ flowchart LR
     PP1 -->|边界激活| PP2
 ```
 
-这张图对应一个很实用的心智模型：
-
-- PP rank 决定你在哪个 stage
-- TP rank 决定你在该 stage 内部承担哪一份张量 shard
+这张图只需要记住一件事：**PP 负责把模型切成串行 stage，TP 负责把单个 stage 内的算子继续切碎。**
 
 ### 控制流图
 
@@ -604,57 +603,36 @@ flowchart LR
 
 ### 用户如何开启 PP
 
-用户入口很简单：
-
-- Python API：`LLM(..., pipeline_parallel_size=...)`
-- CLI：`--pipeline-parallel-size`
-
-但在内部，这个参数会继续影响：
-
-- `world_size`
-- 分布式执行器选择
-- group 划分
-- worker 数量
-- 模型层切分
-- batch wave 数量上限
+入口只有两个：Python API 的 `LLM(..., pipeline_parallel_size=...)`，以及 CLI 的 `--pipeline-parallel-size`。  
+真正值得记的是它不会停在配置层，而会继续改写 `ParallelConfig`、rank 布局、worker 数量和模型分段边界。
 
 ### `pipeline_parallel_size` 如何影响 worker 数量、rank 组织与执行拓扑
 
-在当前实现中，可以把内部组织理解为：
-
-- 单个 DP 副本内部的 world size 主要由 `PP x TP x PCP` 决定
-- GPU worker 总数等于所有并行维度共同展开后的设备总数
-- PP group 决定 stage 链
-- TP group 决定 stage 内部的 shard 关系
+在单个 DP 副本内部，可以把设备组织理解成 `PP x TP x PCP` 这样的多维展开；PP group 决定 stage 链，TP group 决定 stage 内部的 shard 关系。  
+所以 `PP` 一变，跟着变化的不是“某几层归谁算”而已，而是整套 rank 拓扑。
 
 ### 单机 / 多机时执行器如何选型
 
-从设计上看，vLLM 支持：
-
-- `mp`
-- `ray`
-- `external_launcher`
-
-对使用者来说，最重要的不是记住某一句“默认是什么”，而是理解：
-
-- 单机与多机的执行器选择，不只取决于节点数
-- 还取决于设备数量、placement group、ray 上下文以及整体部署方式
+源码里可选 `mp`、`ray`、`external_launcher`。  
+这里不用展开默认分支，记住它们的作用就够了：执行器负责把上面的并行拓扑真正变成一组存活的 GPU workers。
 
 ### worker、model runner 和 model 各自负责什么
 
-- worker：一进程一设备，负责进程级生命周期与设备资源
-- model runner：准备输入、运行 forward、管理图捕获和部分状态
-- model：真正的 `torch.nn.Module`
+| 对象         | 责任                                                    |
+| ------------ | ------------------------------------------------------- |
+| worker       | 一进程一设备，管理生命周期、通信上下文和设备资源        |
+| model runner | 组织本步输入，调用局部 forward，并处理图捕获/缓存等状态 |
+| model        | 定义 PP 能力本身：层切分、首尾职责和 stage 边界协议     |
 
 ### 理论模型中的 stage、token flow 与 batch wave 在 vLLM 中的落点
 
-| 理论概念     | 在 vLLM 中更接近什么                                         |
-| ------------ | ------------------------------------------------------------ |
-| stage        | PP rank 对应的一段执行单元                                   |
-| 层分区       | `get_pp_indices` 与 `make_layers`                            |
-| 跨段数据     | `IntermediateTensors`                                        |
-| batch wave   | executor 与 engine 管理的并发已调度批次（scheduled batches） |
-| 首尾职责差异 | 模型实现里的 `is_first_rank` / `is_last_rank` 分支           |
+| 理论概念     | 在 vLLM 中的落点                                           |
+| ------------ | ---------------------------------------------------------- |
+| stage        | 一个 PP rank 对应的一段执行单元                            |
+| 层分区       | `get_pp_indices`、`make_layers`                            |
+| 跨段数据     | `IntermediateTensors`                                      |
+| batch wave   | engine / executor 推进的 scheduled batches                 |
+| 首尾职责差异 | 模型里的 `is_first_rank` / `is_last_rank` 以及对应分支逻辑 |
 
 ---
 
@@ -664,132 +642,76 @@ flowchart LR
 
 #### 1. 哪些配置项直接决定 PP 行为
 
-最核心的配置项有：
-
-- `pipeline_parallel_size`
-- `tensor_parallel_size`
-- `distributed_executor_backend`
-- `nnodes`
-- `node_rank`
-- `prefill_context_parallel_size`
-
-其中最重要的是 `pipeline_parallel_size`，因为它不只是“切几段”而已，还会连带改变：
-
-- world size
-- 执行器行为
-- batch wave 数量
-- group 组织方式
-- 模型层切分边界
+最核心的配置项只有六个：`pipeline_parallel_size`、`tensor_parallel_size`、`distributed_executor_backend`、`nnodes`、`node_rank`、`prefill_context_parallel_size`。  
+其中真正的“总开关”是 `pipeline_parallel_size`：它既决定 stage 数，也会连带影响 world size、group 划分、执行器拓扑和层切分边界。
 
 #### 2. 这些配置项如何从 CLI / Python API 传到运行时
 
-传递链路可以简单记成 `LLM / CLI -> EngineArgs -> ParallelConfig -> ModelConfig / Executor / Distributed State / Worker`。
-
-这条链路说明一个事实：  
-PP 不是模型局部配置，而是系统级配置。
+传递链路可以压成 `LLM / CLI -> EngineArgs -> ParallelConfig -> ModelConfig / Executor / Worker`。  
+源码上最重要的含义是：PP 从一开始就是系统级配置，不是模型局部 flag。
 
 #### 3. 关键配置对象是什么
 
-最关键的是 `ParallelConfig`。  
-围绕 PP 的大部分系统级判断都从这里发散出去：
-
-- 世界大小怎么计算
-- backend 怎么选
-- group 怎么建
-- 允许几路并发 batch waves
+核心对象是 `ParallelConfig`。  
+围绕 PP 的大部分判断——world size、backend、group 组织、batch wave 上限——都从这里继续下沉。
 
 #### 4. PP 不是独立开关：兼容性与运行时约束矩阵
 
-如果只从 CLI 看，PP 像一个简单的 `pipeline_parallel_size`。  
-但从源码看，`PP > 1` 会同时触发模型能力检查、执行器限制、调度模式切换、KV 管理策略变化和其它并行特性的功能门控（feature gate）。
+源码里真正值得注意的是 feature gate，而不是参数名本身：
 
-| 条件 / 组合                                                  | 运行时行为                                             | 系统含义                                                                |
-| ------------------------------------------------------------ | ------------------------------------------------------ | ----------------------------------------------------------------------- |
-| 模型未实现 `SupportsPP`                                      | 直接报错                                               | PP 不是纯运行时（runtime）自动推断能力，模型必须显式提供 stage 边界协议 |
-| `distributed_executor_backend` 不支持 PP                     | 直接报错                                               | PP 依赖 executor 真正拉起多 stage worker 拓扑                           |
-| `mm_tensor_ipc='torch_shm'` 且 `PP > 1`                      | 直接报错                                               | 多模态张量共享与 PP/TP/DP 组合下的路由语义尚未统一                      |
-| `enable_elastic_ep=True` 且 `PP > 1`                         | 直接报错                                               | EP 的弹性扩缩和 PP stage 拓扑当前没有共同语义                           |
-| `async_scheduling=True` 但 backend / speculative 组合不兼容  | 显式开启时报错                                         | async PP 会改写 decode 的 sampled-token 反馈路径                        |
-| `async_scheduling=None`                                      | 自动启用或自动关闭                                     | async 在当前实现里是机会式特性（opportunistic feature），而不是绝对默认 |
-| `--kv-transfer-config` 打开                                  | PP 可继续运行，但 hybrid KV cache manager 可能自动关闭 | 远端 KV 与本地 PP 不是完全正交的两个模块                                |
-| `PP > 1` 或非 fullgraph 编译路径下继续使用 native `rms_norm` | 给 warning，甚至可能后续报错                           | 编译/图分段规则与 PP 仍存在实现级耦合                                   |
+| 条件 / 组合                                             | 运行时行为                        | 说明                              |
+| ------------------------------------------------------- | --------------------------------- | --------------------------------- |
+| 模型未实现 `SupportsPP`                                 | 直接报错                          | 模型必须显式给出 stage 边界协议   |
+| `distributed_executor_backend` 不支持 PP                | 直接报错                          | 执行器必须真能拉起多 stage worker |
+| `mm_tensor_ipc='torch_shm'` 且 `PP > 1`                 | 直接报错                          | 多模态张量共享与 PP 组合仍有限制  |
+| `async_scheduling=True` 但 backend / speculative 不兼容 | 显式开启时报错                    | async 会改写 decode 反馈路径      |
+| `--kv-transfer-config` 打开                             | PP 可运行，但部分 KV 管理逻辑降级 | 远端 KV 与本地 PP 不是完全正交    |
+| `PP > 1` 或非 fullgraph 路径继续走 native `rms_norm`    | warning 或后续报错                | 编译/图分段与 PP 仍有实现级耦合   |
 
-这张表反过来也解释了一个常被忽略的事实：  
-**PP 不是“模型层怎么切”这一件事，而是一组会同时改变进程数、worker 布局、反馈路径和特性兼容性的系统开关。**
-
-从官方架构文档也能看出这种系统性：单个 engine core 的 GPU worker 总数就是 `TP x PP`。  
-因此，只要 `PP` 发生变化，进程拓扑、group 组织和 worker 生命周期都会一起变化。
+这一层看完，基本就能明白：源码里的 PP 不是“切层函数”而是“一组牵动 executor、group 和反馈链路的系统开关”。
 
 ### 分布式与 Group 组织
 
 #### 1. TP group / PP group / world rank / local rank 是如何组织的
 
-当前实现里，核心抽象是“每个 rank 同时处在多个 group 中”：
-
-- world rank：全局编号
-- local rank：本机设备号
-- PP group：决定你在第几段
-- TP group：决定你在本段内部是哪一份 shard
-- 其它 group：围绕 DP、prefill context、decode context、EP 等维度组织
+当前实现的核心抽象是：**每个 rank 同时属于多个 group**。  
+其中 world rank / local rank 负责编号，PP group 决定你处在第几段，TP group 决定你在该段内部承担哪一份 shard。
 
 #### 2. 谁负责创建 group
 
-一个统一的 distributed 初始化逻辑会根据并行配置构造这些 group。  
-它并不是先建 PP 再建 TP，而是把所有并行维度一起展开，再投影出每一类 group。
+这些 group 由统一的 distributed 初始化逻辑一次性展开，再按不同维度投影出来；它不是“先建 PP 再补 TP”的串行流程。
 
 #### 3. group 的划分逻辑是什么
 
-从理解上看，可以把 rank 布局想成一个多维张量：
-
-- DP
-- PP
-- 预填充 context parallel
-- TP
-
-不同 group 的构建，本质上是在这个多维布局上沿不同维度切片。
+更直观的理解方式，是把 rank 布局看成一个 `DP x PP x PCP x TP` 的多维张量；不同 group 的构建，本质上是在这个张量上沿不同维度切片。
 
 #### 4. 这些 group 后续被谁使用
 
-- PP group：stage 间 send/recv、首段/末段判断、sample 反馈
-- TP group：stage 内部张量并行与局部 collective
-- DP group：副本级协同
+| group    | 后续用途                                  |
+| -------- | ----------------------------------------- |
+| PP group | stage 间 send/recv、首尾判断、sample 反馈 |
+| TP group | stage 内部张量并行与 collective           |
+| DP group | 副本级协同                                |
 
 #### 5. 这些组织方式如何映射回理论中的 pipeline / stage 概念
 
-在理论模型里，一个 stage 是一个函数块。  
-在 vLLM 里，一个 stage 更准确地说是“一个 PP rank 对应的一组 worker”，如果同时启用了 TP，则这组 worker 在 stage 内部再组成一个 TP group。
+理论模型里的 stage 到源码里就变成了“一个 PP rank 对应的一组执行单元”；若同时启用 TP，这组执行单元还会在内部再组成一个 TP group。
 
 ### 层切分（Layer Partition）
 
 #### 1. 负责 PP 层切分（layer partition）的核心逻辑
 
-vLLM 的核心逻辑是：
-
-- 按总层数与 `pp_size` 计算每段起止 layer
-- 尽量均分
-- 但对余数层做有偏置的分配
-
-这件事不是一个小实现细节，而是整个 PP 公平性假设的浓缩。
+核心逻辑很直接：按总层数与 `pp_size` 计算每段起止 layer，尽量均分，但对余数层做有偏置的分配。  
+这个偏置不是小技巧，而是 vLLM 对“首尾通常更重”的工程化编码。
 
 #### 2. 均匀切分 / 非均匀切分 / 余数层分配策略
 
-vLLM 的自动策略不是把余数从前往后塞，而是：
-
-- 默认避免最后一段优先吃余数
-- 在 `pp_size > 2` 且余数不大时，也尽量避免首段和末段
-
-它反映的工程判断是：
-
-- 末段常常自带 final norm、lm_head、sampling
-- 首段常常自带 embedding 与输入准备
+自动策略不会机械地把余数从前往后塞，而是优先把余数留给中间段；`pp_size > 2` 且余数不大时，会尽量避开首尾。  
+源码背后的判断很朴素：首段常带 embedding，末段常带 norm / lm_head / sampling。
 
 #### 3. 手工指定 partition 的机制
 
-当前实现允许通过环境变量手工指定各 stage 层数。  
-这意味着在工程实践里：
-
-- 自动切分不是唯一方案
-- 对特定模型和拓扑，可以把 layer partition 当成一个可调超参数
+当前实现也允许通过环境变量手工指定各 stage 层数，所以 layer partition 在工程上本来就是一个可调超参数。
 
 #### 4. 例子：80 层模型的切分
 
@@ -823,135 +745,67 @@ flowchart LR
 - Stage 2：21 层
 - Stage 3：20 层
 
-这正体现了“余数优先给中间段”的偏置。
+这正体现了“余数优先给中间段”的默认偏置。
 
 #### 5. 这种分配策略隐含了怎样的工程假设
 
-它隐含了三个很重要的假设：
-
-1. 末段通常比中间段更重。
-2. 首段通常也不是纯 block 容器。
-3. 控制最大 stage 负载，比形式上的层数完全均等更重要。
+这一策略隐含的假设只有一句话：**控制最大 stage 负载，比追求形式上的层数绝对均等更重要。**
 
 ### 模型接口契约
 
 #### 1. `SupportsPP` 的意义
 
-在 vLLM 中，一个模型支持 PP，不只是“可以在分布式环境里跑”。  
-更准确地说，它必须回答四个问题：
+在 vLLM 中，一个模型支持 PP，不是“能在多卡上跑”这么泛。  
+它至少要回答四个问题：
 
 - 首段接什么输入
 - 中间段接什么输入
 - 非末段要输出什么中间态
 - 末段要输出什么最终结果
 
-这就是 `SupportsPP` 这类接口存在的意义。
+这就是 `SupportsPP` 的意义：把这些结构知识显式暴露给 runtime。
 
 #### 2. 一个模型要支持 PP，必须满足哪些 forward 语义
 
-核心语义是：
-
-- 首段从 `input_ids` 或 `inputs_embeds` 出发
-- 中间段从 `intermediate_tensors` 出发
-- 非末段返回新的 `IntermediateTensors`
-- 末段返回最终 hidden states 或可继续走 logits 的输出
+forward 语义也很清楚：首段从 `input_ids` / `inputs_embeds` 出发，中间段从 `intermediate_tensors` 出发，非末段返回新的 `IntermediateTensors`，末段返回最终输出。
 
 #### 3. `IntermediateTensors` 的角色是什么
 
-`IntermediateTensors` 可以把它理解成：
-
-- stage 边界协议
-- 运行时中间态容器
-- 模型与 worker 之间对“跨段要传什么”的共识
-
-对 Llama 这一类模型，里面通常承载：
-
-- `hidden_states`
-- `residual`
+`IntermediateTensors` 可以直接理解成 **stage ABI**：它既是跨段协议，也是运行时中间态容器。  
+对 Llama 这类模型，最常见的键就是 `hidden_states` 和 `residual`。
 
 #### 4. `make_empty_intermediate_tensors` 是为了解决什么问题
 
-它解决的不是“懒得写 tensor 初始化”，而是：
-
-- profiling 时需要已知中间态形状
-- 非首段需要预分配固定地址 buffer
-- CUDA graph 需要更稳定的输入布局
-
-这说明 PP 支持本质上与运行时内存布局强相关。
-
-再往深一层看，`IntermediateTensors` 在 vLLM 里更像 **stage ABI**，而不只是一个方便传参的 dataclass：
-
-- 它的 `__init__` 被手写而不是完全交给 dataclass 自动生成，是为了让 Dynamo 能稳定识别其来源文件
-- 编译装饰器会把其中所有 tensor 的首维统一标成 dynamic，这说明 runtime 把它当作一组有共同 shape 语义的边界对象
-- 它不只装激活，还能携带 `kv_connector_output`，说明 stage 边界上传递的不只是算子输出，也包括与远端 KV/connector 相关的状态
-
-这意味着 vLLM 的 PP 设计里，真正稳定的不是某个模型类的 `forward` 签名，而是“stage 输入输出必须同时满足可传输、可图捕获、可动态 shape 标注、可附带运行时状态”这一组约束。
-
-把这一点看清楚之后，就更容易理解为什么：
-
-- `SupportsPP` 必须由模型显式声明
-- `make_empty_intermediate_tensors` 必须由模型提供
-- `IntermediateTensors` 的 key 集合不能随意漂移
+`make_empty_intermediate_tensors` 解决的是 profiling、预分配固定地址 buffer、CUDA graph 稳定输入布局这些运行时问题。  
+也正因为如此，`IntermediateTensors` 不能随意漂移；它不只是 dataclass，而是要同时满足可传输、可图捕获、可动态 shape 标注的边界对象。源码里它甚至还能携带 `kv_connector_output`，说明 stage 边界上传递的也可能是运行时状态，而不只是激活。
 
 #### 5. 为什么“模型是否支持 PP”不是纯运行时（runtime）层就能自动解决
 
-因为运行时（runtime）并不知道：
-
-- embedding 在哪里
-- lm_head 在哪里
-- residual 要不要跨段传
-- tied embedding 怎么处理
-- 多模态输入在哪一段准备
-
-这些都是模型结构知识。  
-因此，vLLM 的做法不是“runtime 自动猜”，而是要求模型或配置显式告诉系统。
+因为 runtime 并不知道 embedding 在哪里、lm_head 在哪里、residual 是否跨段、tied embedding 怎么处理、多模态输入在哪一段准备。  
+这些都属于模型结构知识，所以 vLLM 的做法是显式声明，而不是自动猜。
 
 ### 模型实例化与缺层占位
 
 #### 1. 只实例化本 stage 层、其余位置占位
 
-vLLM 的一个很漂亮的工程技巧是：
-
-- 每个 rank 仍保留“完整层序列”的外观
-- 但只为本 stage 真正实例化对应层
-- 其它位置放一个 identity 风格的占位层
-
-这样做的好处是：
-
-- 模型结构统一
-- 层索引统一
-- 参数加载逻辑统一
-- 实际显存仍只消耗本 stage 参数
+vLLM 的做法是：每个 rank 仍保留“完整层序列”的外观，但只实例化本 stage 负责的层，其余位置用占位层补齐。  
+这样既保住统一的模型结构和层编号，又让显存只为本 stage 的参数买单。
 
 #### 2. `PPMissingLayer` 的角色
 
-可以把它理解成“结构上的空层”。  
-它不是为了参与真实计算，而是为了维持：
-
-- 模块树形结构
-- 名称稳定性
-- state dict 对齐
+`PPMissingLayer` 可以理解成“结构上的空层”，作用是维持模块树、名称稳定性和 state dict 对齐。
 
 #### 3. 这套设计为什么重要
 
-因为它同时兼顾了两件看似冲突的事：
-
-- 不想为每个 PP rank 写一套单独模型类
-- 又希望每个 rank 只持有自己负责的参数
-
-vLLM 通过占位层把这两件事同时做到了。
+它的重要性在于同时满足两件事：不为每个 PP rank 重写一套模型类，同时又让每个 rank 只持有自己那部分参数。
 
 #### 4. 对 state dict 加载和代码复用的价值
 
-这套设计的工程价值非常大：
-
-- 权重加载逻辑不必为每个 rank 完全分叉
-- 统一前向结构仍能复用
-- attention、KV cache、层号映射等逻辑仍可按原始层编号工作
+因此权重加载、统一前向结构、attention/KV cache/层号映射这些逻辑都还能继续按原始层编号复用。
 
 ### 具体模型案例分析
 
-这里选 Llama 作为案例，因为它最容易看清“首段 / 中段 / 末段职责不对称”。
+这里用 Llama 做例子，只看最关键的 stage 职责分工。
 
 #### 1. Llama 的 stage 职责划分
 
@@ -983,35 +837,13 @@ flowchart LR
     Middle -->|IntermediateTensors| Last
 ```
 
-#### 2. 首 stage 是否负责 embedding
+Llama 上的源码含义可以直接概括成三条：
 
-是。  
-Llama 的首段承担输入 token 到 hidden states 的入口职责。  
-若启用了 tied embedding，末段还会因为权重绑定而与 embedding 发生联系，这进一步加重了首尾不对称。
+1. 首段负责 embedding 和输入入口，中间段只消费上一段交来的中间态。
+2. 末段负责 final norm、lm_head、logits，若 tied embedding 打开，首尾耦合还会更强。
+3. `IntermediateTensors` 往往不只带一个张量，对 Llama 来说最典型的是 `hidden_states` 与 `residual`。
 
-#### 3. 中间 stage 接收什么输入
-
-中间段不再接 `input_ids`，而是接上一段传来的中间态。  
-这说明 stage 边界不是“继续拿原始 token 往下算”，而是“拿上一段产出的中间表示继续算”。
-
-#### 4. 末 stage 是否负责 final norm / lm_head / logits
-
-是。  
-这也是末段常常更重的重要原因之一。
-
-#### 5. `IntermediateTensors` 里通常承载什么
-
-对 Llama，最典型的是：
-
-- `hidden_states`
-- `residual`
-
-这很重要，因为它告诉我们：
-
-- stage 边界传的不只是单一路径张量
-- 模型结构会决定边界协议的复杂度
-
-#### 6. 一个 token batch 如何从 stage0 流到最后 stage
+#### 2. 一个 token batch 如何从 stage0 流到最后 stage
 
 ```mermaid
 sequenceDiagram
@@ -1027,36 +859,18 @@ sequenceDiagram
     S2->>S2: logits + sample
 ```
 
-#### 7. 这个 case 体现了什么系统含义
-
-它体现了三件事：
-
-1. 首尾 stage 天然不公平。
-2. PP 支持依赖模型结构知识。
-3. 末段往往天然更接近 decode 的关键路径。
+这个 case 的系统含义也就足够清楚了：首尾不对称来自模型结构本身，PP 运行时只能消费这套结构知识，不能替模型“猜出来”。
 
 ### 运行时执行路径
 
 #### 1. 当前版本的运行时现实
 
-当前仓库里同时存在：
-
-- 较老但仍然是默认主路径的 V1 GPU model runner
-- 更面向 async-first 的 MRV2 路径
-
-分析 vLLM 当前 PP 时，必须把这两个层次分开：
-
-- “当前默认如何跑”
-- “新设计想把它演化到什么方向”
+当前仓库里同时存在默认主路径的 V1 GPU model runner，以及更偏 async-first 的 MRV2 路径。  
+读源码时最好把“当前默认行为”和“正在演化的 async 方向”分开看。
 
 #### 2. batch 在 PP 下是怎样流动的
 
-整体上，worker 侧的主逻辑可以概括成：
-
-1. 若自己不是首段，先接收来自前一段的中间态
-2. 调用本地 model runner 执行局部 forward
-3. 若自己不是末段，把新的中间态发给下一段
-4. 若自己是末段，产出本步结果
+worker 侧的主逻辑只有四步：非首段先 `recv`，然后本地 forward；非末段把新的 `IntermediateTensors` 继续 `send`；末段产出本步结果。
 
 ```mermaid
 sequenceDiagram
@@ -1095,14 +909,12 @@ sequenceDiagram
     Scheduler-->>Client: TTFT 完成
 ```
 
-prefill 更像经典 pipeline，因为它主要是“从头灌到尾”。
+prefill 基本就是一次从头灌到尾的单向流水。
 
 #### 4. decode 的两条真实时序路径
 
-decode 的关键不是“最后段做 sample”这么简单，而是：  
-**采样得到的 token（sampled token）之后到底怎么回到前段 worker。**
-
-当前源码里至少要区分两条路径，否则很容易把不同配置下的反馈成本混成同一个 `T_fb`。
+decode 真正要看的不是“最后段做 sample”，而是 sampled token 之后如何回到前段 worker。  
+源码里至少要分清两条反馈路径，否则很容易把不同配置下的 `T_fb` 混成一项。
 
 ##### 非 async scheduling 下的 PP decode
 
@@ -1126,11 +938,7 @@ sequenceDiagram
     Stage1->>Stage1: 更新本地请求状态
 ```
 
-这条路径的关键特征是：
-
-- 最后段和前面各段之间没有直接的 sampled token 反馈链
-- scheduler / engine 需要参与 token 回送
-- 因此 `T_fb` 里会混入更多控制面（control-plane）与主机侧（host-side）调度成本
+这里最后段不会直接把 sampled token 回送给前段，而是经由 scheduler / engine 中转；因此 `T_fb` 里会混入更多控制面和主机侧调度成本。
 
 ##### async scheduling 下的 PP decode
 
@@ -1154,83 +962,29 @@ sequenceDiagram
     Scheduler->>Scheduler: 允许 request 在 output placeholder 存在时继续 reschedule
 ```
 
-这条路径和上一条最大的不同，是 sampled token 不再完全绕回 scheduler，而是：
-
-- 由最后一个 PP rank 直接在 PP device group 上 broadcast
-- 前段 worker 直接把 token 写回 `prev_sampled_token_ids`
-- scheduler 可以在输出占位符（output placeholder）存在时继续做多步在途（in-flight）调度
-
-因此，更贴近源码的说法不是“decode 有一条 sampled token feedback”，而是：
-
-- 非 async PP：反馈链更偏 scheduler 回路
-- async PP：反馈链更偏 device-side broadcast
-
-这也是为什么同样是 `PP + decode`，不同配置下的 `T_fb` 组成并不相同。
+这里 sampled token 不再完全绕回 scheduler，而是由最后一个 PP rank 在 device group 上 broadcast，前段 worker 直接写回 `prev_sampled_token_ids`。  
+所以更贴近源码的说法是：非 async PP 的反馈链偏 scheduler 回路，async PP 的反馈链偏 device-side broadcast；两者的 `T_fb` 组成并不相同。
 
 ##### `output placeholders` 的系统含义
 
-输出占位符（`output placeholders`）这一点很容易被看轻，但它其实是 async PP 能成立的关键。  
-可以把它理解成：
-
-- scheduler 先为某个 request 预留“未来会产出的 token 位置”
-- worker 侧随后再用真实 sampled token 去兑现这些位置
-
-因此，async PP 里有一个很重要的状态分离：
-
-- `num_computed_tokens`：逻辑上已经向前推进到哪一步
-- `num_output_placeholders`：其中有多少步还只是“已预留、未确认”
-
-这相当于给流水线引入了一种 token-level credit 机制。  
-它的意义不是“多记一个计数器”，而是允许：
-
-- scheduler 在上一轮输出尚未完全回填前，继续安排下一轮在途（in-flight）工作
-- worker 直接从 GPU 上缓存的 `prev_sampled_token_ids` 取 token，而不是强制等主机侧（host-side）把 `input_ids` 重建完
-
-从系统角度看，这一步非常关键，因为它意味着 async PP 不是简单地把“同步反馈”改成“异步反馈”，而是把 decode 从：
-
-- 每步都严格等待上一步确认
-
-变成：
-
-- 允许逻辑调度领先于最终输出确认，但用输出占位符（placeholders）维持一致性
-
-这也是为什么 `async scheduling + PP` 不只是一个更快的优化项，而是一次真正的执行语义变化。
+`output placeholders` 是 async PP 能成立的关键：scheduler 先预留未来 token 位置，worker 再用真实 sampled token 回填。  
+这带来了 `num_computed_tokens` 与 `num_output_placeholders` 的状态分离，本质上是一种 token-level credit 机制，让调度可以先于最终输出确认推进。
 
 #### 5. PP 对 continuous batching 的影响
 
-在连续批处理中，PP 分析变复杂的根源是：
-
-- scheduler 每一步注入的 wave 都可能不同
-- 有的请求在 prefill，有的请求在 decode
-- 有的请求结束，有的新请求加入
-- stage 边界上看到的是动态批形，而不是静态 micro-batch
-
-所以推理 PP 的核心不是“如何构造一条静态流水线”，而是“如何维持一条动态流水线在服务场景下尽量饱和”。
+连续批处理把 PP 从“静态流水线问题”变成了“动态饱和问题”：每一步 wave 都可能不同，prefill / decode 交错，请求持续进出，stage 边界看到的是动态批形而不是固定 micro-batch。
 
 #### 6. 是否存在按 PP size 并发多个 batch 波次的机制
 
-有。  
-但一定要理解它的真实含义：
-
-- 它表示执行器和 engine 会尝试让多路 scheduled batches 同时占据不同 stage
-- 它不表示训练式固定 micro-batch 流水
-- 它更像“为了减少 bubble 而允许多波次重叠”
+有，但它的含义是“让多路 scheduled batches 同时占住不同 stage”，不是训练式固定 micro-batch 流水，而是为了减少 bubble 的多波次重叠。
 
 #### 7. async scheduling 与当前实现的关系
 
-vLLM 的总体方向越来越偏向异步优先（async-first）。  
-但当前默认路径依然保留了较多历史包袱，因此理解 PP 时要避免把“未来设计目标”误当成“当前默认行为”。
+vLLM 的总体方向越来越偏向 async-first，但当前默认路径仍带着不少历史兼容层；读这一段源码时不要把未来方向误当成当前默认行为。
 
 #### 8. 为什么 decode 尤其容易暴露 pipeline 空泡、stage 尾延迟和调度约束
 
-因为 decode 让这些成本都变得相对更大：
-
-- 每一步 token 少，算量小
-- sample 必须在最后段发生
-- sample 结果还要反馈回前面各段
-- stage 边界通信更难隐藏
-
-换句话说，decode 像是在放大整个系统的真实关键路径。
+decode 会把真实关键路径放大出来：每步算量小、sample 固定在末段、反馈链必须闭环，stage 边界通信也更难隐藏。
 
 ---
 
@@ -1238,167 +992,76 @@ vLLM 的总体方向越来越偏向异步优先（async-first）。
 
 ### 1. 一个更贴近推理系统的 stage 时间模型
 
-对 vLLM，stage 时间更合理的写法是：
+把 stage 时间写成
 
 `T_s = T_layers,s + T_special,s + T_boundary,s + T_runtime,s`
 
-其中：
-
-- `T_layers,s`：本 stage block 计算
-- `T_special,s`：embedding / norm / lm_head / sample 等额外逻辑
-- `T_boundary,s`：send/recv 边界激活
-- `T_runtime,s`：调度、buffer copy、状态更新、图捕获配合等
-
-这也解释了为什么：
-
-- 首尾 stage 可能天然更慢
-- 末段常常更接近 decode 稳态瓶颈
+就足够解释 vLLM 里的大部分性能现象：`T_layers,s` 是局部 block 计算，`T_special,s` 是 embedding / norm / lm_head / sample 这类首尾额外工作，`T_boundary,s` 是 send/recv 边界激活，`T_runtime,s` 则是调度、buffer copy、状态更新与图捕获配合。  
+这也是为什么“层数均分”在这里从来不等于“stage 时间均分”。
 
 ### 2. stage 计算负载
 
-如果只看 block 数，stage 负载似乎可以通过均分层数解决。  
-但在真实推理里，下面这些都在改写 stage 负载：
-
-- embedding 与输入准备
-- final norm 与 lm_head
-- 多模态 embedding
-- sample 与 token 回传
-- 本 stage 的 KV cache 命中与访存形态
-
-因此，vLLM 的层切分策略会主动对首尾 stage 做偏置处理，这是合理而且必要的。
+真实负载除了 block 数，还会被 embedding、final norm、lm_head、多模态前处理、sample 回传和本地 KV 访存形态改写。  
+所以 vLLM 的层切分策略主动把余数往中间段倾斜，并不是保守，而是为了降低最慢 stage 的出现概率。
 
 ### 3. stage 间激活传输
 
-PP 的边界通信相对粗而少。  
-这使得它在某些拓扑下比 TP 更舒服，但也带来一个代价：
-
-- 一旦单步算量太小，边界通信就会变得显眼
-
-这正是 decode 常常暴露 PP 问题的原因之一。
+PP 的边界通信相对 TP 来说更粗、更少，这让它在弱互连下更有机会占优；但一旦单步算量很小，边界通信就会迅速显眼。  
+因此 prefill 往往更能摊薄通信，而 decode 更容易把它暴露出来。
 
 ### 4. 流水线气泡
 
-PP 的气泡问题可以简单归纳为一句话：
-
-**没有足够多的波次去填流水线，PP 就只是在增加串行深度。**
-
-因此，对 vLLM 来说，能否维持足够多并发波次（concurrent waves）是一个一等公民问题，而不是调参细节。
+性能上最值得记的一句话是：**没有足够多的 wave 去填满流水线，PP 就只是在增加串行深度。**  
+这也是为什么连续批处理、async scheduling 和多 wave 重叠在 vLLM 里不是配角，而是决定利用率的主体。
 
 ### 5. 首尾 stage 不均衡
 
-首尾不均衡在 vLLM 中不是偶发现象，而是结构事实：
-
-- 首段偏输入侧
-- 中段偏纯 block
-- 末段偏输出侧
-
-这意味着：
-
-- 首尾 stage 的显存峰值可能更高
-- 末段更容易成为 TPOT 瓶颈
-- 自动切分时把余数往中间段倾斜是合理策略
+首尾不均衡在 vLLM 里是结构事实，不是偶发噪声：首段偏输入侧，末段偏输出侧，中间段才最接近“纯 block 容器”。  
+工程上真正该优化的是最慢 stage，而不是平均 stage，因此默认切分和手工 partition 都应围绕这个目标展开。
 
 ### 6. prefill / decode 瓶颈是否相同
 
-不相同。
-
-prefill 更容易表现为：
-
-- 计算密集
-- 边界通信被摊薄
-- TTFT 受整条链路影响
-
-decode 更容易表现为：
-
-- 小步执行
-- 采样与回传链更显眼
-- TPOT 更受最慢 stage 影响
+不相同。  
+prefill 更像大块计算问题，通信和 bubble 更容易被摊薄；decode 则更像关键路径问题，sample、反馈链和最慢 stage 都会直接映射到 TPOT。
 
 ### 7. PP 与 TP 组合时谁是主要通信瓶颈
 
-这取决于拓扑：
-
-- 节点内高速互连时，TP collective 往往还可接受，PP 的 stage 串行深度会更醒目
-- 节点间或无 NVLink 时，TP collective 更容易变危险，PP 反而更可能占优
+完全取决于拓扑。  
+强互连单机里，TP collective 往往仍可接受，此时 PP 的串行深度更醒目；跨节点或无 NVLink 时，TP 的高频 collective 更容易失控，PP 反而更可能是更稳的选择。
 
 ### 8. PP 对 KV cache、可服务并发、显存分布的影响
 
-PP 对系统有两层影响：
-
-第一层是直接影响：
-
-- 每卡权重减少
-
-第二层是间接影响：
-
-- 可给 KV cache 的显存更多
-- 最大可服务并发可能提升
-
-但要注意，这种收益往往由最紧 stage 决定，而不是所有 stage 的平均值。
+PP 的第一层收益是每卡权重减少，第二层收益才是 KV cache 余量、可服务并发和更高 batch 上限。  
+但这类收益始终由最紧 stage 决定，所以“平均显存更松”不等于“系统上限真的更高”。
 
 ### 9. 在什么硬件拓扑下，PP 可能优于 TP
 
-更典型的场景是：
-
-- 无 NVLink
-- 跨节点
-- 需要非均匀切分（uneven split）
-- 模型深度很大而层切分自然
+更典型的场景是无 NVLink、跨节点、模型很深且层切分自然、或者需要不均匀切分来适配资源的时候。
 
 ### 10. 在什么情况下，PP 只是“能跑起来”，但吞吐 / 延迟未必划算
 
-典型场景：
-
-- 模型刚好需要几张卡才能装下
-- decode 主导
-- 末段负载显著偏重
-- stage 边界跨慢链路
-- 服务流量不足以填满 pipeline
-
-这时 PP 的价值主要是“有服务了”，而不是“服务最好了”。
+如果模型只是刚好需要几张卡才能装下、负载以 decode 为主、末段显著偏重、stage 边界又跨慢链路，或者线上流量根本灌不满流水线，那么 PP 的价值通常只是“系统终于能跑”，而不是“吞吐 / 延迟已经最优”。
 
 ### 11. 单机多卡时的常见 PP / TP 组合
 
-常见选择：
-
-- 强互连单机：优先 TP，必要时少量 PP
-- 无 NVLink 单机：PP 的吸引力会提高
-- 模型层数和 GPU 数不整齐：PP 更灵活
+单机多卡的经验判断其实很简单：强互连机器优先 TP，必要时少量 PP；没有 NVLink 的机器里，PP 的吸引力会上升；层数与 GPU 数不整齐时，PP 也通常更灵活。
 
 ### 12. 多机多卡时的常见 PP / TP 组合
 
-最常见经验是：
-
-- 节点内 TP
-- 节点间 PP
-
-因为这最符合两种通信形态各自擅长的链路层级。
+多机多卡里最常见的经验仍然是“节点内 TP、节点间 PP”，因为这通常最符合两类通信各自擅长的链路层级。
 
 ### 13. 为什么没有 NVLink 时 PP 可能更合适
 
-因为 TP 对 collective 的要求更苛刻。  
-没有 NVLink 时，层内高频 collective 更容易成为瓶颈，而 PP 的边界激活传输可能反而更省。
+因为 TP 对高频 collective 更敏感；没有 NVLink 时，这类集合通信更容易先变成瓶颈，而 PP 的边界激活传输有时反而更省。
 
 ### 14. 当模型层数与 GPU 数不能整除时，PP 的工程意义是什么
 
-PP 的一个现实优势就是：
-
-- 允许非均匀切分（uneven split）
-- 允许手工切分
-
-这使得“不整齐的资源”仍然可以被高效利用。
+PP 的现实优势之一，就是允许不均匀切分和手工切分，让“不整齐的资源”仍然能被高效利用。
 
 ### 15. 为什么部署问题常常比单机基准测试（benchmark）更复杂
 
-因为线上不仅有模型，还有：
-
-- 请求长度分布
-- 长尾延迟
-- TTFT SLA
-- 突发流量
-- 节点间 jitter
-
-因此离线基准测试（benchmark）的最优点，未必就是线上最优点。
+因为线上还有请求长度分布、尾延迟、TTFT SLA、突发流量和节点间 jitter。  
+所以离线 benchmark 的最优点，通常只是部署决策的起点，而不是终点。
 
 ---
 
