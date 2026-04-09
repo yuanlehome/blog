@@ -1320,7 +1320,7 @@ if self._should_use_all_gather(key, full_tensor.numel(), all_gather_group, ...):
 │       │   └─ 否 → TP（节点内）+ PP（节点间）
 │       │
 │       ├─ MoE 模型？
-│       │   ├─ 是 → 考虑 EP（但与 PP 互斥）
+│       │   ├─ 是 → 考虑 EP（注意：Elastic EP 与 PP 互斥）
 │       │   └─ 否 → TP + PP
 │       │
 │       └─ 需要提高吞吐？
