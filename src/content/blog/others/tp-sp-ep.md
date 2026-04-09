@@ -3,7 +3,6 @@ title: 大模型推理中的 TP-SP-EP 混合并行优化
 slug: tp-sp-ep
 date: '2026-01-04'
 tags:
-  - Sequence Parallel
   - Distributed Parallel
 status: published
 updated: '2026-04-07T07:36:00.000Z'
