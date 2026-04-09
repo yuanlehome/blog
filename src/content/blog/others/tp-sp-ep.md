@@ -1,12 +1,11 @@
 ---
-title: 一种 TP-SP-EP 混合并行策略
+title: 大模型推理中的 TP-SP-EP 混合并行优化
 slug: tp-sp-ep
 date: '2026-01-04'
 tags:
   - Sequence Parallel
   - Distributed Parallel
 status: published
-cover: /images/others/tp-sp-ep/cover.jpeg
 updated: '2026-04-07T07:36:00.000Z'
 ---
 
@@ -14,9 +13,31 @@ updated: '2026-04-07T07:36:00.000Z'
 
 ## 一、两种混合并行图示
 
-![非完整图示，不含后续 EP 并行 MoE 层。](/images/others/tp-sp-ep/cover.jpeg)
+<u>_TP / SP / EP 总览图_</u>
 
-上图展示了 Attention 层的两种 `out_linear` 实现路径。两条路径都从同一个列并行 `qkv_linear` 出发，区别在于如何处理输出投影：一种走**行并行 + `all_reduce`**，另一种走 **`all2all` + 完整权重**。后续的 MoE 层则统一以 SP 排布作为输入，借助两次 `all2all` 完成专家路由与聚合。
+```mermaid
+flowchart LR
+  X["输入 X<br/>SP: (S/N) x H"] --> QKV["qkv_linear<br/>列并行"]
+  QKV --> Y["Attention 激活 Y<br/>TP: S x (H/N)"]
+
+  Y --> P1W["方案一<br/>W_i 按行切分"]
+  P1W --> P1MM["局部乘法<br/>Z_i = Y_i W_i"]
+  P1MM --> P1AR["all_reduce"]
+  P1AR --> P1Z["Z replicated<br/>S x H"]
+  P1Z --> P1Slice["按序列切片"]
+  P1Slice --> P1SP["SP 输出<br/>(S/N) x H"]
+
+  Y --> P2A2A["方案二<br/>all2all: TP -> SP"]
+  P2A2A --> P2Y["Y_hat_j<br/>SP: (S/N) x H"]
+  P2Y --> P2W["完整 out_linear 权重 W"]
+  P2W --> P2SP["SP 输出<br/>(S/N) x H"]
+
+  P1SP --> MoE["MoE: Dispatch -> Experts -> Combine"]
+  P2SP --> MoE
+  MoE --> Next["下一层 Transformer"]
+```
+
+上面的总览图展示了 Attention 层的两种 `out_linear` 实现路径。两条路径都从同一个列并行 `qkv_linear` 出发，区别在于如何处理输出投影：一种走**行并行 + `all_reduce`**，另一种走 **`all2all` + 完整权重**。后续的 MoE 层则统一以 SP 排布作为输入，借助两次 `all2all` 完成专家路由与聚合。
 
 ---
 
@@ -24,13 +45,13 @@ updated: '2026-04-07T07:36:00.000Z'
 
 两条方案的起点相同：列并行的 `qkv_linear` 将输出激活按**隐藏层维度**切分分布在各 GPU 上。从这一状态出发，两条路径以不同方式完成 `out_linear` 并进入序列并行段。
 
-### 2.1 前提：`qkv_inear` (列切)
+### 2.1 前提：`qkv_linear` (列切)
 
-两种方案都始于一个**列并行 (Column-Parallel)** 的 `qkv_inear` 层。
+两种方案都始于一个**列并行 (Column-Parallel)** 的 `qkv_linear` 层。
 
 - 我们有 $N$ 个 GPU。
 - 输入 $X$ 是复制的 (replicated)。
-- 第一个 `qkv inear` 层的权重 $A$ 被按列切分：$A = [A_1, A_2, \dots, A_N]$。
+- 第一个 `qkv_linear` 层的权重 $A$ 被按列切分：$A = [A_1, A_2, \dots, A_N]$。
 - GPU $i$ 计算：$Y_i = \text{GeLU}(X A_i)$。
 - **关键状态**：计算完成后，中间激活 $Y = [Y_1, \dots, Y_N]$ 在 $N$ 个 GPU 上是按**隐藏层维度**（$H_{\text{dim}}$ 维度，也常称为 $K$ 维度）切分的。
 
@@ -153,6 +174,34 @@ updated: '2026-04-07T07:36:00.000Z'
 ## 四、EP 并行的 MoE 层
 
 无论选择方案一还是方案二，进入 MoE 层时激活都已处于**序列并行（SP）**的排布——每张 GPU 持有全局序列的 $1/P$ 片段，形状为 $\frac{S}{P} \times H_{\text{dim}}$。EP 的核心思想是**将专家参数分片到各 GPU，同时通过两次 `all2all` 完成 token 的路由与聚合**，以此避免所有 GPU 都冗余存储全量专家权重。
+
+<u>_MoE Dispatch / Combine 路由图_</u>
+
+```mermaid
+flowchart LR
+  subgraph SPIn["输入：SP 排布"]
+    G0["GPU 0<br/>持有本地序列分片"]
+    G1["GPU 1<br/>持有本地序列分片"]
+    GP["GPU P-1<br/>持有本地序列分片"]
+  end
+
+  G0 --> Pack["Router Top-k + permute<br/>按 owner(e) 分桶"]
+  G1 --> Pack
+  GP --> Pack
+
+  Pack --> Dispatch["Dispatch all2all"]
+  Dispatch --> E0["GPU 0 experts<br/>bucket M_0 x H"]
+  Dispatch --> E1["GPU 1 experts<br/>bucket M_1 x H"]
+  Dispatch --> EL["GPU P-1 experts<br/>bucket M_last x H"]
+
+  E0 --> GEMM["grouped_gemm<br/>按 expert 本地计算"]
+  E1 --> GEMM
+  EL --> GEMM
+
+  GEMM --> Combine["Combine all2all"]
+  Combine --> Restore["unpermute + weighted_sum<br/>按 src_slot / k_slot 还原"]
+  Restore --> Out["输出：SP 排布<br/>(S/P) x H"]
+```
 
 ### 4.1 假设一些参数：
 

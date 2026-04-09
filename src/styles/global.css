@@ -10,7 +10,7 @@
 
 html {
   scroll-behavior: smooth;
-  scroll-padding-top: var(--site-header-height, 80px);
+  scroll-padding-top: var(--site-header-height, calc(80px + env(safe-area-inset-top, 0px)));
   color-scheme: light;
 }
 
@@ -24,7 +24,7 @@ h3,
 h4,
 h5,
 h6 {
-  scroll-margin-top: var(--site-header-height, 80px);
+  scroll-margin-top: var(--site-header-height, calc(80px + env(safe-area-inset-top, 0px)));
 }
 
 :root {
@@ -131,7 +131,7 @@ body {
 }
 
 .site-header-spacer {
-  height: var(--site-header-height, 80px);
+  height: var(--site-header-height, calc(80px + env(safe-area-inset-top, 0px)));
   flex: 0 0 auto;
 }
 
