@@ -35,7 +35,7 @@ const paginationPages = getPaginationPages({
   <Header />
   <main class="container mx-auto px-4 py-8 max-w-6xl">
     <div class="flex flex-col gap-2 mb-6">
-      <h2 class="text-2xl font-bold">{homeConfig.title}</h2>
+      <h1 class="text-3xl font-bold">{homeConfig.title}</h1>
       <p class="text-sm text-zinc-500">{homeConfig.navigation.pageLabel} {page} / {totalPages}</p>
     </div>
     <PostList posts={slice} />

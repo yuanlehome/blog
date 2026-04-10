@@ -43,10 +43,10 @@ const commonLinksPosition = commonLinksConfig.position;
       }`}
     >
       {showCommonLinks && commonLinksPosition === 'left' && <CommonLinksSidebar />}
-      <div class="min-w-0">
+      <div class="min-w-0 lg:pt-8">
         <div class="flex flex-col gap-2 mb-6">
           <div class="flex items-center justify-between">
-            <h2 class="text-2xl font-bold">{homeConfig.title}</h2>
+            <h1 class="text-3xl font-bold">{homeConfig.title}</h1>
             {
               showCommonLinks && commonLinksPosition !== 'off' && (
                 <button
