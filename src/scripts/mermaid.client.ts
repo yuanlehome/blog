@@ -1,7 +1,4 @@
-type MermaidModule = {
-  initialize: (config: Record<string, unknown>) => void;
-  render: (id: string, text: string, container?: Element) => Promise<{ svg: string }>;
-};
+import mermaid from 'mermaid';
 
 type MermaidBlockElement = HTMLElement & {
   dataset: {
@@ -12,32 +9,13 @@ type MermaidBlockElement = HTMLElement & {
   };
 };
 
-const VIEWPORT_PRELOAD_PX = 1200;
-const IDLE_TIMEOUT_MS = 1200;
-
 const renderingBlocks = new Set<string>();
-const queuedBlocks = new Map<MermaidBlockElement, boolean>();
-let mermaidModulePromise: Promise<MermaidModule> | null = null;
-let blockObserver: IntersectionObserver | null = null;
-let renderQueueScheduled = false;
 
 const isDarkTheme = () => document.documentElement.classList.contains('dark');
+const getThemeMode = (): 'dark' | 'light' => (isDarkTheme() ? 'dark' : 'light');
 
 const getBlocks = (): MermaidBlockElement[] =>
   Array.from(document.querySelectorAll<MermaidBlockElement>('.mermaid-block'));
-
-const runWhenIdle = (callback: () => void, timeout = IDLE_TIMEOUT_MS): void => {
-  if (typeof window.requestIdleCallback === 'function') {
-    window.requestIdleCallback(() => callback(), { timeout });
-    return;
-  }
-  window.setTimeout(callback, 1);
-};
-
-const isNearViewport = (element: Element): boolean => {
-  const rect = element.getBoundingClientRect();
-  return rect.top < window.innerHeight + VIEWPORT_PRELOAD_PX && rect.bottom > -VIEWPORT_PRELOAD_PX;
-};
 
 const decodeMermaid = (encoded: string): string => {
   const normalized = encoded.replace(/\s/g, '');
@@ -48,16 +26,8 @@ const decodeMermaid = (encoded: string): string => {
   );
 };
 
-const getMermaidModule = async (): Promise<MermaidModule> => {
-  if (!mermaidModulePromise) {
-    mermaidModulePromise = import('mermaid').then((module) => module.default as MermaidModule);
-  }
-  return mermaidModulePromise;
-};
-
-const initMermaid = async () => {
-  const mermaid = await getMermaidModule();
-  const dark = isDarkTheme();
+const initMermaid = (themeMode: 'dark' | 'light') => {
+  const dark = themeMode === 'dark';
 
   mermaid.initialize({
     startOnLoad: false,
@@ -142,6 +112,7 @@ const updateSuccess = (block: MermaidBlockElement, svg: string): void => {
 const renderBlock = async (block: MermaidBlockElement, force = false): Promise<void> => {
   const encoded = block.dataset.mermaid;
   const idx = block.dataset.idx || 'unknown';
+  let needsRerender = false;
 
   if (!encoded) return;
   if (!force && block.dataset.rendered === 'true') return;
@@ -156,87 +127,42 @@ const renderBlock = async (block: MermaidBlockElement, force = false): Promise<v
     const code = block.dataset.source || decodeMermaid(encoded);
     block.dataset.source = code;
 
-    const mermaid = await initMermaid();
-    const result = await mermaid.render(`mermaid-diagram-${idx}`, code);
+    const renderTheme = getThemeMode();
+    const mermaidInstance = initMermaid(renderTheme);
+    const result = await mermaidInstance.render(`mermaid-diagram-${idx}`, code);
     updateSuccess(block, result.svg);
+
+    if (renderTheme !== getThemeMode()) {
+      delete block.dataset.rendered;
+      needsRerender = true;
+    }
   } catch (error) {
     const code = block.dataset.source || decodeMermaid(encoded);
     updateFailure(block, code, error, idx);
   } finally {
     renderingBlocks.delete(idx);
-  }
-};
 
-const flushRenderQueue = (): void => {
-  renderQueueScheduled = false;
-  const blocks = Array.from(queuedBlocks.entries());
-  queuedBlocks.clear();
-  void Promise.all(blocks.map(([block, force]) => renderBlock(block, force)));
-};
-
-const queueBlockRender = (block: MermaidBlockElement, force = false): void => {
-  if (!force && block.dataset.rendered === 'true') return;
-  queuedBlocks.set(block, force || queuedBlocks.get(block) === true);
-  blockObserver?.unobserve(block);
-  if (renderQueueScheduled) return;
-  renderQueueScheduled = true;
-  runWhenIdle(flushRenderQueue);
-};
-
-const ensureObserver = (): IntersectionObserver | null => {
-  if (blockObserver || typeof IntersectionObserver !== 'function') {
-    return blockObserver;
-  }
-
-  blockObserver = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
-        queueBlockRender(entry.target as MermaidBlockElement);
-      });
-    },
-    {
-      rootMargin: `${VIEWPORT_PRELOAD_PX}px 0px`,
-    },
-  );
-
-  return blockObserver;
-};
-
-const observeBlocks = (blocks: MermaidBlockElement[]): void => {
-  const observer = ensureObserver();
-  if (!observer) {
-    blocks.forEach((block) => queueBlockRender(block));
-    return;
-  }
-
-  blocks.forEach((block) => {
-    if (block.dataset.rendered === 'true') return;
-    if (isNearViewport(block)) {
-      queueBlockRender(block);
-      return;
+    if (needsRerender) {
+      void renderBlock(block, true);
     }
-    observer.observe(block);
-  });
+  }
 };
 
-const startLazyRendering = (): void => {
-  observeBlocks(getBlocks());
+const renderBlocks = async (blocks: MermaidBlockElement[], force = false): Promise<void> => {
+  await Promise.all(blocks.map((block) => renderBlock(block, force)));
 };
 
 const handleThemeChange = (): void => {
   const blocks = getBlocks();
-  const renderedBlocks = blocks.filter((block) => block.dataset.rendered === 'true');
 
   blocks.forEach((block) => {
     delete block.dataset.rendered;
   });
 
-  observeBlocks(blocks);
-  renderedBlocks.forEach((block) => queueBlockRender(block, true));
+  void renderBlocks(blocks, true);
 };
 
-runWhenIdle(startLazyRendering);
+void renderBlocks(getBlocks());
 window.addEventListener('themechange', () => {
   handleThemeChange();
 });

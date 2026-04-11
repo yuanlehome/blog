@@ -112,7 +112,7 @@ const enriched = posts.map((post) => {
                 <img
                   src={resolveAssetUrl(post.effectiveCover)}
                   alt={post.data.title}
-                  loading="lazy"
+                  loading="eager"
                   class="aspect-[4/3] w-full object-cover transition duration-300 ease-out motion-safe:hover:scale-[1.01] motion-reduce:transform-none"
                 />
               </a>

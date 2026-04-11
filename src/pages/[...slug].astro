@@ -212,7 +212,7 @@ const tocPosition = layoutConfig.toc.position;
 
         <PrevNext prev={prev} next={next} />
         <RelatedPosts posts={related} />
-        {commentsEnabled && <Giscus lang="zh-CN" loading="lazy" />}
+        {commentsEnabled && <Giscus lang="zh-CN" />}
         <div id="page-bottom-anchor" aria-hidden="true" style="height: 1px;"></div>
       </article>
       {hasToc && tocPosition === 'right' && <TableOfContents headings={tocHeadings} />}
