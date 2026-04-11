@@ -448,15 +448,6 @@ html.dark [data-article] :where(img[data-image-surface='light']) {
   box-shadow: 0 0 0 3px rgb(56 189 248 / 0.15);
 }
 
-.code-block__copy[data-state='copied']::after,
-.code-block__copy[data-state='error']::after {
-  content: attr(data-state);
-  text-transform: capitalize;
-  font-size: 0.75rem;
-  margin-left: 0.45rem;
-  color: inherit;
-}
-
 .code-block__pre {
   display: none;
   margin: 0;
