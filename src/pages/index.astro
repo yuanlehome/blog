@@ -76,7 +76,10 @@ const commonLinksPosition = commonLinksConfig.position;
 
         {
           totalPages > 1 && (
-            <nav class="flex justify-center items-center gap-2 mt-10" aria-label="Pagination">
+            <nav
+              class="mt-10 flex flex-wrap items-center justify-center gap-2"
+              aria-label="Pagination"
+            >
               {currentPage > 1 ? (
                 <a
                   href={`${BASE}`}
@@ -95,7 +98,7 @@ const commonLinksPosition = commonLinksConfig.position;
                 </span>
               )}
 
-              <div class="flex gap-1 md:gap-2" role="list">
+              <div class="flex flex-wrap justify-center gap-1 md:gap-2" role="list">
                 {paginationPages.map((page) =>
                   page === 'ellipsis' ? (
                     <span

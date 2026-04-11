@@ -295,6 +295,25 @@ body {
   box-shadow: var(--header-shadow-strong);
 }
 
+@media (max-width: 1023px) {
+  .site-header {
+    transition: none;
+  }
+
+  .site-header.header-variant-frosted,
+  .mobile-fab-pill,
+  .scroll-up-top-button,
+  .floating-action-stack__button,
+  [data-mobile-common-links-open] {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .site-header.header-variant-frosted {
+    background: var(--header-bg-scrolled);
+  }
+}
+
 .site-header :where(nav a) {
   color: inherit;
 }
@@ -373,17 +392,6 @@ html.dark [data-article] :where(img[data-image-surface='light']) {
 
 .prose :where(figure.code-block) {
   margin: 1.25rem 0;
-}
-
-@supports (content-visibility: auto) {
-  .code-block,
-  .mermaid-block,
-  :where(.prose) :where(table),
-  :where(.prose) :where(.katex-display),
-  :where(.prose) :where(.math-display) {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 24rem;
-  }
 }
 
 .code-block {
