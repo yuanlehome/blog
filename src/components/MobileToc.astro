@@ -140,6 +140,10 @@ const showTrigger = Astro.props.showTrigger ?? false;
     touchClickGuard.handlePointerMove(event);
   };
 
+  const handleWindowScroll = () => {
+    touchClickGuard.handleScroll(window.scrollY);
+  };
+
   const handleOpenPointerUp = (event: PointerEvent) => {
     touchClickGuard.handlePointerUp(event);
   };
@@ -223,6 +227,7 @@ const showTrigger = Astro.props.showTrigger ?? false;
   });
 
   window.addEventListener('pointermove', handleOpenPointerMove, { passive: true });
+  window.addEventListener('scroll', handleWindowScroll, { passive: true });
   window.addEventListener('pointerup', handleOpenPointerUp, { passive: true });
   window.addEventListener('pointercancel', handleOpenPointerCancel, { passive: true });
 

@@ -37,6 +37,16 @@ describe('createTouchClickGuard', () => {
     expect(guard.shouldHandleClick(createMouseEvent({ timeStamp: 50 }))).toBe(false);
   });
 
+  it('suppresses a click when the page scrolled during the touch gesture', () => {
+    const guard = createTouchClickGuard();
+
+    guard.handlePointerDown(createPointerEvent({ timeStamp: 10 }));
+    guard.handleScroll(10);
+    guard.handlePointerUp(createPointerEvent({ timeStamp: 40 }));
+
+    expect(guard.shouldHandleClick(createMouseEvent({ timeStamp: 50 }))).toBe(false);
+  });
+
   it('allows regular clicks when there is no preceding touch gesture', () => {
     const guard = createTouchClickGuard();
 
