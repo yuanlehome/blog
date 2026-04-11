@@ -1556,8 +1556,8 @@ mask 的定义不对，loss、KL、entropy、统计指标都会失真。
 
 更具体地说，这几个名字虽然在不同项目里命名略有差异，但通常是在解决三个不同层面的问题：
 
-1. **Padding Mask**：哪些位置只是为了把 batch 对齐而补出来的，不是真实 token  
-2. **Response Mask**：哪些位置属于模型生成的 response，而不是 prompt  
+1. **Padding Mask**：哪些位置只是为了把 batch 对齐而补出来的，不是真实 token
+2. **Response Mask**：哪些位置属于模型生成的 response，而不是 prompt
 3. **Valid Mask**：哪些位置在当前这一步计算里应该真正参与统计或优化
 
 可以把它们理解成一层层收缩的筛子：
@@ -1789,16 +1789,16 @@ reported_loss = {
 
 如果把全文压缩成几句话，可以记住下面这套主线：
 
-1. **轨迹** 是 RL 的基本样本单位；一条回答、一条 reasoning chain、一次 agent 多轮交互，本质上都是轨迹。  
-2. **轨迹拆分** 是为了做 credit assignment；你需要决定 reward 如何分配到 token、step、turn。  
-3. **Reward** 告诉系统"什么是好"；但进入优化时，通常会先变成 return / advantage，而不是直接拿裸 reward 做梯度。  
-4. **IS / ratio** 解决"旧样本如何服务当前策略"；概率比是 RL loss 的核心稳定性变量之一。  
-5. **KL** 解决"别跑太远"；K3 通常只是 sampled KL 的一种 estimator / surrogate，不应和 KL 本体混为一谈。  
-6. **Entropy** 解决"别太早失去探索"；过早熵塌缩会让策略陷入局部模式，尤其影响 reasoning RL。  
-7. **Loss** 是多个目标的组合；Policy、Value、KL、Entropy 常常共同构成最终训练目标。  
-8. **训推一致** 是 RL Infra 的关键工程课题；很多脏信号来自 rollout 和 trainer 的不一致，而不只是公式本身。  
-9. **KSM** 修的是 action space；training 侧不重新采样，但要在 rollout 的同一 sampling support 上重算 logprob。  
-10. **R3 / routing replay** 修的是 parameter subspace；在 MoE 中，trainer 还要尽量复现 rollout 的 expert 路径。 
+1. **轨迹** 是 RL 的基本样本单位；一条回答、一条 reasoning chain、一次 agent 多轮交互，本质上都是轨迹。
+2. **轨迹拆分** 是为了做 credit assignment；你需要决定 reward 如何分配到 token、step、turn。
+3. **Reward** 告诉系统"什么是好"；但进入优化时，通常会先变成 return / advantage，而不是直接拿裸 reward 做梯度。
+4. **IS / ratio** 解决"旧样本如何服务当前策略"；概率比是 RL loss 的核心稳定性变量之一。
+5. **KL** 解决"别跑太远"；K3 通常只是 sampled KL 的一种 estimator / surrogate，不应和 KL 本体混为一谈。
+6. **Entropy** 解决"别太早失去探索"；过早熵塌缩会让策略陷入局部模式，尤其影响 reasoning RL。
+7. **Loss** 是多个目标的组合；Policy、Value、KL、Entropy 常常共同构成最终训练目标。
+8. **训推一致** 是 RL Infra 的关键工程课题；很多脏信号来自 rollout 和 trainer 的不一致，而不只是公式本身。
+9. **KSM** 修的是 action space；training 侧不重新采样，但要在 rollout 的同一 sampling support 上重算 logprob。
+10. **R3 / routing replay** 修的是 parameter subspace；在 MoE 中，trainer 还要尽量复现 rollout 的 expert 路径。
 
 对 RL Infra 工程师来说，真正重要的不是背下多少术语，而是建立这样一种能力：
 
