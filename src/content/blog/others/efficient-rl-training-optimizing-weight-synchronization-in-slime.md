@@ -1,6 +1,6 @@
 ---
 title: 高效强化学习训练 - 优化 slime 中的权重同步
-slug: slime
+slug: efficient-rl-training-optimizing-weight-synchronization-in-slime
 date: '2026-02-05'
 tags: ['RL Infra']
 status: published
@@ -10,7 +10,7 @@ imported_at: '2026-02-05T18:37:38.790Z'
 source:
   title: hebiao064.github.io
   url: 'https://hebiao064.github.io/rl-weight-sync-chinese'
-cover: /images/others/slime/004-13d2092f.png
+cover: /images/others/efficient-rl-training-optimizing-weight-synchronization-in-slime/004-13d2092f.png
 ---
 
 本文介绍了如何优化 slime 框架中的权重同步机制，将 QWen3-30B-A3B 模型的权重更新时间从 60 秒优化到 7 秒。
@@ -24,7 +24,7 @@ cover: /images/others/slime/004-13d2092f.png
 - **易维护** - 轻量级代码库，并可从 Megatron 预训练平滑过渡到 SGLang 部署。
 - **大规模验证** - 最近发布的 [zai-org/GLM-4.5 (355B)](https://github.com/zai-org/GLM-4.5) 和 [zai-org/GLM-4.5-Air (106B)](https://huggingface.co/zai-org/GLM-4.5-Air) 都是通过 slime 做的 RL 训练。
 
-![什么是 slime？](/images/others/slime/004-13d2092f.png)
+![什么是 slime？](/images/others/efficient-rl-training-optimizing-weight-synchronization-in-slime/004-13d2092f.png)
 
 slime 主要由三个核心模块组成：
 
@@ -34,7 +34,7 @@ slime 主要由三个核心模块组成：
 
 ## 2. 什么是权重同步？
 
-![什么是权重同步？](/images/others/slime/005-99567543.png)
+![什么是权重同步？](/images/others/efficient-rl-training-optimizing-weight-synchronization-in-slime/005-99567543.png)
 
 在 LLM 强化学习中，**权重同步**是指**将更新好的训练端的模型权重同步到推理端**的过程，以确保推理工作节点始终使用最新的模型参数。
 
@@ -50,7 +50,7 @@ slime 主要由三个核心模块组成：
 
 ## 3. 权重同步在 slime 中如何工作？
 
-![权重同步在 slime 中如何工作？](/images/others/slime/006-fe1529d1.png)
+![权重同步在 slime 中如何工作？](/images/others/efficient-rl-training-optimizing-weight-synchronization-in-slime/006-fe1529d1.png)
 
 在 slime 的同卡 (Colocate) 模式下，**Megatron** 的工作进程和 **SGLang** 的工作进程共同位于相同的物理 GPU 上。为了实现零拷贝权重传输，Megatron 不发送数据本身，而是通过将 Tensor 序列化成 CudaIpcHandlers 再将其发送给 SGLang 的工作进程，而 SGLang 可以直接通过这些 CudaIpcHandlers 来访问权重数据进行映射，这样可以极大地提高传输效率。
 
@@ -69,7 +69,7 @@ slime 主要由三个核心模块组成：
 
 ## 4. 我们的工作：将 QWen3-30B-A3B 模型的权重更新时间从 60 秒优化到 7 秒
 
-![我们的优化之旅](/images/others/slime/007-cc811f49.png)
+![我们的优化之旅](/images/others/efficient-rl-training-optimizing-weight-synchronization-in-slime/007-cc811f49.png)
 
 > **注意**：上图是根据这个 Github Issue 里的所有 PR 做完之后往回捋出来的，以便更容易理解逻辑，实际上，我们没有按照上图所示的改进顺序进行，因为实际工作场景中自然是按照从易到难实现，而不是根据物理传输过程中的顺序。
 
@@ -79,11 +79,11 @@ slime 主要由三个核心模块组成：
 
 #### 不太现实的传统方法
 
-![传统方法 vs CUDA IPC](/images/others/slime/008-07a56c2f.png)
+![传统方法 vs CUDA IPC](/images/others/efficient-rl-training-optimizing-weight-synchronization-in-slime/008-07a56c2f.png)
 
 #### 利用 CUDA IPC Handler 同卡零拷贝传输
 
-![CUDA IPC 如何工作](/images/others/slime/009-2c135d72.png)
+![CUDA IPC 如何工作](/images/others/efficient-rl-training-optimizing-weight-synchronization-in-slime/009-2c135d72.png)
 
 #### 主要优势：
 
@@ -202,7 +202,7 @@ for param_infos in tqdm(self.param_info_buckets, disable=rank != 0, desc="Update
 
 #### 问题：太多 CUDA IPC 操作
 
-![太多 CUDA IPC 操作](/images/others/slime/010-c78ae1b2.png)
+![太多 CUDA IPC 操作](/images/others/efficient-rl-training-optimizing-weight-synchronization-in-slime/010-c78ae1b2.png)
 
 #### 性能分析
 
@@ -217,7 +217,7 @@ for param_infos in tqdm(self.param_info_buckets, disable=rank != 0, desc="Update
 
 **关键发现**：**81% 的时间**花费在 CUDA IPC 操作（打开+关闭）上，而只有 **19%** 用于实际权重加载。这解释了为什么合并多个 Tensor 可以提供如此显著的改进。
 
-![扁平化后](/images/others/slime/011-274c6867.png)
+![扁平化后](/images/others/efficient-rl-training-optimizing-weight-synchronization-in-slime/011-274c6867.png)
 
 #### 扁平化 Tensor 后的性能
 
