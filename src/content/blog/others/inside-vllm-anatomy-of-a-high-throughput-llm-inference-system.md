@@ -2,7 +2,7 @@
 title: 深入 vLLM：剖析一个高吞吐量 LLM 推理系统
 slug: inside-vllm-anatomy-of-a-high-throughput-llm-inference-system
 date: '2025-12-29'
-tags: ['Source Code Analysis', 'Architecture Design']
+tags: ['Source Code Analysis', 'vLLM']
 status: published
 source_url: 'https://www.aleksagordic.com/blog/vllm'
 source_author: www.aleksagordic.com

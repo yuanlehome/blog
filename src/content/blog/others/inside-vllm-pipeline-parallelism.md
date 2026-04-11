@@ -2,7 +2,7 @@
 title: 深入 vLLM Pipeline Parallelism：架构、源码与性能取舍
 slug: inside-vllm-pipeline-parallelism
 date: '2026-04-03'
-tags: ['Source Code Analysis', 'Distributed Parallel']
+tags: ['Source Code Analysis', 'Distributed Parallel', 'vLLM']
 status: published
 source: original
 ---

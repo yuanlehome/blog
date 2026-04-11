@@ -2,7 +2,7 @@
 title: 深入 vLLM EPD：Disaggregated Encoder / Encoder-Prefill/Decode 源码拆解
 slug: inside-vllm-epd-disaggregated-encoder-prefill-decode
 date: '2026-04-02'
-tags: ['Source Code Analysis']
+tags: ['Source Code Analysis', 'vLLM']
 status: published
 source: original
 ---

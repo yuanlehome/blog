@@ -2,7 +2,7 @@
 title: 'SGLang 中的流水线并行：扩展到百万 Token 上下文及更远'
 slug: pipeline-parallelism-in-sglang-scaling-to-million-token-contexts-and-beyond
 date: '2026-03-24'
-tags: ['Distributed Parallel']
+tags: ['Distributed Parallel', 'sglang']
 status: published
 source_url: 'https://lmsys.org/blog/2026-01-15-chunked-pipeline/'
 source_author: lmsys.org
