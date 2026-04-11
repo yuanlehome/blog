@@ -11,13 +11,13 @@ const groups = groupByYearMonth(posts);
 
 <Layout title="Archive | Yuanle Liu">
   <Header />
-  <main class="container mx-auto px-4 py-8 max-w-4xl">
-    <h1 class="text-3xl font-bold mb-6">Archive</h1>
-    <div class="space-y-6">
+  <main class="page-shell container mx-auto px-4 max-w-4xl">
+    <h1 class="page-heading text-3xl font-bold">Archive</h1>
+    <div class="page-stack">
       {
         groups.map((group) => (
           <section
-            class="border border-zinc-200 dark:border-zinc-800 rounded-xl p-4"
+            class="rounded-xl border border-zinc-200 p-[var(--surface-card-padding)] dark:border-zinc-800"
             aria-label={group.key}
           >
             <h2 class="text-xl font-semibold mb-3">{group.key}</h2>

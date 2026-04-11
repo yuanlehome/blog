@@ -1,20 +1,24 @@
 ---
 export interface Props {
   targetSelector?: string;
+  hasCompanionAction?: boolean;
 }
 
-const { targetSelector = '[data-article]' } = Astro.props;
+const { targetSelector = '[data-article]', hasCompanionAction = false } = Astro.props;
 ---
 
 <button
   type="button"
-  class="fixed left-1/2 top-20 z-40 -translate-x-1/2 rounded-full border border-zinc-200 bg-white/95 px-4 py-2 text-sm font-medium text-zinc-900 shadow-lg backdrop-blur-sm transition data-[visible=false]:pointer-events-none data-[visible=false]:-translate-y-2 data-[visible=false]:opacity-0 data-[visible=true]:opacity-100 dark:border-zinc-800 dark:bg-zinc-900/90 dark:text-zinc-100"
+  class="scroll-up-top-button fixed z-40 inline-flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200 bg-neutral-50/92 text-zinc-900 shadow-lg backdrop-blur-sm transition data-[visible=false]:pointer-events-none data-[visible=false]:translate-y-2 data-[visible=false]:opacity-0 data-[visible=true]:opacity-100 dark:border-zinc-800 dark:bg-zinc-900/88 dark:text-zinc-100 lg:h-auto lg:w-auto lg:gap-2 lg:px-4 lg:py-2 lg:-translate-x-1/2 lg:data-[visible=false]:-translate-y-2"
   data-scroll-up-top-button
   data-target-selector={targetSelector}
   data-visible="false"
+  style={`--scroll-up-offset: ${hasCompanionAction ? 'calc(var(--mobile-fab-size) + var(--mobile-fab-gap))' : '0px'};`}
   aria-label="回到文章顶部"
 >
-  回到顶部
+  <span aria-hidden="true" class="text-lg leading-none">↑</span>
+  <span class="sr-only">回到顶部</span>
+  <span aria-hidden="true" class="hidden lg:inline">回到顶部</span>
 </button>
 
 <script>
@@ -36,6 +40,15 @@ const { targetSelector = '[data-article]' } = Astro.props;
       );
       return parseFloat(headerHeightStr) || 0;
     };
+
+    const getPageTopGap = (): number => {
+      const pageGapStr = getComputedStyle(document.documentElement).getPropertyValue(
+        '--page-space-top',
+      );
+      return parseFloat(pageGapStr) || 0;
+    };
+
+    const getStickyOffset = (): number => getHeaderOffset() + getPageTopGap();
 
     const updateArticleTop = () => {
       const rect = article.getBoundingClientRect();
@@ -68,7 +81,7 @@ const { targetSelector = '[data-article]' } = Astro.props;
     };
 
     const scrollToArticleTop = () => {
-      const targetTop = Math.max(0, articleTop - getHeaderOffset() - 12);
+      const targetTop = Math.max(0, articleTop - getStickyOffset());
       window.scrollTo({ top: targetTop, behavior: reducedMotionQuery.matches ? 'auto' : 'smooth' });
     };
 

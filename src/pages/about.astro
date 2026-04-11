@@ -12,8 +12,8 @@ const BASE = normalizeBase(import.meta.env.BASE_URL);
 
 <Layout title={`About ${profile.name} - ${siteConfig.siteName}`}>
   <Header />
-  <main class="container mx-auto px-4 py-12 max-w-4xl">
-    <section class="flex flex-col md:flex-row items-center gap-12 mb-16">
+  <main class="page-section-stack page-shell container mx-auto px-4 max-w-4xl">
+    <section class="flex flex-col items-center gap-12 md:flex-row">
       <div class="w-48 h-48 md:w-64 md:h-64 flex-shrink-0 relative">
         <div
           class="absolute inset-0 bg-sky-100 dark:bg-sky-900 rounded-full blur-2xl opacity-50 animate-pulse"
@@ -50,7 +50,7 @@ const BASE = normalizeBase(import.meta.env.BASE_URL);
       </div>
     </section>
 
-    <section class="grid md:grid-cols-2 gap-8 mb-16">
+    <section class="grid gap-8 md:grid-cols-2">
       <div
         class="group relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-neutral-50/80 p-8 shadow-[0_10px_30px_rgb(24_24_27/0.04)] transition duration-200 ease-out hover:-translate-y-1 hover:border-sky-200 hover:shadow-[0_14px_36px_rgb(2_132_199/0.1)] dark:border-zinc-800/80 dark:bg-zinc-900/70 dark:shadow-[0_16px_38px_rgb(0_0_0/0.4)] dark:hover:border-sky-500/35 dark:hover:shadow-[0_18px_40px_rgb(56_189_248/0.12)]"
       >
@@ -81,7 +81,7 @@ const BASE = normalizeBase(import.meta.env.BASE_URL);
       </div>
     </section>
 
-    <section class="prose dark:prose-invert max-w-none">
+    <section class="prose max-w-none dark:prose-invert">
       <h2 class="text-3xl font-bold mb-6 text-center">{profile.journey.title}</h2>
       <div class="relative border-l-2 border-zinc-200 dark:border-zinc-700 ml-4 space-y-8">
         {

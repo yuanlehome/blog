@@ -12,10 +12,32 @@ type MermaidBlockElement = HTMLElement & {
   };
 };
 
+const VIEWPORT_PRELOAD_PX = 1200;
+const IDLE_TIMEOUT_MS = 1200;
+
 const renderingBlocks = new Set<string>();
+const queuedBlocks = new Map<MermaidBlockElement, boolean>();
 let mermaidModulePromise: Promise<MermaidModule> | null = null;
+let blockObserver: IntersectionObserver | null = null;
+let renderQueueScheduled = false;
 
 const isDarkTheme = () => document.documentElement.classList.contains('dark');
+
+const getBlocks = (): MermaidBlockElement[] =>
+  Array.from(document.querySelectorAll<MermaidBlockElement>('.mermaid-block'));
+
+const runWhenIdle = (callback: () => void, timeout = IDLE_TIMEOUT_MS): void => {
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(() => callback(), { timeout });
+    return;
+  }
+  window.setTimeout(callback, 1);
+};
+
+const isNearViewport = (element: Element): boolean => {
+  const rect = element.getBoundingClientRect();
+  return rect.top < window.innerHeight + VIEWPORT_PRELOAD_PX && rect.bottom > -VIEWPORT_PRELOAD_PX;
+};
 
 const decodeMermaid = (encoded: string): string => {
   const normalized = encoded.replace(/\s/g, '');
@@ -145,20 +167,76 @@ const renderBlock = async (block: MermaidBlockElement, force = false): Promise<v
   }
 };
 
-const renderAllBlocks = async (force = false): Promise<void> => {
-  const blocks = Array.from(document.querySelectorAll<MermaidBlockElement>('.mermaid-block'));
-  await Promise.all(blocks.map((block) => renderBlock(block, force)));
+const flushRenderQueue = (): void => {
+  renderQueueScheduled = false;
+  const blocks = Array.from(queuedBlocks.entries());
+  queuedBlocks.clear();
+  void Promise.all(blocks.map(([block, force]) => renderBlock(block, force)));
 };
 
-const forceRerenderAll = async (): Promise<void> => {
-  const blocks = Array.from(document.querySelectorAll<MermaidBlockElement>('.mermaid-block'));
-  for (const block of blocks) {
-    delete block.dataset.rendered;
+const queueBlockRender = (block: MermaidBlockElement, force = false): void => {
+  if (!force && block.dataset.rendered === 'true') return;
+  queuedBlocks.set(block, force || queuedBlocks.get(block) === true);
+  blockObserver?.unobserve(block);
+  if (renderQueueScheduled) return;
+  renderQueueScheduled = true;
+  runWhenIdle(flushRenderQueue);
+};
+
+const ensureObserver = (): IntersectionObserver | null => {
+  if (blockObserver || typeof IntersectionObserver !== 'function') {
+    return blockObserver;
   }
-  await renderAllBlocks(true);
+
+  blockObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        queueBlockRender(entry.target as MermaidBlockElement);
+      });
+    },
+    {
+      rootMargin: `${VIEWPORT_PRELOAD_PX}px 0px`,
+    },
+  );
+
+  return blockObserver;
 };
 
-void renderAllBlocks();
+const observeBlocks = (blocks: MermaidBlockElement[]): void => {
+  const observer = ensureObserver();
+  if (!observer) {
+    blocks.forEach((block) => queueBlockRender(block));
+    return;
+  }
+
+  blocks.forEach((block) => {
+    if (block.dataset.rendered === 'true') return;
+    if (isNearViewport(block)) {
+      queueBlockRender(block);
+      return;
+    }
+    observer.observe(block);
+  });
+};
+
+const startLazyRendering = (): void => {
+  observeBlocks(getBlocks());
+};
+
+const handleThemeChange = (): void => {
+  const blocks = getBlocks();
+  const renderedBlocks = blocks.filter((block) => block.dataset.rendered === 'true');
+
+  blocks.forEach((block) => {
+    delete block.dataset.rendered;
+  });
+
+  observeBlocks(blocks);
+  renderedBlocks.forEach((block) => queueBlockRender(block, true));
+};
+
+runWhenIdle(startLazyRendering);
 window.addEventListener('themechange', () => {
-  void forceRerenderAll();
+  handleThemeChange();
 });

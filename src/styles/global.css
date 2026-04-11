@@ -10,7 +10,7 @@
 
 html {
   scroll-behavior: smooth;
-  scroll-padding-top: var(--site-header-height, calc(80px + env(safe-area-inset-top, 0px)));
+  scroll-padding-top: calc(var(--site-header-height) + var(--page-space-top, 0px));
   color-scheme: light;
 }
 
@@ -24,11 +24,25 @@ h3,
 h4,
 h5,
 h6 {
-  scroll-margin-top: var(--site-header-height, calc(80px + env(safe-area-inset-top, 0px)));
+  scroll-margin-top: calc(var(--site-header-height) + var(--page-space-top, 0px));
 }
 
 :root {
+  --site-header-height-fallback: calc(57px + env(safe-area-inset-top, 0px));
+  --site-header-height: var(--site-header-height-fallback);
   --z-index-theme-overlay: 999;
+  --page-space-top: clamp(1.5rem, 2.4vw, 2rem);
+  --page-space-bottom: clamp(2.75rem, 4.5vw, 4rem);
+  --page-stack-gap: clamp(1.5rem, 2.8vw, 2rem);
+  --page-section-gap: clamp(2.5rem, 5vw, 4rem);
+  --surface-card-padding: clamp(1rem, 1.8vw, 1.5rem);
+  --mobile-edge-gap: clamp(0.875rem, 4vw, 1.25rem);
+  --mobile-fab-size: 3rem;
+  --mobile-fab-gap: 0.75rem;
+  --mobile-fab-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--mobile-edge-gap));
+  --mobile-sheet-padding-inline: clamp(1rem, 4vw, 1.25rem);
+  --mobile-sheet-bottom-padding: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+  --mobile-sheet-max-height: min(72vh, calc(100dvh - var(--site-header-height) - 1.5rem));
   /* Legacy code font variables - now uses CSS variables from config */
   --code-font:
     'JetBrains Mono', 'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono',
@@ -45,6 +59,12 @@ h6 {
   --header-border: rgb(228 228 231 / 0.9);
   --header-shadow: 0 8px 24px rgb(24 24 27 / 0.06);
   --header-shadow-strong: 0 10px 30px rgb(24 24 27 / 0.1);
+}
+
+@media (min-width: 640px) {
+  :root {
+    --site-header-height-fallback: calc(65px + env(safe-area-inset-top, 0px));
+  }
 }
 
 .dark {
@@ -111,7 +131,102 @@ html,
 body {
   width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
+}
+
+@layer components {
+  .page-shell {
+    padding-top: var(--page-space-top);
+    padding-bottom: var(--page-space-bottom);
+  }
+
+  .page-shell-mobile-fab-safe {
+    padding-bottom: calc(var(--page-space-bottom) + var(--mobile-fab-size) + var(--mobile-fab-gap));
+  }
+
+  .page-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--page-stack-gap);
+  }
+
+  .page-section-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--page-section-gap);
+  }
+
+  .page-heading {
+    margin-bottom: var(--page-stack-gap);
+  }
+
+  .mobile-drawer-panel {
+    padding-top: 0.5rem;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .mobile-drawer-handle {
+    width: 3rem;
+    height: 0.25rem;
+    margin: 0 auto 0.25rem;
+    border-radius: 9999px;
+  }
+
+  .mobile-drawer-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-inline: var(--mobile-sheet-padding-inline);
+    padding-top: 0.5rem;
+    padding-bottom: 0.875rem;
+  }
+
+  .mobile-drawer-scroll {
+    max-height: var(--mobile-sheet-max-height);
+    overflow-y: auto;
+    padding-inline: var(--mobile-sheet-padding-inline);
+    padding-bottom: var(--mobile-sheet-bottom-padding);
+  }
+
+  .mobile-drawer-close {
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+  }
+
+  .mobile-fab-stack {
+    inset-inline-end: var(--mobile-edge-gap);
+    inset-block-end: var(--mobile-fab-bottom);
+  }
+
+  .mobile-fab-button {
+    min-width: var(--mobile-fab-size);
+    min-height: var(--mobile-fab-size);
+  }
+
+  .mobile-fab-pill {
+    min-height: var(--mobile-fab-size);
+    padding-inline: 1rem;
+    inset-block-end: var(--mobile-fab-bottom);
+  }
+
+  .scroll-up-top-button {
+    inset-inline-end: var(--mobile-edge-gap);
+    bottom: calc(var(--mobile-fab-bottom) + var(--scroll-up-offset, 0px));
+  }
+
+  @media (min-width: 1024px) {
+    .page-shell-mobile-fab-safe {
+      padding-bottom: var(--page-space-bottom);
+    }
+
+    .scroll-up-top-button {
+      left: 50%;
+      right: auto;
+      top: 5rem;
+      bottom: auto;
+    }
+  }
 }
 
 .site-header {
@@ -131,7 +246,7 @@ body {
 }
 
 .site-header-spacer {
-  height: var(--site-header-height, calc(80px + env(safe-area-inset-top, 0px)));
+  height: var(--site-header-height);
   flex: 0 0 auto;
 }
 
@@ -258,6 +373,17 @@ html.dark [data-article] :where(img[data-image-surface='light']) {
 
 .prose :where(figure.code-block) {
   margin: 1.25rem 0;
+}
+
+@supports (content-visibility: auto) {
+  .code-block,
+  .mermaid-block,
+  :where(.prose) :where(table),
+  :where(.prose) :where(.katex-display),
+  :where(.prose) :where(.math-display) {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 24rem;
+  }
 }
 
 .code-block {

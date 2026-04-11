@@ -13,17 +13,25 @@ if (tocForest.length === 0) {
 }
 ---
 
-<div class="w-full" data-toc-shell>
-  <aside class="hidden lg:block h-full">
+<div
+  class="w-full lg:sticky lg:self-start"
+  data-toc-shell
+  style="--toc-sticky-top: calc(var(--site-header-height) + var(--page-space-top, 0px)); --toc-max-height: calc(100dvh - var(--toc-sticky-top) - 1rem); top: var(--toc-sticky-top);"
+>
+  <aside class="hidden lg:block">
     <div
-      class="flex h-full w-full flex-col gap-3 overflow-hidden rounded-xl border border-zinc-200 bg-neutral-50/80 p-4 shadow-md backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/50 lg:sticky lg:top-[var(--site-header-height)] lg:max-h-[calc(100vh-var(--site-header-height)-16px)] lg:h-[calc(100vh-var(--site-header-height)-16px)]"
+      class="flex w-full flex-col overflow-hidden rounded-xl border border-zinc-200 bg-neutral-50/80 p-[var(--surface-card-padding)] shadow-md backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/50"
+      style="max-height: var(--toc-max-height);"
       data-toc-container
     >
       <div class="space-y-1">
         <p class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">文章目录</p>
-        <p class="text-xs text-zinc-500 dark:text-zinc-400">快速跳转到你关心的章节</p>
       </div>
-      <nav aria-label="文章目录" class="flex-1 min-h-0 overflow-y-auto pr-1" data-toc-scroll>
+      <nav
+        aria-label="文章目录"
+        class="mt-4 pr-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
+        data-toc-scroll
+      >
         <ol class="space-y-3 text-sm">
           <TocTree nodes={tocForest} />
         </ol>
@@ -33,9 +41,10 @@ if (tocForest.length === 0) {
 </div>
 
 <script>
-  const tocLinks = Array.from(document.querySelectorAll('[data-toc-link]')) as HTMLAnchorElement[];
-  const tocContainer = document.querySelector('[data-toc-container]') as HTMLElement | null;
   const tocShell = document.querySelector('[data-toc-shell]') as HTMLElement | null;
+  const tocLinks = Array.from(
+    tocShell?.querySelectorAll('[data-toc-link]') ?? [],
+  ) as HTMLAnchorElement[];
 
   // Get header offset from CSS variable
   const getHeaderOffset = (): number => {
@@ -45,164 +54,112 @@ if (tocForest.length === 0) {
     return parseFloat(headerHeightStr) || 0;
   };
 
-  const desktopQuery = window.matchMedia('(min-width: 1024px)');
-
-  const headings = tocLinks
-    .map((link) => document.getElementById(link.dataset.target || ''))
-    .filter((el): el is HTMLElement => Boolean(el));
-
-  const applyScrollMargin = () => {
-    const headerOffset = getHeaderOffset();
-    headings.forEach((heading) => {
-      heading.style.scrollMarginTop = `${headerOffset + 12}px`;
-    });
+  const getPageTopGap = (): number => {
+    const pageGapStr = getComputedStyle(document.documentElement).getPropertyValue(
+      '--page-space-top',
+    );
+    return parseFloat(pageGapStr) || 0;
   };
 
-  const encodedHash = (id: string) => `#${encodeURIComponent(id)}`;
-  const decodeHash = (hash: string) => decodeURIComponent(hash.replace(/^#/, ''));
+  const getAnchorOffset = (): number => getHeaderOffset() + getPageTopGap() + 12;
 
-  const setActive = (id: string | null) => {
-    tocLinks.forEach((link) => {
-      const isActive = link.dataset.target === id;
-      link.dataset.active = isActive ? 'true' : 'false';
-      link.setAttribute('aria-current', isActive ? 'true' : 'false');
-    });
-  };
+  const initTocEnhancements = () => {
+    if (!tocShell || tocLinks.length === 0) return;
+    if (tocShell.dataset.initialized === 'true') return;
+    tocShell.dataset.initialized = 'true';
 
-  const scrollToHeading = (id: string, replace = false) => {
-    const target = document.getElementById(id);
-    if (!target) return;
-    const headerOffset = getHeaderOffset();
-    const top = window.scrollY + target.getBoundingClientRect().top - headerOffset - 12;
-    if (replace) {
-      history.replaceState(null, '', encodedHash(id));
-    } else {
-      history.pushState(null, '', encodedHash(id));
-    }
-    window.scrollTo({ top, behavior: 'smooth' });
-    setActive(id);
-  };
+    const headings = tocLinks
+      .map((link) => document.getElementById(link.dataset.target || ''))
+      .filter((el): el is HTMLElement => Boolean(el));
 
-  tocLinks.forEach((link) =>
-    link.addEventListener('click', (event) => {
-      const targetId = link.dataset.target;
-      if (!targetId) return;
-      event.preventDefault();
-      scrollToHeading(targetId);
-    }),
-  );
+    const applyScrollMargin = () => {
+      const anchorOffset = getAnchorOffset();
+      headings.forEach((heading) => {
+        heading.style.scrollMarginTop = `${anchorOffset}px`;
+      });
+    };
 
-  const resetPositioning = () => {
-    if (!tocContainer) return;
-    tocContainer.dataset.fixed = 'false';
-    tocContainer.style.position = '';
-    tocContainer.style.left = '';
-    tocContainer.style.width = '';
-    tocContainer.style.height = '';
-    tocContainer.style.maxHeight = '';
-    tocContainer.style.top = '';
-    if (tocShell) tocShell.style.minHeight = '';
-  };
+    const encodedHash = (id: string) => `#${encodeURIComponent(id)}`;
+    const decodeHash = (hash: string) => decodeURIComponent(hash.replace(/^#/, ''));
 
-  const applyFixedFallback = () => {
-    if (!tocContainer || !tocShell) return;
-    const shellRect = tocShell.getBoundingClientRect();
-    const headerOffset = getHeaderOffset();
-    const maxHeight = `calc(100vh - ${headerOffset}px - 16px)`;
-    tocContainer.dataset.fixed = 'true';
-    tocShell.style.minHeight = `${tocContainer.offsetHeight}px`;
-    tocContainer.style.position = 'fixed';
-    tocContainer.style.top = `${headerOffset}px`;
-    tocContainer.style.left = `${shellRect.left}px`;
-    tocContainer.style.width = `${shellRect.width}px`;
-    tocContainer.style.height = maxHeight;
-    tocContainer.style.maxHeight = maxHeight;
-  };
+    const setActive = (id: string | null) => {
+      tocLinks.forEach((link) => {
+        const isActive = link.dataset.target === id;
+        link.dataset.active = isActive ? 'true' : 'false';
+        link.setAttribute('aria-current', isActive ? 'true' : 'false');
+      });
+    };
 
-  const verifySticky = () => {
-    if (!tocContainer || tocContainer.dataset.fixed === 'true' || !desktopQuery.matches) return;
-    const stickyTop = parseFloat(getComputedStyle(tocContainer).top || '0');
-    const threshold = tocContainer.offsetTop - stickyTop;
-    if (Number.isNaN(stickyTop) || window.scrollY < threshold) return;
-    const currentTop = tocContainer.getBoundingClientRect().top;
-    if (Math.abs(currentTop - stickyTop) > 2) {
-      applyFixedFallback();
-    }
-  };
+    const scrollToHeading = (id: string, replace = false) => {
+      const target = document.getElementById(id);
+      if (!target) return;
+      const anchorOffset = getAnchorOffset();
+      const top = window.scrollY + target.getBoundingClientRect().top - anchorOffset;
+      if (replace) {
+        history.replaceState(null, '', encodedHash(id));
+      } else {
+        history.pushState(null, '', encodedHash(id));
+      }
+      window.scrollTo({ top, behavior: 'smooth' });
+      setActive(id);
+    };
 
-  const handleResize = () => {
-    if (!desktopQuery.matches) {
-      resetPositioning();
-      return;
-    }
-    if (tocContainer?.dataset.fixed === 'true') {
-      applyFixedFallback();
-    }
-  };
-
-  if (headings.length > 0) {
-    applyScrollMargin();
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort(
-            (a, b) => a.target.getBoundingClientRect().top - b.target.getBoundingClientRect().top,
-          );
-
-        if (visible[0]) {
-          setActive(visible[0].target.id);
-          return;
-        }
-
-        const above = entries
-          .filter((entry) => entry.boundingClientRect.top < 0)
-          .sort(
-            (a, b) => b.target.getBoundingClientRect().top - a.target.getBoundingClientRect().top,
-          );
-        if (above[0]) setActive(above[0].target.id);
-      },
-      {
-        rootMargin: `-${getHeaderOffset()}px 0% -55% 0%`,
-        threshold: [0, 0.25, 0.5, 1],
-      },
+    tocLinks.forEach((link) =>
+      link.addEventListener('click', (event) => {
+        const targetId = link.dataset.target;
+        if (!targetId) return;
+        event.preventDefault();
+        scrollToHeading(targetId);
+      }),
     );
 
-    headings.forEach((heading) => observer.observe(heading));
-
-    const hash = decodeHash(location.hash || '');
-    if (hash) {
-      requestAnimationFrame(() => scrollToHeading(hash, true));
-    }
-
-    window.addEventListener('hashchange', () => {
-      const id = decodeHash(location.hash || '');
-      if (id) scrollToHeading(id, true);
-    });
-  }
-
-  resetPositioning();
-  if (desktopQuery.matches) verifySticky();
-  desktopQuery.addEventListener('change', () => {
-    resetPositioning();
-    requestAnimationFrame(() => {
-      if (desktopQuery.matches) verifySticky();
-    });
-  });
-  window.addEventListener('scroll', verifySticky, { passive: true });
-  window.addEventListener('resize', handleResize);
-  window.addEventListener(
-    'load',
-    () => {
-      verifySticky();
+    if (headings.length > 0) {
       applyScrollMargin();
-    },
-    { once: true },
-  );
 
-  // Listen for header height changes via custom event (more efficient than MutationObserver)
-  window.addEventListener('headerheightchange', () => {
-    applyScrollMargin();
-  });
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const visible = entries
+            .filter((entry) => entry.isIntersecting)
+            .sort(
+              (a, b) => a.target.getBoundingClientRect().top - b.target.getBoundingClientRect().top,
+            );
+
+          if (visible[0]) {
+            setActive(visible[0].target.id);
+            return;
+          }
+
+          const above = entries
+            .filter((entry) => entry.boundingClientRect.top < 0)
+            .sort(
+              (a, b) => b.target.getBoundingClientRect().top - a.target.getBoundingClientRect().top,
+            );
+          if (above[0]) setActive(above[0].target.id);
+        },
+        {
+          rootMargin: `-${getAnchorOffset()}px 0% -55% 0%`,
+          threshold: [0, 0.25, 0.5, 1],
+        },
+      );
+
+      headings.forEach((heading) => observer.observe(heading));
+
+      const hash = decodeHash(location.hash || '');
+      if (hash) setActive(hash);
+
+      window.addEventListener('hashchange', () => {
+        const id = decodeHash(location.hash || '');
+        setActive(id || null);
+      });
+
+      window.addEventListener('headerheightchange', applyScrollMargin);
+      window.addEventListener('resize', applyScrollMargin);
+    }
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initTocEnhancements, { once: true });
+  } else {
+    initTocEnhancements();
+  }
 </script>

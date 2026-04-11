@@ -22,7 +22,8 @@ const showTrigger = Astro.props.showTrigger ?? false;
     showTrigger && (
       <button
         type="button"
-        class="fixed bottom-6 right-4 z-40 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-neutral-50/90 px-4 py-2 text-sm font-medium text-zinc-900 shadow-lg backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-sky-200 hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-zinc-800 dark:bg-zinc-900/80 dark:text-zinc-100 dark:hover:border-sky-500/50 dark:hover:text-sky-400 dark:focus-visible:ring-offset-zinc-900 lg:hidden"
+        class="mobile-fab-pill fixed z-40 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-neutral-50/92 px-4 text-sm font-medium text-zinc-900 shadow-lg backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-sky-200 hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-zinc-800 dark:bg-zinc-900/88 dark:text-zinc-100 dark:hover:border-sky-500/50 dark:hover:text-sky-400 dark:focus-visible:ring-offset-zinc-900 lg:hidden"
+        style="inset-inline-end: var(--mobile-edge-gap);"
         data-mobile-toc-open
         aria-haspopup="dialog"
         aria-expanded="false"
@@ -49,23 +50,24 @@ const showTrigger = Astro.props.showTrigger ?? false;
       role="dialog"
       aria-modal="true"
       aria-label="文章目录"
-      class="absolute inset-x-0 bottom-0 translate-y-full rounded-t-2xl border border-zinc-200 bg-neutral-50/95 shadow-2xl ring-1 ring-black/5 transition duration-200 data-[open=true]:translate-y-0 dark:border-zinc-800 dark:bg-zinc-900/95 dark:ring-white/10"
+      class="mobile-drawer-panel absolute inset-x-0 bottom-0 translate-y-full rounded-t-[1.75rem] border border-zinc-200 bg-neutral-50/95 shadow-2xl ring-1 ring-black/5 transition duration-200 data-[open=true]:translate-y-0 dark:border-zinc-800 dark:bg-zinc-900/95 dark:ring-white/10"
       data-mobile-toc-drawer
     >
-      <div class="flex items-center justify-between gap-3 px-4 pt-4 pb-3">
+      <div class="mobile-drawer-handle bg-zinc-300/70 dark:bg-zinc-700/80"></div>
+      <div class="mobile-drawer-header">
         <div>
           <p class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">文章目录</p>
           <p class="text-xs text-zinc-500 dark:text-zinc-400">点击条目可跳转</p>
         </div>
         <button
           type="button"
-          class="rounded-full border border-zinc-200 bg-neutral-50 px-3 py-1 text-sm font-medium text-zinc-800 shadow-sm transition hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:text-sky-400 dark:focus-visible:ring-offset-zinc-900"
+          class="mobile-drawer-close inline-flex items-center justify-center rounded-full border border-zinc-200 bg-neutral-50 text-sm font-medium text-zinc-800 shadow-sm transition hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:text-sky-400 dark:focus-visible:ring-offset-zinc-900"
           data-mobile-toc-close
         >
           关闭
         </button>
       </div>
-      <div class="max-h-[60vh] overflow-y-auto px-4 pb-5" data-mobile-toc-scroll>
+      <div class="mobile-drawer-scroll" data-mobile-toc-scroll>
         <ol class="space-y-3 text-sm">
           <TocTree nodes={tocForest} />
         </ol>
@@ -95,6 +97,15 @@ const showTrigger = Astro.props.showTrigger ?? false;
     );
     return parseFloat(headerHeightStr) || 0;
   };
+
+  const getPageTopGap = (): number => {
+    const pageGapStr = getComputedStyle(document.documentElement).getPropertyValue(
+      '--page-space-top',
+    );
+    return parseFloat(pageGapStr) || 0;
+  };
+
+  const getStickyOffset = (): number => getHeaderOffset() + getPageTopGap();
   let scrollYBeforeLock = 0;
 
   // Delay to ensure drawer animation and scroll unlock complete before navigation
@@ -151,12 +162,12 @@ const showTrigger = Astro.props.showTrigger ?? false;
   };
 
   const applyScrollMargin = () => {
-    const headerOffset = getHeaderOffset();
+    const stickyOffset = getStickyOffset();
     const headings = getTocLinks()
       .map((link) => document.getElementById(link.dataset.target || ''))
       .filter((el): el is HTMLElement => Boolean(el));
     headings.forEach((heading) => {
-      heading.style.scrollMarginTop = `${headerOffset + 16}px`;
+      heading.style.scrollMarginTop = `${stickyOffset + 16}px`;
     });
   };
 
@@ -165,8 +176,8 @@ const showTrigger = Astro.props.showTrigger ?? false;
   const scrollToHeading = (id: string, replace = false) => {
     const target = document.getElementById(id);
     if (!target) return;
-    const headerOffset = getHeaderOffset();
-    const top = window.scrollY + target.getBoundingClientRect().top - headerOffset - 16;
+    const stickyOffset = getStickyOffset();
+    const top = window.scrollY + target.getBoundingClientRect().top - stickyOffset - 16;
     window.scrollTo({ top, behavior: 'instant' });
     if (replace) {
       history.replaceState(null, '', encodedHash(id));
@@ -212,9 +223,4 @@ const showTrigger = Astro.props.showTrigger ?? false;
 
   applyScrollMargin();
   window.addEventListener('headerheightchange', applyScrollMargin);
-
-  const initialHash = decodeURIComponent(location.hash.replace(/^#/, ''));
-  if (initialHash) {
-    requestAnimationFrame(() => scrollToHeading(initialHash, true));
-  }
 </script>

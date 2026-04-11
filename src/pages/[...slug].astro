@@ -61,9 +61,9 @@ const tocPosition = layoutConfig.toc.position;
 <Layout title={post.data.title} image={resolveAssetUrl(effectiveCover)}>
   <ReadingProgress />
   <Header />
-  <main class="container mx-auto px-4 pb-8 pt-8 lg:pt-0 max-w-6xl">
+  <main class="page-shell page-shell-mobile-fab-safe container mx-auto px-4 max-w-6xl">
     <div
-      class={`flex flex-col gap-6 ${
+      class={`page-stack ${
         hasToc && tocPosition === 'left'
           ? 'lg:mx-auto lg:grid lg:w-fit lg:max-w-full lg:grid-cols-[20rem_minmax(0,54rem)] lg:items-start lg:gap-8'
           : hasToc && tocPosition === 'right'
@@ -77,9 +77,9 @@ const tocPosition = layoutConfig.toc.position;
         class="prose dark:prose-invert max-w-none prose-img:rounded-xl prose-img:cursor-zoom-in min-w-0"
         data-article
       >
-        <header class="mb-8 not-prose">
+        <header class="page-heading not-prose">
           <div
-            class={`flex flex-col gap-6 ${
+            class={`page-stack ${
               hasCover
                 ? 'md:grid md:grid-cols-[minmax(0,1fr)_220px] md:items-start md:gap-8'
                 : 'md:grid md:grid-cols-1'
@@ -219,7 +219,7 @@ const tocPosition = layoutConfig.toc.position;
     </div>
     {hasToc && <MobileToc headings={tocHeadings} showTrigger={false} />}
     <FloatingActionStack enableToc={hasToc} />
-    <ScrollUpTopButton targetSelector="[data-article]" />
+    <ScrollUpTopButton targetSelector="[data-article]" hasCompanionAction={hasToc} />
   </main>
   <Footer />
 </Layout>

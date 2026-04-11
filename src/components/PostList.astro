@@ -45,12 +45,12 @@ const enriched = posts.map((post) => {
 });
 ---
 
-<ul class="grid gap-6" id="post-list">
+<ul class="grid gap-[var(--page-stack-gap)]" id="post-list">
   {
     enriched.map((post) => (
       <li class="list-none">
         <article
-          class={`relative block overflow-hidden rounded-2xl border border-zinc-200/80 bg-neutral-50/80 px-5 py-5 shadow-[0_10px_30px_rgb(24_24_27/0.04)] transition duration-200 ease-out hover:-translate-y-1 hover:border-sky-200 hover:shadow-[0_14px_36px_rgb(2_132_199/0.1)] motion-reduce:transform-none motion-reduce:shadow-none dark:border-zinc-800/80 dark:bg-zinc-900/70 dark:shadow-[0_16px_38px_rgb(0_0_0/0.4)] dark:hover:border-sky-500/35 dark:hover:shadow-[0_18px_40px_rgb(56_189_248/0.12)]`}
+          class={`relative block overflow-hidden rounded-2xl border border-zinc-200/80 bg-neutral-50/80 p-[var(--surface-card-padding)] shadow-[0_10px_30px_rgb(24_24_27/0.04)] transition duration-200 ease-out hover:-translate-y-1 hover:border-sky-200 hover:shadow-[0_14px_36px_rgb(2_132_199/0.1)] motion-reduce:transform-none motion-reduce:shadow-none dark:border-zinc-800/80 dark:bg-zinc-900/70 dark:shadow-[0_16px_38px_rgb(0_0_0/0.4)] dark:hover:border-sky-500/35 dark:hover:shadow-[0_18px_40px_rgb(56_189_248/0.12)]`}
         >
           <div
             class={`flex flex-col gap-4 ${

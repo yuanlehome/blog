@@ -17,11 +17,7 @@ const actions = buildActions({ enableToc });
 
 {
   actions.length > 0 && (
-    <div
-      class={`${STACK_CLASSNAMES}`}
-      data-floating-action-stack
-      style={`inset-inline-end: calc(env(safe-area-inset-right, 0px) + 1rem); inset-block-start: 50%; transform: translateY(-50%);`}
-    >
+    <div class={`${STACK_CLASSNAMES}`} data-floating-action-stack>
       {actions.map((action, index) => (
         <button
           type="button"

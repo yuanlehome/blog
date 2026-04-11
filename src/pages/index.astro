@@ -32,9 +32,9 @@ const commonLinksPosition = commonLinksConfig.position;
 
 <Layout title={siteConfig.siteName}>
   <Header />
-  <main class="container mx-auto px-4 pb-8 pt-8 lg:pt-0 max-w-6xl">
+  <main class="page-shell container mx-auto px-4 max-w-6xl">
     <div
-      class={`flex flex-col gap-6 ${
+      class={`page-stack ${
         showCommonLinks && commonLinksPosition === 'left'
           ? 'lg:grid lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start lg:gap-12'
           : showCommonLinks && commonLinksPosition === 'right'
@@ -43,15 +43,17 @@ const commonLinksPosition = commonLinksConfig.position;
       }`}
     >
       {showCommonLinks && commonLinksPosition === 'left' && <CommonLinksSidebar />}
-      <div class="min-w-0 lg:pt-8">
-        <div class="flex flex-col gap-2 mb-6">
-          <div class="flex items-center justify-between">
+      <div class="min-w-0">
+        <div class="page-heading flex flex-col gap-2">
+          <div
+            class="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between"
+          >
             <h1 class="text-3xl font-bold">{homeConfig.title}</h1>
             {
               showCommonLinks && commonLinksPosition !== 'off' && (
                 <button
                   type="button"
-                  class="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-neutral-50/90 px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm backdrop-blur-sm transition hover:border-sky-200 hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-zinc-800 dark:bg-zinc-900/80 dark:text-zinc-100 dark:hover:border-sky-500/50 dark:hover:text-sky-400 dark:focus-visible:ring-offset-zinc-900 lg:hidden"
+                  class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-zinc-200 bg-neutral-50/90 px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm backdrop-blur-sm transition hover:border-sky-200 hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-zinc-800 dark:bg-zinc-900/80 dark:text-zinc-100 dark:hover:border-sky-500/50 dark:hover:text-sky-400 dark:focus-visible:ring-offset-zinc-900 sm:w-auto lg:hidden"
                   data-mobile-common-links-open
                   aria-haspopup="dialog"
                   aria-expanded="false"
