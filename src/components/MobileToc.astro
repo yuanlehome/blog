@@ -22,7 +22,7 @@ const showTrigger = Astro.props.showTrigger ?? false;
     showTrigger && (
       <button
         type="button"
-        class="mobile-fab-pill fixed z-40 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-neutral-50/92 px-4 text-sm font-medium text-zinc-900 shadow-lg backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-sky-200 hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-zinc-800 dark:bg-zinc-900/88 dark:text-zinc-100 dark:hover:border-sky-500/50 dark:hover:text-sky-400 dark:focus-visible:ring-offset-zinc-900 lg:hidden"
+        class="mobile-fab-pill fixed z-40 inline-flex touch-pan-y items-center gap-2 rounded-full border border-zinc-200 bg-neutral-50/92 px-4 text-sm font-medium text-zinc-900 shadow-lg backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-sky-200 hover:text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-zinc-800 dark:bg-zinc-900/88 dark:text-zinc-100 dark:hover:border-sky-500/50 dark:hover:text-sky-400 dark:focus-visible:ring-offset-zinc-900 lg:hidden"
         style="inset-inline-end: var(--mobile-edge-gap);"
         data-mobile-toc-open
         aria-haspopup="dialog"
@@ -77,6 +77,8 @@ const showTrigger = Astro.props.showTrigger ?? false;
 </>
 
 <script>
+  import { createTouchClickGuard } from '../lib/ui/touchClickGuard';
+
   const tocRoot = document.querySelector('[data-mobile-toc]') as HTMLElement | null;
   const tocDrawer = document.querySelector('[data-mobile-toc-drawer]') as HTMLElement | null;
   const tocBackdrop = document.querySelector('[data-mobile-toc-backdrop]') as HTMLElement | null;
@@ -90,6 +92,7 @@ const showTrigger = Astro.props.showTrigger ?? false;
       (tocDrawer ?? tocRoot)?.querySelectorAll('[data-mobile-toc-link]') ?? [],
     ) as HTMLAnchorElement[];
   const body = document.body;
+  const touchClickGuard = createTouchClickGuard();
 
   const getHeaderOffset = (): number => {
     const headerHeightStr = getComputedStyle(document.documentElement).getPropertyValue(
@@ -121,14 +124,37 @@ const showTrigger = Astro.props.showTrigger ?? false;
   };
 
   const handleOpenTrigger = (event: Event) => {
+    if (event instanceof MouseEvent && !touchClickGuard.shouldHandleClick(event)) {
+      event.preventDefault();
+      return;
+    }
     event.preventDefault();
     setOpen(true);
   };
 
+  const handleOpenPointerDown = (event: PointerEvent) => {
+    touchClickGuard.handlePointerDown(event);
+  };
+
+  const handleOpenPointerMove = (event: PointerEvent) => {
+    touchClickGuard.handlePointerMove(event);
+  };
+
+  const handleOpenPointerUp = (event: PointerEvent) => {
+    touchClickGuard.handlePointerUp(event);
+  };
+
+  const handleOpenPointerCancel = (event: PointerEvent) => {
+    touchClickGuard.handlePointerCancel(event);
+  };
+
   const syncOpenButtons = () => {
     getTocOpenButtons().forEach((button) => {
+      button.removeEventListener('pointerdown', handleOpenPointerDown);
       button.removeEventListener('click', handleOpenTrigger);
+      button.addEventListener('pointerdown', handleOpenPointerDown, { passive: true });
       button.addEventListener('click', handleOpenTrigger);
+      button.style.touchAction = 'pan-y';
     });
   };
 
@@ -195,6 +221,10 @@ const showTrigger = Astro.props.showTrigger ?? false;
     attributes: true,
     attributeFilter: ['data-mobile-toc-open'],
   });
+
+  window.addEventListener('pointermove', handleOpenPointerMove, { passive: true });
+  window.addEventListener('pointerup', handleOpenPointerUp, { passive: true });
+  window.addEventListener('pointercancel', handleOpenPointerCancel, { passive: true });
 
   tocCloseButton?.addEventListener('click', () => setOpen(false));
   tocBackdrop?.addEventListener('click', (event) => {

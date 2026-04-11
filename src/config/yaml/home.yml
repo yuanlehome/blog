@@ -8,8 +8,8 @@ postCountText: 'published posts'
 
 # Pagination settings
 pagination:
-  pageSize: 5
-  windowSize: 5
+  pageSize: 6
+  windowSize: 2
 
 # Navigation text
 navigation:
