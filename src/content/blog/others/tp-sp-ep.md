@@ -10,9 +10,9 @@ updated: '2026-04-15T07:36:00.000Z'
 
 # 大模型推理中的 TP-SP-EP 混合并行优化
 
-在大模型训练中，单纯的张量并行（TP）或序列并行（SP）往往难以覆盖所有层的通信需求。对于稠密的 Attention 层，TP 可以高效地切分权重矩阵；而对于 MoE 层，专家并行（EP）才是降低通信开销的关键。本文梳理一种将 **TP、SP、EP 融合**的混合并行策略——重点剖析 Attention 层的两种 `out_linear` 方案，以及 MoE 层的 Dispatch / Combine 机制，帮助理解它们如何协同工作以最大化吞吐。
+在大模型训练中，单纯的张量并行（TP）或序列并行（SP）往往难以覆盖所有层的通信需求。对于稠密的 Attention 层，TP 可以高效地切分权重矩阵；而对于 MoE 层，专家并行（EP）才是降低通信开销的关键。本文梳理一种将 **TP、SP、EP 融合**的混合并行策略——重点剖析 Attention 层的三种输出投影路径，以及 MoE 层的 Dispatch / Combine 机制，帮助理解它们如何协同工作以最大化吞吐。
 
-## 一、两种混合并行图示
+## 一、三种混合并行图示
 
 _TP / SP / EP 总览图_
 
@@ -28,27 +28,33 @@ flowchart LR
   P1Z --> P1Slice["按序列切片"]
   P1Slice --> P1SP["SP 输出<br/>(S/N) x H"]
 
-  Y --> P2A2A["方案二<br/>all2all: TP -> SP"]
-  P2A2A --> P2Y["Y_hat_j<br/>SP: (S/N) x H"]
-  P2Y --> P2W["完整 out_linear 权重 W"]
-  P2W --> P2SP["SP 输出<br/>(S/N) x H"]
+  Y --> P2W["方案二<br/>W_i 按行切分"]
+  P2W --> P2MM["局部乘法<br/>Z_i = Y_i W_i"]
+  P2MM --> P2RS["reduce_scatter"]
+  P2RS --> P2SP["SP 输出<br/>(S/N) x H"]
+
+  Y --> P3A2A["方案三<br/>all2all: TP -> SP"]
+  P3A2A --> P3Y["Y_hat_j<br/>SP: (S/N) x H"]
+  P3Y --> P3W["完整 out_linear 权重 W"]
+  P3W --> P3SP["SP 输出<br/>(S/N) x H"]
 
   P1SP --> MoE["MoE: Dispatch -> Experts -> Combine"]
   P2SP --> MoE
+  P3SP --> MoE
   MoE --> Next["下一层 Transformer"]
 ```
 
-上面的总览图展示了 Attention 层的两种 `out_linear` 实现路径。两条路径都从同一个列并行 `qkv_linear` 出发，区别在于如何处理输出投影：一种走行并行 + `all_reduce`，另一种走 `all2all` + 完整权重。后续的 MoE 层则统一以 SP 排布作为输入，借助两次 `all2all` 完成专家路由与聚合。
+上面的总览图展示了 Attention 层的三条输出投影路径。三条路径都从同一个列并行 `qkv_linear` 出发，区别在于如何处理输出投影：方案一走行并行 + `all_reduce` + `slice`，方案二走行并行 + `reduce_scatter`，方案三走 `all2all` + 完整权重。后续的 MoE 层则统一以 SP 排布作为输入，借助两次 `all2all` 完成专家路由与聚合。
 
 ---
 
 ## 二、并行原理解析
 
-两条方案的起点相同：列并行的 `qkv_linear` 将输出激活按**隐藏层维度**切分分布在各 GPU 上。从这一状态出发，两条路径以不同方式完成 `out_linear` 并进入序列并行段。
+三条方案的起点相同：列并行的 `qkv_linear` 将输出激活按**隐藏层维度**切分分布在各 GPU 上。从这一状态出发，三条路径以不同方式完成 `out_linear` 并进入序列并行段。
 
 ### 2.1 前提：`qkv_linear` (列切)
 
-两种方案都始于一个**列并行 (Column-Parallel)** 的 `qkv_linear` 层。
+三种方案都始于一个**列并行 (Column-Parallel)** 的 `qkv_linear` 层。
 
 - 我们有 $N$ 个 GPU。
 - 输入 $X$ 是复制的 (replicated)。
@@ -58,7 +64,7 @@ flowchart LR
 
 这里**涉及到 Attention 的 TP 并行**，原理可参考猛猿大佬文章 <https://zhuanlan.zhihu.com/p/622212228>，不再赘述。现在，我们要计算第二层 $Z = YW$，其中 $W$ 是 `out_linear` 的权重。
 
-此时有两条路可走：继续保持 $H_{\text{dim}}$ 维度的切分（方案一），或提前通信将切分轴转到序列维度（方案二）。
+此时有三条路可走：方案一先 `all_reduce` 再切成 SP shard，方案二直接用 `reduce_scatter` 落到 SP shard，方案三则提前通信将切分轴转到序列维度。
 
 ### 2.2 方案一：`out_linear` (行切) + `all_reduce` + `Slice`
 
@@ -80,14 +86,43 @@ flowchart LR
 1. **得到完整的 $Z$**：
    - $Z$ 在所有 GPU 上都是完整的、复制的 (replicated)。
 1. 每张 GPU 从 $Z$ 的行维度平均 Slice 出一部分，转为序列并行送到下一层。
-   - 如果下一跳只需要本 rank 的 SP shard，那么这一步其实可以直接收敛成 `reduce_scatter`，不必先拿到完整 $Z$ 再切片；第 3 节会单独比较这一优化版。
+
+- 如果下一跳只需要本 rank 的 SP shard，那么这一步可以进一步升级成方案二里的 `reduce_scatter`，不必先拿到完整 $Z$ 再切片；第 3 节会单独比较。
 
 - **优点**：
   - **节省内存**：每个 GPU 只需要存储 $1/N$ 的 $W$ 权重。这在权重（如 $W_{\text{proj}}$）非常大时至关重要。
 - **缺点**：
   - **通信瓶颈**：必须在计算 $Z_i$ 之后执行一个 `all_reduce`。这是一个同步操作，通信量为 $Z$ 的大小，可能会阻塞流水线。
 
-### 2.3 方案二：`all2all` + `out_linear` (不切分)
+### 2.3 方案二：`out_linear` (行切) + `reduce_scatter`
+
+这个方案延续了方案一的行并行权重切分，只是把“先 `all_reduce` 得到完整 $Z$、再本地切片”的两步操作收敛成一次 `reduce_scatter`。
+
+1. **数据排布**：
+   - **输入（$Y$）**：$Y = [Y_1, \dots, Y_N]$（按 $H_{\text{dim}}$ 切分）。
+   - **权重（$W$）**：`out_linear` 权重 $W$ 仍按 $H_{\text{dim}}$ 维度（即行）切分：
+     $$
+     W = \begin{bmatrix} W_1 \\ W_2 \\ \vdots \\ W_N \end{bmatrix}
+     $$
+1. **`out_linear`（局部计算）**：
+   - GPU $i$ 拥有 $Y_i$ 和 $W_i$。
+   - 它先计算局部部分结果：$Z_i = Y_i W_i$。
+1. **`reduce_scatter`（通信 + 归约）**：
+   - `reduce_scatter` 会一边对各卡的 $Z_i$ 求和，一边把结果沿 sequence 维切分后分发到不同 GPU。
+   - GPU $j$ 最终直接拿到自己的 SP shard：
+     $$
+     Z_j^{\text{SP}} \in \mathbb{R}^{(S/N) \times H_{\text{dim}}}
+     $$
+1. **最终结果**：
+   - 输出不再是 replicated 的完整 $Z$，而是已经按序列维度切分好的 SP 排布。
+
+- **优点**：
+  - **通信量减半**：相比方案一的 `all_reduce + slice`，集合通信从两段收敛为一段。
+  - **仍然节省权重内存**：每个 GPU 依旧只需要存储 $1/N$ 的 $W$ 权重。
+- **缺点**：
+  - **重叠空间仍有限**：和方案一一样，它仍然必须等待本地 `out_linear` 计算出 $Z_i$ 之后才能启动集合通信。
+
+### 2.4 方案三：`all2all` + `out_linear` (不切分)
 
 这是“张量并行（TP）切换到序列并行（SP）”的策略。这个方案的核心思想是通过通信改变数据的切分维度。
 
@@ -110,17 +145,18 @@ flowchart LR
    - $Z_j$ 的形状是 $(S/N) \times H_{\text{dim}}$。
    - 最终输出 $Z$ 在 $N$ 个 GPU 上是按序列（Sequence）维度切分的。
 
-在**工程实现**上，它们是两种**完全不同**的并行范式，有着根本的取舍：
+在**工程实现**上，它们对应三种不同的取舍：
 
-| **特性**                      | **方案一 (out_linear \[行切] + all_reduce)** | **方案二 (all2all + out_linear \[不切分])** |
-| ----------------------------- | -------------------------------------------- | ------------------------------------------- |
-| **策略**                      | 标准行并行 (Row-Parallelism)                 | 张量并行 (TP) $\to$ 序列并行 (SP) 转换      |
-| **`out_linear`** **权重** $W$ | **按行切分** (节省 $N-1/N$ 内存)             | **不切分/复制** (需要 $N$ 倍内存)           |
-| **通信操作**                  | `all_reduce` (在计算之后)                    | `all2all` (在计算之前)                      |
-| **通信内容**                  | 输出 $Z$ (形状 $S \times H_{\text{dim}}$)    | 激活 $Y$ (形状 $S \times H_{\text{dim}}$)   |
-| **输出** $Z$ **的排布**       | **复制的 (Replicated)**                      | **按序列切分 (Sequence-Parallel)**          |
+| **特性**                      | **方案一 (`all_reduce` + `slice`)**       | **方案二 (`reduce_scatter`)**             | **方案三 (`all2all` + 完整权重)**         |
+| ----------------------------- | ----------------------------------------- | ----------------------------------------- | ----------------------------------------- |
+| **策略**                      | 标准行并行，先聚合再切片                  | 标准行并行，直接归约到 SP shard           | 张量并行 (TP) $\to$ 序列并行 (SP) 转换    |
+| **`out_linear`** **权重** $W$ | **按行切分** (节省 $N-1/N$ 内存)          | **按行切分** (节省 $N-1/N$ 内存)          | **不切分/复制** (需要 $N$ 倍内存)         |
+| **通信操作**                  | `all_reduce` + 本地 `slice`               | `reduce_scatter`                          | `all2all`                                 |
+| **通信发生时机**              | `out_linear` 之后                         | `out_linear` 之后                         | `out_linear` 之前                         |
+| **通信内容**                  | 输出 $Z$ (形状 $S \times H_{\text{dim}}$) | 输出 $Z$ (形状 $S \times H_{\text{dim}}$) | 激活 $Y$ (形状 $S \times H_{\text{dim}}$) |
+| **输出** $Z$ **的排布**       | 先复制，再本地切成 SP                     | **按序列切分 (Sequence-Parallel)**        | **按序列切分 (Sequence-Parallel)**        |
 
-结论是：方案二牺牲了 $W$ 的内存（现在需要 $N$ 份 $W$），来换取将并行维度从 $H_{\text{dim}}$（TP）切换到 $S$（SP）。其主要手段是用 `all2all` 替代 `all_reduce`，并利用通信-计算重叠来提升流水线效率。
+结论是：方案二在不改变权重切分方式的前提下，把方案一的 `all_reduce + slice` 收敛为 `reduce_scatter`，通信量减半；方案三则进一步牺牲 $W$ 的内存（现在需要 $N$ 份 $W$），换取把并行维度从 $H_{\text{dim}}$（TP）切换到 $S$（SP），并利用更靠前的 `all2all` 通信来提升流水线效率。
 
 ---
 
@@ -144,7 +180,7 @@ $$
 M = S \times H_{\text{dim}} \times d
 $$
 
-### 3.1 方案一（原始版）：`out_linear` (行切) + `all_reduce` + `slice`
+### 3.1 方案一：`out_linear` (行切) + `all_reduce` + `slice`
 
 在该方案中，每个 rank 先计算自己的 partial result：
 
@@ -171,13 +207,13 @@ $$
 \frac{N-1}{N} \cdot M
 $$
 
-因此，原始方案一的每 GPU 单向发送总量为：
+因此，方案一的每 GPU 单向发送总量为：
 
 $$
 V_{AR} = 2 \cdot \frac{N-1}{N} \cdot M
 $$
 
-### 3.2 方案一（优化版）：`out_linear` (行切) + `reduce_scatter`
+### 3.2 方案二：`out_linear` (行切) + `reduce_scatter`
 
 如果下一跳只需要 SP shard，那么没有必要先得到完整 $Z$ 再切片，可以直接对 $Z_i$ 做 `reduce_scatter`：
 
@@ -199,17 +235,17 @@ $$
 V_{RS} = \frac{N-1}{N} \cdot M
 $$
 
-因此，相比原始方案一：
+因此，相比方案一：
 
 $$
 \frac{V_{RS}}{V_{AR}} = \frac{1}{2}
 $$
 
-也就是说，`reduce_scatter` 相比原始 `all_reduce + slice`，通信量减半，减少 50%。
+也就是说，方案二的 `reduce_scatter` 相比方案一的 `all_reduce + slice`，通信量减半，减少 50%。
 
 ### 3.3 三种通信方案的统一口径对比
 
-方案二的目标是先把激活的切分方式从 hidden 维（TP）转为 sequence 维（SP）。
+方案三的目标是先把激活的切分方式从 hidden 维（TP）转为 sequence 维（SP）。
 
 设每个 rank 上本地激活为：
 
@@ -253,37 +289,37 @@ $$
 
 把三种方案放在一起：
 
-| **方案**     | **通信操作**         | **每 GPU 单向发送量**                    |
-| ------------ | -------------------- | ---------------------------------------- |
-| 原始方案一   | `all_reduce + slice` | $V_{AR} = 2 \cdot \frac{N-1}{N} \cdot M$ |
-| 优化版方案一 | `reduce_scatter`     | $V_{RS} = \frac{N-1}{N} \cdot M$         |
-| 方案二       | `all2all`            | $V_{A2A} = \frac{N-1}{N^2} \cdot M$      |
+| **方案** | **通信操作**         | **每 GPU 单向发送量**                    |
+| -------- | -------------------- | ---------------------------------------- |
+| 方案一   | `all_reduce + slice` | $V_{AR} = 2 \cdot \frac{N-1}{N} \cdot M$ |
+| 方案二   | `reduce_scatter`     | $V_{RS} = \frac{N-1}{N} \cdot M$         |
+| 方案三   | `all2all`            | $V_{A2A} = \frac{N-1}{N^2} \cdot M$      |
 
 比例关系也就非常清晰了：
 
-1. 优化版方案一 vs 原始方案一：
+1. 方案二 vs 方案一：
 
 $$
 \frac{V_{RS}}{V_{AR}} = \frac{1}{2}
 $$
 
-说明 `reduce_scatter` 相比 `all_reduce + slice`，通信量减少 50%。
+说明方案二的 `reduce_scatter` 相比方案一的 `all_reduce + slice`，通信量减少 50%。
 
-1. 方案二 vs 优化版方案一：
+1. 方案三 vs 方案二：
 
 $$
 \frac{V_{A2A}}{V_{RS}} = \frac{1}{N}
 $$
 
-说明 `all2all` 的通信量是 `reduce_scatter` 的 $1/N$，也就是相比 `reduce_scatter` 还要再少 $N$ 倍。
+说明方案三的 `all2all` 通信量是方案二 `reduce_scatter` 的 $1/N$，也就是相比方案二还要再少 $N$ 倍。
 
-1. 方案二 vs 原始方案一：
+1. 方案三 vs 方案一：
 
 $$
 \frac{V_{A2A}}{V_{AR}} = \frac{1}{2N}
 $$
 
-说明 `all2all` 的通信量是原始 `all_reduce + slice` 方案的 $1/(2N)$。
+说明方案三的 `all2all` 通信量是方案一 `all_reduce + slice` 的 $1/(2N)$。
 
 以 $N=4$ 为例：
 
@@ -301,22 +337,22 @@ $$
 
 因此：
 
-- `reduce_scatter` 相比原始 `all_reduce + slice`，通信量减少 50%
-- `all2all` 相比 `reduce_scatter`，通信量只有 1/4，也就是减少 75%
-- `all2all` 相比原始 `all_reduce + slice`，通信量只有 1/8
+- 方案二的 `reduce_scatter` 相比方案一的 `all_reduce + slice`，通信量减少 50%
+- 方案三的 `all2all` 相比方案二的 `reduce_scatter`，通信量只有 1/4，也就是减少 75%
+- 方案三的 `all2all` 相比方案一的 `all_reduce + slice`，通信量只有 1/8
 
-除此之外，选择方案二还有其他的工程原因：
+除此之外，选择方案三还有其他的工程原因：
 
 1. **通信模式**：`all_reduce` 包含计算（Sum），而 `all2all` 只是数据交换（Transpose）。在某些硬件拓扑（如 NVLink Switch）上，`all2all` 几乎可以达到线速，效率极高。
-2. **通信重叠**：方案二的 `all2all` 作用于 $Y$，它可以在 $Y$ 被计算时**重叠 (Overlap)** 进行。方案一的 `all_reduce` 必须等待 `out_linear` 计算 $Z_i$ **完成**后才能开始。
-3. **内存代价**：方案二的优势是**有代价的**。它需要**每个 GPU 都存储完整的** **`out_linear`** **权重** $W$，而方案一只需要 $1/N$ 的权重。
-4. **序列并行 (SP)**：如果你的网络架构（例如 MoE EP 并行）被优化为在序列并行的输入上工作，那么方案二的输出（$Z$ 按序列切分）可以直接喂给下一层，**完全消除了后续对** $Z$ **进行** **`all_reduce`** **或** **`allgather`** **的需求**。
+2. **通信重叠**：方案三的 `all2all` 作用于 $Y$，它可以在 $Y$ 被计算时**重叠 (Overlap)** 进行。方案一和方案二的集合通信都必须等待 `out_linear` 计算 $Z_i$ **完成**后才能开始。
+3. **内存代价**：方案三的优势是**有代价的**。它需要**每个 GPU 都存储完整的** **`out_linear`** **权重** $W$，而方案一和方案二都只需要 $1/N$ 的权重。
+4. **序列并行 (SP)**：如果你的网络架构（例如 MoE EP 并行）被优化为在序列并行的输入上工作，那么方案三的输出（$Z$ 按序列切分）可以直接喂给下一层，**完全消除了后续对** $Z$ **进行** **`all_reduce`** **或** **`allgather`** **的需求**。
 
-### 3.4 为什么说 `all2all` 更容易和前面的计算重叠？
+### 3.4 为什么说方案三里的 `all2all` 更容易和前面的计算重叠？
 
 这里的“更容易重叠”，并不是说 `all2all` 天生就一定能自动 overlap，而是说：**它的通信位置更靠前，依赖更早暴露出来，粒度上也更容易做成流水。**
 
-先看两种方案的关键区别：
+先看三种方案的关键区别：
 
 - **方案一：行并行 `out_linear` + `all_reduce`**
   - 先在每张卡上做本地部分计算，得到
@@ -327,17 +363,23 @@ $$
     $$
     Z = \sum_i Y_i W_i
     $$
-- **方案二：先 `all2all`，把 TP 排布转成 SP 排布，再做完整权重的 `out_linear`**
+- **方案二：行并行 `out_linear` + `reduce_scatter`**
+  - 同样先在每张卡上完成本地部分计算，得到
+    $$
+    Z_i = Y_i W_i
+    $$
+  - 然后通过 `reduce_scatter` 在归约的同时，直接把结果切成各卡所需的 SP shard
+- **方案三：先 `all2all`，把 TP 排布转成 SP 排布，再做完整权重的 `out_linear`**
   - 先对 $Y$ 做一次 `all2all`，把数据从“按 hidden 维切分”转换为“按 sequence 维切分”
   - 转换后，每张卡拿到本地的一段完整 hidden 激活 $\hat{Y}_j$
   - 然后每张卡独立做完整的 `out_linear`
 
-两者最大的区别在于：
+这里最大的区别在于：
 
-- `all_reduce` 通信的是 `out_linear` 之后的结果 $Z_i$
-- `all2all` 通信的是 `out_linear` 之前的激活 $Y$
+- 方案一和方案二通信的，都是 `out_linear` 之后的结果 $Z_i$
+- 方案三通信的是 `out_linear` 之前的激活 $Y$
 
-也就是说，`all2all` 发生在更靠前的位置，而 `all_reduce` 发生在更靠后的位置。
+也就是说，方案三里的 `all2all` 发生在更靠前的位置，而方案一和方案二的集合通信都发生在更靠后的位置。
 
 这里说的“前面的计算”，主要是指 Attention 侧产出 $Y$ 的那部分计算，也就是：
 
@@ -351,7 +393,7 @@ $$
 Y_i \in \mathbb{R}^{S \times \frac{H_{\text{dim}}}{N}}
 $$
 
-如果采用方案二，那么每张卡会把本地的 $Y_i$ 再按 sequence 切成更小的块，然后通过 `all2all` 发给不同 GPU。接收端把来自各卡的块沿 hidden 维拼起来，形成自己本地需要处理的：
+如果采用方案三，那么每张卡会把本地的 $Y_i$ 再按 sequence 切成更小的块，然后通过 `all2all` 发给不同 GPU。接收端把来自各卡的块沿 hidden 维拼起来，形成自己本地需要处理的：
 
 $$
 \hat{Y}_j \in \mathbb{R}^{\frac{S}{N} \times H_{\text{dim}}}
@@ -359,7 +401,7 @@ $$
 
 之后再在本地执行完整权重的 `out_linear`。
 
-更准确地说，`all2all` 主要有两类 overlap 机会。
+更准确地说，方案三里的 `all2all` 主要有两类 overlap 机会。
 
 #### 1. 和 $Y$ 的生成过程重叠
 
@@ -372,7 +414,7 @@ $$
 
 > 一边继续算后面的 $Y$，一边把前面已经算好的 $Y$ 发出去
 
-这是最核心的一层 overlap。它之所以能成立，是因为方案二里通信对象就是 $Y$ 本身，通信发生在 `out_linear` 之前，所以只要某一部分 $Y$ 已经 ready，这部分就可以尽早进入通信。
+这是最核心的一层 overlap。它之所以能成立，是因为方案三里通信对象就是 $Y$ 本身，通信发生在 `out_linear` 之前，所以只要某一部分 $Y$ 已经 ready，这部分就可以尽早进入通信。
 
 #### 2. 和接收侧的 `out_linear` 计算重叠
 
@@ -389,7 +431,7 @@ $$
 
 > 生成 $Y$ → 交换 $Y$ → 计算 `out_linear`
 
-可以把方案二直观理解成下面这条流水线：
+可以把方案三直观理解成下面这条流水线：
 
 ```text
 attention 产出 Y chunk 1   --> all2all(chunk 1)   --> out_linear(chunk 1)
@@ -413,7 +455,7 @@ $$
 
 > 先生成 $Y$ → 再做 `out_linear` → 最后 `all_reduce`
 
-而不是像方案二那样：
+而不是像方案三那样：
 
 > 生成 $Y$ 的同时，就可以逐步开始通信
 
@@ -429,7 +471,7 @@ $$
 
 ## 四、EP 并行的 MoE 层
 
-无论选择方案一还是方案二，进入 MoE 层时激活都已处于**序列并行（SP）**的排布——每张 GPU 持有全局序列的 $1/P$ 片段，形状为 $\frac{S}{P} \times H_{\text{dim}}$。EP 的核心思想是**将专家参数分片到各 GPU，同时通过两次 `all2all` 完成 token 的路由与聚合**，以此避免所有 GPU 都冗余存储全量专家权重。
+无论选择方案一、方案二还是方案三，进入 MoE 层前激活最终都已处于**序列并行（SP）**的排布——方案一靠本地 `slice`，方案二靠 `reduce_scatter`，方案三则在 `all2all` 后天然转成 SP。此时每张 GPU 持有全局序列的 $1/P$ 片段，形状为 $\frac{S}{P} \times H_{\text{dim}}$。EP 的核心思想是**将专家参数分片到各 GPU，同时通过两次 `all2all` 完成 token 的路由与聚合**，以此避免所有 GPU 都冗余存储全量专家权重。
 
 _MoE Dispatch / Combine 路由图_
 
@@ -558,26 +600,28 @@ GPU $j$ 持有专家集合，每个专家是一个 FFN：
 
 将各阶段的排布变化串联起来，便能看清整条流水线的"数据拓扑"：
 
-| 阶段                                  | 数据排布                           | 通信           |
-| ------------------------------------- | ---------------------------------- | -------------- |
-| `qkv_linear` 输入                     | 序列切分 (SP)，$(S/N) \times H$    | —              |
-| `qkv_linear` 输出（列并行）           | 隐藏维切分 (TP)，$S \times (H/N)$  | 无（本地计算） |
-| **方案一** `out_linear`（行并行）输出 | 全量复制，$S \times H$             | `all_reduce`   |
-| → Slice 为 SP                         | 序列切分，$(S/N) \times H$         | 本地切片       |
-| **方案二** `all2all` 后               | 序列切分 (SP)，$(S/N) \times H$    | `all2all`      |
-| → `out_linear`（完整权重）输出        | 序列切分，$(S/N) \times H$         | 无             |
-| MoE Dispatch `all2all`                | 专家分桶，$M_j \times H$（不均匀） | `all2all`      |
-| Expert `grouped_gemm`                 | 专家分桶，$M_j \times H$           | 无（本地计算） |
-| MoE Combine `all2all`                 | 序列切分，$(S/P) \times H$         | `all2all`      |
+| 阶段                                  | 数据排布                           | 通信             |
+| ------------------------------------- | ---------------------------------- | ---------------- |
+| `qkv_linear` 输入                     | 序列切分 (SP)，$(S/N) \times H$    | —                |
+| `qkv_linear` 输出（列并行）           | 隐藏维切分 (TP)，$S \times (H/N)$  | 无（本地计算）   |
+| **方案一** `out_linear`（行并行）输出 | 全量复制，$S \times H$             | `all_reduce`     |
+| → Slice 为 SP                         | 序列切分，$(S/N) \times H$         | 本地切片         |
+| **方案二** `out_linear`（行并行）输出 | 序列切分，$(S/N) \times H$         | `reduce_scatter` |
+| **方案三** `all2all` 后               | 序列切分 (SP)，$(S/N) \times H$    | `all2all`        |
+| → `out_linear`（完整权重）输出        | 序列切分，$(S/N) \times H$         | 无               |
+| MoE Dispatch `all2all`                | 专家分桶，$M_j \times H$（不均匀） | `all2all`        |
+| Expert `grouped_gemm`                 | 专家分桶，$M_j \times H$           | 无（本地计算）   |
+| MoE Combine `all2all`                 | 序列切分，$(S/P) \times H$         | `all2all`        |
 
-可以看到：两条路径都将 Attention 层的 TP 激活"归还"为 SP，从而 MoE 层可以无缝地以序列并行为接口完成 EP 路由，整个前向过程不需要任何额外的同步等待（在理想的通信-计算重叠实现下）。
+可以看到：三条路径都会将 Attention 层的 TP 激活"归还"为 SP，从而 MoE 层可以无缝地以序列并行为接口完成 EP 路由，整个前向过程不需要任何额外的同步等待（在理想的通信-计算重叠实现下）。
 
 ---
 
 ## 六、总结
 
-- **方案一（行并行 + `all_reduce`）**：实现简单，权重内存占用低（$1/N$），但 `all_reduce` 必须在 `out_linear` 完成后才能发起，难以与计算重叠。
-- **方案二（`all2all` + 完整权重）**：按“每 GPU 单向发送量”统计，相比原始 `all_reduce + slice` 方案，通信量只有 $1/(2N)$；相比优化版 `reduce_scatter`，通信量只有 $1/N$。同时，由于它通信的是 `out_linear` 之前的 $Y$，更容易和前面的 Attention 计算做细粒度重叠。代价是每张 GPU 需存储完整的 `out_linear` 权重。当 GPU 显存充裕、NVLink 带宽高、且下游对 SP 排布有明确需求时（如接 EP-MoE），方案二的优势更为突出。
+- **方案一（行并行 + `all_reduce` + `slice`）**：实现最直接，权重内存占用低（$1/N$），但会先在每张 GPU 上拿到完整 $Z$，通信和显存开销都相对更高。
+- **方案二（行并行 + `reduce_scatter`）**：保留了方案一的低权重内存占用，同时把集合通信量压到方案一的一半，并直接输出 SP shard；但它仍需等待 `out_linear` 完成后才能开始归约，重叠空间有限。
+- **方案三（`all2all` + 完整权重）**：按“每 GPU 单向发送量”统计，相比方案一的 `all_reduce + slice`，通信量只有 $1/(2N)$；相比方案二的 `reduce_scatter`，通信量只有 $1/N$。同时，由于它通信的是 `out_linear` 之前的 $Y$，更容易和前面的 Attention 计算做细粒度重叠。代价是每张 GPU 需存储完整的 `out_linear` 权重。当 GPU 显存充裕、NVLink 带宽高、且下游对 SP 排布有明确需求时（如接 EP-MoE），方案三的优势更为突出。
 - **EP 的 MoE 层**：以 SP 排布为接口，两次 `all2all` 完成 Dispatch 与 Combine，实现专家参数的分片存储与正确的 token 路由，输出依然是 SP，可无缝接入下一 Transformer 层。
 
 三者的联动使得超大规模 MoE 模型（如 DeepSeek、Mixtral 等）在多机多卡场景中既能充分利用 NVLink/IB 带宽，又能将每卡的参数与激活内存控制在可接受范围内。
