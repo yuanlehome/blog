@@ -243,7 +243,7 @@ $$
 
 也就是说，方案二的 `reduce_scatter` 相比方案一的 `all_reduce + slice`，通信量减半，减少 50%。
 
-### 3.3 方案三：`all2all` 的通信量
+### 3.3 方案三：`all2all` + `out_linear` (不切分)
 
 方案三的目标是先把激活的切分方式从 hidden 维（TP）转为 sequence 维（SP）。
 
