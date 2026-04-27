@@ -323,6 +323,87 @@ body {
   word-break: break-word;
 }
 
+[data-article] :where(.prose) {
+  --article-accent: rgb(14 116 144);
+  --article-accent-soft: rgb(8 145 178 / 0.12);
+  --article-h2-bg: linear-gradient(90deg, rgb(234 179 8 / 0.2), rgb(250 250 250 / 0));
+  --article-h3-bg: linear-gradient(90deg, rgb(34 197 94 / 0.16), rgb(250 250 250 / 0));
+  --article-note-bg: linear-gradient(135deg, rgb(249 250 251 / 0.96), rgb(240 249 255 / 0.9));
+}
+
+html.dark [data-article] :where(.prose) {
+  --article-accent: rgb(103 232 249);
+  --article-accent-soft: rgb(34 211 238 / 0.2);
+  --article-h2-bg: linear-gradient(90deg, rgb(245 158 11 / 0.24), rgb(24 24 27 / 0));
+  --article-h3-bg: linear-gradient(90deg, rgb(74 222 128 / 0.22), rgb(24 24 27 / 0));
+  --article-note-bg: linear-gradient(135deg, rgb(39 39 42 / 0.92), rgb(22 78 99 / 0.2));
+}
+
+[data-article] :where(.prose h2),
+[data-article] :where(.prose h3) {
+  border-left: 4px solid transparent;
+  border-radius: 0.4rem;
+  padding: 0.2rem 0.75rem;
+  margin-left: -0.75rem;
+}
+
+[data-article] :where(.prose h2) {
+  border-left-color: rgb(217 119 6 / 0.9);
+  background: var(--article-h2-bg);
+}
+
+[data-article] :where(.prose h3) {
+  border-left-color: rgb(22 163 74 / 0.85);
+  background: var(--article-h3-bg);
+}
+
+[data-article] :where(.prose a) {
+  color: var(--article-accent);
+  text-decoration-color: rgb(14 116 144 / 0.45);
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.18em;
+}
+
+[data-article] :where(.prose a:hover) {
+  text-decoration-color: currentColor;
+}
+
+[data-article] :where(.prose blockquote) {
+  border-left: 4px solid var(--article-accent);
+  background: var(--article-note-bg);
+  border-radius: 0.75rem;
+  padding: 0.95rem 1rem;
+  color: inherit;
+}
+
+[data-article] :where(.prose strong) {
+  color: color-mix(in srgb, var(--article-accent) 72%, currentColor);
+}
+
+[data-article] :where(.prose ul > li)::marker,
+[data-article] :where(.prose ol > li)::marker {
+  color: color-mix(in srgb, var(--article-accent) 80%, currentColor);
+  font-weight: 600;
+}
+
+[data-article] :where(.prose hr) {
+  border-color: transparent;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--article-accent-soft), transparent);
+}
+
+[data-article] :where(.prose code):not(:where(pre code)) {
+  border: 1px solid rgb(14 116 144 / 0.2);
+  background: rgb(14 116 144 / 0.08);
+  border-radius: 0.35rem;
+  padding: 0.08rem 0.38rem;
+}
+
+html.dark [data-article] :where(.prose code):not(:where(pre code)) {
+  border-color: rgb(34 211 238 / 0.3);
+  background: rgb(8 145 178 / 0.2);
+}
+
 :where(.prose) :where(a) {
   overflow-wrap: anywhere;
   word-break: break-word;
