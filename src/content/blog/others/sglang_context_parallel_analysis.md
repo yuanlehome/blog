@@ -5,9 +5,13 @@ date: '2026-05-07'
 tags: ['Source Code Analysis', 'SGLang', 'Context Parallel']
 status: published
 source: original
+cover: >-
+  /images/others/sglang-context-parallel-20260507/sglang-context-parallel-cover.png
 ---
 
 > 本文只描述当前源码(20260507)已经实现的行为。凡是注释、文档或测试里出现但源码路径没有闭环支持的能力，都会在边界章节单独说明。
+
+![sglang-context-parallel](/images/others/sglang-context-parallel-20260507/sglang-context-parallel-cover.png)
 
 ## 1. 总览：SGLang 里有两套 CP 入口
 
