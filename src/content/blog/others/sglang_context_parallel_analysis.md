@@ -13,6 +13,8 @@ source: original
 
 SGLang 当前的 context parallel 实现不是一个单独模块，而是从 server args、rank 拆分、scheduler、`ForwardBatch`、模型 forward、attention backend、KV cache、MoE communicator、PD/HiCache 多处拼起来的一条 prefill 专用执行链。
 
+为了避免一上来陷入细节，本文先用一张总图和文件索引建立入口，再按执行顺序展开：配置和 rank 先定出 CP group，scheduler 和 `ForwardBatch` 决定哪些 batch 能走 CP，模型和 attention backend 负责 split、all-gather 和 rerange。等单条链路讲完后，再把它放回 DP attention、MoE、PD、HiCache、CUDA graph 和 SpecDecoding 这些周边能力里看，最后用边界、测试和完整时序收束。
+
 源码里有两类 CP 开关：
 
 | 类型            | 开关                                                              | 主要模型路径                                                                          | split 模式                            | 当前实现重点                                                                                                                   |
@@ -47,6 +49,8 @@ flowchart TD
 
 ## 2. 关键文件索引
 
+下面这张表先给出阅读地图。后文不会按文件表逐个展开，而是按一次 prefill CP 的真实执行顺序引用这些文件。
+
 | 文件                                                                                 | 作用                                                                                              |
 | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
 | `python/sglang/srt/server_args.py`                                                   | CLI 参数、默认值、DeepSeek NSA CP 自动配置、CP 约束校验                                           |
@@ -68,6 +72,8 @@ flowchart TD
 | `python/sglang/srt/mem_cache/*` / `managers/cache_controller.py`                     | HiCache / storage backend 携带 `attn_cp_rank` 和 `attn_cp_size`                                   |
 
 ## 3. 配置入口与校验
+
+CP 的第一层入口在 `ServerArgs`。这一章先看用户能打开哪些开关，再看 DeepSeek NSA CP 的自动改写和通用约束；这些值会直接决定后面的 rank 拆分和 process group 形态。
 
 ### 3.1 CLI 参数和 ServerArgs 字段
 
@@ -1556,125 +1562,11 @@ return (
 
 原因很直接：CP 模式不能在每 rank 只拿到局部 K/V 时用普通 fused set KV buffer；必须先 CP all-gather 得到完整 K/V 或 MLA latent 表示。
 
-## 16. 支持范围与当前边界
+## 16. 与周边能力的协同关系
 
-### 16.1 CP 只作用于 prefill/extend
+前面 3 到 15 章已经按一条 CP prefill 链路走完了配置、rank、metadata、attention、MoE、PD、HiCache 和 CUDA graph。这里换一个视角，把 CP 和周边能力放在同一张工程地图里看：如果代码里有共享字段、rank 映射、collective 或调度分支，就算协同；如果只是参数同时存在但执行链互不相干，就只标为间接协同；如果源码明确断言、清空 metadata 或关闭优化，就标为互斥。
 
-源码中 CP 检查都围绕 `forward_mode.is_context_parallel_extend()`。decode 前会清空 `attn_cp_metadata`。PD decode 侧也要求 `attn_cp_size == 1`。
-
-### 16.2 普通 prefill CP 当前是 batch=1 zigzag
-
-`can_cp_split()` 明确要求：
-
-```python
-forward_batch.seq_lens_cpu.shape[0] == 1
-```
-
-因此 `--enable-prefill-context-parallel` 的普通 in-seq CP，不应理解为任意 multi-batch prefill 都会 CP split。
-
-### 16.3 NSA round-robin 支持 multi-batch，但模型入口要求 token 数可整除 cp_size
-
-NSA backend 的 `nsa_cp_round_robin_split_q_seqs()` 支持 multi-batch request lengths，并用 `bs_idx` 过滤无 token request；但 `can_nsa_cp_split()` 在 round-robin 模式下有：
-
-```python
-assert seq_len % cp_size == 0
-```
-
-所以实际进入模型 CP 的 batch 总 token 数需要满足这个条件，或者由上游 padding / batching 保证。
-
-### 16.4 NSA in-seq 的限制由 server args 自动写死
-
-NSA in-seq 自动设置：
-
-- `enable_dp_attention=True`
-- `moe_dense_tp_size=1`
-- `moe_a2a_backend="deepep"`
-- `ep_size=tp_size`
-- 日志提示 `batch_size == 1`
-
-### 16.5 `attn_cp_size` 与 `moe_dp_size`
-
-`attn_cp_size != moe_dp_size` 时只允许 `moe_dp_size == 1`。当 `attn_cp_size > moe_dp_size`，`_MOE_DP = _ATTN_CP`，MoE 前会把 CP token all-gather 到 MoE group。
-
-### 16.6 NPU / GLM 派生路径有特殊 rank getter
-
-`glm4_moe_lite.py` 中 CP 相关字段使用 `get_attention_tp_rank()` / `get_attention_tp_size()`，而不是 DeepSeek 主路径的 `get_attention_cp_rank()` / `get_attention_cp_size()`。这说明 GLM DSA 派生路径和标准 DeepSeek NSA CP 在 rank 语义上不是完全同一个封装，写文档或改代码时不能只看 `deepseek_v2.py`。
-
-### 16.7 async CP all-gather 有 fallback
-
-`cp_all_gather_into_tensor_async()` 只有在 `pynccl_comm` 存在且未 disabled 时才是真正 stream async NCCL；否则 fallback 到 `self.all_gather_into_tensor()`，可能重新引入 torch distributed 的同步行为。
-
-## 17. 测试覆盖
-
-当前仓库里与 CP 直接相关的测试包括：
-
-| 测试                                                               | 覆盖点                                                                                                            |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| `test/registered/distributed/test_parallel_state.py`               | mock distributed 后验证 `initialize_model_parallel()` 产生正确 ATTN_CP / MOE_DP group                             |
-| `test/registered/cp/test_deepseek_v32_cp_single_node.py`           | DeepSeek V3.2 NSA in-seq / round-robin 两种 CP launch 和 GSM8K accuracy；当前注册 disabled，注释写明 due to issue |
-| `test/registered/4-gpu-models/test_qwen3_30b.py`                   | Qwen3-30B-A3B-FP8 普通 prefill CP，含 `moe_dp_size=2, attn_cp_size=2` 和 `moe_dp_size=1, attn_cp_size=2` 两种     |
-| `test/registered/ascend/llm_models/test_npu_qwen3_30b_attn_cp.py`  | Ascend NPU 上 Qwen3 CP，`attention-backend=ascend`、`attn_cp_size=2`                                              |
-| `test/registered/hicache/test_hicache_storage_mooncake_backend.py` | Qwen3 CP2 + HiCache Mooncake storage backend                                                                      |
-
-`docs/basic_usage/deepseek_v32.md` 对 DeepSeek V3.2 DSA CP 的用户视角描述与源码一致的部分包括：
-
-- feature 仍是 experimental，并注明 Hopper 验证。
-- in-seq split 限制 batch size、DeepEP / DP attention / EP 设置。
-- round-robin 以 `token_idx % cp_size` 分配，强调 multi-batch prefill、fused MoE、FP8 KV cache。
-
-## 18. 一条完整 in-seq CP 执行链
-
-```mermaid
-sequenceDiagram
-    participant CLI as ServerArgs
-    participant Engine as Engine
-    participant PS as parallel_state
-    participant Scheduler as Scheduler
-    participant FB as ForwardBatch
-    participant Model as Qwen/DeepSeek model
-    participant CPU as cp_utils
-    participant Attn as Attention backend
-    participant Comm as LayerCommunicator
-
-    CLI->>CLI: 校验 attn_cp_size / moe_dp_size
-    Engine->>Engine: _compute_parallelism_ranks(tp_rank)
-    Engine->>Scheduler: attn_cp_rank, moe_dp_rank, moe_ep_rank
-    Scheduler->>PS: ModelRunner.init_torch_distributed()
-    PS->>PS: initialize_model_parallel 创建 ATTN_CP / ATTN_TP / MOE_DP
-    Scheduler->>FB: 构建 EXTEND / MIXED ForwardBatch
-    Model->>CPU: can_cp_split 或 can_nsa_cp_split
-    CPU-->>Model: prepare_context_parallel_metadata
-    Model->>CPU: cp_split_and_rebuild_data / position
-    Model->>Attn: local hidden states 进入每层 attention
-    Attn->>CPU: cp_allgather_and_save_kv_cache 或 rebuild_cp_kv_cache
-    CPU->>PS: ATTN_CP all-gather
-    Attn->>Attn: q_prev 和 q_next 分别 attention
-    Attn-->>Model: local attention output
-    Model->>Comm: prepare_mlp / MoE / postprocess_layer
-    Comm->>PS: 必要时 MOE_CP all-gather 或 CP reduce-scatter
-    Model->>CPU: 最后一层 cp_all_gather_rerange_output
-    CPU->>PS: ATTN_CP all-gather
-    CPU-->>Model: 原 token 顺序 hidden_states
-```
-
-## 19. 实现要点清单
-
-1. CP 的并行维度不是独立进程池，而是从 TP world 内再切出来的 attention context group。
-2. 普通 CP 的核心数据结构是 `ContextParallelMetadata`，它描述 in-seq zigzag split、collective padding、attention 两段 q 的长度、输出 reverse index。
-3. NSA round-robin 不使用 zigzag metadata 内容，但仍用 `attn_cp_metadata is not None` 作为激活标记。
-4. 每个 CP rank 只算本 rank 的 query，但每层必须重建完整 KV，否则 causal attention 无法看到跨 CP rank 的上下文。
-5. 输出合并与输入切分严格互逆：in-seq 靠 `reverse_split_len + cp_reverse_index`，round-robin 靠 all-gather 后 transpose。
-6. MoE 是 CP 实现中最容易漏的部分：`attn_cp_size > moe_dp_size` 时，MoE DP group 复用 ATTN_CP group，进入 MoE 前还要补齐 CP token。
-7. NSA CP 改写了 layer 通信，`NSACPLayerCommunicator` 让 hidden/residual 保持 scattered，并在 MLP 需要 full 时用 CP all-gather / reduce-scatter。
-8. PD disaggregation 下 decode 不启用 CP；prefill CP rank 通过 bootstrap 注册，transfer 默认只由 CP rank0 发送，或者在环境变量开启时按 page 过滤后所有 CP rank 参与。
-9. HiCache / storage config 会携带 CP rank/size，避免存储层把不同 CP shard 混成同一个视图。
-10. piecewise CUDA graph、fused set KV buffer、NSA MHA one-shot 等优化与 CP 存在明确互斥或额外对齐逻辑。
-
-## 20. 与周边能力的协同、互斥和边界
-
-这一章把 CP 与其他关键能力放在同一张工程地图里看。判断标准仍然是源码闭环：如果代码里有共享字段、rank 映射、collective 或调度分支，就算协同；如果只是参数同时存在但执行链互不相干，就只标为间接协同；如果源码明确断言、清空 metadata 或关闭优化，就标为互斥或边界。
-
-### 20.1 总体矩阵
+### 16.1 总体矩阵
 
 | 能力                        | 与 CP 的当前关系                               | 源码抓手                                                                                           | 关键结论                                                                                                                  |
 | --------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
@@ -1689,7 +1581,7 @@ sequenceDiagram
 | CUDA Graph                  | 标准 decode graph 与 CP 基本错开；PCG 多数关闭 | `ForwardMode.is_cuda_graph()`、`_handle_piecewise_cuda_graph()`                                    | CP metadata 只在 extend/mixed；decode graph 不使用 CP；piecewise CUDA graph 对显式 CP、DP attention、PD、PP 等会被禁用    |
 | MTP / Spec Decoding         | 初始 prefill 可同存，draft/verify 阶段不走 CP  | `ForwardMode.TARGET_VERIFY`、`DRAFT_EXTEND`、`can_nsa_cp_split()`                                  | spec 的 target verify 和 draft extend 不满足 `is_context_parallel_extend()`，不会创建 CP metadata                         |
 
-### 20.2 TP / DP / CP 的 rank 协同
+### 16.2 TP / DP / CP 的 rank 协同
 
 CP 的 rank 不是从全局 world 重新开一个维度，而是在 `tp_rank` 内解释出 attention DP、attention CP、attention TP 三层：
 
@@ -1741,7 +1633,7 @@ if expected_attn_tp_size is not None and effective_attn_tp_size != expected_attn
 
 也就是说，CP 不是纯 runtime 优化；它会改变 attention 权重的有效切分度，因此模型加载和 fused qkv 权重布局也要同步考虑。
 
-### 20.3 DP attention：请求广播、padding 和 MLP 同步
+### 16.3 DP attention：请求广播、padding 和 MLP 同步
 
 DP attention 与 CP 的交汇点主要在 scheduler 和 MLP sync。
 
@@ -1812,7 +1704,7 @@ for i in range(sync_group_size):
 
 NSA round-robin 还补了一层 padding 计算：`cal_padded_tokens()` 会复用 `global_num_tokens_cpu`，在 `can_nsa_prefill_cp_round_robin_split()` 成立时除以 `attn_cp_size`，让 CP 后每个 rank 的 NSA cache seqlens 长度和 DP padding 对齐。
 
-### 20.4 MoE DP / EP：CP 与 MoE token 布局的交汇
+### 16.4 MoE DP / EP：CP 与 MoE token 布局的交汇
 
 MoE 是 CP 里最容易被误判的部分。attention CP 切的是 query token，但 MoE 的专家路由通常要求看到某个 MoE DP group 内完整 token 集。SGLang 用两层机制处理：
 
@@ -1861,7 +1753,7 @@ if self.attn_cp_size != self.moe_dp_size:
 
 因此准确说法是：`attn_cp_size > 1` 本身并不在这个函数里直接禁止 PP；但一旦走 `moe_dp_size > 1` 的 MoE DP 组合，PP 被断言禁止。Qwen3 MoE 模型里还有模型侧约束：`attn_cp_size % moe_dp_size == 0`。
 
-### 20.5 PP：有通信适配，但不是所有 CP 组合都能用
+### 16.5 PP：有通信适配，但不是所有 CP 组合都能用
 
 PP mixin 里有两处 CP 相关适配。
 
@@ -1900,7 +1792,7 @@ if self.attn_cp_size > 1:
 
 动态 chunking 的 profiling 也会把 PP0 采样得到的 `seq_lens/latencies` 先广播给 attention TP group，再广播给 attention CP group，最后经 PP group 同步到各 pipeline stage。这说明 PP + CP 的控制面不是空白，但实际可用组合仍受模型、MoE DP、PD 和 piecewise CUDA graph 等限制约束。
 
-### 20.6 PD disaggregation：CP 只在 prefill 侧，decode 侧强制 CP=1
+### 16.6 PD disaggregation：CP 只在 prefill 侧，decode 侧强制 CP=1
 
 PD 分离与 CP 的关系非常明确：prefill worker 可以启用 CP，decode worker 不可以启用 CP。
 
@@ -2039,7 +1931,7 @@ else:
 
 所以 PD + CP + chunked prefill 的实际组合是：prefill 侧每个 chunk 正常 forward，KV sender 根据 CP rank 策略决定是否发送和发送哪些 page；decode 侧始终以 CP size 1 接收。
 
-### 20.7 Prefix Caching / RadixCache：CP 切的是 extend token，不切 cached prefix
+### 16.7 Prefix Caching / RadixCache：CP 切的是 extend token，不切 cached prefix
 
 prefix cache 的匹配发生在 scheduler 构建 `ForwardBatch` 之前。`Req.init_next_round_input()` 会用 `tree_cache.match_prefix()` 得到 `prefix_indices`，然后把本轮需要计算的长度设为 `len(fill_ids) - len(prefix_indices)`：
 
@@ -2125,7 +2017,7 @@ NSA CP：metadata 不 bake prefix，因为 NSA indexer 路径会用 `seq_lens_cp
 
 prefix cache 的 key 本身没有加入 CP rank。每个 rank 是独立进程、独立 KV pool；CP rank/size 主要进入 storage、metrics、disaggregation transfer 和 CP all-gather，而不是改变 token-id radix key。
 
-### 20.8 HiCache / storage：CP rank 是存储视图的一部分
+### 16.8 HiCache / storage：CP rank 是存储视图的一部分
 
 HiCache 与 CP 的关系比普通 RadixCache 更显式。`CacheInitParams` 直接携带 CP cache group 和 CP rank/size：
 
@@ -2188,7 +2080,7 @@ if storage_config is not None:
 
 因此，HiCache 不是“自动理解 CP split 算法”，而是把 CP rank 作为存储命名、指标和远端 KV 视图的一部分传下去。真正的 token split / KV all-gather 仍发生在 model forward 和 attention backend。
 
-### 20.9 Chunked Prefill：每个 chunk 都可以成为 CP extend，但普通 CP 仍受 batch=1 限制
+### 16.9 Chunked Prefill：每个 chunk 都可以成为 CP extend，但普通 CP 仍受 batch=1 限制
 
 chunked prefill 和 CP 的共同入口是 `ForwardMode.EXTEND/MIXED`。`ForwardMode.is_context_parallel_extend()` 明确包含 `MIXED`：
 
@@ -2320,7 +2212,7 @@ if can_nsa_prefill_cp_round_robin_split(forward_batch):
     page_table = page_table[bs_idx, :max_seqlen_k]
 ```
 
-### 20.10 CUDA Graphs：decode graph 和 CP prefill 分离；piecewise graph 多数被关闭
+### 16.10 CUDA Graphs：decode graph 和 CP prefill 分离；piecewise graph 多数被关闭
 
 标准 CUDA Graph runner 捕获的 forward mode 不包含普通 `EXTEND/MIXED`：
 
@@ -2397,7 +2289,7 @@ if require_gathered_buffer(self.model_runner.server_args):
 
 这段更像未来兼容或测试强制开启场景的兜底。当前主路径下，CP prefill 基本走 eager extend；decode/spec verify 才可能走标准 CUDA graph。
 
-### 20.11 MTP / SpecDecoding：CP 不覆盖 draft/verify 阶段
+### 16.11 MTP / SpecDecoding：CP 不覆盖 draft/verify 阶段
 
 Speculative decoding 的 forward mode 分为 target verify 和 draft extend：
 
@@ -2480,7 +2372,7 @@ if self.nsa_enable_prefill_cp:
 3. 一旦进入 speculative decode 循环，draft model extend 和 target verify 都不使用 CP metadata。
 4. spec 阶段可以走 CUDA graph，因为 `ForwardMode.TARGET_VERIFY` 属于 `is_cuda_graph()`；这和 CP prefill 在阶段上分离。
 
-### 20.12 组合视角下的一条长请求路径
+### 16.12 组合视角下的一条长请求路径
 
 下面这张图把 prefix cache、chunked prefill、CP、PD transfer、decode/spec 串起来，展示哪些阶段真正共享 CP metadata，哪些阶段只共享 KV 或 rank 信息。
 
@@ -2517,9 +2409,9 @@ sequenceDiagram
     Decode->>Decode: decode / target verify / draft extend may use CUDA graph, no CP metadata
 ```
 
-### 20.13 组合能力的实践边界
+### 16.13 组合能力的实践结论
 
-从当前源码看，真正需要同时记住的边界是：
+从当前源码看，真正需要同时记住的组合结论是：
 
 1. CP 的实质作用域是 prefill extend。decode、target verify、draft extend 都不是当前 CP 主路径。
 2. Prefix caching 与 CP 可以叠加，但 CP split 的输入是未命中的 extend token；cached prefix 只通过 `prefix_indices`、`extend_prefix_lens`、`seq_lens_cpu` 和 KV pool 被 attention 看到。
@@ -2529,9 +2421,9 @@ sequenceDiagram
 6. 标准 CUDA graph 主要服务 decode/spec verify；CP prefill 基本走 eager。piecewise CUDA graph 虽有 CP token 对齐代码，但显式 CP、DP attention、PD、PP、NSA DSA model arch 等都会让主路径关闭 PCG。
 7. TP/DP/MoE 是 CP 最深的协同面：CP 改变 effective attention TP size，影响权重布局、request broadcast、MLP padding、MoE token all-gather 和 communicator scatter mode。
 
-## 21. 从第一性原理解释：为什么当前 CP 实现必须长这样
+## 17. 从第一性原理解释：为什么当前 CP 实现必须长这样
 
-前面的章节按源码执行顺序解释了“代码怎么跑”。这一章反过来，从几个不可绕开的基本事实出发，推导当前实现里每个看起来繁琐的细节为什么会存在。
+前面先按源码执行顺序解释了“代码怎么跑”，又从组合能力角度看了 CP 和周边模块的关系。这一章反过来，从几个不可绕开的基本事实出发，推导当前实现里每个看起来繁琐的细节为什么会存在。
 
 这里的“第一性原理”不是抽象口号，而是四类硬约束：
 
@@ -2550,7 +2442,7 @@ flowchart TD
     TP["既有并行资源<br/>TP world 承载模型并行"] --> Groups["从 TP 内再切出<br/>ATTN_CP 和 ATTN_TP"]
 ```
 
-### 21.1 为什么 CP 只在 prefill/extend 上成立
+### 17.1 为什么 CP 只在 prefill/extend 上成立
 
 从计算量看，长 prefill 的瓶颈是一次处理大量 query token。假设 extend 长度为 `L`，每个 query 的 attention 可见 KV 长度随位置增长，整体计算量接近 `L^2/2`。把 query token 切到 `C` 个 CP rank 上，理想情况下每个 rank 只处理约 `L/C` 个 query，可以把 attention 主体计算分摊出去。
 
@@ -2574,7 +2466,7 @@ def is_context_parallel_extend(self, include_draft_extend_v2: bool = False):
 
 `ScheduleBatch.prepare_for_decode()` 清掉 `attn_cp_metadata` 也不是附加保护，而是这个推导的直接结果：decode 没有 CP 的收益模型，也不能继承 prefill 的 split metadata。
 
-### 21.2 为什么切 query token，而不是切 KV、切 hidden dim 或切 batch
+### 17.2 为什么切 query token，而不是切 KV、切 hidden dim 或切 batch
 
 对一个 Transformer attention 层，简化表示为：
 
@@ -2598,7 +2490,7 @@ O_i = softmax(Q_i K_0..i^T) V_0..i
 
 这解释了一个容易困惑的点：**CP 不是把 KV cache 永久分片存储来省显存**。当前实现更像“把 query 计算分片，但在每层恢复完整 KV 可见性”。如果不这样做，某个 CP rank 上的 query 就会看不到另一个 CP rank 负责 token 产生的 KV，causal attention 立即变错。
 
-### 21.3 为什么每层都要 all-gather K/V，而不是只在开头或结尾通信一次
+### 17.3 为什么每层都要 all-gather K/V，而不是只在开头或结尾通信一次
 
 Transformer 每一层都会产生自己的 K/V：
 
@@ -2617,7 +2509,7 @@ Layer l input hidden -> Wk_l/Wv_l -> KV_l -> attention_l -> Layer l output hidde
 
 这个顺序的必要性来自 causal attention 的定义：每层 attention 的 query 都必须看见同层完整 KV。只在模型开头 all-gather hidden states 会失去 CP 分摊 query 计算的意义；只在模型结尾 all-gather hidden states 则已经太晚，因为中间每层 attention 都算错了。
 
-### 21.4 为什么 rank group 要从 TP 内拆出 `ATTN_CP` 和 `ATTN_TP`
+### 17.4 为什么 rank group 要从 TP 内拆出 `ATTN_CP` 和 `ATTN_TP`
 
 SGLang 启动时可用的 GPU worker 已经由 `tp_size * pp_size` 决定。CP 不能凭空增加新 rank，只能重新解释已有 TP ranks。因此 rank 层次必须变成：
 
@@ -2646,7 +2538,7 @@ tp_rank = (attn_dp_rank * attn_cp_size + attn_cp_rank) * attn_tp_size + attn_tp_
 
 所以 `initialize_model_parallel()` 不是随意多建 group，而是把同一批 ranks 映射成不同算子的通信拓扑。attention 需要 `ATTN_CP` all-gather K/V；attention TP 需要自己的 reduce/all-gather；MoE 需要按 expert 和 token 路由重新组织。
 
-### 21.5 为什么普通 CP 要用 `2 * cp_size` 的 zigzag split
+### 17.5 为什么普通 CP 要用 `2 * cp_size` 的 zigzag split
 
 如果只是把长度 `L` 的序列连续切成 `C` 段：
 
@@ -2683,7 +2575,7 @@ rank3: segment3 + segment4
 
 如果没有这些字段，CP 可以切开输入，但不能保证输出回到 logits processor 期望的 token 顺序，也不能在长度不整除时安全 all-gather。
 
-### 21.6 为什么 NSA round-robin split 和普通 in-seq split 不一样
+### 17.6 为什么 NSA round-robin split 和普通 in-seq split 不一样
 
 NSA / DSA 的长 prefill 路径不是普通 dense attention。它有 indexer、topk、ragged metadata、`seqlens_expanded`、`page_table` 等额外结构。这里的第一性约束变成：
 
@@ -2709,7 +2601,7 @@ round-robin 的规则是 `token_idx % cp_size == cp_rank`。它牺牲了连续�
 
 这解释了为什么 NSA CP 不是简单复用普通 `ContextParallelMetadata`。round-robin 模式下 `attn_cp_metadata is not None` 更像“CP 激活标记”，真正的 per-token/ragged split 发生在 `nsa_backend.py`。
 
-### 21.7 为什么 prefix cache 只影响 KV length，不参与 CP split
+### 17.7 为什么 prefix cache 只影响 KV length，不参与 CP split
 
 prefix caching 的基本事实是：命中的 prefix KV 已经在 KV pool 里，不需要重新计算 hidden states。当前 extend forward 的 `input_ids` 只包含未命中的 token：
 
@@ -2732,7 +2624,7 @@ kv_len_next = prefix_len + prefix_sum_list[2 * cp_size - cp_rank - 1]
 
 NSA CP 不把 prefix bake 进 metadata，是因为 NSA indexer 会从 `seq_lens_cpu - extend_seq_lens_cpu` 再计算 prefix offset。两条路径看起来不一致，但背后的原则相同：**prefix 不能被重复计算，但必须被 attention/indexer 看见一次且只看见一次**。
 
-### 21.8 为什么输出必须 all-gather 并恢复原 token 顺序
+### 17.8 为什么输出必须 all-gather 并恢复原 token 顺序
 
 CP rank 内部计算的是局部 query 输出。如果直接把局部 hidden states 交给 logits processor，会违反两个 serving 语义：
 
@@ -2748,7 +2640,7 @@ CP rank 内部计算的是局部 query 输出。如果直接把局部 hidden sta
 
 这一步是 CP 对外保持透明的关键。前面可以任意切 query，只要最后输出恢复成原始 token 布局，logits、logprob、sampling、embedding/pooling 输出才能复用原有代码。
 
-### 21.9 为什么 collective 前后需要 padding、`max_rank_len` 和 `per_rank_actual_token`
+### 17.9 为什么 collective 前后需要 padding、`max_rank_len` 和 `per_rank_actual_token`
 
 序列长度通常不能被 `2 * cp_size` 或 `cp_size` 整除。比如 `L=1000, cp_size=8`，每个 rank 实际拿到的 token 数可能不同。分布式 all-gather 不能直接收集一组不同长度的 tensor，因此实现必须做三件事：
 
@@ -2760,7 +2652,7 @@ CP rank 内部计算的是局部 query 输出。如果直接把局部 hidden sta
 
 同理，`ForwardBatch.prepare_mlp_sync_batch()` 先按 attention TP size 对齐，再按 attention CP size 对齐，是为了让后续 reduce-scatter / all-gather 在不同 DP/CP/TP 组合下有一致 shape。没有这些 padding，代码可能在小部分长度上工作，但一旦遇到 remainder 或 mixed batch 就会出现 collective shape mismatch。
 
-### 21.10 为什么 MoE 需要额外 communicator，而不是 attention CP 结束就完事
+### 17.10 为什么 MoE 需要额外 communicator，而不是 attention CP 结束就完事
 
 attention 层可以让每个 CP rank 只处理自己的 query，因为 attention 的依赖通过 KV all-gather 补齐了。MoE 层不同：MoE router 面对的是 token matrix，每个 token 要被分发到 expert。若 `attn_cp_size > moe_dp_size`，一个 MoE DP group 需要的 token 分散在多个 CP rank 上。
 
@@ -2777,7 +2669,7 @@ CP scattered hidden states
 
 NSA CP 进一步需要 `NSACPLayerCommunicator`，因为 NSA 路径希望 hidden/residual 长时间保持 scattered，避免普通 communicator 按 TP/DP 逻辑把 CP layout 提前聚合或打散。这个专用 communicator 的存在说明：CP 不是 attention backend 内部局部优化，它会改变 layer 间 hidden states 的布局契约。
 
-### 21.11 为什么 CP 和 DP attention、PP、PD 都必须显式协同
+### 17.11 为什么 CP 和 DP attention、PP、PD 都必须显式协同
 
 CP 改变的是 rank 内 token 布局；DP/PP/PD 改变的是请求和 KV 在进程间的流动方式。两者只要叠加，就必须有显式协同点。
 
@@ -2790,7 +2682,7 @@ CP 改变的是 rank 内 token 布局；DP/PP/PD 改变的是请求和 KV 在进
 
 这些实现点的共同原因是：CP 不只是一次张量切片。它让同一个 request 在多个 rank 上拥有不同局部 token 视图；凡是跨 rank 传 request、hidden、KV、cache state 的模块，都必须知道“现在处在哪个 CP rank 视图里”。
 
-### 21.12 为什么 CUDA Graph 和 SpecDecoding 大多绕开 CP
+### 17.12 为什么 CUDA Graph 和 SpecDecoding 大多绕开 CP
 
 CUDA Graph 的第一性约束是：被捕获的图需要稳定 shape、稳定控制流、稳定 kernel 序列。CP prefill 的特点正好相反：
 
@@ -2812,7 +2704,7 @@ draft/target 两套 KV pool 如何保持 CP 一致？
 
 当前源码没有建立这些契约，所以 `is_context_parallel_extend()` 默认不包含 `TARGET_VERIFY` / `DRAFT_EXTEND`，CP 只覆盖初始长 prefill。
 
-### 21.13 每个关键实现细节的存在理由清单
+### 17.13 每个关键实现细节的存在理由清单
 
 | 实现细节                                   | 为什么必须存在                                              | 如果没有会怎样                                          |
 | ------------------------------------------ | ----------------------------------------------------------- | ------------------------------------------------------- |
@@ -2857,7 +2749,7 @@ draft/target 两套 KV pool 如何保持 CP 一致？
 | PCG 禁用显式 CP                            | 当前 CP metadata/collective 动态性不满足稳定捕获契约        | 图 replay 时 shape/control/collective 不稳定            |
 | spec draft/verify 不触发 CP                | spec 有独立 tree/ragged/KV 语义，未定义 CP 逆变换           | accepted token、draft KV、target verify layout 难以保证 |
 
-### 21.14 一个压缩的心智模型
+### 17.14 一个压缩的心智模型
 
 可以把当前 SGLang CP 实现记成一句话：
 
@@ -2882,3 +2774,125 @@ draft/target 两套 KV pool 如何保持 CP 一致？
 | 恢复普通 SGLang 语义  | `cp_all_gather_rerange_output()` 后再进入 logits processor                     |
 
 从这个角度看，当前实现里的复杂度不是偶然堆出来的，而是 causal attention、serving 状态机和分布式 collective 三类约束叠加后的结果。只要仍然选择“切 query、保完整 KV 语义、对上层透明”这条路线，这些 metadata、group、padding、rerange、边界判断就都必须存在。
+
+## 18. 支持范围与当前边界
+
+把源码路径和设计原因合在一起看，当前 CP 的边界可以压缩成下面几类。它们不是文档层面的建议，而是由 `can_cp_split()`、server args 断言、metadata 生命周期和 backend 分支共同决定的实际行为。
+
+### 18.1 CP 只作用于 prefill/extend
+
+源码中 CP 检查都围绕 `forward_mode.is_context_parallel_extend()`。decode 前会清空 `attn_cp_metadata`。PD decode 侧也要求 `attn_cp_size == 1`。
+
+### 18.2 普通 prefill CP 当前是 batch=1 zigzag
+
+`can_cp_split()` 明确要求：
+
+```python
+forward_batch.seq_lens_cpu.shape[0] == 1
+```
+
+因此 `--enable-prefill-context-parallel` 的普通 in-seq CP，不应理解为任意 multi-batch prefill 都会 CP split。
+
+### 18.3 NSA round-robin 支持 multi-batch，但模型入口要求 token 数可整除 cp_size
+
+NSA backend 的 `nsa_cp_round_robin_split_q_seqs()` 支持 multi-batch request lengths，并用 `bs_idx` 过滤无 token request；但 `can_nsa_cp_split()` 在 round-robin 模式下有：
+
+```python
+assert seq_len % cp_size == 0
+```
+
+所以实际进入模型 CP 的 batch 总 token 数需要满足这个条件，或者由上游 padding / batching 保证。
+
+### 18.4 NSA in-seq 的限制由 server args 自动写死
+
+NSA in-seq 自动设置：
+
+- `enable_dp_attention=True`
+- `moe_dense_tp_size=1`
+- `moe_a2a_backend="deepep"`
+- `ep_size=tp_size`
+- 日志提示 `batch_size == 1`
+
+### 18.5 `attn_cp_size` 与 `moe_dp_size`
+
+`attn_cp_size != moe_dp_size` 时只允许 `moe_dp_size == 1`。当 `attn_cp_size > moe_dp_size`，`_MOE_DP = _ATTN_CP`，MoE 前会把 CP token all-gather 到 MoE group。
+
+### 18.6 NPU / GLM 派生路径有特殊 rank getter
+
+`glm4_moe_lite.py` 中 CP 相关字段使用 `get_attention_tp_rank()` / `get_attention_tp_size()`，而不是 DeepSeek 主路径的 `get_attention_cp_rank()` / `get_attention_cp_size()`。这说明 GLM DSA 派生路径和标准 DeepSeek NSA CP 在 rank 语义上不是完全同一个封装，写文档或改代码时不能只看 `deepseek_v2.py`。
+
+### 18.7 async CP all-gather 有 fallback
+
+`cp_all_gather_into_tensor_async()` 只有在 `pynccl_comm` 存在且未 disabled 时才是真正 stream async NCCL；否则 fallback 到 `self.all_gather_into_tensor()`，可能重新引入 torch distributed 的同步行为。
+
+## 19. 测试覆盖
+
+最后再看测试。这里列的是当前仓库里直接覆盖 CP rank group、模型 launch、NPU backend 和 HiCache 组合的路径；其中 disabled 测试也保留，因为它能说明源码已经登记但当前还不稳定的能力范围。
+
+当前仓库里与 CP 直接相关的测试包括：
+
+| 测试                                                               | 覆盖点                                                                                                            |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `test/registered/distributed/test_parallel_state.py`               | mock distributed 后验证 `initialize_model_parallel()` 产生正确 ATTN_CP / MOE_DP group                             |
+| `test/registered/cp/test_deepseek_v32_cp_single_node.py`           | DeepSeek V3.2 NSA in-seq / round-robin 两种 CP launch 和 GSM8K accuracy；当前注册 disabled，注释写明 due to issue |
+| `test/registered/4-gpu-models/test_qwen3_30b.py`                   | Qwen3-30B-A3B-FP8 普通 prefill CP，含 `moe_dp_size=2, attn_cp_size=2` 和 `moe_dp_size=1, attn_cp_size=2` 两种     |
+| `test/registered/ascend/llm_models/test_npu_qwen3_30b_attn_cp.py`  | Ascend NPU 上 Qwen3 CP，`attention-backend=ascend`、`attn_cp_size=2`                                              |
+| `test/registered/hicache/test_hicache_storage_mooncake_backend.py` | Qwen3 CP2 + HiCache Mooncake storage backend                                                                      |
+
+`docs/basic_usage/deepseek_v32.md` 对 DeepSeek V3.2 DSA CP 的用户视角描述与源码一致的部分包括：
+
+- feature 仍是 experimental，并注明 Hopper 验证。
+- in-seq split 限制 batch size、DeepEP / DP attention / EP 设置。
+- round-robin 以 `token_idx % cp_size` 分配，强调 multi-batch prefill、fused MoE、FP8 KV cache。
+
+## 20. 一条完整 in-seq CP 执行链
+
+把前面的信息重新压回执行顺序，一次普通 in-seq CP prefill 大致会经过下面这条链。NSA CP 会替换其中的 split mode、attention backend metadata 和 layer communicator，但“切 query、补完整 KV、最后恢复原 token 顺序”的主干不变。
+
+```mermaid
+sequenceDiagram
+    participant CLI as ServerArgs
+    participant Engine as Engine
+    participant PS as parallel_state
+    participant Scheduler as Scheduler
+    participant FB as ForwardBatch
+    participant Model as Qwen/DeepSeek model
+    participant CPU as cp_utils
+    participant Attn as Attention backend
+    participant Comm as LayerCommunicator
+
+    CLI->>CLI: 校验 attn_cp_size / moe_dp_size
+    Engine->>Engine: _compute_parallelism_ranks(tp_rank)
+    Engine->>Scheduler: attn_cp_rank, moe_dp_rank, moe_ep_rank
+    Scheduler->>PS: ModelRunner.init_torch_distributed()
+    PS->>PS: initialize_model_parallel 创建 ATTN_CP / ATTN_TP / MOE_DP
+    Scheduler->>FB: 构建 EXTEND / MIXED ForwardBatch
+    Model->>CPU: can_cp_split 或 can_nsa_cp_split
+    CPU-->>Model: prepare_context_parallel_metadata
+    Model->>CPU: cp_split_and_rebuild_data / position
+    Model->>Attn: local hidden states 进入每层 attention
+    Attn->>CPU: cp_allgather_and_save_kv_cache 或 rebuild_cp_kv_cache
+    CPU->>PS: ATTN_CP all-gather
+    Attn->>Attn: q_prev 和 q_next 分别 attention
+    Attn-->>Model: local attention output
+    Model->>Comm: prepare_mlp / MoE / postprocess_layer
+    Comm->>PS: 必要时 MOE_CP all-gather 或 CP reduce-scatter
+    Model->>CPU: 最后一层 cp_all_gather_rerange_output
+    CPU->>PS: ATTN_CP all-gather
+    CPU-->>Model: 原 token 顺序 hidden_states
+```
+
+## 21. 实现要点清单
+
+收尾时只需要记住这些实现要点。它们对应本文前面各章的关键约束，也可以作为读源码或排查 CP 行为时的 checklist。
+
+1. CP 的并行维度不是独立进程池，而是从 TP world 内再切出来的 attention context group。
+2. 普通 CP 的核心数据结构是 `ContextParallelMetadata`，它描述 in-seq zigzag split、collective padding、attention 两段 q 的长度、输出 reverse index。
+3. NSA round-robin 不使用 zigzag metadata 内容，但仍用 `attn_cp_metadata is not None` 作为激活标记。
+4. 每个 CP rank 只算本 rank 的 query，但每层必须重建完整 KV，否则 causal attention 无法看到跨 CP rank 的上下文。
+5. 输出合并与输入切分严格互逆：in-seq 靠 `reverse_split_len + cp_reverse_index`，round-robin 靠 all-gather 后 transpose。
+6. MoE 是 CP 实现中最容易漏的部分：`attn_cp_size > moe_dp_size` 时，MoE DP group 复用 ATTN_CP group，进入 MoE 前还要补齐 CP token。
+7. NSA CP 改写了 layer 通信，`NSACPLayerCommunicator` 让 hidden/residual 保持 scattered，并在 MLP 需要 full 时用 CP all-gather / reduce-scatter。
+8. PD disaggregation 下 decode 不启用 CP；prefill CP rank 通过 bootstrap 注册，transfer 默认只由 CP rank0 发送，或者在环境变量开启时按 page 过滤后所有 CP rank 参与。
+9. HiCache / storage config 会携带 CP rank/size，避免存储层把不同 CP shard 混成同一个视图。
+10. piecewise CUDA graph、fused set KV buffer、NSA MHA one-shot 等优化与 CP 存在明确互斥或额外对齐逻辑。
