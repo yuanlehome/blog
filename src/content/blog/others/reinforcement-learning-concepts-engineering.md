@@ -5,7 +5,11 @@ date: '2026-04-10'
 tags: ['RL Infra']
 status: published
 source: original
+cover: >-
+  /images/others/reinforcement-learning-concepts-engineering/reinforcement-learning-concepts-engineering-cover.png
 ---
+
+[reinforcement-learning-concepts-engineering](/images/others/reinforcement-learning-concepts-engineering/reinforcement-learning-concepts-engineering-cover.png)
 
 ## 一、写在前面
 

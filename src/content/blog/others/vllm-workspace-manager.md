@@ -1,11 +1,15 @@
 ---
-title: vLLM WorkspaceManager 深度解析
+title: 深入 vLLM WorkspaceManager：实现原理解析
 slug: vllm-workspace-manager
 date: '2026-04-20'
 tags: ['Source Code Analysis', 'vLLM']
 status: published
 source: original
+cover: >-
+  /images/others/vllm-workspace-manager/vllm-workspace-manager-cover.png
 ---
+
+![vllm-workspace-manager](/images/others/vllm-workspace-manager/vllm-workspace-manager-cover.png)
 
 ## 1. 要解决的问题
 
