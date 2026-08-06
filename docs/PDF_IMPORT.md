@@ -147,23 +147,11 @@ PDF_OCR_PROVIDER=local_mock npm run import:content -- --url https://example.com/
 
 ## 测试
 
-包含完整单元测试：
+运行仓库测试：
 
 ```bash
-# 运行 PDF 适配器测试
-npm test -- tests/unit/pdf-vl-adapter.test.ts
-
-# 运行所有测试
 npm test
 ```
-
-测试覆盖：
-
-- URL 检测（PDF vs. 非 PDF）
-- 完整 PDF 导入流程
-- 错误场景（缺少 token、下载失败、无效 PDF）
-- 内容质量验证
-- 图片下载与处理
 
 ## 架构
 
@@ -173,7 +161,6 @@ npm test
 - `scripts/import/adapters/pdf_vl_utils.ts` - PDF 下载与验证
 - `scripts/import/adapters/pdf_vl_ocr.ts` - PaddleOCR-VL API 客户端
 - `scripts/import/adapters/pdf_vl_markdown.ts` - Markdown 处理与图片处理
-- `tests/unit/pdf-vl-adapter.test.ts` - 完整单元测试
 
 ### 流程
 
