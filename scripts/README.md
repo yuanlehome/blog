@@ -89,14 +89,13 @@ scripts/
 
 **命令行参数**：
 
-| 参数                         | 类型    | 必需 | 默认值  | 说明                                        |
-| ---------------------------- | ------- | ---- | ------- | ------------------------------------------- |
-| `--url`                      | string  | ✓    | —       | 文章 URL                                    |
-| `--html-file`                | string  | ✗    | —       | 完整页面 HTML 文件（当前仅支持知乎）        |
-| `--allow-overwrite`          | boolean | ✗    | `false` | 覆盖已存在文章                              |
-| `--dry-run`                  | boolean | ✗    | `false` | 预览模式                                    |
-| `--use-first-image-as-cover` | boolean | ✗    | `false` | 首图作为封面                                |
-| `--forcePdf` / `--force-pdf` | boolean | ✗    | `false` | 强制使用 PDF 导入器（绕过域名限制如 arXiv） |
+| 参数                         | 类型    | 必需 | 默认值  | 说明                                 |
+| ---------------------------- | ------- | ---- | ------- | ------------------------------------ |
+| `--url`                      | string  | ✓    | —       | 文章 URL                             |
+| `--html-file`                | string  | ✗    | —       | 完整页面 HTML 文件（当前仅支持知乎） |
+| `--allow-overwrite`          | boolean | ✗    | `false` | 覆盖已存在文章                       |
+| `--dry-run`                  | boolean | ✗    | `false` | 预览模式                             |
+| `--use-first-image-as-cover` | boolean | ✗    | `false` | 首图作为封面                         |
 
 **环境变量**（可替代命令行参数）：
 
@@ -107,7 +106,6 @@ scripts/
 | `ALLOW_OVERWRITE`          | `--allow-overwrite`          |
 | `DRY_RUN`                  | `--dry-run`                  |
 | `USE_FIRST_IMAGE_AS_COVER` | `--use-first-image-as-cover` |
-| `FORCE_PDF`                | `--forcePdf`                 |
 
 **环境变量（翻译，可选）**：
 
@@ -117,31 +115,14 @@ scripts/
 | `MARKDOWN_TRANSLATE_PROVIDER` | `identity` | 翻译提供商       |
 | `DEEPSEEK_API_KEY`            | —          | DeepSeek API key |
 
-**环境变量（PDF 导入，可选）**：
-
-| 变量名               | 默认值                                                     | 说明                                                                       |
-| -------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `PDF_OCR_PROVIDER`   | `paddleocr_vl`                                             | OCR 提供商：`paddleocr_vl`（云端 API）或 `local_mock`（本地测试/离线模式） |
-| `PADDLEOCR_VL_TOKEN` | —                                                          | PaddleOCR-VL API token（仅当 `PDF_OCR_PROVIDER=paddleocr_vl` 时需要）      |
-| `PDF_OCR_API_URL`    | `https://xbe1mb28fa0dz7kb.aistudio-app.com/layout-parsing` | PaddleOCR-VL API URL（可选，支持旧变量名 `PADDLEOCR_VL_API_URL`）          |
-| `PDF_OCR_FAIL_OPEN`  | `"0"` 或 `"false"`                                         | 启用失败回退模式（`"1"` 或 `"true"` 启用，网络故障时生成占位内容）         |
-| `PDF_MAX_MB`         | `50`                                                       | PDF 文件最大大小（MB）                                                     |
-
-**PDF 导入说明**：
-
-- **云端模式**（默认）：使用 PaddleOCR-VL API 进行 OCR 识别，需要设置 `PADDLEOCR_VL_TOKEN` 和 `PDF_OCR_API_URL`（或 `PADDLEOCR_VL_API_URL`）
-- **本地模式**：设置 `PDF_OCR_PROVIDER=local_mock` 可在无 API 凭证的情况下测试 PDF 导入流程（使用模拟数据）
-- **失败回退**：设置 `PDF_OCR_FAIL_OPEN=1` 可在 API 失败时生成占位内容而不是直接报错
-
 **支持的平台**：
 
-| 平台   | URL 模式                     | 输出目录                   |
-| ------ | ---------------------------- | -------------------------- |
-| 知乎   | `zhuanlan.zhihu.com/p/*`     | `src/content/blog/zhihu/`  |
-| 微信   | `mp.weixin.qq.com/s/*`       | `src/content/blog/wechat/` |
-| Medium | `*.medium.com/*`             | `src/content/blog/medium/` |
-| PDF    | `*.pdf` 或 `--forcePdf` 标志 | `src/content/blog/others/` |
-| 其他   | 任意 URL                     | `src/content/blog/others/` |
+| 平台   | URL 模式                 | 输出目录                   |
+| ------ | ------------------------ | -------------------------- |
+| 知乎   | `zhuanlan.zhihu.com/p/*` | `src/content/blog/zhihu/`  |
+| 微信   | `mp.weixin.qq.com/s/*`   | `src/content/blog/wechat/` |
+| Medium | `*.medium.com/*`         | `src/content/blog/medium/` |
+| 其他   | 任意 URL                 | `src/content/blog/others/` |
 
 `--html-file` 读取浏览器保存的完整页面 HTML，并直接解析知乎标题、作者、发布时间和正文，
 不会启动 Playwright。`--url` 仍然必需，用于 canonical URL、相对链接和原始图片下载。
@@ -160,15 +141,6 @@ npm run import:content -- --url="<URL>" --allow-overwrite
 
 # 预览模式（不写入文件）
 npm run import:content -- --url="<URL>" --dry-run
-
-# 导入 arXiv PDF（需要 --forcePdf 标志绕过域名限制）
-npm run import:content -- --url="https://arxiv.org/pdf/2306.00978" --forcePdf
-
-# 导入 PDF 并使用首图作为封面
-npm run import:content -- --url="https://example.com/document.pdf" --use-first-image-as-cover
-
-# 使用本地模式导入 PDF（无需 API 凭证，适用于测试）
-PDF_OCR_PROVIDER=local_mock npm run import:content -- --url="https://arxiv.org/pdf/2306.00978" --forcePdf
 
 # 启用翻译
 MARKDOWN_TRANSLATE_ENABLED=1 MARKDOWN_TRANSLATE_PROVIDER=deepseek npm run import:content -- --url="<URL>"

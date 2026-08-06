@@ -46,7 +46,7 @@ comments: true
 在真正动手之前，我给自己定了几个比较明确的目标：
 
 - 写文章要足够顺手，本地直接写 Markdown 就能发布。
-- 内容来源要统一，Notion、微信、知乎、Medium 甚至 PDF 都能进来。
+- 内容来源要统一，Notion、微信、知乎、Medium 等外部文章都能进来。
 - 构建过程要稳定，站点构建时尽量不依赖外部接口。
 - 阅读体验要舒服，桌面端和移动端都要可用，代码、公式、图片、目录都要照顾到。
 - 配置要集中，尽量不要把站点信息散落在很多文件里。
@@ -100,14 +100,13 @@ comments: true
 
 - Notion 数据库同步。
 - 外部文章导入，支持知乎、微信公众号、Medium。
-- PDF 导入，走 OCR 和 Markdown 转换流程。
 
 它们最终都会落到同一个地方：`src/content/blog/` 里的 Markdown 文件，以及 `public/images/` 里的静态图片资源。
 
 整个数据流大概是这样的：
 
 ```text
-Notion / 微信 / 知乎 / Medium / PDF / 本地 Markdown
+Notion / 微信 / 知乎 / Medium / 本地 Markdown
                         ↓
                      scripts 层
                         ↓
@@ -208,7 +207,7 @@ Notion / 微信 / 知乎 / Medium / PDF / 本地 Markdown
 我现在的整体工作流，大概是这样的：
 
 ```text
-想法 / Notion / 外部链接 / PDF / 本地 Markdown
+想法 / Notion / 外部链接 / 本地 Markdown
                     ↓
            scripts + GitHub Actions
                     ↓
@@ -266,8 +265,7 @@ Markdown 清洗 / 图片本地化 / 元信息补齐 / AI 修文
 现在这条链路大概是这样：
 
 - 手动运行 `import-content.yml`，或者本地执行 `npm run import:content -- --url=...`。
-- 脚本根据 URL 选择适配器，接入知乎、微信、Medium、PDF 或其他来源。
-- 如果是 PDF，还会走 OCR、图片提取和 Markdown 转换流程。
+- 脚本根据 URL 选择适配器，接入知乎、微信、Medium 或其他网页来源。
 - 导入过程中会补 frontmatter、下载图片、必要时抽首图做封面。
 - 然后统一走 Markdown 处理管线，清理代码围栏、公式、列表、空行、语言和结构问题。
 - 最终把内容落到 `src/content/blog/`，把资源落到 `public/images/`。
@@ -420,7 +418,7 @@ AI 能大幅提升速度，但架构边界、产品取舍、体验判断、哪�
 
 ### 9.3 用适配器思路接入不同内容源
 
-知乎、微信、Medium、PDF 这些来源本身差异很大，但我尽量把它们收束到统一的导入流程里。这样以后如果还想接更多来源，心智负担会小很多。
+知乎、微信、Medium 这些来源本身差异很大，但我尽量把它们收束到统一的导入流程里。这样以后如果还想接更多来源，心智负担会小很多。
 
 ### 9.4 配置集中化真的能减少很多摩擦
 

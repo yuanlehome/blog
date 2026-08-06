@@ -247,7 +247,6 @@ export type ImportArgs = {
   allowOverwrite: boolean;
   dryRun: boolean;
   useFirstImageAsCover: boolean;
-  forcePdf: boolean;
 };
 
 function getArgumentValue(name: string): string | undefined {
@@ -277,11 +276,6 @@ export async function parseArgs(): Promise<ImportArgs> {
   const useFirstImageAsCover =
     process.argv.includes('--use-first-image-as-cover') ||
     process.env.USE_FIRST_IMAGE_AS_COVER === 'true';
-
-  const forcePdf =
-    process.argv.includes('--forcePdf') ||
-    process.argv.includes('--force-pdf') ||
-    process.env.FORCE_PDF === 'true';
 
   let url = argUrl;
 
@@ -316,7 +310,7 @@ export async function parseArgs(): Promise<ImportArgs> {
     );
   }
 
-  return { url, htmlFile, allowOverwrite, dryRun, useFirstImageAsCover, forcePdf };
+  return { url, htmlFile, allowOverwrite, dryRun, useFirstImageAsCover };
 }
 
 function hasClass(node: HastElement, className: string) {
@@ -1264,6 +1258,18 @@ export function isArxivUrl(url: string): boolean {
   }
 }
 
+/**
+ * Check for direct PDF document URLs, which are intentionally unsupported by
+ * the web article importer.
+ */
+export function isPdfUrl(url: string): boolean {
+  try {
+    return new URL(url).pathname.toLowerCase().replace(/\/+$/, '').endsWith('.pdf');
+  } catch {
+    return false;
+  }
+}
+
 export async function formatImportedMarkdown(
   fileContent: string,
   filepath: string,
@@ -1290,53 +1296,34 @@ export async function main() {
     dryRun: options.dryRun,
     allowOverwrite: options.allowOverwrite,
     useFirstImageAsCover: options.useFirstImageAsCover,
-    forcePdf: options.forcePdf,
     htmlFile: Boolean(options.htmlFile),
   });
 
   try {
-    if (options.htmlFile && options.forcePdf) {
-      throw new Error('--html-file cannot be combined with --forcePdf/--force-pdf');
-    }
-
-    // Check if URL is arXiv (no longer supported) - UNLESS forcePdf is enabled
-    if (isArxivUrl(targetUrl) && !options.forcePdf) {
-      logger.error(new Error('arXiv import is no longer supported'), {
+    // PDF and arXiv sources require a document extraction pipeline and are not
+    // handled by the web article importer.
+    if (isArxivUrl(targetUrl) || isPdfUrl(targetUrl)) {
+      logger.error(new Error('PDF and arXiv import are no longer supported'), {
         url: targetUrl,
-        reason: 'arXiv import has been removed from this repository',
+        reason: 'PDF import has been removed from this repository',
       });
       logger.summary({
         operation: 'content-import',
         status: 'fail',
         url: targetUrl,
-        reason: 'arXiv import no longer supported',
-        suggestion:
-          'Please provide a non-arXiv source URL (e.g., blog post), or use --forcePdf to import as PDF.',
-        errorCode: 'ARXIV_IMPORT_UNSUPPORTED',
+        reason: 'PDF and arXiv import are no longer supported',
+        suggestion: 'Please provide a supported web article URL.',
+        errorCode: 'PDF_IMPORT_UNSUPPORTED',
       });
       throw new Error(
-        'arXiv import is no longer supported in this repository. ' +
-          'Please provide a non-arXiv source URL (e.g., blog post), or use --forcePdf to import as generic PDF.',
+        'PDF and arXiv import are no longer supported in this repository. ' +
+          'Please provide a supported web article URL.',
       );
     }
 
     // Resolve adapter for URL
     const resolveSpan = logger.time('resolve-adapter');
-    let adapter;
-
-    // If forcePdf is enabled, force the PDF adapter regardless of URL
-    if (options.forcePdf) {
-      logger.info('Force PDF mode enabled - using PDF adapter', {
-        url: targetUrl,
-        forcePdf: true,
-      });
-      // Import the PDF adapter directly
-      const { pdfVlAdapter } = await import('./import/adapters/pdf_vl.js');
-      adapter = pdfVlAdapter;
-    } else {
-      // Normal adapter resolution
-      adapter = resolveAdapter(targetUrl);
-    }
+    const adapter = resolveAdapter(targetUrl);
 
     if (!adapter) {
       resolveSpan.end({ status: 'fail' });

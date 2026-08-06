@@ -73,7 +73,7 @@ Astro 构建期和浏览器运行期执行的代码。**完全隔离于 scripts*
 | `validation.yml`             | PR/push 质量门禁（含烟测） |
 | `deploy.yml`                 | 构建并发布到 GitHub Pages  |
 | `sync-notion.yml`            | 定时/手动同步 Notion       |
-| `import-content.yml`         | 手动导入外部文章/PDF       |
+| `import-content.yml`         | 手动导入外部文章           |
 | `delete-article.yml`         | 手动删除文章               |
 | `post-deploy-smoke-test.yml` | 部署后烟测                 |
 | `link-check.yml`             | 链接有效性检查             |

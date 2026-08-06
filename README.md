@@ -18,7 +18,7 @@
 
 ## 核心能力
 
-- **多源内容**：Notion 数据库、外部文章抓取（知乎/微信/Medium/PDF）、本地 Markdown
+- **多源内容**：Notion 数据库、外部文章抓取（知乎/微信/Medium）、本地 Markdown
 - **预取构建**：脚本在构建前生成内容文件，构建期不访问外部接口
 - **自动化 CI**：内容同步、部署、质量检查全自动化（每日定时/手动触发）
 - **数学公式**：KaTeX 支持行内/块级公式
@@ -124,7 +124,7 @@ blog/
 | `validation.yml`             | PR / Push → main      | 质量门禁（含烟测） |
 | `deploy.yml`                 | Push → main / 手动    | 部署 GitHub Pages  |
 | `sync-notion.yml`            | 每日 00:00 UTC / 手动 | 同步 Notion        |
-| `import-content.yml`         | 手动                  | 导入外部文章/PDF   |
+| `import-content.yml`         | 手动                  | 导入外部文章       |
 | `delete-article.yml`         | 手动                  | 删除文章           |
 | `post-deploy-smoke-test.yml` | 部署后                | 烟测               |
 | `link-check.yml`             | PR / Push / 每周一    | 链接有效性检查     |

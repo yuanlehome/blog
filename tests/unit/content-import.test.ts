@@ -5,6 +5,8 @@ import {
   extractArticleFromHtml,
   formatImportedMarkdown,
   htmlToMdx,
+  isArxivUrl,
+  isPdfUrl,
   sanitizeMdx,
 } from '../../scripts/content-import';
 import { resolveAdapter } from '../../scripts/import/adapters/index';
@@ -119,6 +121,18 @@ describe('content import for external articles', () => {
       const adapter = resolveAdapter('https://example.com/article');
       expect(adapter).not.toBeNull();
       expect(adapter?.id).toBe('others');
+    });
+  });
+
+  describe('unsupported document sources', () => {
+    it('detects direct PDF and arXiv URLs before adapter resolution', () => {
+      expect(isPdfUrl('https://example.com/document.pdf')).toBe(true);
+      expect(isPdfUrl('https://example.com/DOCUMENT.PDF/?download=1#page=2')).toBe(true);
+      expect(isPdfUrl('https://example.com/article')).toBe(false);
+
+      expect(isArxivUrl('https://arxiv.org/pdf/2306.00978')).toBe(true);
+      expect(isArxivUrl('https://arxiv.org/abs/2306.00978')).toBe(true);
+      expect(isArxivUrl('https://example.com/document.pdf')).toBe(false);
     });
   });
 
