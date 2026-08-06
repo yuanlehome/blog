@@ -1,7 +1,12 @@
 import fs from 'fs';
 import path from 'path';
 import { describe, expect, it, vi } from 'vitest';
-import { extractArticleFromHtml, htmlToMdx, sanitizeMdx } from '../../scripts/content-import';
+import {
+  extractArticleFromHtml,
+  formatImportedMarkdown,
+  htmlToMdx,
+  sanitizeMdx,
+} from '../../scripts/content-import';
 import { resolveAdapter } from '../../scripts/import/adapters/index';
 
 const fixturePath = path.join(process.cwd(), 'tests/fixtures/matmul.html');
@@ -9,6 +14,39 @@ const fixtureHtml = fs.readFileSync(fixturePath, 'utf8');
 const MATMUL_URL = 'https://www.aleksagordic.com/blog/matmul';
 
 describe('content import for external articles', () => {
+  it('formats generated frontmatter and markdown before it is written', async () => {
+    const input = [
+      '---',
+      'title: Imported article',
+      'tags: [ai,ml]',
+      'source: {title: Example,url: "https://example.com/article"}',
+      '---',
+      '# Heading',
+      '',
+      'A paragraph with   extra spaces.',
+      '',
+    ].join('\n');
+    const filepath = path.join(process.cwd(), 'src/content/blog/others/imported-article.md');
+
+    const formatted = await formatImportedMarkdown(input, filepath);
+
+    expect(formatted).toBe(
+      [
+        '---',
+        'title: Imported article',
+        'tags: [ai, ml]',
+        "source: { title: Example, url: 'https://example.com/article' }",
+        '---',
+        '',
+        '# Heading',
+        '',
+        'A paragraph with extra spaces.',
+        '',
+      ].join('\n'),
+    );
+    expect(await formatImportedMarkdown(formatted, filepath)).toBe(formatted);
+  });
+
   it('extracts the matmul article without noise', () => {
     const article = extractArticleFromHtml(fixtureHtml, MATMUL_URL);
 

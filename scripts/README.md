@@ -82,11 +82,17 @@ scripts/
 
 **npm 命令**：`npm run import:content`
 
+传给 `npm run import:content -- ...` 的参数只会交给导入脚本；导入成功后，npm 会通过
+`postimport:content` 生命周期自动运行 `npm run lint`。如果导入失败，则不会运行 lint。
+导入器会在写入前仅对本次生成的 Markdown（含 frontmatter）运行 Prettier；不会批量改写
+仓库中的其他文件，后续 lint 用于校验导入结果及仓库现状。
+
 **命令行参数**：
 
 | 参数                         | 类型    | 必需 | 默认值  | 说明                                        |
 | ---------------------------- | ------- | ---- | ------- | ------------------------------------------- |
 | `--url`                      | string  | ✓    | —       | 文章 URL                                    |
+| `--html-file`                | string  | ✗    | —       | 完整页面 HTML 文件（当前仅支持知乎）        |
 | `--allow-overwrite`          | boolean | ✗    | `false` | 覆盖已存在文章                              |
 | `--dry-run`                  | boolean | ✗    | `false` | 预览模式                                    |
 | `--use-first-image-as-cover` | boolean | ✗    | `false` | 首图作为封面                                |
@@ -97,6 +103,7 @@ scripts/
 | 变量名                     | 对应参数                     |
 | -------------------------- | ---------------------------- |
 | `URL`                      | `--url`                      |
+| `HTML_FILE`                | `--html-file`                |
 | `ALLOW_OVERWRITE`          | `--allow-overwrite`          |
 | `DRY_RUN`                  | `--dry-run`                  |
 | `USE_FIRST_IMAGE_AS_COVER` | `--use-first-image-as-cover` |
@@ -136,11 +143,17 @@ scripts/
 | PDF    | `*.pdf` 或 `--forcePdf` 标志 | `src/content/blog/others/` |
 | 其他   | 任意 URL                     | `src/content/blog/others/` |
 
+`--html-file` 读取浏览器保存的完整页面 HTML，并直接解析知乎标题、作者、发布时间和正文，
+不会启动 Playwright。`--url` 仍然必需，用于 canonical URL、相对链接和原始图片下载。
+
 **使用示例**：
 
 ```bash
 # 导入知乎文章
 npm run import:content -- --url="https://zhuanlan.zhihu.com/p/668888063"
+
+# 从浏览器保存的完整知乎页面导入，不启动 Playwright
+npm run import:content -- --url="https://zhuanlan.zhihu.com/p/668888063" --html-file="/path/to/article.html"
 
 # 覆盖已存在的文章
 npm run import:content -- --url="<URL>" --allow-overwrite

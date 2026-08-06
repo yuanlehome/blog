@@ -2,6 +2,7 @@ import { chromium, type BrowserContext } from '@playwright/test';
 import fs from 'fs';
 import matter from 'gray-matter';
 import path from 'path';
+import prettier from 'prettier';
 import dotenv from 'dotenv';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -20,9 +21,10 @@ import { BLOG_CONTENT_DIR, PUBLIC_IMAGES_DIR } from '../src/config/paths';
 import { ensureUniqueSlug, slugFromTitle } from '../src/lib/slug';
 import { processMarkdownForImport } from './markdown/index.js';
 import { resolveAdapter } from './import/adapters/index.js';
+import type { Adapter, Article } from './import/adapters/types.js';
 import { createScriptLogger, now, duration } from './logger-helpers.js';
 import { redactValue } from './logger/redaction.js';
-import { buildSlugOwnerMap } from './slug-registry.js';
+import { buildImportOwnerId, buildSlugOwnerMap } from './slug-registry.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -239,24 +241,33 @@ function serializeError(error: unknown): SerializedError {
   };
 }
 
-type ImportArgs = {
+export type ImportArgs = {
   url: string;
+  htmlFile?: string;
   allowOverwrite: boolean;
   dryRun: boolean;
   useFirstImageAsCover: boolean;
   forcePdf: boolean;
 };
 
-async function parseArgs(): Promise<ImportArgs> {
+function getArgumentValue(name: string): string | undefined {
+  const inlineValue = process.argv
+    .find((arg) => arg.startsWith(`${name}=`))
+    ?.slice(`${name}=`.length);
+  if (inlineValue !== undefined) return inlineValue;
+
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
+export async function parseArgs(): Promise<ImportArgs> {
   const argUrl =
-    process.argv.find((arg) => arg.startsWith('--url='))?.slice('--url='.length) ??
-    (() => {
-      const i = process.argv.indexOf('--url');
-      return i >= 0 ? process.argv[i + 1] : undefined;
-    })() ??
+    getArgumentValue('--url') ??
     process.env.URL ??
     process.env.url ??
-    process.argv[2];
+    (process.argv[2]?.startsWith('--') ? undefined : process.argv[2]);
+  const htmlFile =
+    (getArgumentValue('--html-file') || process.env.HTML_FILE || '').trim() || undefined;
 
   const allowOverwrite =
     process.argv.includes('--allow-overwrite') || process.env.ALLOW_OVERWRITE === 'true';
@@ -300,10 +311,12 @@ async function parseArgs(): Promise<ImportArgs> {
   }
 
   if (!url) {
-    throw new Error('Usage: npm run import:content -- --url=<URL>');
+    throw new Error(
+      'Usage: npm run import:content -- --url=<URL> [--html-file=<complete-page.html>]',
+    );
   }
 
-  return { url, allowOverwrite, dryRun, useFirstImageAsCover, forcePdf };
+  return { url, htmlFile, allowOverwrite, dryRun, useFirstImageAsCover, forcePdf };
 }
 
 function hasClass(node: HastElement, className: string) {
@@ -1182,6 +1195,33 @@ export async function htmlToMdx(
   return { markdown, images };
 }
 
+export function readHtmlFile(filePath: string): { html: string; resolvedPath: string } {
+  const resolvedPath = path.resolve(filePath);
+
+  if (!fs.existsSync(resolvedPath)) {
+    throw new Error(`HTML file does not exist: ${resolvedPath}`);
+  }
+
+  if (!fs.statSync(resolvedPath).isFile()) {
+    throw new Error(`HTML file path is not a file: ${resolvedPath}`);
+  }
+
+  const html = fs.readFileSync(resolvedPath, 'utf8');
+  if (!html.trim()) {
+    throw new Error(`HTML file is empty: ${resolvedPath}`);
+  }
+
+  return { html, resolvedPath };
+}
+
+export function validateHtmlFileAdapter(adapter: Adapter, targetUrl: string): void {
+  if (adapter.id !== 'zhihu' || !adapter.fetchArticleFromHtml) {
+    throw new Error(
+      `--html-file currently supports only Zhihu column URLs; resolved adapter "${adapter.id}" for: ${targetUrl}`,
+    );
+  }
+}
+
 async function withBrowser<T>(fn: (context: BrowserContext) => Promise<T>) {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
@@ -1224,7 +1264,20 @@ export function isArxivUrl(url: string): boolean {
   }
 }
 
-async function main() {
+export async function formatImportedMarkdown(
+  fileContent: string,
+  filepath: string,
+): Promise<string> {
+  const prettierConfig = await prettier.resolveConfig(filepath);
+
+  return prettier.format(fileContent, {
+    ...(prettierConfig ?? {}),
+    filepath,
+    parser: 'markdown',
+  });
+}
+
+export async function main() {
   const scriptStart = now();
   const options = await parseArgs();
   const targetUrl = options.url;
@@ -1238,9 +1291,14 @@ async function main() {
     allowOverwrite: options.allowOverwrite,
     useFirstImageAsCover: options.useFirstImageAsCover,
     forcePdf: options.forcePdf,
+    htmlFile: Boolean(options.htmlFile),
   });
 
   try {
+    if (options.htmlFile && options.forcePdf) {
+      throw new Error('--html-file cannot be combined with --forcePdf/--force-pdf');
+    }
+
     // Check if URL is arXiv (no longer supported) - UNLESS forcePdf is enabled
     if (isArxivUrl(targetUrl) && !options.forcePdf) {
       logger.error(new Error('arXiv import is no longer supported'), {
@@ -1288,6 +1346,17 @@ async function main() {
 
     logger.info('Using adapter', { adapterId: adapter.id, adapterName: adapter.name });
 
+    let localHtml: string | undefined;
+    if (options.htmlFile) {
+      validateHtmlFileAdapter(adapter, targetUrl);
+      const loaded = readHtmlFile(options.htmlFile);
+      localHtml = loaded.html;
+      logger.info('Loaded local HTML snapshot', {
+        htmlFile: loaded.resolvedPath,
+        htmlLength: localHtml.length,
+      });
+    }
+
     const contentDir = path.join(CONTENT_ROOT, adapter.id);
     const imageRoot = path.join(IMAGE_ROOT, adapter.id);
     fs.mkdirSync(contentDir, { recursive: true });
@@ -1300,14 +1369,13 @@ async function main() {
     // Phase 1: Fetch article metadata to determine final slug
     // We pass fallbackSlug initially but will regenerate after getting the title
     const fetchSpan = logger.time('fetch-article');
-    let article;
+    let article: Article;
     let tempSlug: string;
     try {
-      article = await withBrowser(async (context) => {
-        const page = await context.newPage();
-        return adapter.fetchArticle({
+      if (localHtml !== undefined) {
+        article = await adapter.fetchArticleFromHtml!({
           url: targetUrl,
-          page,
+          html: localHtml,
           options: {
             slug: fallbackSlug,
             imageRoot,
@@ -1315,7 +1383,21 @@ async function main() {
             downloadImage: options.dryRun ? async () => null : undefined,
           },
         });
-      });
+      } else {
+        article = await withBrowser(async (context) => {
+          const page = await context.newPage();
+          return adapter.fetchArticle({
+            url: targetUrl,
+            page,
+            options: {
+              slug: fallbackSlug,
+              imageRoot,
+              publicBasePath: `/images/${adapter.id}/${fallbackSlug}`,
+              downloadImage: options.dryRun ? async () => null : undefined,
+            },
+          });
+        });
+      }
       tempSlug = fallbackSlug;
       fetchSpan.end({
         status: 'ok',
@@ -1336,7 +1418,7 @@ async function main() {
       fallbackId: fallbackSlug,
     });
     const usedSlugs = buildSlugOwnerMap(CONTENT_ROOT);
-    const ownerId = `import:${adapter.id}:${targetUrl}`;
+    const ownerId = buildImportOwnerId(adapter.id, article.canonicalUrl);
     const slug = ensureUniqueSlug(baseSlug, ownerId, usedSlugs);
 
     logger.info('Generated slug', { tempSlug, baseSlug, finalSlug: slug, title: article.title });
@@ -1488,6 +1570,15 @@ async function main() {
         dryRun: true,
       });
       return;
+    }
+
+    const formatSpan = logger.time('format-markdown');
+    try {
+      fileContent = await formatImportedMarkdown(fileContent, filepath);
+      formatSpan.end({ status: 'ok', fields: { filepath } });
+    } catch (error) {
+      formatSpan.end({ status: 'fail' });
+      throw error;
     }
 
     // Write file

@@ -4,7 +4,8 @@
  * Handles article import from Zhihu Column (zhuanlan.zhihu.com)
  */
 
-import type { Adapter, Article, FetchArticleInput } from './types.js';
+import { JSDOM } from 'jsdom';
+import type { Adapter, Article, FetchArticleFromHtmlInput, FetchArticleInput } from './types.js';
 import { htmlToMdx } from '../../content-import.js';
 import type { Logger } from '../../logger/types.js';
 import { createLogger } from '../../logger/index.js';
@@ -16,6 +17,14 @@ const MAX_BACKOFF_MS = 10000;
 const JS_INITIALIZATION_DELAY = 2000;
 const MIN_CONTENT_LENGTH = 100;
 const CONTENT_WAIT_TIMEOUT = 30000;
+const CONTENT_SELECTORS = [
+  '.Post-RichText',
+  '.RichText',
+  'article',
+  '.ztext',
+  '[data-za-detail-view-element_name="Article"]',
+  '.Post-Main .RichContent',
+];
 
 /**
  * Check if URL is from Zhihu domain
@@ -54,32 +63,273 @@ function sanitizeZhihuUrl(url: string): string {
   }
 }
 
+type RawExtractedZhihuArticle = {
+  title: string;
+  author: string;
+  published: string;
+  html: string;
+  keywords?: string;
+};
+
+type ExtractedZhihuArticle = Omit<RawExtractedZhihuArticle, 'keywords'> & {
+  tags: string[];
+};
+
+function pickFirstText(document: Document, selectors: string[]): string {
+  for (const selector of selectors) {
+    const text = document.querySelector(selector)?.textContent?.trim();
+    if (text) return text;
+  }
+  return '';
+}
+
+function pickFirstAttribute(document: Document, selectors: string[], attribute: string): string {
+  for (const selector of selectors) {
+    const value = document.querySelector(selector)?.getAttribute(attribute)?.trim();
+    if (value) return value;
+  }
+  return '';
+}
+
+function parseZhihuKeywords(keywords?: string): string[] {
+  const seen = new Set<string>();
+  const tags: string[] = [];
+
+  for (const keyword of (keywords || '').split(/[,，]/)) {
+    const tag = keyword.trim();
+    if (!tag || seen.has(tag)) continue;
+    seen.add(tag);
+    tags.push(tag);
+  }
+
+  return tags;
+}
+
+function formatDateInShanghai(date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function normalizeZhihuPublishedDate(published: string): string {
+  const value = published.trim();
+  const datePrefix = value.match(/^(\d{4}-\d{2}-\d{2})(?:$|T)/)?.[1];
+  if (!datePrefix) return value;
+  if (value === datePrefix) return datePrefix;
+
+  // An ISO value without an offset represents Zhihu's local wall-clock time.
+  if (!/(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)) {
+    return datePrefix;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : formatDateInShanghai(parsed);
+}
+
+function isZhihuEntitySearchLink(href: string): boolean {
+  try {
+    const url = new URL(href, 'https://zhuanlan.zhihu.com');
+    return (
+      url.hostname.toLowerCase() === 'zhida.zhihu.com' &&
+      url.pathname.replace(/\/+$/, '') === '/search' &&
+      (url.searchParams.has('zd_token') ||
+        url.searchParams.get('zhida_source')?.toLowerCase() === 'entity')
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Remove short-lived Zhihu entity links and align in-article heading depth with
+ * the blog title, which is rendered separately from frontmatter.
+ */
+function cleanZhihuContentHtml(html: string): string {
+  const dom = new JSDOM('');
+  const { document } = dom.window;
+  const container = document.createElement('div');
+  container.innerHTML = html;
+
+  container
+    .querySelectorAll('script, style, noscript, template')
+    .forEach((element) => element.remove());
+
+  container.querySelectorAll('a[href]').forEach((anchor) => {
+    const href = anchor.getAttribute('href');
+    if (href && isZhihuEntitySearchLink(href)) {
+      anchor.replaceWith(...Array.from(anchor.childNodes));
+    }
+  });
+
+  const headings = Array.from(container.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+  const topHeadingLevel = headings.reduce((minimum, heading) => {
+    const level = Number(heading.tagName.slice(1));
+    return Math.min(minimum, level);
+  }, 7);
+
+  if (topHeadingLevel > 2 && topHeadingLevel <= 6) {
+    const offset = topHeadingLevel - 2;
+    for (const heading of headings) {
+      const level = Number(heading.tagName.slice(1));
+      const replacement = document.createElement(`h${level - offset}`);
+      for (const attribute of Array.from(heading.attributes)) {
+        replacement.setAttribute(attribute.name, attribute.value);
+      }
+      replacement.append(...Array.from(heading.childNodes));
+      heading.replaceWith(replacement);
+    }
+  }
+
+  return container.innerHTML;
+}
+
+function normalizeExtractedZhihuArticle(article: RawExtractedZhihuArticle): ExtractedZhihuArticle {
+  return {
+    title: article.title,
+    author: article.author,
+    published: normalizeZhihuPublishedDate(article.published),
+    html: cleanZhihuContentHtml(article.html),
+    tags: parseZhihuKeywords(article.keywords),
+  };
+}
+
+/**
+ * Extract a Zhihu article from a complete page snapshot.
+ *
+ * This deliberately uses DOM parsing instead of Playwright so saved pages can
+ * bypass an anti-spider response while still using the normal Markdown and
+ * image-localization pipeline.
+ */
+export function extractZhihuArticleFromHtml(html: string): ExtractedZhihuArticle {
+  if (!html.trim()) {
+    throw new Error('Zhihu HTML file is empty');
+  }
+
+  const dom = new JSDOM(html);
+  const { document } = dom.window;
+  let content: Element | null = null;
+
+  for (const selector of CONTENT_SELECTORS) {
+    const candidate = document.querySelector(selector);
+    if (candidate?.innerHTML.trim()) {
+      content = candidate;
+      break;
+    }
+  }
+
+  if (!content) {
+    throw new Error(
+      `Zhihu HTML file does not contain article content; expected one of: ${CONTENT_SELECTORS.join(', ')}`,
+    );
+  }
+
+  const contentClone = content.cloneNode(true) as Element;
+
+  const title =
+    pickFirstText(document, ['h1.Post-Title', 'h1.RichText-Title', '.Post-Title', 'article h1']) ||
+    pickFirstAttribute(document, ['meta[property="og:title"]', 'meta[name="title"]'], 'content') ||
+    document.title.trim() ||
+    'Zhihu Article';
+
+  const author =
+    pickFirstAttribute(
+      document,
+      ['meta[name="author"]', 'meta[property="article:author"]'],
+      'content',
+    ) ||
+    pickFirstText(document, [
+      '.AuthorInfo-name',
+      '.ContentItem-author .UserLink-link',
+      '.UserLink-link',
+      '[rel="author"]',
+    ]);
+
+  const published =
+    pickFirstAttribute(
+      document,
+      [
+        'meta[itemprop="datePublished"]',
+        'meta[property="article:published_time"]',
+        'meta[name="publish_date"]',
+        'meta[name="date"]',
+      ],
+      'content',
+    ) || pickFirstAttribute(document, ['time[datetime]'], 'datetime');
+
+  const keywords = pickFirstAttribute(document, ['meta[name="keywords" i]'], 'content');
+
+  return normalizeExtractedZhihuArticle({
+    title,
+    author,
+    published,
+    keywords,
+    html: contentClone.innerHTML,
+  });
+}
+
 /**
  * Detect if the page is a login/captcha/blocked page
  */
 async function detectBlockedPage(page: any): Promise<string | null> {
   try {
-    const pageContent = await page.content();
+    const contentState = await page.evaluate(
+      ({ selectors, minTextLength }: { selectors: string[]; minTextLength: number }) => {
+        const hasArticleContent = selectors.some((selector) => {
+          const text = document.querySelector(selector)?.textContent?.trim() || '';
+          return text.length >= minTextLength;
+        });
+
+        return {
+          hasArticleContent,
+          visibleText: (document.body?.innerText || '').slice(0, 20000),
+        };
+      },
+      { selectors: CONTENT_SELECTORS, minTextLength: MIN_CONTENT_LENGTH },
+    );
+
+    // A rendered article is stronger evidence than generic login text in Zhihu's header.
+    if (contentState?.hasArticleContent === true) {
+      return null;
+    }
+
     const title = await page.title();
     const url = page.url();
+    const visibleText =
+      typeof contentState?.visibleText === 'string' ? contentState.visibleText : '';
+    let pathname = '';
+
+    try {
+      pathname = new URL(url).pathname;
+    } catch {
+      pathname = url;
+    }
 
     if (
       /登录|login|sign.?in/i.test(title) ||
-      /登录|login|sign.?in/i.test(pageContent) ||
-      url.includes('/signin') ||
-      url.includes('/login')
+      /\/(?:signin|login)(?:\/|$)/i.test(pathname) ||
+      /请先登录|登录后(?:继续|查看|访问|浏览)|登录知乎|使用(?:知乎)?账号登录|手机号登录/i.test(
+        visibleText,
+      )
     ) {
       return 'Zhihu blocked request (login page detected)';
     }
 
     if (
       /验证|captcha|security.?check|human.?verification/i.test(title) ||
-      /验证|captcha|security.?check/i.test(pageContent)
+      /\/(?:captcha|security-check|account\/unhuman)(?:\/|$)/i.test(pathname) ||
+      /安全验证|请完成.{0,10}验证|拖动.{0,20}滑块|验证码|captcha|security.?check|human.?verification|verify you are human/i.test(
+        visibleText,
+      )
     ) {
       return 'Zhihu blocked request (captcha/security check detected)';
     }
 
-    if (/安全验证|反作弊|access.?denied/i.test(pageContent)) {
+    if (/反作弊|访问异常|请求存在异常|access.?denied/i.test(visibleText)) {
       return 'Zhihu blocked request (anti-spider protection)';
     }
 
@@ -134,7 +384,7 @@ async function extractZhihuWithRetry(
   url: string,
   maxRetries = MAX_RETRIES,
   logger?: Logger,
-): Promise<{ title: string; author: string; published: string; html: string }> {
+): Promise<ExtractedZhihuArticle> {
   const sanitizedUrl = sanitizeZhihuUrl(url);
   let lastError: Error | null = null;
 
@@ -165,16 +415,7 @@ async function extractZhihuWithRetry(
         throw new Error(blockReason);
       }
 
-      const contentSelectors = [
-        '.Post-RichText',
-        '.RichText',
-        'article',
-        '.ztext',
-        '[data-za-detail-view-element_name="Article"]',
-        '.Post-Main .RichContent',
-      ];
-
-      await waitForContent(page, contentSelectors, {
+      await waitForContent(page, CONTENT_SELECTORS, {
         minTextLength: MIN_CONTENT_LENGTH,
         timeout: CONTENT_WAIT_TIMEOUT,
       });
@@ -228,6 +469,7 @@ async function extractZhihuWithRetry(
             'meta[property="article:published_time"]',
             'meta[name="publish_date"]',
           ]),
+          keywords: pickMeta(['meta[name="keywords" i]']),
           html,
         };
       });
@@ -236,15 +478,17 @@ async function extractZhihuWithRetry(
         throw new Error('Zhihu DOM structure changed: Failed to extract article content');
       }
 
+      const normalizedResult = normalizeExtractedZhihuArticle(result);
+
       logger?.info('Successfully extracted article', {
         adapter: 'zhihu',
         attempt,
-        title: result.title,
-        hasAuthor: Boolean(result.author),
-        hasPublished: Boolean(result.published),
-        htmlLength: result.html.length,
+        title: normalizedResult.title,
+        hasAuthor: Boolean(normalizedResult.author),
+        hasPublished: Boolean(normalizedResult.published),
+        htmlLength: normalizedResult.html.length,
       });
-      return result;
+      return normalizedResult;
     } catch (error) {
       lastError = error as Error;
       logger?.warn('Extraction attempt failed', {
@@ -344,12 +588,89 @@ export const zhihuAdapter: Adapter = {
         source: 'zhihu',
         author: result.author,
         publishedAt: result.published || undefined,
+        tags: result.tags,
         images: images.map((localPath) => ({ url: '', localPath })),
       };
     } catch (error) {
       extractionSpan.end({ status: 'fail' });
       logger.error(error instanceof Error ? error : new Error(String(error)), {
         adapter: 'zhihu',
+        url,
+      });
+      throw error;
+    }
+  },
+
+  async fetchArticleFromHtml(input: FetchArticleFromHtmlInput): Promise<Article> {
+    const { url, html, options = {} } = input;
+    const {
+      slug = 'zhihu-article',
+      imageRoot = '/tmp/images',
+      publicBasePath,
+      logger: parentLogger,
+    } = options;
+    const logger =
+      parentLogger?.child({
+        module: 'import',
+        adapter: 'zhihu',
+        input: 'html-file',
+        url,
+        slug,
+      }) ?? createLogger({ silent: true });
+    const extractionSpan = logger.span({
+      name: 'zhihu-html-extraction',
+      fields: { adapter: 'zhihu', input: 'html-file' },
+    });
+    extractionSpan.start();
+
+    try {
+      const result = extractZhihuArticleFromHtml(html);
+      logger.info('Converting local HTML to Markdown', {
+        adapter: 'zhihu',
+        htmlLength: result.html.length,
+      });
+
+      const { markdown, images } = await htmlToMdx(result.html, {
+        slug,
+        provider: 'zhihu',
+        baseUrl: sanitizeZhihuUrl(url),
+        imageRoot,
+        articleUrl: url,
+        publicBasePath: publicBasePath || `/images/zhihu/${slug}`,
+        downloadImage: options.downloadImage,
+      });
+
+      extractionSpan.end({
+        status: 'ok',
+        fields: {
+          imagesCount: images.length,
+          markdownLength: markdown.length,
+        },
+      });
+      logger.summary({
+        status: 'ok',
+        adapter: 'zhihu',
+        input: 'html-file',
+        title: result.title,
+        imagesCount: images.length,
+        markdownLength: markdown.length,
+      });
+
+      return {
+        title: result.title,
+        markdown,
+        canonicalUrl: sanitizeZhihuUrl(url),
+        source: 'zhihu',
+        author: result.author,
+        publishedAt: result.published || undefined,
+        tags: result.tags,
+        images: images.map((localPath) => ({ url: '', localPath })),
+      };
+    } catch (error) {
+      extractionSpan.end({ status: 'fail' });
+      logger.error(error instanceof Error ? error : new Error(String(error)), {
+        adapter: 'zhihu',
+        input: 'html-file',
         url,
       });
       throw error;

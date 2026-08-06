@@ -4,8 +4,10 @@
  * Tests for import adapters with mocked browser and network calls
  */
 
+import fs from 'fs';
+import path from 'path';
 import { describe, it, expect, vi } from 'vitest';
-import { zhihuAdapter } from '../../scripts/import/adapters/zhihu.js';
+import { extractZhihuArticleFromHtml, zhihuAdapter } from '../../scripts/import/adapters/zhihu.js';
 import { wechatAdapter } from '../../scripts/import/adapters/wechat.js';
 import { mediumAdapter } from '../../scripts/import/adapters/medium.js';
 import { othersAdapter } from '../../scripts/import/adapters/others.js';
@@ -31,7 +33,59 @@ function createMockPage() {
   };
 }
 
+const zhihuNormalizationHtml = `
+  <!doctype html>
+  <html>
+    <head>
+      <title>Zhihu normalization</title>
+      <meta name="author" content="Test Author">
+      <meta name="keywords" content="大模型, 推理优化，系统，大模型">
+      <meta itemprop="datePublished" content="2026-08-06T00:15:00+08:00">
+    </head>
+    <body>
+      <h1 class="Post-Title">Zhihu normalization</h1>
+      <div class="Post-RichText">
+        <h3 class="section">第一节</h3>
+        <p>
+          <a href="https://zhida.zhihu.com/search?q=实体&amp;zd_token=temporary-token"><strong>实体术语</strong></a>
+          和 <a href="https://zhida.zhihu.com/search?q=无令牌实体&amp;zhida_source=entity"><em>无令牌实体术语</em></a>
+          和 <a href="https://example.com/reference">正常链接</a>
+        </p>
+        <h4>细节</h4>
+      </div>
+    </body>
+  </html>
+`;
+
 describe('Zhihu Adapter', () => {
+  it('should extract metadata and article innerHTML from a complete page snapshot', () => {
+    const html = fs.readFileSync(
+      path.join(process.cwd(), 'tests/fixtures/zhihu/article.html'),
+      'utf8',
+    );
+
+    const article = extractZhihuArticleFromHtml(html);
+
+    expect(article.title).toBe('Rust 2021 Edition');
+    expect(article.author).toBe('Test Author');
+    expect(article.published).toBe('2023-06-15');
+    expect(article.html).toContain('这是一篇关于 Rust 2021 Edition 的文章');
+    expect(article.html).not.toContain('<h1');
+  });
+
+  it('should normalize saved-page metadata, entity links, and heading depth', () => {
+    const article = extractZhihuArticleFromHtml(zhihuNormalizationHtml);
+
+    expect(article.published).toBe('2026-08-06');
+    expect(article.tags).toEqual(['大模型', '推理优化', '系统']);
+    expect(article.html).toContain('<h2 class="section">第一节</h2>');
+    expect(article.html).toContain('<h3>细节</h3>');
+    expect(article.html).toContain('<strong>实体术语</strong>');
+    expect(article.html).toContain('<em>无令牌实体术语</em>');
+    expect(article.html).not.toContain('zhida.zhihu.com');
+    expect(article.html).toContain('href="https://example.com/reference"');
+  });
+
   describe('canHandle', () => {
     it('should handle zhuanlan.zhihu.com URLs', () => {
       expect(zhihuAdapter.canHandle('https://zhuanlan.zhihu.com/p/123456')).toBe(true);
@@ -49,6 +103,56 @@ describe('Zhihu Adapter', () => {
   });
 
   describe('fetchArticle', () => {
+    it('should import a complete local HTML snapshot without a page', async () => {
+      const html = fs.readFileSync(
+        path.join(process.cwd(), 'tests/fixtures/zhihu/article.html'),
+        'utf8',
+      );
+      const mockDownloadImage = vi.fn().mockResolvedValue('/images/zhihu/local/001-image.jpg');
+
+      const result = await zhihuAdapter.fetchArticleFromHtml!({
+        url: 'https://zhuanlan.zhihu.com/p/123456?share_code=abc&utm_psn=456',
+        html,
+        options: {
+          slug: 'local',
+          imageRoot: '/tmp/test',
+          publicBasePath: '/images/zhihu/local',
+          downloadImage: mockDownloadImage,
+        },
+      });
+
+      expect(result.title).toBe('Rust 2021 Edition');
+      expect(result.author).toBe('Test Author');
+      expect(result.publishedAt).toBe('2023-06-15');
+      expect(result.canonicalUrl).toBe('https://zhuanlan.zhihu.com/p/123456');
+      expect(result.markdown).toContain('这是一篇关于 Rust 2021 Edition 的文章');
+      expect(mockDownloadImage).toHaveBeenCalledWith(
+        'https://example.com/image.jpg',
+        'zhihu',
+        'local',
+        '/tmp/test',
+        0,
+        'https://zhuanlan.zhihu.com/p/123456?share_code=abc&utm_psn=456',
+        '/images/zhihu/local',
+      );
+    });
+
+    it('should apply Zhihu normalization when importing a local HTML snapshot', async () => {
+      const result = await zhihuAdapter.fetchArticleFromHtml!({
+        url: 'https://zhuanlan.zhihu.com/p/123456',
+        html: zhihuNormalizationHtml,
+        options: { slug: 'local', imageRoot: '/tmp/test' },
+      });
+
+      expect(result.publishedAt).toBe('2026-08-06');
+      expect(result.tags).toEqual(['大模型', '推理优化', '系统']);
+      expect(result.markdown).toContain('## 第一节');
+      expect(result.markdown).toContain('### 细节');
+      expect(result.markdown).toContain('**实体术语**');
+      expect(result.markdown).not.toContain('zhida.zhihu.com');
+      expect(result.markdown).toContain('[正常链接](https://example.com/reference)');
+    });
+
     it('should extract article from Zhihu', async () => {
       const mockPage = createMockPage();
       const mockDownloadImage = vi.fn().mockResolvedValue('/images/test.jpg');
@@ -75,6 +179,90 @@ describe('Zhihu Adapter', () => {
       expect(result.source).toBe('zhihu');
       expect(result.markdown).toBeTruthy();
       expect(mockPage.goto).toHaveBeenCalled();
+    });
+
+    it('should apply Zhihu normalization to live extraction', async () => {
+      const mockPage = createMockPage();
+      mockPage.evaluate
+        .mockResolvedValueOnce({
+          hasArticleContent: true,
+          visibleText: 'A'.repeat(150),
+        })
+        .mockResolvedValueOnce({
+          title: 'Live Zhihu Article',
+          author: 'Live Author',
+          published: '2026-08-06T00:15:00+08:00',
+          keywords: '大模型，推理优化, 大模型',
+          html: `
+            <h4>实时正文</h4>
+            <p><a href="https://zhida.zhihu.com/search?q=实体&zd_token=short-lived">实时实体</a></p>
+          `,
+        });
+
+      const result = await zhihuAdapter.fetchArticle({
+        url: 'https://zhuanlan.zhihu.com/p/123456',
+        page: mockPage as any,
+        options: { slug: 'live', imageRoot: '/tmp/test' },
+      });
+
+      expect(result.publishedAt).toBe('2026-08-06');
+      expect(result.tags).toEqual(['大模型', '推理优化']);
+      expect(result.markdown).toContain('## 实时正文');
+      expect(result.markdown).toContain('实时实体');
+      expect(result.markdown).not.toContain('zhida.zhihu.com');
+    });
+
+    it('should not treat the login button as a blocked page when article content is present', async () => {
+      const mockPage = createMockPage();
+      const articleText = 'A'.repeat(150);
+      mockPage.content.mockResolvedValue(`
+        <html>
+          <body>
+            <header><button>登录</button></header>
+            <article class="Post-RichText">${articleText}</article>
+          </body>
+        </html>
+      `);
+      mockPage.evaluate
+        .mockResolvedValueOnce({
+          hasArticleContent: true,
+          visibleText: `登录 ${articleText}`,
+        })
+        .mockResolvedValueOnce({
+          title: 'Zhihu Article',
+          author: 'Zhihu Author',
+          published: '2024-01-01',
+          html: `<p>${articleText}</p>`,
+        });
+
+      const result = await zhihuAdapter.fetchArticle({
+        url: 'https://zhuanlan.zhihu.com/p/123456',
+        page: mockPage as any,
+        options: { slug: 'test-slug', imageRoot: '/tmp/test' },
+      });
+
+      expect(result.title).toBe('Zhihu Article');
+      expect(result.markdown).toContain(articleText);
+    });
+
+    it('should still reject a genuine login page without article content', async () => {
+      const mockPage = createMockPage();
+      mockPage.title.mockResolvedValue('知乎');
+      mockPage.url.mockReturnValue('https://zhuanlan.zhihu.com/p/123456');
+      mockPage.evaluate.mockResolvedValue({
+        hasArticleContent: false,
+        visibleText: '登录知乎，登录后继续浏览',
+      });
+
+      await expect(
+        zhihuAdapter.fetchArticle({
+          url: 'https://zhuanlan.zhihu.com/p/123456',
+          page: mockPage as any,
+          options: { slug: 'test-slug', imageRoot: '/tmp/test' },
+        }),
+      ).rejects.toThrow('Zhihu blocked request (login page detected)');
+
+      expect(mockPage.waitForSelector).not.toHaveBeenCalled();
     });
 
     it('should handle extraction errors gracefully', async () => {
@@ -337,7 +525,11 @@ describe('Adapters with Logger', () => {
       let attemptCount = 0;
 
       // First attempt fails, second succeeds
-      mockPage.evaluate.mockImplementation(() => {
+      mockPage.evaluate.mockImplementation((_pageFunction, argument) => {
+        if (argument?.selectors) {
+          return Promise.resolve({ hasArticleContent: false, visibleText: '' });
+        }
+
         attemptCount++;
         if (attemptCount === 1) {
           return Promise.reject(new Error('Temporary failure'));

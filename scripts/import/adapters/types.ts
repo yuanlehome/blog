@@ -44,18 +44,32 @@ export interface Article {
 }
 
 /**
+ * Shared options for browser and local HTML article imports
+ */
+export interface FetchArticleOptions {
+  slug?: string;
+  imageRoot?: string;
+  publicBasePath?: string;
+  downloadImage?: DownloadImageFunction;
+  logger?: Logger;
+}
+
+/**
  * Input parameters for adapter fetchArticle method
  */
 export interface FetchArticleInput {
   url: string;
   page: Page;
-  options?: {
-    slug?: string;
-    imageRoot?: string;
-    publicBasePath?: string;
-    downloadImage?: DownloadImageFunction;
-    logger?: Logger;
-  };
+  options?: FetchArticleOptions;
+}
+
+/**
+ * Input parameters for importing a complete page snapshot without a browser
+ */
+export interface FetchArticleFromHtmlInput {
+  url: string;
+  html: string;
+  options?: FetchArticleOptions;
 }
 
 /**
@@ -86,6 +100,9 @@ export interface Adapter {
 
   /** Fetch and convert article to standardized format */
   fetchArticle(input: FetchArticleInput): Promise<Article>;
+
+  /** Parse and convert a complete local page snapshot without launching a browser */
+  fetchArticleFromHtml?(input: FetchArticleFromHtmlInput): Promise<Article>;
 
   /** Optional: normalize article fields after extraction */
   normalize?(article: Article): Article;
