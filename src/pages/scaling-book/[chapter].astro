@@ -1,0 +1,276 @@
+---
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import ReadingProgress from '../../components/ReadingProgress.astro';
+import MobileToc from '../../components/MobileToc.astro';
+import FloatingActionStack from '../../components/FloatingActionStack.astro';
+import ScrollUpTopButton from '../../components/ScrollUpTopButton.astro';
+import BookSidebar from '../../components/scaling-book/BookSidebar.astro';
+import BookPrevNext from '../../components/scaling-book/BookPrevNext.astro';
+import Layout from '../../layouts/Layout.astro';
+import { getReadingTime } from '../../lib/content/readingTime';
+import { normalizeBase } from '../../lib/slug';
+import { COLUMNS_INDEX_PATH } from '../../lib/content/columns';
+import {
+  findScalingBookPrevNext,
+  getScalingBookChapters,
+  SCALING_BOOK_REPOSITORY_URL,
+  SCALING_BOOK_SHORT_TITLE,
+  type ScalingBookEntry,
+} from '../../lib/content/scalingBook';
+
+export async function getStaticPaths() {
+  const chapters = await getScalingBookChapters();
+  return chapters.map((chapter) => ({
+    params: { chapter: chapter.slug },
+    props: { chapter, chapters },
+  }));
+}
+
+interface Props {
+  chapter: ScalingBookEntry;
+  chapters: ScalingBookEntry[];
+}
+
+const { chapter, chapters } = Astro.props;
+const { Content, headings } = await chapter.render();
+const cleanHeadings = headings.map((heading) => ({
+  ...heading,
+  text: heading.text.replace(/\s*¶\s*$/, ''),
+}));
+const tocHeadings = cleanHeadings.filter((heading) => heading.depth >= 2 && heading.depth <= 3);
+const hasToc = tocHeadings.length > 0;
+const stats = getReadingTime(chapter.body);
+const { prev, next } = findScalingBookPrevNext(chapters, chapter.slug);
+const BASE = normalizeBase(import.meta.env.BASE_URL);
+const bookBase = `${BASE}scaling-book/`;
+const columnsUrl = `${BASE}${COLUMNS_INDEX_PATH.slice(1)}`;
+const chapterLabel = chapter.data.chapter === 0 ? '导论' : `第 ${chapter.data.chapter} 章`;
+const sourceUrl = `${SCALING_BOOK_REPOSITORY_URL}/blob/${chapter.data.sourceCommit}/${chapter.data.sourcePath}`;
+---
+
+<Layout
+  title={`${chapter.data.title}｜${SCALING_BOOK_SHORT_TITLE}`}
+  description={chapter.data.description}
+>
+  <ReadingProgress />
+  <Header />
+  <main class="page-shell page-shell-mobile-fab-safe container mx-auto max-w-7xl px-4">
+    <div
+      class="page-stack lg:grid lg:grid-cols-[18rem_minmax(0,54rem)] lg:items-start lg:justify-center lg:gap-8"
+      data-book-layout
+    >
+      <BookSidebar chapters={chapters} currentSlug={chapter.slug} headings={cleanHeadings} />
+
+      <article
+        class="prose min-w-0 max-w-none dark:prose-invert prose-img:rounded-xl"
+        data-article
+        data-book-chapter
+      >
+        <header class="page-heading not-prose">
+          <nav class="text-sm text-zinc-500 dark:text-zinc-400" aria-label="面包屑导航">
+            <a href={columnsUrl} class="transition hover:text-sky-600 dark:hover:text-sky-400">
+              专栏
+            </a>
+            <span class="mx-2" aria-hidden="true">/</span>
+            <a href={bookBase} class="transition hover:text-sky-600 dark:hover:text-sky-400">
+              {SCALING_BOOK_SHORT_TITLE}
+            </a>
+            <span class="mx-2" aria-hidden="true">/</span>
+            <span aria-current="page">{chapterLabel}</span>
+          </nav>
+
+          <div
+            class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-zinc-200 bg-neutral-50/75 px-4 py-3 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/55 dark:text-zinc-400"
+          >
+            <span class="font-semibold text-zinc-800 dark:text-zinc-200">{chapterLabel}</span>
+            <span>{stats.wordCount} 字 · {stats.text}</span>
+            <a
+              href={sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="font-medium text-sky-700 transition hover:text-sky-800 dark:text-sky-300 dark:hover:text-sky-200"
+            >
+              查看本章英文源码 ↗
+            </a>
+          </div>
+        </header>
+
+        <Content />
+
+        <BookPrevNext prev={prev} next={next} />
+        <div id="page-bottom-anchor" aria-hidden="true" style="height: 1px;"></div>
+      </article>
+    </div>
+
+    {hasToc && <MobileToc headings={tocHeadings} showTrigger={false} />}
+    <FloatingActionStack enableToc={hasToc} />
+    <ScrollUpTopButton targetSelector="[data-book-chapter]" hasCompanionAction={hasToc} />
+  </main>
+  <Footer />
+</Layout>
+
+<style is:global>
+  [data-book-chapter] > span[id] {
+    display: block;
+    scroll-margin-top: calc(var(--site-header-height) + var(--page-space-top) + 0.75rem);
+  }
+
+  [data-book-chapter]
+    img:is(
+      [src$='/pointwise-product.gif'],
+      [src$='/roofline-plot-q3.png'],
+      [src$='/cores.png'],
+      [src$='/ici-wraparound.png'],
+      [src$='/challenge-problem.png'],
+      [src$='/systolic-array2.gif'],
+      [src$='/systolic-array-bad.gif'],
+      [src$='/sharding-colored1.png'],
+      [src$='/sharding-colored2.png'],
+      [src$='/sharding-colored3.png'],
+      [src$='/sharding-colored4.png'],
+      [src$='/sharding-colored6.png'],
+      [src$='/all-gather-bandwidth.png'],
+      [src$='/moe.png'],
+      [src$='/paged-attention.png'],
+      [src$='/batch-scaling-latency.png'],
+      [src$='/batch-scaling-throughput.png'],
+      [src$='/2d-weight-stationary.png'],
+      [src$='/tiling2.png'],
+      [src$='/blackwell-sm.png'],
+      [src$='/b200-node.png']
+    ) {
+    max-width: min(100%, 500px);
+    margin-inline: auto;
+  }
+
+  :root.dark
+    [data-book-chapter]
+    img[src$='/mixed-fsdp-comms-2.png'] {
+    padding: 0.75rem;
+    border: 1px solid rgb(63 63 70 / 0.9);
+    background: white;
+    box-shadow: 0 18px 40px rgb(0 0 0 / 0.22);
+  }
+
+  [data-book-chapter] a[href*='#ref-'] {
+    display: inline-block;
+    margin-inline: 0.08em;
+    font-size: 0.72em;
+    line-height: 1;
+    vertical-align: super;
+    white-space: nowrap;
+  }
+
+  [data-book-chapter] details {
+    margin-block: 1.5rem;
+    overflow: hidden;
+    border: 1px solid rgb(212 212 216 / 0.9);
+    border-radius: 0.9rem;
+    background: rgb(250 250 250 / 0.72);
+    padding: 0.9rem 1rem;
+  }
+
+  :root.dark [data-book-chapter] details {
+    border-color: rgb(63 63 70 / 0.9);
+    background: rgb(24 24 27 / 0.58);
+  }
+
+  [data-book-chapter] details > summary {
+    cursor: pointer;
+    font-weight: 650;
+    color: rgb(3 105 161);
+  }
+
+  :root.dark [data-book-chapter] details > summary {
+    color: rgb(125 211 252);
+  }
+
+  [data-book-chapter] .algorithm {
+    margin-block: 1.5rem;
+    border: 1px dashed rgb(14 116 144 / 0.55);
+    border-radius: 0.9rem;
+    background: rgb(236 254 255 / 0.55);
+    padding: 1rem 1.1rem;
+  }
+
+  :root.dark [data-book-chapter] .algorithm {
+    border-color: rgb(34 211 238 / 0.4);
+    background: rgb(8 51 68 / 0.25);
+  }
+
+  [data-book-chapter] .algorithm > :first-child {
+    margin-top: 0;
+  }
+
+  [data-book-chapter] .algorithm > :last-child {
+    margin-bottom: 0;
+  }
+
+  [data-book-chapter] .scaling-book-plotly {
+    width: 100%;
+    margin-block: 2rem;
+    overflow: hidden;
+    border: 1px solid rgb(212 212 216 / 0.9);
+    border-radius: 1rem;
+    background: white;
+    box-shadow: 0 8px 24px rgb(24 24 27 / 0.08);
+  }
+
+  :root.dark [data-book-chapter] .scaling-book-plotly {
+    border-color: rgb(63 63 70 / 0.9);
+  }
+
+  [data-book-chapter] .scaling-book-plotly iframe {
+    display: block;
+    width: 100%;
+    height: min(70vh, 34rem);
+    min-height: 25rem;
+    border: 0;
+    background: white;
+  }
+
+  @media (max-width: 640px) {
+    [data-book-chapter] table th,
+    [data-book-chapter] table td {
+      overflow-wrap: normal;
+      word-break: normal;
+    }
+
+    [data-book-chapter] table th {
+      white-space: nowrap;
+    }
+
+    [data-book-chapter] .scaling-book-plotly {
+      height: 28rem;
+      min-height: 28rem;
+      aspect-ratio: auto !important;
+      overflow-x: auto;
+      overscroll-behavior-inline: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    [data-book-chapter] .scaling-book-plotly::before {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      display: flex;
+      width: 100%;
+      height: 2rem;
+      align-items: center;
+      padding-inline: 0.75rem;
+      background: rgb(244 244 245 / 0.96);
+      color: rgb(82 82 91);
+      content: '↔ 左右滑动查看完整交互图';
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    [data-book-chapter] .scaling-book-plotly iframe {
+      top: 2rem !important;
+      width: 48rem !important;
+      min-width: 48rem;
+      height: calc(100% - 2rem) !important;
+    }
+  }
+</style>

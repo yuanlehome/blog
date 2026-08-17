@@ -59,19 +59,23 @@ const {
 
     <style set:html={themeCSS}></style>
 
-    <style>
+    <style is:global>
       .heading-anchor {
         margin-left: 0.35rem;
         opacity: 0;
         text-decoration: none;
         transition: opacity 0.2s ease;
       }
+      .heading-anchor::before {
+        content: '¶';
+      }
       h1:hover .heading-anchor,
       h2:hover .heading-anchor,
       h3:hover .heading-anchor,
       h4:hover .heading-anchor,
       h5:hover .heading-anchor,
-      h6:hover .heading-anchor {
+      h6:hover .heading-anchor,
+      .heading-anchor:focus-visible {
         opacity: 0.65;
       }
     </style>

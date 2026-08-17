@@ -19,6 +19,9 @@ describe('Navigation Configuration', () => {
       expect(config.header).toBeDefined();
       expect(config.header.brandText).toBeDefined();
       expect(config.header.menuItems).toBeInstanceOf(Array);
+      expect(config.header.menuItems).toContainEqual(
+        expect.objectContaining({ label: 'Columns', href: '/columns/' }),
+      );
       expect(config.theme).toBeDefined();
     });
 

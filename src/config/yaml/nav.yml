@@ -12,6 +12,9 @@ header:
     - label: 'Home'
       href: '/'
       isExternal: false
+    - label: 'Columns'
+      href: '/columns/'
+      isExternal: false
     - label: 'Archive'
       href: '/archive/'
       isExternal: false

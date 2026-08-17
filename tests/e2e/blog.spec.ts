@@ -305,6 +305,7 @@ test.describe('Blog smoke journey', () => {
 
     const toc = page.locator('[data-mobile-toc][data-open="true"]');
     await expect(toc).toBeVisible();
+    await expect(toc).not.toContainText('¶');
 
     const tocLink = toc.locator('[data-mobile-toc-link]').first();
     await expect(tocLink).toBeVisible();
@@ -562,6 +563,145 @@ test.describe('Blog smoke journey', () => {
     await tagsLink.click();
     await expect(page).toHaveURL(/\/tags\/$/);
     await expect(page.locator('h1')).toHaveText('Tags');
+  });
+
+  test('Scaling Book renders chapters, GIF assets, and an interactive Plotly figure', async ({
+    page,
+  }) => {
+    await page.goto('columns/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('[data-columns-index] h1')).toHaveText('专栏');
+    await expect(page.locator('header nav a[aria-current="page"]')).toHaveText('Columns');
+    await expect(page.locator('[data-column-card]')).toHaveCount(1);
+    const scalingBookCard = page.locator('[data-column-slug="scaling-book"]');
+    await expect(scalingBookCard).toContainText('如何让模型高效扩展');
+    const columnCover = scalingBookCard.locator('img');
+    await expect
+      .poll(() => columnCover.evaluate((image) => (image as HTMLImageElement).naturalWidth))
+      .toBeGreaterThan(0);
+    await scalingBookCard.locator('a').first().click();
+    await expect(page).toHaveURL(/\/scaling-book\/$/);
+
+    await expect(page.locator('[data-book-index] h1')).toContainText('如何让模型高效扩展');
+    await expect(page.locator('[data-book-index] nav[aria-label="面包屑导航"] a')).toHaveText(
+      '专栏',
+    );
+    await expect(page.locator('header nav a[aria-current="page"]')).toHaveText('Columns');
+    await expect(page.locator('section[aria-labelledby="chapters-heading"] ol > li')).toHaveCount(
+      13,
+    );
+
+    await page.goto('scaling-book/03-sharding/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('[data-book-chapter]')).toBeVisible();
+    await expect(page.locator('[data-book-chapter] h1').first()).toContainText('分片矩阵及其乘法');
+
+    const animatedCollective = page.locator(
+      '[data-book-chapter] img[src$="/images/scaling-book/img/all-gather.gif"]',
+    );
+    await animatedCollective.scrollIntoViewIfNeeded();
+    await expect(animatedCollective).toBeVisible();
+    await expect
+      .poll(() => animatedCollective.evaluate((image) => (image as HTMLImageElement).naturalWidth))
+      .toBeGreaterThan(0);
+
+    await page.goto('scaling-book/05-training/', { waitUntil: 'domcontentloaded' });
+    const plotFrame = page.locator('iframe[title="训练 Roofline 交互图"]');
+    await plotFrame.scrollIntoViewIfNeeded();
+    await expect(plotFrame).toBeVisible();
+    await expect(
+      page.frameLocator('iframe[title="训练 Roofline 交互图"]').locator('.plotly-graph-div'),
+    ).toBeVisible({ timeout: 30_000 });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('scaling-book/08-llama3-inference/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('[data-book-sidebar] details')).toBeVisible();
+    const viewportWidths = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+    }));
+    expect(viewportWidths.scrollWidth).toBeLessThanOrEqual(viewportWidths.clientWidth + 1);
+
+    await page.goto('columns/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('[data-column-slug="scaling-book"]')).toBeVisible();
+    const columnsViewportWidths = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+    }));
+    expect(columnsViewportWidths.scrollWidth).toBeLessThanOrEqual(
+      columnsViewportWidths.clientWidth + 1,
+    );
+  });
+
+  test('every Scaling Book chapter renders cleanly on desktop and mobile', async ({ page }) => {
+    const chapters = [
+      '00-introduction',
+      '01-roofline',
+      '02-tpus',
+      '03-sharding',
+      '04-transformers',
+      '05-training',
+      '06-llama3-training',
+      '07-inference',
+      '08-llama3-inference',
+      '09-profiling',
+      '10-jax',
+      '11-conclusion',
+      '12-gpus',
+    ];
+
+    for (const chapter of chapters) {
+      await page.goto(`scaling-book/${chapter}/`, { waitUntil: 'domcontentloaded' });
+      const chapterRoot = page.locator('[data-book-chapter]');
+      await expect(chapterRoot).toBeVisible();
+      await expect(chapterRoot.locator('.katex-error')).toHaveCount(0);
+      await expect(chapterRoot.locator('[aria-label="翻译与许可说明"]')).toHaveCount(0);
+
+      const renderingState = await chapterRoot.evaluate((root) => {
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        const rawMarkdown: string[] = [];
+        let node: Node | null;
+
+        while ((node = walker.nextNode())) {
+          const parent = node.parentElement;
+          if (!parent || parent.closest('pre, code, .katex, svg, script, style')) continue;
+          const value = node.nodeValue ?? '';
+          const trimmed = value.trim();
+          if (
+            value.includes('**') ||
+            /[\u3400-\u9fff]_[^_\n]+_|_[^_\n]+_[\u3400-\u9fff]/.test(value) ||
+            /\*[\u3400-\u9fff]/.test(value) ||
+            (/^\|/.test(trimmed) && /\|$/.test(trimmed))
+          ) {
+            rawMarkdown.push(trimmed);
+          }
+        }
+
+        const firstAnchor = root.querySelector<HTMLElement>('.heading-anchor');
+        return {
+          rawMarkdown,
+          headingAnchorOpacity: firstAnchor ? getComputedStyle(firstAnchor).opacity : null,
+        };
+      });
+
+      expect(renderingState.rawMarkdown).toEqual([]);
+      expect(renderingState.headingAnchorOpacity).toBe('0');
+    }
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    for (const chapter of chapters) {
+      await page.goto(`scaling-book/${chapter}/`, { waitUntil: 'domcontentloaded' });
+      const viewportWidths = await page.evaluate(() => ({
+        clientWidth: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+      }));
+      expect(viewportWidths.scrollWidth).toBeLessThanOrEqual(viewportWidths.clientWidth + 1);
+    }
+
+    await page.goto('scaling-book/', { waitUntil: 'domcontentloaded' });
+    const bookIndexWidths = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.body.scrollWidth,
+    }));
+    expect(bookIndexWidths.scrollWidth).toBeLessThanOrEqual(bookIndexWidths.clientWidth + 1);
   });
 
   test('clicking tag navigates to tag page', async ({ page }) => {

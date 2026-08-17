@@ -10,9 +10,10 @@
     ".astro/**",
 
     "src/content/blog/*/**",
+    "src/content/scalingBook/**",
     "public/images/*/**",
     "README.md",
     "tests/fixtures",
-    "test-results/**"
-  ]
+    "test-results/**",
+  ],
 }

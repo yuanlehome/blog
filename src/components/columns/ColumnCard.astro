@@ -1,0 +1,75 @@
+---
+import type { ColumnDefinition } from '../../lib/content/columns';
+import { normalizeBase } from '../../lib/slug';
+
+interface Props {
+  column: ColumnDefinition;
+}
+
+const { column } = Astro.props;
+const BASE = normalizeBase(import.meta.env.BASE_URL);
+const columnUrl = `${BASE}${column.href.slice(1)}`;
+const coverUrl = `${BASE}${column.coverImage.slice(1)}`;
+---
+
+<article data-column-card data-column-slug={column.slug}>
+  <a
+    href={columnUrl}
+    class="group grid overflow-hidden rounded-3xl border border-zinc-200 bg-neutral-50/75 shadow-md transition duration-200 hover:-translate-y-0.5 hover:border-sky-400 hover:shadow-xl dark:border-zinc-800 dark:bg-zinc-900/55 dark:hover:border-sky-600 lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)]"
+  >
+    <div class="p-6 sm:p-8">
+      <div class="flex flex-wrap items-center gap-3">
+        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700 dark:text-sky-300">
+          {column.eyebrow}
+        </p>
+        <span
+          class="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+        >
+          {column.statusLabel}
+        </span>
+      </div>
+
+      <h2
+        class="mt-4 text-2xl font-bold leading-tight text-zinc-950 transition group-hover:text-sky-700 dark:text-zinc-50 dark:group-hover:text-sky-300 sm:text-3xl"
+      >
+        {column.title}
+      </h2>
+      <p class="mt-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+        {column.shortTitle}
+      </p>
+      <p class="mt-4 max-w-3xl text-base leading-7 text-zinc-700 dark:text-zinc-300">
+        {column.description}
+      </p>
+
+      <ul class="mt-5 flex flex-wrap gap-2" aria-label="专栏主题">
+        {
+          column.topics.map((topic) => (
+            <li class="rounded-full border border-zinc-200 bg-white/80 px-3 py-1 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950/60 dark:text-zinc-300">
+              {topic}
+            </li>
+          ))
+        }
+      </ul>
+
+      <div class="mt-7 flex justify-end">
+        <span class="text-sm font-semibold text-sky-700 dark:text-sky-300">进入专栏 →</span>
+      </div>
+    </div>
+
+    <figure
+      class="relative min-h-64 overflow-hidden border-t border-zinc-200 bg-gradient-to-br from-sky-100 via-white to-violet-100 dark:border-zinc-800 dark:from-sky-950/70 dark:via-zinc-950 dark:to-violet-950/60 lg:min-h-full lg:border-l lg:border-t-0"
+    >
+      <img
+        src={coverUrl}
+        alt={column.coverAlt}
+        width={column.coverWidth}
+        height={column.coverHeight}
+        loading="lazy"
+        class="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+      />
+      <span
+        class="pointer-events-none absolute inset-0 bg-gradient-to-t from-zinc-950/20 via-transparent to-white/10 dark:from-zinc-950/45 dark:to-transparent"
+        aria-hidden="true"></span>
+    </figure>
+  </a>
+</article>

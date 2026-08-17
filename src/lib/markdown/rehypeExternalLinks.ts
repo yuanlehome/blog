@@ -19,6 +19,8 @@ const rehypeExternalLinks: Plugin<[Options?]> = (options = {}) => {
         !href ||
         href.startsWith('#') ||
         href.startsWith('/') ||
+        href.startsWith('./') ||
+        href.startsWith('../') ||
         href.startsWith(import.meta.env.BASE_URL)
       ) {
         return;

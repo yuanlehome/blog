@@ -29,7 +29,11 @@ export async function getStaticPaths() {
 
 const { post, all } = Astro.props;
 const { Content, headings } = await post.render();
-const tocHeadings = headings.filter((heading) => heading.depth >= 2 && heading.depth <= 3);
+const cleanHeadings = headings.map((heading) => ({
+  ...heading,
+  text: heading.text.replace(/\s*¶\s*$/, ''),
+}));
+const tocHeadings = cleanHeadings.filter((heading) => heading.depth >= 2 && heading.depth <= 3);
 const hasToc = tocHeadings.length > 0;
 const stats = getReadingTime(post.body);
 const { prev, next } = findPrevNext(all, post.slug);

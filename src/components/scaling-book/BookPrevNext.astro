@@ -1,0 +1,51 @@
+---
+import type { ScalingBookEntry } from '../../lib/content/scalingBook';
+import { normalizeBase } from '../../lib/slug';
+
+interface Props {
+  prev?: ScalingBookEntry;
+  next?: ScalingBookEntry;
+}
+
+const { prev, next } = Astro.props;
+const BASE = normalizeBase(import.meta.env.BASE_URL);
+const bookBase = `${BASE}scaling-book/`;
+---
+
+<nav class="not-prose mt-12 grid gap-4 sm:grid-cols-2" aria-label="相邻章节">
+  {
+    prev ? (
+      <a
+        href={`${bookBase}${prev.slug}/`}
+        class="group rounded-xl border border-zinc-200 bg-neutral-50/70 p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-sky-400 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900/50 dark:hover:border-sky-600"
+      >
+        <span class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+          ← 上一章
+        </span>
+        <span class="mt-2 block font-semibold text-zinc-900 group-hover:text-sky-700 dark:text-zinc-100 dark:group-hover:text-sky-300">
+          {prev.data.title}
+        </span>
+      </a>
+    ) : (
+      <span />
+    )
+  }
+
+  {
+    next ? (
+      <a
+        href={`${bookBase}${next.slug}/`}
+        class="group rounded-xl border border-zinc-200 bg-neutral-50/70 p-4 text-right shadow-sm transition hover:-translate-y-0.5 hover:border-sky-400 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900/50 dark:hover:border-sky-600"
+      >
+        <span class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+          下一章 →
+        </span>
+        <span class="mt-2 block font-semibold text-zinc-900 group-hover:text-sky-700 dark:text-zinc-100 dark:group-hover:text-sky-300">
+          {next.data.title}
+        </span>
+      </a>
+    ) : (
+      <span />
+    )
+  }
+</nav>

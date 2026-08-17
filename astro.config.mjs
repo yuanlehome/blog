@@ -12,9 +12,11 @@ import rehypePrettyCode from './src/lib/markdown/rehypePrettyCode';
 import rehypeMermaid from './src/lib/markdown/rehypeMermaid';
 import rehypeHeadingLinks from './src/lib/markdown/rehypeHeadingLinks';
 import rehypeExternalLinks from './src/lib/markdown/rehypeExternalLinks';
+import rehypeLocalizedFootnotes from './src/lib/markdown/rehypeLocalizedFootnotes';
 
 const siteBase = process.env.SITE_BASE ?? (process.env.NODE_ENV === 'production' ? '/blog' : '/');
 const siteUrl = process.env.SITE_URL ?? 'https://yuanlehome.github.io/blog/';
+const externalLinkOptions = { target: '_blank', rel: ['noopener', 'noreferrer'] };
 
 // https://astro.build/config
 export default defineConfig({
@@ -37,8 +39,9 @@ export default defineConfig({
       rehypeKatex,
       rehypeMermaid,
       rehypePrettyCode,
+      rehypeLocalizedFootnotes,
       rehypeHeadingLinks,
-      [rehypeExternalLinks, { target: '_blank', rel: ['noopener', 'noreferrer'] }],
+      [rehypeExternalLinks, externalLinkOptions],
     ],
     syntaxHighlight: false,
   },

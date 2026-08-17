@@ -63,6 +63,7 @@ export const defaultNavConfig: NavConfig = {
     brandLogo: undefined,
     menuItems: [
       { label: 'Home', href: '/', isExternal: false },
+      { label: 'Columns', href: '/columns/', isExternal: false },
       { label: 'Archive', href: '/archive/', isExternal: false },
       { label: 'About', href: '/about/', isExternal: false },
     ],

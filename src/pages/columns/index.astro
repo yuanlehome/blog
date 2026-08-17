@@ -1,0 +1,38 @@
+---
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import ColumnCard from '../../components/columns/ColumnCard.astro';
+import Layout from '../../layouts/Layout.astro';
+import { COLUMN_CATALOG } from '../../lib/content/columns';
+---
+
+<Layout
+  title="专栏 | Yuanle Liu"
+  description="围绕一个主题持续整理的深度内容合集，包括完整译著、系统教程与系列文章。"
+>
+  <Header />
+  <main class="page-shell container mx-auto max-w-5xl px-4" data-columns-index>
+    <header class="page-heading max-w-3xl">
+      <p class="text-sm font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">
+        Columns
+      </p>
+      <h1
+        class="mt-3 text-4xl font-bold tracking-tight text-zinc-950 dark:text-zinc-50 sm:text-5xl"
+      >
+        专栏
+      </h1>
+    </header>
+
+    <section class="page-stack" aria-labelledby="columns-heading">
+      <h2 id="columns-heading" class="sr-only">全部专栏</h2>
+      {COLUMN_CATALOG.map((column) => <ColumnCard column={column} />)}
+    </section>
+
+    <aside
+      class="mt-8 rounded-2xl border border-dashed border-zinc-300 px-5 py-4 text-sm leading-6 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+    >
+      后续还会加入更多围绕模型系统、工程实践与基础设施的深度系列。
+    </aside>
+  </main>
+  <Footer />
+</Layout>

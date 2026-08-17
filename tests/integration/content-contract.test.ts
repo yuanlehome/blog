@@ -16,6 +16,11 @@ describe('content frontmatter contracts', () => {
     return (collections as any).blog.schema as { parse: (value: unknown) => unknown };
   }
 
+  async function getScalingBookSchema() {
+    const { collections } = await import('../../src/content/config');
+    return (collections as any).scalingBook.schema as { parse: (value: unknown) => unknown };
+  }
+
   it('accepts Notion-synced frontmatter shape', async () => {
     const schema = await getBlogSchema();
 
@@ -66,5 +71,22 @@ describe('content frontmatter contracts', () => {
     };
 
     expect(() => schema.parse(invalidFrontmatter)).toThrow();
+  });
+
+  it('accepts the dedicated Scaling Book chapter frontmatter', async () => {
+    const schema = await getScalingBookSchema();
+
+    const chapterFrontmatter = {
+      title: 'Roofline 模型详解',
+      description: '从计算与带宽两个方向估算算子性能。',
+      chapter: 1,
+      order: 1,
+      part: 1,
+      partTitle: 'Roofline 模型详解',
+      sourcePath: 'docs/part1.md',
+      sourceCommit: '44109cacac9c5a9809a81c68ae4d45d7d2632ea6',
+    };
+
+    expect(() => schema.parse(chapterFrontmatter)).not.toThrow();
   });
 });

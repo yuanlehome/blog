@@ -1,0 +1,190 @@
+---
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import Layout from '../../layouts/Layout.astro';
+import { normalizeBase } from '../../lib/slug';
+import { COLUMNS_INDEX_PATH } from '../../lib/content/columns';
+import {
+  SCALING_BOOK_AUTHORS,
+  SCALING_BOOK_CHAPTER_CONTRIBUTORS,
+  getScalingBookChapters,
+  SCALING_BOOK_REFERENCES,
+  SCALING_BOOK_SHORT_TITLE,
+  SCALING_BOOK_SOURCE_URL,
+  SCALING_BOOK_TITLE,
+} from '../../lib/content/scalingBook';
+
+const chapters = await getScalingBookChapters();
+const BASE = normalizeBase(import.meta.env.BASE_URL);
+const bookBase = `${BASE}scaling-book/`;
+const columnsUrl = `${BASE}${COLUMNS_INDEX_PATH.slice(1)}`;
+const firstChapter = chapters[0];
+
+const chapterLabel = (chapter: (typeof chapters)[number]) =>
+  chapter.data.chapter === 0 ? '导论' : `第 ${chapter.data.chapter} 章`;
+---
+
+<Layout
+  title={SCALING_BOOK_TITLE}
+  description="《How to Scale Your Model》完整中文翻译：从 Roofline、TPU 与分片矩阵，到 Transformer 训练、推理、JAX 性能分析和 GPU。"
+>
+  <Header />
+  <main class="page-shell container mx-auto max-w-5xl px-4" data-book-index>
+    <section
+      class="overflow-hidden rounded-3xl border border-sky-200/80 bg-gradient-to-br from-sky-50 via-neutral-50 to-violet-50 p-6 shadow-lg dark:border-sky-900/70 dark:from-sky-950/50 dark:via-zinc-900 dark:to-violet-950/40 sm:p-9"
+    >
+      <div class="max-w-3xl">
+        <nav
+          class="flex flex-wrap items-center gap-2 text-sm font-semibold text-sky-700 dark:text-sky-300"
+          aria-label="面包屑导航"
+        >
+          <a href={columnsUrl} class="transition hover:text-sky-900 dark:hover:text-sky-100">
+            专栏
+          </a>
+          <span aria-hidden="true">/</span>
+          <span aria-current="page">{SCALING_BOOK_SHORT_TITLE}</span>
+        </nav>
+        <h1
+          class="mt-4 text-3xl font-bold leading-tight text-zinc-950 dark:text-zinc-50 sm:text-5xl"
+        >
+          {SCALING_BOOK_TITLE}
+        </h1>
+        <p class="mt-5 text-base leading-8 text-zinc-700 dark:text-zinc-300 sm:text-lg">
+          从单个加速器一路讲到大规模集群：用统一的系统视角理解 Roofline、TPU、分片矩阵、Transformer
+          训练与推理、JAX 性能剖析，以及 GPU 架构。
+        </p>
+        <div class="mt-7 flex flex-wrap gap-3">
+          {
+            firstChapter && (
+              <a
+                href={`${bookBase}${firstChapter.slug}/`}
+                class="rounded-full bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:bg-sky-500 dark:hover:bg-sky-400"
+              >
+                从导论开始 →
+              </a>
+            )
+          }
+          <a
+            href={SCALING_BOOK_SOURCE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="rounded-full border border-zinc-300 bg-white/70 px-5 py-2.5 text-sm font-semibold text-zinc-800 transition hover:border-sky-400 hover:text-sky-700 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-200 dark:hover:border-sky-600 dark:hover:text-sky-300"
+          >
+            查看英文原书 ↗
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="mt-12" aria-labelledby="chapters-heading">
+      <div>
+        <p class="text-sm font-medium text-sky-700 dark:text-sky-300">目录</p>
+        <h2 id="chapters-heading" class="mt-1 text-2xl font-bold sm:text-3xl">按章节阅读</h2>
+      </div>
+
+      <ol class="mt-6 grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2">
+        {
+          chapters.map((chapter) => (
+            <li class="min-w-0">
+              <a
+                href={`${bookBase}${chapter.slug}/`}
+                class="group flex h-full min-w-0 gap-4 rounded-2xl border border-zinc-200 bg-neutral-50/70 p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-sky-400 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900/50 dark:hover:border-sky-600"
+              >
+                <span class="flex h-10 min-w-10 items-center justify-center rounded-xl bg-sky-100 px-2 text-xs font-bold text-sky-800 dark:bg-sky-950 dark:text-sky-300">
+                  {chapter.data.chapter}
+                </span>
+                <span class="min-w-0">
+                  <span class="block text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    {chapterLabel(chapter)}
+                  </span>
+                  <span class="mt-1 block font-semibold leading-snug text-zinc-900 group-hover:text-sky-700 dark:text-zinc-100 dark:group-hover:text-sky-300">
+                    {chapter.data.title}
+                  </span>
+                  <span class="mt-2 block text-sm leading-6 text-zinc-600 [overflow-wrap:anywhere] dark:text-zinc-400">
+                    {chapter.data.description}
+                  </span>
+                </span>
+              </a>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+    <section class="mt-12" aria-labelledby="authors-heading">
+      <p class="text-sm font-medium text-sky-700 dark:text-sky-300">原书署名</p>
+      <h2 id="authors-heading" class="mt-1 text-2xl font-bold">作者与章节贡献者</h2>
+      <p class="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+        第 0—11 章的共同署名如下；第 10 章与第 12 章的特有署名另列于后。
+      </p>
+      <div class="mt-5 flex flex-wrap gap-2">
+        {
+          SCALING_BOOK_AUTHORS.map((author) => (
+            <a
+              href={author.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="rounded-full border border-zinc-200 bg-neutral-50 px-3 py-1.5 text-sm text-zinc-700 transition hover:border-sky-400 hover:text-sky-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-sky-600 dark:hover:text-sky-300"
+            >
+              {author.name}
+            </a>
+          ))
+        }
+      </div>
+      <div class="mt-4 space-y-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+        {
+          SCALING_BOOK_CHAPTER_CONTRIBUTORS.map((credit) => (
+            <p>
+              {credit.chapter === 12
+                ? '第 12 章按该章原文单独署名：'
+                : `第 ${credit.chapter} 章另署名：`}
+              {credit.authors.map((author, index) => (
+                <>
+                  {index > 0 && '、'}
+                  <a
+                    href={author.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="font-medium text-sky-700 underline underline-offset-2 dark:text-sky-300"
+                  >
+                    {author.name}
+                  </a>
+                </>
+              ))}
+              {credit.affiliation && `。${credit.affiliation}`}
+            </p>
+          ))
+        }
+      </div>
+    </section>
+
+    <section class="mt-12" aria-labelledby="references-heading">
+      <h2 id="references-heading" class="text-2xl font-bold">参考文献</h2>
+      <ol class="mt-5 space-y-3 text-sm leading-6 text-zinc-700 dark:text-zinc-300">
+        {
+          SCALING_BOOK_REFERENCES.map((reference) => (
+            <li
+              id={`ref-${reference.key}`}
+              class="scroll-mt-28 rounded-xl border border-zinc-200 px-4 py-3 dark:border-zinc-800"
+            >
+              <span class="font-mono text-xs text-zinc-500 dark:text-zinc-400">
+                [{reference.key}]
+              </span>{' '}
+              <span>{reference.authors}</span>.{' '}
+              <a
+                href={reference.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="font-medium text-sky-700 underline decoration-sky-300 underline-offset-2 dark:text-sky-300"
+              >
+                {reference.title}
+              </a>
+              . <span>{reference.year}</span>.
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+  </main>
+  <Footer />
+</Layout>

@@ -35,4 +35,17 @@ const blog = defineCollection({
   }),
 });
 
-export const collections = { blog };
+const scalingBook = defineCollection({
+  schema: z.object({
+    title: z.string(),
+    description: z.string(),
+    chapter: z.number().int().min(0).max(12),
+    order: z.number().int().min(0).max(12),
+    part: z.number().int().min(0).max(12),
+    partTitle: z.string(),
+    sourcePath: z.string(),
+    sourceCommit: z.string().regex(/^[0-9a-f]{40}$/),
+  }),
+});
+
+export const collections = { blog, scalingBook };

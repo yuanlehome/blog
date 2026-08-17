@@ -13,7 +13,9 @@ const rehypeHeadingLinks: Plugin = () => {
       if (!/^h[1-6]$/.test(node.tagName)) return;
       const text = extractText(node).trim();
       if (!text) return;
-      const id = slugger.slug(text, false);
+      const generatedId = slugger.slug(text, false);
+      const existingId = typeof node.properties?.id === 'string' ? node.properties.id : '';
+      const id = existingId || generatedId;
       node.properties = { ...(node.properties || {}), id };
 
       const anchor: Element = {
@@ -24,7 +26,7 @@ const rehypeHeadingLinks: Plugin = () => {
           className: ['heading-anchor'],
           ariaLabel: `Link to ${text}`,
         },
-        children: [{ type: 'text', value: '¶' }],
+        children: [],
       };
 
       node.children = [...(node.children || []), anchor];
