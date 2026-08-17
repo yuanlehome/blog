@@ -18,7 +18,11 @@ const chapterLabel = (chapter: ScalingBookEntry) =>
   chapter.data.chapter === 0 ? '导论' : `第 ${chapter.data.chapter} 章`;
 ---
 
-<div class="min-w-0" data-book-sidebar>
+<div
+  class="min-w-0 lg:sticky lg:self-start"
+  style="top: calc(var(--site-header-height) + var(--page-space-top, 0px));"
+  data-book-sidebar
+>
   <details
     class="rounded-xl border border-zinc-200 bg-neutral-50/80 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/60 lg:hidden"
   >
@@ -53,12 +57,10 @@ const chapterLabel = (chapter: ScalingBookEntry) =>
     </nav>
   </details>
 
-  <aside
-    class="hidden lg:sticky lg:block lg:self-start"
-    style="top: calc(var(--site-header-height) + var(--page-space-top)); max-height: calc(100dvh - var(--site-header-height) - var(--page-space-top) - 1rem);"
-  >
+  <aside class="hidden lg:block">
     <div
       class="flex max-h-[inherit] flex-col overflow-hidden rounded-xl border border-zinc-200 bg-neutral-50/85 shadow-md backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/60"
+      style="max-height: calc(100dvh - var(--site-header-height) - var(--page-space-top, 0px) - 1rem);"
     >
       <div class="border-b border-zinc-200 px-4 py-4 dark:border-zinc-800">
         <a

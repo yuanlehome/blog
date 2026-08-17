@@ -594,6 +594,23 @@ test.describe('Blog smoke journey', () => {
     await expect(page.locator('[data-book-chapter]')).toBeVisible();
     await expect(page.locator('[data-book-chapter] h1').first()).toContainText('分片矩阵及其乘法');
 
+    const bookSidebar = page.locator('[data-book-sidebar]');
+    await expect(bookSidebar.locator('aside')).toBeVisible();
+    const stickyState = await bookSidebar.evaluate((sidebar) => {
+      document.documentElement.style.scrollBehavior = 'auto';
+      window.scrollTo(0, 6000);
+      const sidebarStyle = getComputedStyle(sidebar);
+      return {
+        scrollY: window.scrollY,
+        position: sidebarStyle.position,
+        top: sidebar.getBoundingClientRect().top,
+        expectedTop: Number.parseFloat(sidebarStyle.top),
+      };
+    });
+    expect(stickyState.scrollY).toBeGreaterThan(1000);
+    expect(stickyState.position).toBe('sticky');
+    expect(stickyState.top).toBeCloseTo(stickyState.expectedTop, 1);
+
     const animatedCollective = page.locator(
       '[data-book-chapter] img[src$="/images/scaling-book/img/all-gather.gif"]',
     );
