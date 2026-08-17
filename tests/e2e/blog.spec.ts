@@ -409,8 +409,16 @@ test.describe('Blog smoke journey', () => {
     const topButton = page.locator('[data-scroll-up-top-button]');
     await expect(topButton).toHaveAttribute('data-visible', 'false');
 
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    await page.waitForTimeout(200);
+    await page.evaluate(() => {
+      document.documentElement.style.scrollBehavior = 'auto';
+      window.scrollTo(0, document.documentElement.scrollHeight);
+    });
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
     await expect(topButton).toHaveAttribute('data-visible', 'false');
 
     await page.evaluate(() => window.scrollBy(0, -200));
@@ -571,7 +579,20 @@ test.describe('Blog smoke journey', () => {
     await page.goto('columns/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('[data-columns-index] h1')).toHaveText('专栏');
     await expect(page.locator('header nav a[aria-current="page"]')).toHaveText('Columns');
-    await expect(page.locator('[data-column-card]')).toHaveCount(1);
+    await expect(page.locator('[data-column-card]')).toHaveCount(2);
+    const modernGpuCard = page.locator('[data-column-slug="modern-gpu-programming-for-mlsys"]');
+    await expect(modernGpuCard).toContainText('面向机器学习系统的现代 GPU 编程');
+    const modernGpuLink = modernGpuCard.locator('a').first();
+    await expect(modernGpuLink).toHaveAttribute(
+      'href',
+      'https://mlc.ai/modern-gpu-programming-for-mlsys/zh/',
+    );
+    await expect(modernGpuLink).toHaveAttribute('target', '_blank');
+    await expect(modernGpuLink).toHaveAttribute('rel', 'noopener noreferrer');
+    const modernGpuCover = modernGpuCard.locator('img');
+    await expect
+      .poll(() => modernGpuCover.evaluate((image) => (image as HTMLImageElement).naturalWidth))
+      .toBeGreaterThan(0);
     const scalingBookCard = page.locator('[data-column-slug="scaling-book"]');
     await expect(scalingBookCard).toContainText('如何让模型高效扩展');
     const columnCover = scalingBookCard.locator('img');

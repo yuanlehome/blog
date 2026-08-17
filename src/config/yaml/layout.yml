@@ -60,6 +60,9 @@ commonLinks:
       href: 'https://lmsys.org/blog/'
       description: 'AI Infra 系列博客'
       newTab: true
+    - label: 'How to Scale Your Model'
+      href: 'https://jax-ml.github.io/scaling-book/'
+      description: 'A Systems View of LLMs on TPUs'
     - label: 'Modern GPU Programming For MLSys'
       href: 'https://mlc.ai/modern-gpu-programming-for-mlsys/zh/index.html'
       description: '面向机器学习系统的现代 GPU 编程'

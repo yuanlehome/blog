@@ -38,6 +38,7 @@ function isMenuItemActive(item: { href: string; isExternal: boolean }): boolean 
 
   if (item.href === COLUMNS_INDEX_PATH) {
     const isColumnRoute = COLUMN_CATALOG.some((column) => {
+      if (column.isExternal) return false;
       const columnPath = `${BASE}${column.href.slice(1)}`;
       const normalizedColumn = columnPath.endsWith('/') ? columnPath : `${columnPath}/`;
       return normalizedCurrent.startsWith(normalizedColumn);
@@ -56,7 +57,7 @@ function isMenuItemActive(item: { href: string; isExternal: boolean }): boolean 
   >
     <a
       href={BASE}
-      class="text-xl font-bold hover:text-sky-600 dark:hover:text-sky-400 flex items-center gap-2"
+      class="text-xl font-bold hover:text-sky-600 dark:hover:text-sky-400 flex shrink-0 items-center gap-2"
     >
       {
         navConfig.header.brandLogo && (
@@ -71,7 +72,7 @@ function isMenuItemActive(item: { href: string; isExternal: boolean }): boolean 
       }
       <span class="hidden sm:inline">{navConfig.header.brandText}</span>
     </a>
-    <nav class={`flex ${itemsClass} gap-2 sm:gap-3 items-center`}>
+    <nav class={`flex ${itemsClass} items-center gap-1 text-sm sm:gap-3 sm:text-base`}>
       {
         navConfig.header.menuItems.map((item) => {
           const isActive = isMenuItemActive(item);
@@ -142,7 +143,10 @@ function isMenuItemActive(item: { href: string; isExternal: boolean }): boolean 
     iconSpan.style.lineHeight = '1';
     iconSpan.textContent = icon;
     button.appendChild(iconSpan);
-    button.appendChild(document.createTextNode(' ' + label));
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'hidden sm:inline';
+    labelSpan.textContent = label;
+    button.appendChild(labelSpan);
     button.setAttribute('aria-label', `Toggle theme (current: ${label})`);
   };
 

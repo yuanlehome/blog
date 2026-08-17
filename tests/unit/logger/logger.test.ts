@@ -7,12 +7,16 @@ import fs from 'fs';
 import { createLogger } from '../../../scripts/logger/logger';
 
 describe('Logger', () => {
+  const loggerEnvKeys = ['LOG_LEVEL', 'LOG_FORMAT', 'LOG_FILE', 'LOG_COLOR', 'LOG_SILENT'] as const;
   let originalEnv: NodeJS.ProcessEnv;
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     originalEnv = { ...process.env };
+    for (const key of loggerEnvKeys) {
+      delete process.env[key];
+    }
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
   });
