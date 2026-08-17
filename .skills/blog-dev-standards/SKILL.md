@@ -2,7 +2,8 @@
 name: blog-dev
 description: >
   为 yuanlehome/blog（Astro 静态博客）提供可复用的开发规范与执行流程，确保改动可落地、最小化、可验证、CI 必过。
-  Use this when users ask to add features, fix bugs, optimize UX, adjust rendering pipelines, modify scripts/workflows, or refactor code in the blog repo.
+  Use this when users ask to add features, fix bugs, optimize UX, adjust rendering pipelines, author or revise long-form technical
+  manuals, generate or export PDF deliverables, modify scripts/workflows, or refactor code in the blog repo.
 license: ISC (repo LICENSE) + project conventions in this file
 ---
 
@@ -17,6 +18,7 @@ license: ISC (repo LICENSE) + project conventions in this file
 - 新功能：主题/布局/侧边栏/TOC/图片交互/搜索/标签/评论/代码高亮/文章元信息等
 - 渲染链路：Mermaid、Markdown 插件、首图/封面识别、图片处理、暗黑模式可读性
 - 内容管线：Notion 同步、外部文章导入（知乎/微信/Medium/PDF/others）、删除文章、翻译/Markdown 修复
+- 长文交付：技术手册的分篇目录、代码原文保护、分页优化、PDF 导航与逐页视觉验收
 - CI/Workflow：GitHub Actions、质量门禁、部署、烟测、链接检查、PR Preview、自动修文
 - 性能/可靠性：滚动/事件监听、移动端触控、SSR/构建期稳定性、失败兜底
 
@@ -65,6 +67,19 @@ license: ISC (repo LICENSE) + project conventions in this file
 - 复用逻辑必须贴近业务域放置（feature 内部最小抽象）
 - 允许 Scripts 内部已有的共享工具文件（见 `scripts/README.md`）
 
+### 6) PDF 交付必须通过独立质量门禁
+
+任务只要包含 PDF 的创建、导出、转换、修复或正式交付，就必须同时使用 `$pdf-export-quality`，完整执行其导航、结构、链接、逐页视觉检查和正式文件复验流程。
+
+最低要求：
+
+- 区分纸面目录与阅读器书签树；长文两者不能互相替代。
+- 为多章节 PDF 写入层级书签，并设置 `/PageMode /UseOutlines`。
+- 验证纸面目录的内部链接、全部书签目标以及原有外部链接。
+- 将全部页面渲染为图片并逐页检查，不得只抽查代表页。
+- 候选 PDF 复制到正式路径后重新验证，并确认正式文件与已验收候选文件一致。
+- 用户要求只保留一个版本时，精确清理旧交付物及文档中的历史版本措辞。
+
 ---
 
 ## Canonical repo references (must follow)
@@ -110,7 +125,7 @@ license: ISC (repo LICENSE) + project conventions in this file
 
 必须做到：
 
-- 跑完：`npm run check && npm run lint && npm run test && npm run test:e2e && npm run ci`
+- 跑完：`npm run check && npm run lint && npm run format && npm run test && npm run test:e2e && npm run ci`
 - 手动验收：桌面 + 移动端、亮/暗主题、关键交互（关闭恢复滚动位置、Esc/遮罩点击等）
 - 若涉及配置：按 `docs/config-audit.md` 的“映射函数 + 单测”规范，避免硬编码遮蔽配置
 
@@ -153,6 +168,8 @@ license: ISC (repo LICENSE) + project conventions in this file
 - 参数/环境变量清晰可查；失败信息可定位
 - CI/Workflow 入参保持向后兼容（除非明确破坏性变更）
 
+涉及 PDF 输出时，再执行 `$pdf-export-quality`；网页或 Markdown 渲染成功不等于 PDF 已通过交付验收。
+
 ### D) 配置治理
 
 以 `docs/configuration.md` + `docs/config-audit.md` 为准：
@@ -160,6 +177,12 @@ license: ISC (repo LICENSE) + project conventions in this file
 - 配置必须通过映射函数消费，禁止硬编码遮蔽
 - 新增配置：同步补 schema 校验 + 映射函数 + 单测（覆盖枚举值）
 - 可用 `npm run config:audit` 做回归检查
+
+### E) 长文技术手册与 PDF 导出
+
+强制执行 `$pdf-export-quality`；该全局 Skill 是分篇单列目录、真实页码、用户指定代码原文保护、分页空白治理、逐页视觉检查和正式文件复验的唯一规范来源。
+
+本仓库只补充项目实现约束：复用现有 Markdown/PDF 渲染链路，保持最小改动面，并通过本 Skill 规定的仓库质量命令。
 
 ---
 
@@ -179,7 +202,8 @@ license: ISC (repo LICENSE) + project conventions in this file
 - [ ] 方案是最小改动面，且包含风险与回滚方式
 - [ ] 没有新增通用 utils 目录/文件
 - [ ] 文档改动（若有）是短小且任务相关的
-- [ ] 我已确保：`npm run check && npm run lint && npm run test && npm run test:e2e && npm run ci` 可通过
+- [ ] 若产生 PDF，我已使用 `$pdf-export-quality` 完成书签导航、全部页面视觉检查和正式文件复验
+- [ ] 我已确保：`npm run check && npm run lint && npm run format && npm run test && npm run test:e2e && npm run ci` 可通过
 - [ ] 我提供了：可执行步骤 + 文件级改动点 + 验收 checklist
 
 ---

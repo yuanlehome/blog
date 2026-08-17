@@ -38,3 +38,9 @@ artifacts/
 
 # Logger output
 .logs/
+
+# Local pnpm cache (the repository uses npm/package-lock.json)
+.pnpm-store/
+
+output/
+__pycache__
