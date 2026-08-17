@@ -8,13 +8,15 @@ interface Props {
 
 const { column } = Astro.props;
 const BASE = normalizeBase(import.meta.env.BASE_URL);
-const columnUrl = `${BASE}${column.href.slice(1)}`;
+const columnUrl = column.isExternal ? column.href : `${BASE}${column.href.slice(1)}`;
 const coverUrl = `${BASE}${column.coverImage.slice(1)}`;
 ---
 
 <article data-column-card data-column-slug={column.slug}>
   <a
     href={columnUrl}
+    target={column.isExternal ? '_blank' : undefined}
+    rel={column.isExternal ? 'noopener noreferrer' : undefined}
     class="group grid overflow-hidden rounded-3xl border border-zinc-200 bg-neutral-50/75 shadow-md transition duration-200 hover:-translate-y-0.5 hover:border-sky-400 hover:shadow-xl dark:border-zinc-800 dark:bg-zinc-900/55 dark:hover:border-sky-600 lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)]"
   >
     <div class="p-6 sm:p-8">
@@ -52,7 +54,9 @@ const coverUrl = `${BASE}${column.coverImage.slice(1)}`;
       </ul>
 
       <div class="mt-7 flex justify-end">
-        <span class="text-sm font-semibold text-sky-700 dark:text-sky-300">进入专栏 →</span>
+        <span class="text-sm font-semibold text-sky-700 dark:text-sky-300">
+          {column.isExternal ? '访问官方专栏 ↗' : '进入专栏 →'}
+        </span>
       </div>
     </div>
 

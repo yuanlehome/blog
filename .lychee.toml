@@ -33,4 +33,8 @@ skip_missing = true
 # ---------- 忽略噪声目录 ----------
 exclude_path = [
   "node_modules",
+  # These Markdown files use Astro route-relative links (for example,
+  # ../05-training/) rather than source-tree-relative file links. Their
+  # navigation and assets are covered by the build and book E2E suite.
+  "(^|/)src/content/scalingBook/",
 ]

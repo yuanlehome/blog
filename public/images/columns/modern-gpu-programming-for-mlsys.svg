@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-labelledby="title description">
+  <title id="title">Modern GPU Programming For MLSys</title>
+  <desc id="description">An abstract GPU composed of compute tiles, data paths, and a tensor core grid.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07111f" />
+      <stop offset="0.52" stop-color="#0b2740" />
+      <stop offset="1" stop-color="#14395a" />
+    </linearGradient>
+    <linearGradient id="signal" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#38bdf8" />
+      <stop offset="1" stop-color="#a78bfa" />
+    </linearGradient>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22d3ee" stop-opacity="0.95" />
+      <stop offset="1" stop-color="#6366f1" stop-opacity="0.8" />
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#7dd3fc" stroke-opacity="0.1" stroke-width="1" />
+    </pattern>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="10" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="675" fill="url(#background)" />
+  <rect width="1200" height="675" fill="url(#grid)" />
+  <circle cx="1070" cy="-30" r="330" fill="#0ea5e9" opacity="0.08" />
+  <circle cx="980" cy="650" r="280" fill="#8b5cf6" opacity="0.1" />
+
+  <g transform="translate(74 92)">
+    <rect x="0" y="0" width="602" height="491" rx="36" fill="#071725" stroke="#38bdf8" stroke-opacity="0.3" stroke-width="2" />
+    <rect x="30" y="30" width="542" height="431" rx="24" fill="#0b2134" stroke="#7dd3fc" stroke-opacity="0.18" />
+
+    <g fill="#0f334c" stroke="#38bdf8" stroke-opacity="0.38">
+      <rect x="58" y="62" width="132" height="88" rx="13" />
+      <rect x="206" y="62" width="132" height="88" rx="13" />
+      <rect x="354" y="62" width="160" height="88" rx="13" />
+      <rect x="58" y="166" width="132" height="88" rx="13" />
+      <rect x="206" y="166" width="308" height="88" rx="13" />
+      <rect x="58" y="270" width="280" height="158" rx="13" />
+      <rect x="354" y="270" width="160" height="158" rx="13" />
+    </g>
+
+    <g fill="url(#tile)" opacity="0.95">
+      <rect x="78" y="82" width="22" height="22" rx="4" />
+      <rect x="112" y="82" width="22" height="22" rx="4" />
+      <rect x="146" y="82" width="22" height="22" rx="4" />
+      <rect x="226" y="82" width="92" height="12" rx="6" />
+      <rect x="226" y="108" width="66" height="12" rx="6" opacity="0.65" />
+      <rect x="374" y="82" width="120" height="12" rx="6" />
+      <rect x="374" y="108" width="82" height="12" rx="6" opacity="0.65" />
+      <rect x="78" y="186" width="92" height="12" rx="6" />
+      <rect x="78" y="212" width="62" height="12" rx="6" opacity="0.65" />
+    </g>
+
+    <g transform="translate(228 188)">
+      <g fill="#22d3ee" opacity="0.86">
+        <rect x="0" y="0" width="32" height="32" rx="5" />
+        <rect x="44" y="0" width="32" height="32" rx="5" opacity="0.72" />
+        <rect x="88" y="0" width="32" height="32" rx="5" opacity="0.58" />
+        <rect x="132" y="0" width="32" height="32" rx="5" opacity="0.45" />
+        <rect x="176" y="0" width="32" height="32" rx="5" opacity="0.32" />
+        <rect x="220" y="0" width="32" height="32" rx="5" opacity="0.2" />
+      </g>
+    </g>
+
+    <g transform="translate(82 294)" fill="none" stroke="url(#signal)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
+      <path d="M0 97 H52 L82 38 L126 126 L166 74 H224" />
+      <circle cx="0" cy="97" r="7" fill="#38bdf8" stroke="none" />
+      <circle cx="224" cy="74" r="7" fill="#a78bfa" stroke="none" />
+    </g>
+
+    <g transform="translate(378 294)" fill="#7dd3fc">
+      <rect x="0" y="0" width="28" height="28" rx="5" opacity="0.95" />
+      <rect x="38" y="0" width="28" height="28" rx="5" opacity="0.72" />
+      <rect x="76" y="0" width="28" height="28" rx="5" opacity="0.48" />
+      <rect x="0" y="38" width="28" height="28" rx="5" opacity="0.72" />
+      <rect x="38" y="38" width="28" height="28" rx="5" opacity="0.95" />
+      <rect x="76" y="38" width="28" height="28" rx="5" opacity="0.72" />
+      <rect x="0" y="76" width="28" height="28" rx="5" opacity="0.48" />
+      <rect x="38" y="76" width="28" height="28" rx="5" opacity="0.72" />
+      <rect x="76" y="76" width="28" height="28" rx="5" opacity="0.95" />
+    </g>
+
+    <path d="M-24 92 H0 M-24 196 H0 M-24 350 H0 M602 124 H626 M602 246 H626 M602 402 H626" stroke="url(#signal)" stroke-width="8" stroke-linecap="round" />
+  </g>
+
+  <g transform="translate(728 132)" fill="#f8fafc">
+    <text x="0" y="0" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="22" font-weight="700" letter-spacing="5" fill="#7dd3fc">MODERN</text>
+    <text x="0" y="80" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="72" font-weight="800" letter-spacing="-3">GPU</text>
+    <text x="0" y="144" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="54" font-weight="750" letter-spacing="-2">PROGRAMMING</text>
+    <rect x="0" y="178" width="350" height="4" rx="2" fill="url(#signal)" />
+    <text x="0" y="235" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="28" font-weight="650" letter-spacing="4" fill="#cbd5e1">FOR MLSYS</text>
+    <text x="0" y="330" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" font-weight="600" letter-spacing="2" fill="#94a3b8">BLACKWELL  ·  TIRx</text>
+    <text x="0" y="366" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" font-weight="600" letter-spacing="2" fill="#94a3b8">GEMM  ·  ATTENTION</text>
+  </g>
+</svg>
